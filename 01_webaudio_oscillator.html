@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Web Audio API – Oscillator Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      color: #212121;
+      background: #fff;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px 48px;
+    }
+
+    /* ── Header ── */
+    .nb-header {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      border-bottom: 2px solid #e0e0e0;
+      padding: 16px 0;
+      margin-bottom: 32px;
+    }
+    .nb-header img {
+      width: 120px;
+      border-radius: 12px;
+      flex-shrink: 0;
+    }
+    .nb-header h1 { font-size: 1.6rem; margin-bottom: 4px; }
+    .nb-header h2 { font-size: 1.1rem; font-weight: 400; margin-bottom: 8px; color: #444; }
+    .nb-header p  { font-size: 0.92rem; margin-bottom: 2px; }
+    .nb-header a  { color: #1a73e8; text-decoration: none; }
+    .nb-header a:hover { text-decoration: underline; }
+
+    /* ── Pill buttons ── */
+    .pills { margin: 12px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill {
+      display: inline-block;
+      padding: 6px 14px;
+      border: 1px solid #1a73e8;
+      border-radius: 20px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.92rem;
+      color: #1a73e8;
+      transition: background 0.15s, color 0.15s;
+    }
+    .pill:hover { background: #1a73e8; color: #fff; }
+
+    /* ── Section headings ── */
+    h2.section { font-size: 1.3rem; margin: 40px 0 12px; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 36px 0; }
+    p  { margin-bottom: 12px; }
+
+    /* ── Demo card ── */
+    .demo-card {
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin: 24px 0;
+    }
+    .demo-card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: #444;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Controls ── */
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+    .control-row label {
+      min-width: 120px;
+      font-weight: 500;
+      font-size: 0.95rem;
+    }
+    .control-row input[type=range] {
+      flex: 1;
+      min-width: 160px;
+      accent-color: #1a73e8;
+    }
+    .control-row select {
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      background: #fff;
+    }
+    .value-badge {
+      min-width: 64px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.92rem;
+      color: #555;
+    }
+
+    /* ── Buttons ── */
+    .btn-row { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+    .btn {
+      padding: 10px 28px;
+      border: none;
+      border-radius: 24px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-start  { background: #1a73e8; color: #fff; }
+    .btn-stop   { background: #e53935; color: #fff; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── Canvas ── */
+    canvas {
+      display: block;
+      width: 100%;
+      height: 120px;
+      border-radius: 8px;
+      background: #1e1e2e;
+      margin-top: 20px;
+    }
+
+    /* ── Footer ── */
+    .nb-footer {
+      text-align: center;
+      padding: 18px 0 8px;
+      margin-top: 48px;
+      border-top: 2px solid #e0e0e0;
+      font-size: 0.92rem;
+      color: #444;
+      line-height: 1.7;
+    }
+    .nb-footer a { color: #1a73e8; text-decoration: none; }
+    .nb-footer a:hover { text-decoration: underline; }
+
+    /* ── Info box ── */
+    .info-box {
+      border-left: 5px solid #1a73e8;
+      background: rgba(26,115,232,0.07);
+      border-radius: 6px;
+      padding: 12px 18px;
+      margin: 20px 0;
+      font-size: 0.95rem;
+    }
+
+    code {
+      background: #f1f3f4;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 0.9em;
+      font-family: "SFMono-Regular", Consolas, monospace;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header class="nb-header">
+    <img
+      src="https://raw.githubusercontent.com/TUIlmenauAMS/multimedia_programming_seminars/main/ams_group_tui.png"
+      alt="AMS Group – TU Ilmenau"
+    />
+    <div>
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 01: Web Audio API &mdash; Demo: Oscillator</h2>
+      <p><strong>Institut für Medientechnik &ndash; Technische Universität Ilmenau</strong><br>
+        <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme" target="_blank">
+          Institut für Medientechnik &ndash; AMS Group
+        </a>
+      </p>
+      <p>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller<br>
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+      </p>
+    </div>
+  </header>
+
+  <!-- ── Intro ── -->
+  <h2 class="section">1. What is an Oscillator?</h2>
+  <p>
+    An <strong>OscillatorNode</strong> is a source node in the Web Audio API that generates a periodic waveform at a given frequency. It is the most fundamental building block for synthesizing sound in the browser — no audio file required.
+  </p>
+  <p>
+    The oscillator connects to the <code>AudioContext</code> destination (your speakers) through a <code>GainNode</code> that controls the volume. The signal chain is:
+  </p>
+  <div class="info-box">
+    <code>OscillatorNode</code> &rarr; <code>GainNode</code> &rarr; <code>AudioContext.destination</code>
+  </div>
+  <p>
+    The four standard waveform types are <strong>sine</strong>, <strong>square</strong>, <strong>sawtooth</strong>, and <strong>triangle</strong>. Each has a distinct harmonic content and timbre.
+  </p>
+
+  <hr />
+
+  <!-- ── Demo ── -->
+  <h2 class="section">2. Interactive Demo</h2>
+  <p>Use the controls below to explore how frequency, gain, and waveform type shape the sound. The oscilloscope shows the waveform in real time.</p>
+
+  <div class="demo-card">
+    <h3>Oscillator Controls</h3>
+
+    <div class="control-row">
+      <label for="waveform">Waveform</label>
+      <select id="waveform">
+        <option value="sine">Sine</option>
+        <option value="square">Square</option>
+        <option value="sawtooth">Sawtooth</option>
+        <option value="triangle">Triangle</option>
+      </select>
+    </div>
+
+    <div class="control-row">
+      <label for="freq">Frequency</label>
+      <input type="range" id="freq" min="55" max="1760" value="440" step="1" />
+      <span class="value-badge" id="freqVal">440 Hz</span>
+    </div>
+
+    <div class="control-row">
+      <label for="gain">Gain (Volume)</label>
+      <input type="range" id="gain" min="0" max="1" value="0.5" step="0.01" />
+      <span class="value-badge" id="gainVal">0.50</span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-start" id="btnStart">▶ Start</button>
+      <button class="btn btn-stop"  id="btnStop" disabled>■ Stop</button>
+    </div>
+
+    <canvas id="scope" width="800" height="120"></canvas>
+  </div>
+
+  <hr />
+
+  <h2 class="section">3. How It Works</h2>
+  <p>
+    The <code>AudioContext</code> is the entry point for all Web Audio operations. Once created, you instantiate an <code>OscillatorNode</code> and a <code>GainNode</code>, connect them in series, and call <code>oscillator.start()</code>. The <code>AnalyserNode</code> taps into the signal to feed the oscilloscope canvas without affecting playback.
+  </p>
+  <div class="info-box">
+    <strong>Note:</strong> Browsers require a user gesture (button click) before allowing audio playback. This is why the oscillator only starts when you press <em>Start</em>.
+  </div>
+
+  <div class="pills">
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/OscillatorNode" target="_blank">OscillatorNode — MDN &#8599;</a>
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/GainNode" target="_blank">GainNode — MDN &#8599;</a>
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/AudioContext" target="_blank">AudioContext — MDN &#8599;</a>
+  </div>
+
+  <!-- ── Footer ── -->
+  <footer class="nb-footer">
+    <p><strong>Multimediaprogrammierung</strong> &middot; Chapter 01: Web Audio API &middot; Demo: Oscillator<br>
+      Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+    <p>Demo created by <strong>Renato Fera P.</strong> &middot;
+      <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+    </p>
+  </footer>
+
+  <!-- ── JavaScript ── -->
+  <script>
+    let audioCtx = null;
+    let oscillator = null;
+    let gainNode = null;
+    let analyser = null;
+    let rafId = null;
+
+    const btnStart  = document.getElementById('btnStart');
+    const btnStop   = document.getElementById('btnStop');
+    const freqSlider = document.getElementById('freq');
+    const gainSlider = document.getElementById('gain');
+    const waveSelect = document.getElementById('waveform');
+    const freqVal   = document.getElementById('freqVal');
+    const gainVal   = document.getElementById('gainVal');
+    const canvas    = document.getElementById('scope');
+    const ctx2d     = canvas.getContext('2d');
+
+    freqSlider.addEventListener('input', () => {
+      freqVal.textContent = freqSlider.value + ' Hz';
+      if (oscillator) oscillator.frequency.setTargetAtTime(Number(freqSlider.value), audioCtx.currentTime, 0.01);
+    });
+
+    gainSlider.addEventListener('input', () => {
+      gainVal.textContent = Number(gainSlider.value).toFixed(2);
+      if (gainNode) gainNode.gain.setTargetAtTime(Number(gainSlider.value), audioCtx.currentTime, 0.01);
+    });
+
+    waveSelect.addEventListener('change', () => {
+      if (oscillator) oscillator.type = waveSelect.value;
+    });
+
+    btnStart.addEventListener('click', () => {
+      if (audioCtx) audioCtx.close();
+
+      audioCtx  = new AudioContext();
+      gainNode  = audioCtx.createGain();
+      analyser  = audioCtx.createAnalyser();
+      oscillator = audioCtx.createOscillator();
+
+      analyser.fftSize = 2048;
+
+      oscillator.type = waveSelect.value;
+      oscillator.frequency.value = Number(freqSlider.value);
+      gainNode.gain.value = Number(gainSlider.value);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(analyser);
+      analyser.connect(audioCtx.destination);
+
+      oscillator.start();
+
+      btnStart.disabled = true;
+      btnStop.disabled  = false;
+
+      drawScope();
+    });
+
+    btnStop.addEventListener('click', () => {
+      if (oscillator) { oscillator.stop(); oscillator = null; }
+      if (audioCtx)   { audioCtx.close(); audioCtx = null; }
+      cancelAnimationFrame(rafId);
+      clearScope();
+      btnStart.disabled = false;
+      btnStop.disabled  = true;
+    });
+
+    function drawScope() {
+      const bufLen = analyser.frequencyBinCount;
+      const dataArr = new Float32Array(bufLen);
+      const W = canvas.width;
+      const H = canvas.height;
+
+      function draw() {
+        rafId = requestAnimationFrame(draw);
+        analyser.getFloatTimeDomainData(dataArr);
+
+        ctx2d.fillStyle = '#1e1e2e';
+        ctx2d.fillRect(0, 0, W, H);
+
+        ctx2d.lineWidth = 2;
+        ctx2d.strokeStyle = '#1a73e8';
+        ctx2d.beginPath();
+
+        const sliceW = W / bufLen;
+        let x = 0;
+        for (let i = 0; i < bufLen; i++) {
+          const v = (dataArr[i] * 0.9 + 1) / 2;
+          const y = v * H;
+          i === 0 ? ctx2d.moveTo(x, y) : ctx2d.lineTo(x, y);
+          x += sliceW;
+        }
+        ctx2d.stroke();
+      }
+      draw();
+    }
+
+    function clearScope() {
+      ctx2d.fillStyle = '#1e1e2e';
+      ctx2d.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    clearScope();
+  </script>
+</body>
+</html>

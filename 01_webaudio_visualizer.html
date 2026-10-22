@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Web Audio API – Visualizer Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      color: #212121;
+      background: #fff;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px 48px;
+    }
+
+    /* ── Header ── */
+    .nb-header {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      border-bottom: 2px solid #e0e0e0;
+      padding: 16px 0;
+      margin-bottom: 32px;
+    }
+    .nb-header img { width: 120px; border-radius: 12px; flex-shrink: 0; }
+    .nb-header h1  { font-size: 1.6rem; margin-bottom: 4px; }
+    .nb-header h2  { font-size: 1.1rem; font-weight: 400; margin-bottom: 8px; color: #444; }
+    .nb-header p   { font-size: 0.92rem; margin-bottom: 2px; }
+    .nb-header a   { color: #1a73e8; text-decoration: none; }
+    .nb-header a:hover { text-decoration: underline; }
+
+    /* ── Pills ── */
+    .pills { margin: 12px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill {
+      display: inline-block;
+      padding: 6px 14px;
+      border: 1px solid #1a73e8;
+      border-radius: 20px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.92rem;
+      color: #1a73e8;
+      transition: background 0.15s, color 0.15s;
+    }
+    .pill:hover { background: #1a73e8; color: #fff; }
+
+    h2.section { font-size: 1.3rem; margin: 40px 0 12px; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 36px 0; }
+    p  { margin-bottom: 12px; }
+
+    /* ── Demo card ── */
+    .demo-card {
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin: 24px 0;
+    }
+    .demo-card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: #444;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Controls ── */
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+    .control-row label  { min-width: 130px; font-weight: 500; font-size: 0.95rem; }
+    .control-row input[type=range] { flex: 1; min-width: 160px; accent-color: #1a73e8; }
+    .control-row select {
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      background: #fff;
+    }
+    .value-badge { min-width: 64px; text-align: right; font-variant-numeric: tabular-nums; font-size: 0.92rem; color: #555; }
+
+    /* ── Tab switcher ── */
+    .tab-row { display: flex; gap: 0; margin-bottom: 16px; border-bottom: 2px solid #e0e0e0; }
+    .tab-btn {
+      padding: 8px 20px;
+      border: none;
+      background: none;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: #888;
+      cursor: pointer;
+      border-bottom: 3px solid transparent;
+      margin-bottom: -2px;
+      transition: color 0.15s;
+    }
+    .tab-btn.active { color: #1a73e8; border-bottom-color: #1a73e8; }
+
+    /* ── Buttons ── */
+    .btn-row { display: flex; gap: 12px; margin-top: 8px; flex-wrap: wrap; }
+    .btn {
+      padding: 10px 28px;
+      border: none;
+      border-radius: 24px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-start  { background: #1a73e8; color: #fff; }
+    .btn-stop   { background: #e53935; color: #fff; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* ── Canvases ── */
+    .canvas-wrap { position: relative; margin-top: 20px; }
+    canvas {
+      display: block;
+      width: 100%;
+      border-radius: 8px;
+      background: #1e1e2e;
+    }
+    #scopeCanvas { height: 140px; }
+    #specCanvas  { height: 180px; display: none; }
+
+    /* ── Footer ── */
+    .nb-footer {
+      text-align: center;
+      padding: 18px 0 8px;
+      margin-top: 48px;
+      border-top: 2px solid #e0e0e0;
+      font-size: 0.92rem;
+      color: #444;
+      line-height: 1.7;
+    }
+    .nb-footer a { color: #1a73e8; text-decoration: none; }
+    .nb-footer a:hover { text-decoration: underline; }
+
+    /* ── Info box ── */
+    .info-box {
+      border-left: 5px solid #1a73e8;
+      background: rgba(26,115,232,0.07);
+      border-radius: 6px;
+      padding: 12px 18px;
+      margin: 20px 0;
+      font-size: 0.95rem;
+    }
+
+    code {
+      background: #f1f3f4;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 0.9em;
+      font-family: "SFMono-Regular", Consolas, monospace;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header class="nb-header">
+    <img
+      src="https://raw.githubusercontent.com/TUIlmenauAMS/multimedia_programming_seminars/main/ams_group_tui.png"
+      alt="AMS Group – TU Ilmenau"
+    />
+    <div>
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 01: Web Audio API &mdash; Demo: Visualizer</h2>
+      <p><strong>Institut für Medientechnik &ndash; Technische Universität Ilmenau</strong><br>
+        <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme" target="_blank">
+          Institut für Medientechnik &ndash; AMS Group
+        </a>
+      </p>
+      <p>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller<br>
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+      </p>
+    </div>
+  </header>
+
+  <!-- ── Intro ── -->
+  <h2 class="section">1. Visualizing Audio with AnalyserNode</h2>
+  <p>
+    The <strong>AnalyserNode</strong> is a special node that lets you inspect the audio signal without modifying it. It exposes two views of the signal:
+  </p>
+  <ul style="margin: 0 0 12px 20px;">
+    <li><strong>Time domain</strong> — the raw waveform (amplitude over time), drawn as an oscilloscope.</li>
+    <li><strong>Frequency domain</strong> — the spectrum (amplitude per frequency bin), drawn as a bar chart. This is computed using a Fast Fourier Transform (FFT).</li>
+  </ul>
+  <p>
+    The <code>AnalyserNode</code> sits in the signal chain as a pass-through tap — it reads the signal but does not alter it:
+  </p>
+  <div class="info-box">
+    <code>OscillatorNode</code> &rarr; <code>GainNode</code> &rarr; <code>AnalyserNode</code> &rarr; <code>AudioContext.destination</code>
+  </div>
+
+  <hr />
+
+  <!-- ── Demo ── -->
+  <h2 class="section">2. Interactive Demo</h2>
+  <p>Start the oscillator and switch between the oscilloscope and spectrum views. Try different waveforms and frequencies to see how the spectrum changes.</p>
+
+  <div class="demo-card">
+    <h3>Visualizer Controls</h3>
+
+    <div class="control-row">
+      <label for="waveform">Waveform</label>
+      <select id="waveform">
+        <option value="sine">Sine</option>
+        <option value="square">Square</option>
+        <option value="sawtooth">Sawtooth</option>
+        <option value="triangle">Triangle</option>
+      </select>
+    </div>
+
+    <div class="control-row">
+      <label for="freq">Frequency</label>
+      <input type="range" id="freq" min="55" max="1760" value="440" step="1" />
+      <span class="value-badge" id="freqVal">440 Hz</span>
+    </div>
+
+    <div class="control-row">
+      <label for="gain">Gain</label>
+      <input type="range" id="gain" min="0" max="1" value="0.5" step="0.01" />
+      <span class="value-badge" id="gainVal">0.50</span>
+    </div>
+
+    <div class="control-row">
+      <label for="fftSize">FFT Size</label>
+      <select id="fftSize">
+        <option value="512">512</option>
+        <option value="1024">1024</option>
+        <option value="2048" selected>2048</option>
+        <option value="4096">4096</option>
+      </select>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-start" id="btnStart">▶ Start</button>
+      <button class="btn btn-stop"  id="btnStop" disabled>■ Stop</button>
+    </div>
+
+    <div class="canvas-wrap">
+      <div class="tab-row">
+        <button class="tab-btn active" id="tabScope">Oscilloscope</button>
+        <button class="tab-btn"        id="tabSpec">Spectrum</button>
+      </div>
+      <canvas id="scopeCanvas" width="800" height="140"></canvas>
+      <canvas id="specCanvas"  width="800" height="180"></canvas>
+    </div>
+  </div>
+
+  <hr />
+
+  <h2 class="section">3. Key Concepts</h2>
+  <p>
+    The <code>fftSize</code> property controls the resolution of the frequency analysis. A larger FFT size gives more frequency bins (better frequency resolution) but requires more computation. The number of bins is always <code>fftSize / 2</code>.
+  </p>
+  <p>
+    Observe how a <strong>sine wave</strong> shows a single spike in the spectrum (one frequency), while a <strong>square wave</strong> shows many harmonics at odd multiples of the fundamental frequency — this is the Fourier series in action.
+  </p>
+
+  <div class="pills">
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode" target="_blank">AnalyserNode — MDN &#8599;</a>
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/getFloatFrequencyData" target="_blank">getFloatFrequencyData — MDN &#8599;</a>
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/getFloatTimeDomainData" target="_blank">getFloatTimeDomainData — MDN &#8599;</a>
+  </div>
+
+  <!-- ── Footer ── -->
+  <footer class="nb-footer">
+    <p><strong>Multimediaprogrammierung</strong> &middot; Chapter 01: Web Audio API &middot; Demo: Visualizer<br>
+      Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+    <p>Demo created by <strong>Renato Fera P.</strong> &middot;
+      <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+    </p>
+  </footer>
+
+  <!-- ── JavaScript ── -->
+  <script>
+    let audioCtx = null, oscillator = null, gainNode = null, analyser = null, rafId = null;
+
+    const btnStart    = document.getElementById('btnStart');
+    const btnStop     = document.getElementById('btnStop');
+    const freqSlider  = document.getElementById('freq');
+    const gainSlider  = document.getElementById('gain');
+    const waveSelect  = document.getElementById('waveform');
+    const fftSelect   = document.getElementById('fftSize');
+    const freqVal     = document.getElementById('freqVal');
+    const gainVal     = document.getElementById('gainVal');
+    const scopeCanvas = document.getElementById('scopeCanvas');
+    const specCanvas  = document.getElementById('specCanvas');
+    const sCtx        = scopeCanvas.getContext('2d');
+    const fCtx        = specCanvas.getContext('2d');
+    const tabScope    = document.getElementById('tabScope');
+    const tabSpec     = document.getElementById('tabSpec');
+
+    let activeView = 'scope';
+
+    tabScope.addEventListener('click', () => {
+      activeView = 'scope';
+      scopeCanvas.style.display = 'block';
+      specCanvas.style.display  = 'none';
+      tabScope.classList.add('active');
+      tabSpec.classList.remove('active');
+    });
+
+    tabSpec.addEventListener('click', () => {
+      activeView = 'spec';
+      scopeCanvas.style.display = 'none';
+      specCanvas.style.display  = 'block';
+      tabScope.classList.remove('active');
+      tabSpec.classList.add('active');
+    });
+
+    freqSlider.addEventListener('input', () => {
+      freqVal.textContent = freqSlider.value + ' Hz';
+      if (oscillator) oscillator.frequency.setTargetAtTime(Number(freqSlider.value), audioCtx.currentTime, 0.01);
+    });
+
+    gainSlider.addEventListener('input', () => {
+      gainVal.textContent = Number(gainSlider.value).toFixed(2);
+      if (gainNode) gainNode.gain.setTargetAtTime(Number(gainSlider.value), audioCtx.currentTime, 0.01);
+    });
+
+    waveSelect.addEventListener('change', () => {
+      if (oscillator) oscillator.type = waveSelect.value;
+    });
+
+    fftSelect.addEventListener('change', () => {
+      if (analyser) analyser.fftSize = Number(fftSelect.value);
+    });
+
+    btnStart.addEventListener('click', () => {
+      if (audioCtx) audioCtx.close();
+
+      audioCtx   = new AudioContext();
+      gainNode   = audioCtx.createGain();
+      analyser   = audioCtx.createAnalyser();
+      oscillator = audioCtx.createOscillator();
+
+      analyser.fftSize = Number(fftSelect.value);
+      oscillator.type = waveSelect.value;
+      oscillator.frequency.value = Number(freqSlider.value);
+      gainNode.gain.value = Number(gainSlider.value);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(analyser);
+      analyser.connect(audioCtx.destination);
+      oscillator.start();
+
+      btnStart.disabled = true;
+      btnStop.disabled  = false;
+      drawLoop();
+    });
+
+    btnStop.addEventListener('click', () => {
+      if (oscillator) { oscillator.stop(); oscillator = null; }
+      if (audioCtx)   { audioCtx.close();  audioCtx = null; }
+      cancelAnimationFrame(rafId);
+      clearCanvases();
+      btnStart.disabled = false;
+      btnStop.disabled  = true;
+    });
+
+    function drawLoop() {
+      rafId = requestAnimationFrame(drawLoop);
+      if (activeView === 'scope') drawScope();
+      else drawSpectrum();
+    }
+
+    function drawScope() {
+      const bufLen = analyser.frequencyBinCount;
+      const data   = new Float32Array(bufLen);
+      analyser.getFloatTimeDomainData(data);
+      const W = scopeCanvas.width, H = scopeCanvas.height;
+
+      sCtx.fillStyle = '#1e1e2e';
+      sCtx.fillRect(0, 0, W, H);
+
+      // grid
+      sCtx.strokeStyle = 'rgba(255,255,255,0.05)';
+      sCtx.lineWidth = 1;
+      for (let i = 1; i < 4; i++) {
+        sCtx.beginPath(); sCtx.moveTo(0, H * i / 4); sCtx.lineTo(W, H * i / 4); sCtx.stroke();
+      }
+      // zero line
+      sCtx.strokeStyle = 'rgba(26,115,232,0.25)';
+      sCtx.beginPath(); sCtx.moveTo(0, H / 2); sCtx.lineTo(W, H / 2); sCtx.stroke();
+
+      sCtx.lineWidth = 2;
+      sCtx.strokeStyle = '#1a73e8';
+      sCtx.beginPath();
+      const sliceW = W / bufLen;
+      let x = 0;
+      for (let i = 0; i < bufLen; i++) {
+        const y = ((data[i] * 0.9 + 1) / 2) * H;
+        i === 0 ? sCtx.moveTo(x, y) : sCtx.lineTo(x, y);
+        x += sliceW;
+      }
+      sCtx.stroke();
+    }
+
+    function drawSpectrum() {
+      const bufLen = analyser.frequencyBinCount;
+      const data   = new Uint8Array(bufLen);
+      analyser.getByteFrequencyData(data);
+      const W = specCanvas.width, H = specCanvas.height;
+
+      fCtx.fillStyle = '#1e1e2e';
+      fCtx.fillRect(0, 0, W, H);
+
+      const barW = (W / bufLen) * 2.5;
+      let x = 0;
+      for (let i = 0; i < bufLen; i++) {
+        const barH = (data[i] / 255) * H;
+        const hue  = (i / bufLen) * 200 + 200; // blue → cyan
+        fCtx.fillStyle = `hsl(${hue}, 80%, 55%)`;
+        fCtx.fillRect(x, H - barH, barW, barH);
+        x += barW + 1;
+        if (x > W) break;
+      }
+    }
+
+    function clearCanvases() {
+      sCtx.fillStyle = '#1e1e2e'; sCtx.fillRect(0, 0, scopeCanvas.width, scopeCanvas.height);
+      fCtx.fillStyle = '#1e1e2e'; fCtx.fillRect(0, 0, specCanvas.width,  specCanvas.height);
+    }
+    clearCanvases();
+  </script>
+</body>
+</html>

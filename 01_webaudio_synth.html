@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Web Audio API – Synth Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      color: #212121;
+      background: #fff;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px 48px;
+    }
+
+    /* ── Header ── */
+    .nb-header {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      border-bottom: 2px solid #e0e0e0;
+      padding: 16px 0;
+      margin-bottom: 32px;
+    }
+    .nb-header img { width: 120px; border-radius: 12px; flex-shrink: 0; }
+    .nb-header h1  { font-size: 1.6rem; margin-bottom: 4px; }
+    .nb-header h2  { font-size: 1.1rem; font-weight: 400; margin-bottom: 8px; color: #444; }
+    .nb-header p   { font-size: 0.92rem; margin-bottom: 2px; }
+    .nb-header a   { color: #1a73e8; text-decoration: none; }
+    .nb-header a:hover { text-decoration: underline; }
+
+    /* ── Pills ── */
+    .pills { margin: 12px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill {
+      display: inline-block;
+      padding: 6px 14px;
+      border: 1px solid #1a73e8;
+      border-radius: 20px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.92rem;
+      color: #1a73e8;
+      transition: background 0.15s, color 0.15s;
+    }
+    .pill:hover { background: #1a73e8; color: #fff; }
+
+    h2.section { font-size: 1.3rem; margin: 40px 0 12px; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 36px 0; }
+    p  { margin-bottom: 12px; }
+
+    /* ── Demo card ── */
+    .demo-card {
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin: 24px 0;
+    }
+    .demo-card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: #444;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Controls ── */
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+    .control-row label { min-width: 120px; font-weight: 500; font-size: 0.95rem; }
+    .control-row input[type=range] { flex: 1; min-width: 160px; accent-color: #1a73e8; }
+    .control-row select {
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      background: #fff;
+    }
+    .value-badge {
+      min-width: 64px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.92rem;
+      color: #555;
+    }
+
+    /* ── ADSR section label ── */
+    .control-group-label {
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: #888;
+      text-transform: uppercase;
+      margin: 20px 0 10px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid #e0e0e0;
+    }
+
+    /* ── Keyboard ── */
+    .keyboard-wrap {
+      margin-top: 24px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+    }
+    .keyboard {
+      display: flex;
+      position: relative;
+      height: 140px;
+      width: max-content;
+      user-select: none;
+    }
+    .key {
+      position: relative;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 8px;
+      border-radius: 0 0 6px 6px;
+      cursor: pointer;
+      font-size: 0.72rem;
+      font-weight: 600;
+      transition: background 0.06s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .key.white {
+      width: 44px;
+      height: 140px;
+      background: #fff;
+      border: 1px solid #bbb;
+      border-top: none;
+      color: #aaa;
+      z-index: 1;
+      margin-right: 2px;
+    }
+    .key.black {
+      width: 28px;
+      height: 88px;
+      background: #222;
+      color: #555;
+      z-index: 2;
+      margin-left: -15px;
+      margin-right: -15px;
+      border-radius: 0 0 4px 4px;
+    }
+    .key.white:hover, .key.white.active { background: #ddeeff; }
+    .key.black:hover, .key.black.active { background: #1a73e8; }
+
+    /* ── Canvas ── */
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100px;
+      border-radius: 8px;
+      background: #1e1e2e;
+      margin-top: 20px;
+    }
+
+    /* ── Footer ── */
+    .nb-footer {
+      text-align: center;
+      padding: 18px 0 8px;
+      margin-top: 48px;
+      border-top: 2px solid #e0e0e0;
+      font-size: 0.92rem;
+      color: #444;
+      line-height: 1.7;
+    }
+    .nb-footer a { color: #1a73e8; text-decoration: none; }
+    .nb-footer a:hover { text-decoration: underline; }
+
+    /* ── Info box ── */
+    .info-box {
+      border-left: 5px solid #1a73e8;
+      background: rgba(26,115,232,0.07);
+      border-radius: 6px;
+      padding: 12px 18px;
+      margin: 20px 0;
+      font-size: 0.95rem;
+    }
+
+    code {
+      background: #f1f3f4;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 0.9em;
+      font-family: "SFMono-Regular", Consolas, monospace;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header class="nb-header">
+    <img
+      src="https://raw.githubusercontent.com/TUIlmenauAMS/multimedia_programming_seminars/main/ams_group_tui.png"
+      alt="AMS Group – TU Ilmenau"
+    />
+    <div>
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 01: Web Audio API &mdash; Demo: Synth</h2>
+      <p><strong>Institut für Medientechnik &ndash; Technische Universität Ilmenau</strong><br>
+        <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme" target="_blank">
+          Institut für Medientechnik &ndash; AMS Group
+        </a>
+      </p>
+      <p>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller<br>
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+      </p>
+    </div>
+  </header>
+
+  <!-- ── Intro ── -->
+  <h2 class="section">1. From Oscillator to Instrument: the ADSR Envelope</h2>
+  <p>
+    A raw oscillator produces a steady tone that starts and stops abruptly. Real instruments do not work that way — a piano note rises quickly, sustains while the key is held, and decays when it is released. This shape is modelled by an <strong>ADSR envelope</strong>, which controls the amplitude of the sound over four phases:
+  </p>
+  <ul style="margin: 0 0 12px 24px; line-height: 2;">
+    <li><strong>Attack</strong> — time for the sound to rise from silence to full volume after a key is pressed.</li>
+    <li><strong>Decay</strong> — time to fall from full volume down to the sustain level.</li>
+    <li><strong>Sustain</strong> — the level held while the key remains pressed (a level, not a duration).</li>
+    <li><strong>Release</strong> — time to fade to silence after the key is released.</li>
+  </ul>
+  <p>
+    In the Web Audio API, the envelope is applied by scheduling <code>AudioParam</code> ramp methods on a <code>GainNode</code>. The signal chain for this synth is:
+  </p>
+  <div class="info-box">
+    <code>OscillatorNode</code> &rarr; <code>GainNode (ADSR)</code> &rarr; <code>AnalyserNode</code> &rarr; <code>AudioContext.destination</code>
+  </div>
+  <p>
+    Each key press creates a fresh <code>OscillatorNode</code> and applies the envelope on the gain. On release, the release ramp is scheduled and the oscillator is stopped after it completes.
+  </p>
+
+  <hr />
+
+  <!-- ── Demo ── -->
+  <h2 class="section">2. Interactive Demo</h2>
+  <p>Click or tap the keys to play notes. Adjust the waveform and ADSR parameters to shape the sound. You can also use your computer keyboard (keys shown on the white keys).</p>
+
+  <div class="demo-card">
+    <h3>Synth Controls</h3>
+
+    <div class="control-row">
+      <label for="waveform">Waveform</label>
+      <select id="waveform">
+        <option value="sine">Sine</option>
+        <option value="triangle" selected>Triangle</option>
+        <option value="square">Square</option>
+        <option value="sawtooth">Sawtooth</option>
+      </select>
+    </div>
+
+    <div class="control-group-label">ADSR Envelope</div>
+
+    <div class="control-row">
+      <label for="attack">Attack</label>
+      <input type="range" id="attack" min="0.001" max="2" value="0.01" step="0.001" />
+      <span class="value-badge" id="attackVal">0.01 s</span>
+    </div>
+
+    <div class="control-row">
+      <label for="decay">Decay</label>
+      <input type="range" id="decay" min="0.001" max="2" value="0.1" step="0.001" />
+      <span class="value-badge" id="decayVal">0.10 s</span>
+    </div>
+
+    <div class="control-row">
+      <label for="sustain">Sustain</label>
+      <input type="range" id="sustain" min="0" max="1" value="0.7" step="0.01" />
+      <span class="value-badge" id="sustainVal">0.70</span>
+    </div>
+
+    <div class="control-row">
+      <label for="release">Release</label>
+      <input type="range" id="release" min="0.001" max="3" value="0.3" step="0.001" />
+      <span class="value-badge" id="releaseVal">0.30 s</span>
+    </div>
+
+    <div class="control-row">
+      <label for="masterGain">Volume</label>
+      <input type="range" id="masterGain" min="0" max="1" value="0.6" step="0.01" />
+      <span class="value-badge" id="masterGainVal">0.60</span>
+    </div>
+
+    <!-- Keyboard -->
+    <div class="keyboard-wrap">
+      <div class="keyboard" id="keyboard"></div>
+    </div>
+
+    <canvas id="scope" width="800" height="100"></canvas>
+  </div>
+
+  <hr />
+
+  <h2 class="section">3. How It Works</h2>
+  <p>
+    Because an <code>OscillatorNode</code> can only be started once, a new one is created for every note. The gain envelope is applied using <code>linearRampToValueAtTime</code> for attack and decay, and <code>setTargetAtTime</code> for the release tail — this gives a smooth, natural-sounding shape without clicks.
+  </p>
+  <div class="info-box">
+    <strong>Tip:</strong> Try a long attack and long release with the <em>Sine</em> waveform for a pad sound. Short attack and short decay with <em>Square</em> gives a plucky, percussive tone.
+  </div>
+
+  <div class="pills">
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/AudioParam/linearRampToValueAtTime" target="_blank">linearRampToValueAtTime — MDN &#8599;</a>
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/AudioParam/setTargetAtTime" target="_blank">setTargetAtTime — MDN &#8599;</a>
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/GainNode" target="_blank">GainNode — MDN &#8599;</a>
+  </div>
+
+  <!-- ── Footer ── -->
+  <footer class="nb-footer">
+    <p><strong>Multimediaprogrammierung</strong> &middot; Chapter 01: Web Audio API &middot; Demo: Synth<br>
+      Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+    <p>Demo created by <strong>Renato Fera P.</strong> &middot;
+      <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+    </p>
+  </footer>
+
+  <!-- ── JavaScript ── -->
+  <script>
+    // ── Audio context (created on first interaction) ──────────────────────
+    let audioCtx = null;
+    let masterGainNode = null;
+    let analyser = null;
+    let rafId = null;
+
+    function ensureContext() {
+      if (audioCtx) return;
+      audioCtx = new AudioContext();
+      masterGainNode = audioCtx.createGain();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      masterGainNode.gain.value = Number(document.getElementById('masterGain').value);
+      masterGainNode.connect(analyser);
+      analyser.connect(audioCtx.destination);
+      drawScope();
+    }
+
+    // ── Parameter helpers ─────────────────────────────────────────────────
+    const getAttack  = () => Number(document.getElementById('attack').value);
+    const getDecay   = () => Number(document.getElementById('decay').value);
+    const getSustain = () => Number(document.getElementById('sustain').value);
+    const getRelease = () => Number(document.getElementById('release').value);
+    const getWave    = () => document.getElementById('waveform').value;
+
+    // ── Active voices: note → { osc, env } ───────────────────────────────
+    const voices = {};
+
+    function noteOn(freq, noteId) {
+      ensureContext();
+      if (voices[noteId]) noteOff(noteId); // retrigger
+
+      const osc = audioCtx.createOscillator();
+      const env = audioCtx.createGain();
+
+      osc.type = getWave();
+      osc.frequency.value = freq;
+      env.gain.setValueAtTime(0, audioCtx.currentTime);
+
+      osc.connect(env);
+      env.connect(masterGainNode);
+      osc.start();
+
+      // Attack → Decay → Sustain
+      const now = audioCtx.currentTime;
+      const a = getAttack(), d = getDecay(), s = getSustain();
+      env.gain.linearRampToValueAtTime(1, now + a);
+      env.gain.linearRampToValueAtTime(s, now + a + d);
+
+      voices[noteId] = { osc, env };
+    }
+
+    function noteOff(noteId) {
+      if (!voices[noteId]) return;
+      const { osc, env } = voices[noteId];
+      const now = audioCtx.currentTime;
+      const r = getRelease();
+
+      env.gain.cancelScheduledValues(now);
+      env.gain.setValueAtTime(env.gain.value, now);
+      env.gain.linearRampToValueAtTime(0, now + r);
+
+      osc.stop(now + r + 0.05);
+      delete voices[noteId];
+    }
+
+    // ── Slider display updates ────────────────────────────────────────────
+    function bindSlider(id, displayId, fmt) {
+      const el = document.getElementById(id);
+      const dsp = document.getElementById(displayId);
+      el.addEventListener('input', () => { dsp.textContent = fmt(Number(el.value)); });
+    }
+    bindSlider('attack',     'attackVal',     v => v.toFixed(3) + ' s');
+    bindSlider('decay',      'decayVal',      v => v.toFixed(3) + ' s');
+    bindSlider('sustain',    'sustainVal',    v => v.toFixed(2));
+    bindSlider('release',    'releaseVal',    v => v.toFixed(3) + ' s');
+    bindSlider('masterGain', 'masterGainVal', v => {
+      if (masterGainNode) masterGainNode.gain.setTargetAtTime(v, audioCtx.currentTime, 0.01);
+      return v.toFixed(2);
+    });
+
+    // ── Keyboard layout ───────────────────────────────────────────────────
+    // Two octaves starting at C4 (MIDI 60)
+    const notes = [
+      { note: 'C4',  freq: 261.63, type: 'white', kb: 'a' },
+      { note: 'C#4', freq: 277.18, type: 'black',  kb: 'w' },
+      { note: 'D4',  freq: 293.66, type: 'white', kb: 's' },
+      { note: 'D#4', freq: 311.13, type: 'black',  kb: 'e' },
+      { note: 'E4',  freq: 329.63, type: 'white', kb: 'd' },
+      { note: 'F4',  freq: 349.23, type: 'white', kb: 'f' },
+      { note: 'F#4', freq: 369.99, type: 'black',  kb: 't' },
+      { note: 'G4',  freq: 392.00, type: 'white', kb: 'g' },
+      { note: 'G#4', freq: 415.30, type: 'black',  kb: 'y' },
+      { note: 'A4',  freq: 440.00, type: 'white', kb: 'h' },
+      { note: 'A#4', freq: 466.16, type: 'black',  kb: 'u' },
+      { note: 'B4',  freq: 493.88, type: 'white', kb: 'j' },
+      { note: 'C5',  freq: 523.25, type: 'white', kb: 'k' },
+      { note: 'C#5', freq: 554.37, type: 'black',  kb: 'o' },
+      { note: 'D5',  freq: 587.33, type: 'white', kb: 'l' },
+      { note: 'D#5', freq: 622.25, type: 'black',  kb: 'p' },
+      { note: 'E5',  freq: 659.25, type: 'white', kb: ';' },
+    ];
+
+    const kbMap = {};
+    const keyboard = document.getElementById('keyboard');
+
+    notes.forEach(n => {
+      const el = document.createElement('div');
+      el.className = 'key ' + n.type;
+      if (n.type === 'white') el.textContent = n.kb.toUpperCase();
+      el.dataset.note = n.note;
+
+      // Pointer events (mouse + touch)
+      el.addEventListener('pointerdown', e => {
+        e.preventDefault();
+        el.setPointerCapture(e.pointerId);
+        el.classList.add('active');
+        noteOn(n.freq, n.note);
+      });
+      el.addEventListener('pointerup',    () => { el.classList.remove('active'); noteOff(n.note); });
+      el.addEventListener('pointerleave', () => { el.classList.remove('active'); noteOff(n.note); });
+
+      keyboard.appendChild(el);
+      kbMap[n.kb] = { el, freq: n.freq, note: n.note };
+    });
+
+    // ── Computer keyboard ─────────────────────────────────────────────────
+    const pressed = new Set();
+    document.addEventListener('keydown', e => {
+      if (e.repeat) return;
+      const k = kbMap[e.key.toLowerCase()];
+      if (!k) return;
+      pressed.add(e.key.toLowerCase());
+      k.el.classList.add('active');
+      noteOn(k.freq, k.note);
+    });
+    document.addEventListener('keyup', e => {
+      const k = kbMap[e.key.toLowerCase()];
+      if (!k) return;
+      pressed.delete(e.key.toLowerCase());
+      k.el.classList.remove('active');
+      noteOff(k.note);
+    });
+
+    // ── Oscilloscope ──────────────────────────────────────────────────────
+    const canvas = document.getElementById('scope');
+    const ctx2d  = canvas.getContext('2d');
+
+    function drawScope() {
+      rafId = requestAnimationFrame(drawScope);
+      const bufLen = analyser.frequencyBinCount;
+      const data   = new Float32Array(bufLen);
+      analyser.getFloatTimeDomainData(data);
+      const W = canvas.width, H = canvas.height;
+
+      ctx2d.fillStyle = '#1e1e2e';
+      ctx2d.fillRect(0, 0, W, H);
+
+      // subtle grid
+      ctx2d.strokeStyle = 'rgba(255,255,255,0.05)';
+      ctx2d.lineWidth = 1;
+      for (let i = 1; i < 4; i++) {
+        ctx2d.beginPath(); ctx2d.moveTo(0, H * i / 4); ctx2d.lineTo(W, H * i / 4); ctx2d.stroke();
+      }
+      ctx2d.strokeStyle = 'rgba(26,115,232,0.25)';
+      ctx2d.beginPath(); ctx2d.moveTo(0, H / 2); ctx2d.lineTo(W, H / 2); ctx2d.stroke();
+
+      ctx2d.lineWidth = 2;
+      ctx2d.strokeStyle = '#1a73e8';
+      ctx2d.beginPath();
+      const sliceW = W / bufLen;
+      let x = 0;
+      for (let i = 0; i < bufLen; i++) {
+        const y = ((data[i] * 0.9 + 1) / 2) * H;
+        i === 0 ? ctx2d.moveTo(x, y) : ctx2d.lineTo(x, y);
+        x += sliceW;
+      }
+      ctx2d.stroke();
+    }
+
+    // Draw dark background immediately
+    ctx2d.fillStyle = '#1e1e2e';
+    ctx2d.fillRect(0, 0, canvas.width, canvas.height);
+  </script>
+</body>
+</html>
