@@ -1,2 +1,5 @@
-# MMP_Tutorials
-MULTIMEDIAPROGRAMMIERUNG Tutorials
+# MULTIMEDIAPROGRAMMIERUNG Seminars
+
+ - Seminar 01:  Introduction<br>
+ <a href="https://colab.research.google.com/github/TUIlmenauAMS/multimedia_programmin_seminars/blob/master/00_multimediaprogrammierung_intro.ipynb" target="_blank"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="colab"></a>
+<a href="https://nbviewer.org/github/TUIlmenauAMS/multimedia_programming_serminars/blob/master/multimedia_programmin_seminars/blob/master/00_multimediaprogrammierung_intro.ipynb" target="_blank"><img src="https://badgen.net/badge/View/in%20NBViewer/blue?icon=terminal" alt="nbviewer"></a>
