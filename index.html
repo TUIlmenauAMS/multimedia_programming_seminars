@@ -32,56 +32,62 @@
     min-height: 100vh;
   }
 
-  /* ── waveform header ── */
+  /* ── header ── */
   header {
-    position: relative;
-    padding: 56px 0 40px;
-    border-bottom: 1px solid var(--border);
-    overflow: hidden;
+    border-bottom: 2px solid var(--border);
+    padding: 24px 0 20px;
   }
-
-  .wave-bg {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    opacity: 0.07;
-    pointer-events: none;
-  }
-
-  .wave-bg svg { width: 100%; }
 
   .header-inner {
-    position: relative;
     max-width: 860px;
     margin: 0 auto;
     padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
   }
 
-  .eyebrow {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--accent);
-    letter-spacing: 0.12em;
-    margin-bottom: 14px;
+  .header-logo {
+    width: 100px;
+    flex-shrink: 0;
   }
 
-  h1 {
-    font-size: clamp(24px, 4vw, 38px);
-    font-weight: 300;
-    letter-spacing: -0.01em;
-    line-height: 1.15;
+  .header-logo img {
+    width: 100px;
+    border-radius: 10px;
+    display: block;
+  }
+
+  .header-info {}
+
+  .header-info h1 {
+    font-size: clamp(18px, 3vw, 26px);
+    font-weight: 500;
     color: #f0f2f7;
+    line-height: 1.2;
+    margin-bottom: 4px;
   }
 
-  h1 strong { font-weight: 500; }
-
-  .subtitle {
-    margin-top: 10px;
-    color: var(--muted);
+  .header-info h2 {
     font-size: 14px;
+    font-weight: 400;
+    color: var(--muted);
     font-family: var(--mono);
+    margin-bottom: 8px;
   }
+
+  .header-meta {
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  .header-meta a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  .header-meta a:hover { text-decoration: underline; }
 
   /* ── main layout ── */
   main {
@@ -111,75 +117,6 @@
     background: var(--border);
   }
 
-  /* ── demo cards ── */
-  .demo-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 16px;
-  }
-
-  .demo-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 24px;
-    text-decoration: none;
-    color: inherit;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    transition: border-color 0.15s, background 0.15s;
-  }
-
-  .demo-card:hover {
-    border-color: var(--accent);
-    background: #1a1f2c;
-  }
-
-  .demo-card:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
-  }
-
-  .demo-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .icon-osc  { background: rgba(79, 156, 249, 0.12); color: var(--accent); }
-  .icon-viz  { background: rgba(167, 139, 250, 0.12); color: var(--accent2); }
-  .icon-syn  { background: rgba(52, 211, 153, 0.12); color: var(--green); }
-
-  .demo-icon svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
-
-  .demo-title {
-    font-size: 15px;
-    font-weight: 500;
-    color: #eef0f6;
-  }
-
-  .demo-desc {
-    font-size: 13px;
-    color: var(--muted);
-    line-height: 1.5;
-    flex: 1;
-  }
-
-  .demo-link-label {
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--accent);
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
-
-  .demo-link-label svg { width: 10px; height: 10px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-
   /* ── notebook rows ── */
   .notebook-list {
     display: flex;
@@ -196,6 +133,20 @@
     align-items: center;
     gap: 16px;
     flex-wrap: wrap;
+  }
+
+  /* notebook 01 expands to contain its demos */
+  .notebook-row.has-demos {
+    flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .notebook-row.has-demos .notebook-row-top {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+    width: 100%;
   }
 
   .notebook-num {
@@ -259,24 +210,118 @@
     border-color: rgba(79, 156, 249, 0.25);
   }
 
+  /* ── demo sub-section inside notebook 01 row ── */
+  .demo-subsection {
+    width: 100%;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .demo-sublabel {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .demo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
+    gap: 12px;
+  }
+
+  .demo-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .demo-card:hover {
+    border-color: var(--accent);
+    background: #12151c;
+  }
+
+  .demo-card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .demo-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .icon-osc  { background: rgba(79, 156, 249, 0.12); color: var(--accent); }
+  .icon-viz  { background: rgba(167, 139, 250, 0.12); color: var(--accent2); }
+  .icon-syn  { background: rgba(52, 211, 153, 0.12); color: var(--green); }
+
+  .demo-icon svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+  .demo-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: #eef0f6;
+  }
+
+  .demo-desc {
+    font-size: 12px;
+    color: var(--muted);
+    line-height: 1.5;
+    flex: 1;
+  }
+
+  .demo-link-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .demo-link-label svg { width: 9px; height: 9px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
   /* ── footer ── */
   footer {
-    border-top: 1px solid var(--border);
-    padding: 24px 32px;
+    border-top: 2px solid var(--border);
+    padding: 18px 32px 24px;
     max-width: 860px;
     margin: 0 auto;
-    font-family: var(--mono);
-    font-size: 11px;
-    color: var(--muted);
-    display: flex;
-    justify-content: space-between;
-    flex-wrap: wrap;
-    gap: 8px;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.7;
   }
+
+  footer p { margin: 0; }
+  footer p + p { margin-top: 4px; font-size: 12px; color: var(--muted); }
+
+  footer a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  footer a:hover { text-decoration: underline; }
 
   @media (max-width: 600px) {
     .header-inner, main, footer { padding-left: 20px; padding-right: 20px; }
     .notebook-row { flex-direction: column; align-items: flex-start; }
+    .notebook-row.has-demos .notebook-row-top { flex-direction: column; align-items: flex-start; }
+    footer { text-align: center; }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -287,61 +332,33 @@
 <body>
 
 <header>
-  <div class="wave-bg">
-    <svg viewBox="0 0 1200 120" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
-      <polyline fill="none" stroke="#4f9cf9" stroke-width="2"
-        points="0,60 40,60 50,20 60,100 70,30 80,90 90,45 100,75 110,55 130,55 140,15 150,105 160,35 170,85 180,50 200,50 210,10 220,110 230,25 240,95 250,40 270,40 280,60 1200,60"/>
-    </svg>
-  </div>
   <div class="header-inner">
-    <p class="eyebrow">TU Ilmenau · Institut für Medientechnik · AMS Group</p>
-    <h1><strong>Multimediaprogrammierung</strong><br>Seminar Materials</h1>
-    <p class="subtitle">Prof. Dr.-Ing. Gerald Schuller &nbsp;·&nbsp; Renato Fera P.</p>
+    <div class="header-logo">
+      <img src="ams_group_tui.png" alt="AMS Group – TU Ilmenau">
+    </div>
+    <div class="header-info">
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Seminar Materials</h2>
+      <p class="header-meta">
+        <strong>Institut für Medientechnik –
+          <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme"
+             target="_blank" rel="noopener">AMS Group</a>
+          – Technische Universität Ilmenau</strong><br>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller &nbsp;·&nbsp;
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+      </p>
+    </div>
   </div>
 </header>
 
 <main>
 
-  <!-- Interactive Demos -->
-  <section>
-    <p class="section-label">Interactive demos — Web Audio API</p>
-    <div class="demo-grid">
-
-      <a class="demo-card" href="01_webaudio_oscillator.html">
-        <div class="demo-icon icon-osc">
-          <svg viewBox="0 0 24 24"><path d="M2 12 Q5 4 8 12 Q11 20 14 12 Q17 4 20 12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="2" y1="12" x2="0" y2="12"/></svg>
-        </div>
-        <div class="demo-title">Oscillator</div>
-        <div class="demo-desc">Explore sine, square, sawtooth and triangle waveforms. Adjust frequency and gain with a live oscilloscope.</div>
-        <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
-      </a>
-
-      <a class="demo-card" href="01_webaudio_visualizer.html">
-        <div class="demo-icon icon-viz">
-          <svg viewBox="0 0 24 24"><rect x="2" y="14" width="3" height="7" rx="1"/><rect x="7" y="9" width="3" height="12" rx="1"/><rect x="12" y="5" width="3" height="16" rx="1"/><rect x="17" y="11" width="3" height="10" rx="1"/></svg>
-        </div>
-        <div class="demo-title">Visualizer</div>
-        <div class="demo-desc">Real-time waveform and FFT spectrum display using <code style="font-family:var(--mono);font-size:12px">AnalyserNode</code>, side by side.</div>
-        <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
-      </a>
-
-      <a class="demo-card" href="01_webaudio_synth.html">
-        <div class="demo-icon icon-syn">
-          <svg viewBox="0 0 24 24"><rect x="2" y="6" width="3" height="12" rx="1"/><rect x="6" y="6" width="3" height="12" rx="1"/><rect x="10" y="6" width="3" height="12" rx="1"/><rect x="14" y="6" width="3" height="12" rx="1"/><rect x="18" y="6" width="3" height="12" rx="1"/><rect x="4" y="6" width="2" height="7" rx="1" fill="currentColor" stroke="none"/><rect x="8" y="6" width="2" height="7" rx="1" fill="currentColor" stroke="none"/><rect x="15" y="6" width="2" height="7" rx="1" fill="currentColor" stroke="none"/><rect x="19" y="6" width="2" height="7" rx="1" fill="currentColor" stroke="none"/></svg>
-        </div>
-        <div class="demo-title">Synthesizer</div>
-        <div class="demo-desc">Polyphonic synth with oscillator, biquad filter, and ADSR envelope. Play notes on the on-screen keyboard.</div>
-        <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
-      </a>
-
-    </div>
-  </section>
-
-  <!-- Notebooks -->
   <section>
     <p class="section-label">Seminar notebooks</p>
     <div class="notebook-list">
 
+      <!-- Notebook 00 -->
       <div class="notebook-row">
         <div class="notebook-num">00</div>
         <div class="notebook-title">
@@ -364,25 +381,63 @@
         </div>
       </div>
 
-      <div class="notebook-row">
-        <div class="notebook-num">01</div>
-        <div class="notebook-title">
-          Web Audio API
-          <span>01_multimediaprogrammierung_webaudio.ipynb</span>
+      <!-- Notebook 01 + demos -->
+      <div class="notebook-row has-demos">
+        <div class="notebook-row-top">
+          <div class="notebook-num">01</div>
+          <div class="notebook-title">
+            Web Audio API
+            <span>01_multimediaprogrammierung_webaudio.ipynb</span>
+          </div>
+          <div class="badge-group">
+            <a class="badge badge-colab"
+               href="https://colab.research.google.com/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/01_multimediaprogrammierung_webaudio.ipynb"
+               target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-1-7l6-3.5L11 8v7z"/></svg>
+              Colab
+            </a>
+            <a class="badge badge-nbviewer"
+               href="https://nbviewer.org/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/01_multimediaprogrammierung_webaudio.ipynb"
+               target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm1 14.5v-9l6 4.5-6 4.5zM5 7h2v10H5z"/></svg>
+              NBViewer
+            </a>
+          </div>
         </div>
-        <div class="badge-group">
-          <a class="badge badge-colab"
-             href="https://colab.research.google.com/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/01_multimediaprogrammierung_webaudio.ipynb"
-             target="_blank" rel="noopener">
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-1-7l6-3.5L11 8v7z"/></svg>
-            Colab
-          </a>
-          <a class="badge badge-nbviewer"
-             href="https://nbviewer.org/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/01_multimediaprogrammierung_webaudio.ipynb"
-             target="_blank" rel="noopener">
-            <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm1 14.5v-9l6 4.5-6 4.5zM5 7h2v10H5z"/></svg>
-            NBViewer
-          </a>
+
+        <!-- Demo cards nested inside notebook 01 -->
+        <div class="demo-subsection">
+          <p class="demo-sublabel">Interactive demos — Web Audio API</p>
+          <div class="demo-grid">
+
+            <a class="demo-card" href="01_webaudio_oscillator.html">
+              <div class="demo-icon icon-osc">
+                <svg viewBox="0 0 24 24"><path d="M2 12 Q5 4 8 12 Q11 20 14 12 Q17 4 20 12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="2" y1="12" x2="0" y2="12"/></svg>
+              </div>
+              <div class="demo-title">Oscillator</div>
+              <div class="demo-desc">Explore sine, square, sawtooth and triangle waveforms. Adjust frequency and gain with a live oscilloscope.</div>
+              <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+            <a class="demo-card" href="01_webaudio_visualizer.html">
+              <div class="demo-icon icon-viz">
+                <svg viewBox="0 0 24 24"><rect x="2" y="14" width="3" height="7" rx="1"/><rect x="7" y="9" width="3" height="12" rx="1"/><rect x="12" y="5" width="3" height="16" rx="1"/><rect x="17" y="11" width="3" height="10" rx="1"/></svg>
+              </div>
+              <div class="demo-title">Visualizer</div>
+              <div class="demo-desc">Real-time waveform and FFT spectrum display using <code style="font-family:var(--mono);font-size:11px">AnalyserNode</code>, side by side.</div>
+              <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+            <a class="demo-card" href="01_webaudio_synth.html">
+              <div class="demo-icon icon-syn">
+                <svg viewBox="0 0 24 24"><rect x="2" y="6" width="3" height="12" rx="1"/><rect x="6" y="6" width="3" height="12" rx="1"/><rect x="10" y="6" width="3" height="12" rx="1"/><rect x="14" y="6" width="3" height="12" rx="1"/><rect x="18" y="6" width="3" height="12" rx="1"/><rect x="4" y="6" width="2" height="7" rx="1" fill="currentColor" stroke="none"/><rect x="8" y="6" width="2" height="7" rx="1" fill="currentColor" stroke="none"/><rect x="15" y="6" width="2" height="7" rx="1" fill="currentColor" stroke="none"/><rect x="19" y="6" width="2" height="7" rx="1" fill="currentColor" stroke="none"/></svg>
+              </div>
+              <div class="demo-title">Synthesizer</div>
+              <div class="demo-desc">Polyphonic synth with oscillator, biquad filter, and ADSR envelope. Play notes on the on-screen keyboard.</div>
+              <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+          </div>
         </div>
       </div>
 
@@ -392,8 +447,14 @@
 </main>
 
 <footer>
-  <span>Institut für Medientechnik · Technische Universität Ilmenau</span>
-  <a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars" target="_blank" rel="noopener" style="color:var(--muted);text-decoration:none;">github.com/TUIlmenauAMS/multimedia_programming_seminars</a>
+  <p><strong>Multimediaprogrammierung</strong> &middot; Seminar Materials<br>
+  Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+  <p>
+    Page maintained by <strong>Renato Fera P.</strong> &middot;
+    <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+    &nbsp;&middot;&nbsp;
+    <a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars" target="_blank" rel="noopener">github.com/TUIlmenauAMS/multimedia_programming_seminars</a>
+  </p>
 </footer>
 
 </body>
