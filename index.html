@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Multimediaprogrammierung — TU Ilmenau</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0d0f14;
+    --surface:   #161a22;
+    --border:    #252b38;
+    --text:      #d8dce6;
+    --muted:     #5a6175;
+    --accent:    #4f9cf9;
+    --accent2:   #a78bfa;
+    --green:     #34d399;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+
+  /* ── waveform header ── */
+  header {
+    position: relative;
+    padding: 56px 0 40px;
+    border-bottom: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .wave-bg {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    opacity: 0.07;
+    pointer-events: none;
+  }
+
+  .wave-bg svg { width: 100%; }
+
+  .header-inner {
+    position: relative;
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 32px;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.12em;
+    margin-bottom: 14px;
+  }
+
+  h1 {
+    font-size: clamp(24px, 4vw, 38px);
+    font-weight: 300;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+    color: #f0f2f7;
+  }
+
+  h1 strong { font-weight: 500; }
+
+  .subtitle {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 14px;
+    font-family: var(--mono);
+  }
+
+  /* ── main layout ── */
+  main {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 48px 32px 80px;
+  }
+
+  section + section { margin-top: 52px; }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .section-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* ── demo cards ── */
+  .demo-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 16px;
+  }
+
+  .demo-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px;
+    text-decoration: none;
+    color: inherit;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    transition: border-color 0.15s, background 0.15s;
+  }
+
+  .demo-card:hover {
+    border-color: var(--accent);
+    background: #1a1f2c;
+  }
+
+  .demo-card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .demo-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .icon-osc  { background: rgba(79, 156, 249, 0.12); color: var(--accent); }
+  .icon-viz  { background: rgba(167, 139, 250, 0.12); color: var(--accent2); }
+  .icon-syn  { background: rgba(52, 211, 153, 0.12); color: var(--green); }
+
+  .demo-icon svg { width: 18px; height: 18px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+  .demo-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: #eef0f6;
+  }
+
+  .demo-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+    flex: 1;
+  }
+
+  .demo-link-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .demo-link-label svg { width: 10px; height: 10px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ── notebook rows ── */
+  .notebook-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .notebook-row {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+
+  .notebook-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    min-width: 28px;
+  }
+
+  .notebook-title {
+    font-size: 14px;
+    font-weight: 500;
+    color: #eef0f6;
+    flex: 1;
+    min-width: 160px;
+  }
+
+  .notebook-title span {
+    display: block;
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--muted);
+    margin-top: 2px;
+    font-family: var(--mono);
+  }
+
+  .badge-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    text-decoration: none;
+    border: 1px solid transparent;
+    transition: border-color 0.15s, opacity 0.15s;
+    white-space: nowrap;
+  }
+
+  .badge:hover { opacity: 0.8; }
+  .badge:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .badge svg { width: 13px; height: 13px; fill: currentColor; flex-shrink: 0; }
+
+  .badge-colab {
+    background: rgba(242, 142, 33, 0.1);
+    color: #f2a23c;
+    border-color: rgba(242, 142, 33, 0.25);
+  }
+
+  .badge-nbviewer {
+    background: rgba(79, 156, 249, 0.1);
+    color: var(--accent);
+    border-color: rgba(79, 156, 249, 0.25);
+  }
+
+  /* ── footer ── */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 24px 32px;
+    max-width: 860px;
+    margin: 0 auto;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  @media (max-width: 600px) {
+    .header-inner, main, footer { padding-left: 20px; padding-right: 20px; }
+    .notebook-row { flex-direction: column; align-items: flex-start; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wave-bg">
+    <svg viewBox="0 0 1200 120" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <polyline fill="none" stroke="#4f9cf9" stroke-width="2"
+        points="0,60 40,60 50,20 60,100 70,30 80,90 90,45 100,75 110,55 130,55 140,15 150,105 160,35 170,85 180,50 200,50 210,10 220,110 230,25 240,95 250,40 270,40 280,60 1200,60"/>
+    </svg>
+  </div>
+  <div class="header-inner">
+    <p class="eyebrow">TU Ilmenau · Institut für Medientechnik · AMS Group</p>
+    <h1><strong>Multimediaprogrammierung</strong><br>Seminar Materials</h1>
+    <p class="subtitle">Prof. Dr.-Ing. Gerald Schuller &nbsp;·&nbsp; Renato Fera P.</p>
+  </div>
+</header>
+
+<main>
+
+  <!-- Interactive Demos -->
+  <section>
+    <p class="section-label">Interactive demos — Web Audio API</p>
+    <div class="demo-grid">
+
+      <a class="demo-card" href="01_webaudio_oscillator.html">
+        <div class="demo-icon icon-osc">
+          <svg viewBox="0 0 24 24"><path d="M2 12 Q5 4 8 12 Q11 20 14 12 Q17 4 20 12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="2" y1="12" x2="0" y2="12"/></svg>
+        </div>
+        <div class="demo-title">Oscillator</div>
+        <div class="demo-desc">Explore sine, square, sawtooth and triangle waveforms. Adjust frequency and gain with a live oscilloscope.</div>
+        <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+      </a>
+
+      <a class="demo-card" href="01_webaudio_visualizer.html">
+        <div class="demo-icon icon-viz">
+          <svg viewBox="0 0 24 24"><rect x="2" y="14" width="3" height="7" rx="1"/><rect x="7" y="9" width="3" height="12" rx="1"/><rect x="12" y="5" width="3" height="16" rx="1"/><rect x="17" y="11" width="3" height="10" rx="1"/></svg>
+        </div>
+        <div class="demo-title">Visualizer</div>
+        <div class="demo-desc">Real-time waveform and FFT spectrum display using <code style="font-family:var(--mono);font-size:12px">AnalyserNode</code>, side by side.</div>
+        <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+      </a>
+
+      <a class="demo-card" href="01_webaudio_synth.html">
+        <div class="demo-icon icon-syn">
+          <svg viewBox="0 0 24 24"><rect x="2" y="6" width="3" height="12" rx="1"/><rect x="6" y="6" width="3" height="12" rx="1"/><rect x="10" y="6" width="3" height="12" rx="1"/><rect x="14" y="6" width="3" height="12" rx="1"/><rect x="18" y="6" width="3" height="12" rx="1"/><rect x="4" y="6" width="2" height="7" rx="1" fill="currentColor" stroke="none"/><rect x="8" y="6" width="2" height="7" rx="1" fill="currentColor" stroke="none"/><rect x="15" y="6" width="2" height="7" rx="1" fill="currentColor" stroke="none"/><rect x="19" y="6" width="2" height="7" rx="1" fill="currentColor" stroke="none"/></svg>
+        </div>
+        <div class="demo-title">Synthesizer</div>
+        <div class="demo-desc">Polyphonic synth with oscillator, biquad filter, and ADSR envelope. Play notes on the on-screen keyboard.</div>
+        <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+      </a>
+
+    </div>
+  </section>
+
+  <!-- Notebooks -->
+  <section>
+    <p class="section-label">Seminar notebooks</p>
+    <div class="notebook-list">
+
+      <div class="notebook-row">
+        <div class="notebook-num">00</div>
+        <div class="notebook-title">
+          Introduction
+          <span>00_multimediaprogrammierung_intro.ipynb</span>
+        </div>
+        <div class="badge-group">
+          <a class="badge badge-colab"
+             href="https://colab.research.google.com/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/00_multimediaprogrammierung_intro.ipynb"
+             target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-1-7l6-3.5L11 8v7z"/></svg>
+            Colab
+          </a>
+          <a class="badge badge-nbviewer"
+             href="https://nbviewer.org/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/00_multimediaprogrammierung_intro.ipynb"
+             target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm1 14.5v-9l6 4.5-6 4.5zM5 7h2v10H5z"/></svg>
+            NBViewer
+          </a>
+        </div>
+      </div>
+
+      <div class="notebook-row">
+        <div class="notebook-num">01</div>
+        <div class="notebook-title">
+          Web Audio API
+          <span>01_multimediaprogrammierung_webaudio.ipynb</span>
+        </div>
+        <div class="badge-group">
+          <a class="badge badge-colab"
+             href="https://colab.research.google.com/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/01_multimediaprogrammierung_webaudio.ipynb"
+             target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-1-7l6-3.5L11 8v7z"/></svg>
+            Colab
+          </a>
+          <a class="badge badge-nbviewer"
+             href="https://nbviewer.org/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/01_multimediaprogrammierung_webaudio.ipynb"
+             target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm1 14.5v-9l6 4.5-6 4.5zM5 7h2v10H5z"/></svg>
+            NBViewer
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <span>Institut für Medientechnik · Technische Universität Ilmenau</span>
+  <a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars" target="_blank" rel="noopener" style="color:var(--muted);text-decoration:none;">github.com/TUIlmenauAMS/multimedia_programming_seminars</a>
+</footer>
+
+</body>
+</html>
