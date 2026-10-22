@@ -351,7 +351,7 @@
     <!-- Microphone controls -->
     <div id="micControls">
       <p id="micNote" style="display:block; font-size:0.88rem; color:#777; font-style:italic; margin-bottom:8px;">
-        Microphone input requires browser permission. Click Start to request access.
+        Microphone input requires browser permission. Click Start to request access. The mic is analysed but not played back (avoids feedback), and echo cancellation / auto-gain are turned off so the signal stays unprocessed.
       </p>
     </div>
 
@@ -375,11 +375,23 @@
         <button class="tgl" data-fft="16384">16384</button>
         <button class="tgl" data-fft="32768">32768</button>
       </div>
+      <div id="fftInfo" style="font-size:0.85rem;color:#666;margin:10px 0 0;"></div>
+      <div class="control-row" style="margin:10px 0 0;">
+        <label for="smooth">Spectrum smoothing</label>
+        <input type="range" id="smooth" min="0" max="0.95" value="0.3" step="0.05" />
+        <span class="value-badge" id="smoothVal">0.30</span>
+      </div>
+      <div style="font-size:0.82rem;color:#666;margin:6px 0 0;">Averages every frequency bin over successive frames. <strong>0</strong> = raw FFT, instant but flickery; <strong>closer to 1</strong> = steadier curve, slower to react. Affects the spectrum only. See <a href="#concept-smoothing" style="color:#1a73e8;">Key Concepts</a>.</div>
     </div>
 
     <!-- Oscilloscope settings -->
     <div class="card-section">
       <div class="card-section-label">Oscilloscope — Time Window</div>
+      <div class="control-row">
+        <label for="timeWin">Window</label>
+        <input type="range" id="timeWin" min="0" max="1000" value="468" step="1" />
+        <span class="value-badge" id="timeWinVal">20 ms</span>
+      </div>
       <div class="btn-group" id="windowGroup">
         <button class="tgl" data-win="5">5 ms</button>
         <button class="tgl" data-win="10">10 ms</button>
@@ -388,6 +400,11 @@
         <button class="tgl" data-win="100">100 ms</button>
         <button class="tgl" data-win="200">200 ms</button>
         <button class="tgl" data-win="500">500 ms</button>
+      </div>
+      <div style="font-size:0.78rem;color:#888;font-weight:600;margin:12px 0 6px;">Trigger</div>
+      <div class="btn-group" id="trigGroup">
+        <button class="tgl active" data-trig="on">Rising edge</button>
+        <button class="tgl" data-trig="off">Free-run (latest samples)</button>
       </div>
     </div>
 
@@ -460,7 +477,7 @@
 
   <h2 class="section">3. Key Concepts</h2>
   <p>
-    <strong>FFT size and resolution trade-off:</strong> The frequency resolution is <em>f<sub>s</sub> / N</em> Hz per bin, where <em>f<sub>s</sub></em> = 44 100 Hz and <em>N</em> is the FFT size. At N = 2048 this gives ≈ 21.5 Hz/bin; at N = 32768 it drops to ≈ 1.35 Hz/bin. A larger FFT also captures a longer time window — the two are inseparable (time–frequency uncertainty principle).
+    <strong>FFT size and resolution trade-off:</strong> The frequency resolution is <em>f<sub>s</sub> / N</em> Hz per bin, where <em>f<sub>s</sub></em> = the sample rate (typically 44 100 or 48 000 Hz) and <em>N</em> is the FFT size. At N = 2048 this gives ≈ 21.5 Hz/bin; at N = 32768 it drops to ≈ 1.35 Hz/bin. A larger FFT also captures a longer time window — the two are inseparable (time–frequency uncertainty principle).
   </p>
   <p>
     <strong>dBFS:</strong> <code>getFloatFrequencyData()</code> returns values in decibels relative to full scale. 0 dBFS represents the maximum representable digital level. Typical noise floors are around −90 to −96 dBFS for a 16-bit system.
@@ -469,7 +486,13 @@
     <strong>Logarithmic frequency axis:</strong> Human pitch perception is approximately logarithmic — each octave doubles the frequency. A log-frequency axis maps each octave to equal horizontal space, which matches auditory experience. A linear axis compresses low frequencies and expands high ones.
   </p>
   <p>
-    <strong>Oscilloscope trigger:</strong> The display uses a rising-edge zero-crossing trigger to stabilize the waveform. Without it, the buffer start point shifts each frame and the waveform appears to scroll or jitter.
+    <strong id="concept-smoothing">Spectrum smoothing:</strong> A single FFT frame is noisy: even for a steady signal, each frame comes out slightly different, so the raw spectrum flickers. The AnalyserNode can average the spectrum over time through its <code>smoothingTimeConstant</code> (0 to 1). For every bin it computes <em>S<sub>new</sub> = &tau; &middot; S<sub>old</sub> + (1 &minus; &tau;) &middot; |X|</em>, where |X| is the magnitude from the newest FFT frame and &tau; is the smoothing value (the averaging is done on linear magnitudes, then converted to dB). At &tau; = 0 you see every frame as it is: the fastest response, but a jittery trace. As &tau; approaches 1 the old value dominates: the curve is calm and easy to read, but peaks rise and fall slowly. The update runs once per drawn frame, so at 60 frames per second &tau; = 0.8 needs roughly 5 frames (&asymp; 80 ms) to follow a change and &tau; = 0.95 roughly 20 frames (&asymp; 330 ms). Smoothing does not change the frequency resolution (that is set by the FFT size) and does not affect the oscilloscope. Use low values to watch transients, such as a changing frequency or a plucked string, and high values to read a steady tone or the noise floor.
+  </p>
+  <p>
+    <strong>Oscilloscope time window:</strong> The scope reads its own analyser with the maximum buffer (32768 samples, about 743 ms at 44.1 kHz), so the window you choose is independent of the FFT size. Short windows show individual periods; long windows show envelopes and slow modulations.
+  </p>
+  <p>
+    <strong>Oscilloscope trigger:</strong> The display uses a rising-edge zero-crossing trigger to stabilize the waveform. Without it, the buffer start point shifts each frame and the waveform appears to scroll or jitter. A small hysteresis ignores noise near zero, and Free-run mode skips the trigger and simply shows the newest samples.
   </p>
 
   <div class="pills">
@@ -491,8 +514,8 @@
   <!-- ── JavaScript ── -->
   <script>
     /* ── Constants ── */
-    const SAMPLE_RATE = 44100;
-    const NYQUIST     = SAMPLE_RATE / 2;
+    let SAMPLE_RATE = 44100;   // replaced by audioCtx.sampleRate on Start
+    let NYQUIST     = SAMPLE_RATE / 2;
 
     /* ── State ── */
     let audioCtx    = null;
@@ -508,6 +531,11 @@
     let freqScale   = 'log';  // 'log' | 'lin'
     let markerMode  = 'decade'; // 'decade' | 'octave'
     let dbFloor     = -96;
+    let scopeAnalyser = null, outGain = null;   // dedicated scope analyser (always max FFT) + speaker gain
+    let smoothing = 0.3, triggerOn = true;
+    let timeBuf = null, freqBuf = null;          // reused every frame (no per-frame allocation)
+    let scopeW = 800, scopeH = 200, specW = 800, specH = 220;
+    const MAX_SCOPE_FFT = 32768;                 // ~743 ms @ 44.1 kHz
 
     /* ── DOM refs ── */
     const btnStart    = document.getElementById('btnStart');
@@ -587,14 +615,42 @@
     bindToggleGroup('fftGroup', btn => {
       fftSize = Number(btn.dataset.fft);
       if (analyser) analyser.fftSize = fftSize;
+      updateFftInfo();
     });
 
+    const timeWinEl    = document.getElementById('timeWin');
+    const timeWinValEl = document.getElementById('timeWinVal');
+    const showWin = () => {
+      timeWinValEl.textContent = (timeWindowMs < 10 ? timeWindowMs.toFixed(1) : Math.round(timeWindowMs)) + ' ms';
+    };
+    // log-scaled slider: 1 ms … 600 ms
+    timeWinEl.addEventListener('input', () => {
+      timeWindowMs = Math.pow(600, timeWinEl.value / 1000);
+      document.querySelectorAll('#windowGroup .tgl').forEach(b => b.classList.remove('active'));
+      showWin();
+    });
     bindToggleGroup('windowGroup', btn => {
       timeWindowMs = Number(btn.dataset.win);
+      timeWinEl.value = Math.round(1000 * Math.log(timeWindowMs) / Math.log(600));
+      showWin();
     });
+    bindToggleGroup('trigGroup', btn => { triggerOn = btn.dataset.trig === 'on'; });
+    document.getElementById('smooth').addEventListener('input', e => {
+      smoothing = Number(e.target.value);
+      document.getElementById('smoothVal').textContent = smoothing.toFixed(2);
+      if (analyser) analyser.smoothingTimeConstant = smoothing;
+    });
+    function updateFftInfo() {
+      document.getElementById('fftInfo').textContent =
+        'Analysis window: ' + (fftSize / SAMPLE_RATE * 1000).toFixed(1) + ' ms  ·  Resolution: ' +
+        (SAMPLE_RATE / fftSize).toFixed(2) + ' Hz/bin';
+    }
 
     bindToggleGroup('scaleGroup', btn => {
       freqScale = btn.dataset.scale;
+      const mg = document.getElementById('markerGroup');   // decade/octave only apply to the log axis
+      mg.style.opacity = freqScale === 'lin' ? 0.4 : 1;
+      mg.style.pointerEvents = freqScale === 'lin' ? 'none' : '';
     });
 
     bindToggleGroup('markerGroup', btn => {
@@ -605,16 +661,26 @@
     btnStart.addEventListener('click', async () => {
       if (audioCtx) { audioCtx.close(); audioCtx = null; }
 
-      audioCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
+      audioCtx = new AudioContext({ latencyHint: 'interactive' });
+      SAMPLE_RATE = audioCtx.sampleRate; NYQUIST = SAMPLE_RATE / 2;
+      updateFftInfo();
       gainNode = audioCtx.createGain();
       gainNode.gain.value = Number(gainSlider.value);
 
       analyser = audioCtx.createAnalyser();
       analyser.fftSize = fftSize;
-      analyser.smoothingTimeConstant = 0.8;
+      analyser.smoothingTimeConstant = smoothing;
+      scopeAnalyser = audioCtx.createAnalyser();          // time-domain only, decoupled from spectrum FFT size
+      scopeAnalyser.fftSize = MAX_SCOPE_FFT;
+      scopeAnalyser.smoothingTimeConstant = 0;
+      outGain = audioCtx.createGain();                    // speaker path: audible for oscillator, muted for mic
+      outGain.gain.value = inputMode === 'osc' ? 1 : 0;
 
       gainNode.connect(analyser);
-      analyser.connect(audioCtx.destination);
+      gainNode.connect(scopeAnalyser);
+      gainNode.connect(outGain);
+      outGain.connect(audioCtx.destination);
+      // analysers are passive taps; only outGain reaches the speakers
 
       await buildSource();
 
@@ -660,7 +726,7 @@
         sourceNode = osc;
       } else {
         try {
-          micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false });
           const micSrc = audioCtx.createMediaStreamSource(micStream);
           micSrc.connect(gainNode);
           sourceNode = micSrc;
@@ -671,6 +737,7 @@
     }
 
     async function rebuildSource() {
+      if (outGain) outGain.gain.setTargetAtTime(inputMode === 'osc' ? 1 : 0, audioCtx.currentTime, 0.01);
       // Disconnect old source
       if (sourceNode) {
         try { sourceNode.disconnect(); } catch(e) {}
@@ -689,7 +756,7 @@
       }
       if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
       if (audioCtx)  { audioCtx.close(); audioCtx = null; }
-      analyser = null;
+      analyser = null; scopeAnalyser = null; outGain = null;
       gainNode = null;
     }
 
@@ -702,11 +769,12 @@
     function startDrawLoop() {
       const loopFn = () => {
         rafId = requestAnimationFrame(loopFn);
-        if (!analyser || held) return;
+        if (!analyser || !scopeAnalyser || held) return;
 
-        const timeData = new Float32Array(analyser.fftSize);
-        const freqData = new Float32Array(analyser.frequencyBinCount);
-        analyser.getFloatTimeDomainData(timeData);
+        if (!timeBuf || timeBuf.length !== scopeAnalyser.fftSize) timeBuf = new Float32Array(scopeAnalyser.fftSize);
+        if (!freqBuf || freqBuf.length !== analyser.frequencyBinCount) freqBuf = new Float32Array(analyser.frequencyBinCount);
+        const timeData = timeBuf, freqData = freqBuf;
+        scopeAnalyser.getFloatTimeDomainData(timeData);
         analyser.getFloatFrequencyData(freqData);
 
         drawScope(timeData);
@@ -729,10 +797,32 @@
       }
     }
 
+    /* ── Scope helpers ── */
+    function niceStep(raw) {
+      const p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p;
+      return (f < 1.5 ? 1 : f < 3.5 ? 2 : f < 7.5 ? 5 : 10) * p;
+    }
+    // Rising-edge trigger with hysteresis; falls back to the newest samples (free-run).
+    function findTrigger(data, n) {
+      const end = data.length - n;                       // newest possible start
+      if (!triggerOn) return end;
+      const from = end - Math.min(end, Math.floor(SAMPLE_RATE * 0.06));
+      let peak = 0;
+      for (let i = from; i < data.length; i += 4) peak = Math.max(peak, Math.abs(data[i]));
+      if (peak < 0.003) return end;                      // silence: nothing to lock to
+      const h = peak * 0.1;
+      let armed = false;
+      for (let i = from; i < end; i++) {
+        if (data[i] < -h) armed = true;
+        else if (armed && data[i] >= 0) return i;
+      }
+      return end;
+    }
+
     /* ── Oscilloscope ── */
     function drawScope(data) {
-      const W = scopeCanvas.width;
-      const H = scopeCanvas.height;
+      const W = scopeW;
+      const H = scopeH;
       const ml = SCOPE_MARGIN.left, mr = SCOPE_MARGIN.right;
       const mt = SCOPE_MARGIN.top,  mb = SCOPE_MARGIN.bottom;
       const plotW = W - ml - mr;
@@ -743,15 +833,12 @@
 
       /* ── Determine how many samples to display ── */
       const samplesToShow = Math.min(
-        Math.floor((timeWindowMs / 1000) * SAMPLE_RATE),
+        Math.max(2, Math.floor((timeWindowMs / 1000) * SAMPLE_RATE)),
         data.length
       );
 
       /* ── Rising-edge zero-crossing trigger ── */
-      let triggerIdx = 0;
-      for (let i = 1; i < data.length - samplesToShow; i++) {
-        if (data[i - 1] <= 0 && data[i] > 0) { triggerIdx = i; break; }
-      }
+      const triggerIdx = findTrigger(data, samplesToShow);
 
       /* ── Amplitude ticks: -1, -0.5, 0, +0.5, +1 ── */
       const ampTicks = [-1, -0.5, 0, 0.5, 1];
@@ -778,13 +865,10 @@
 
       /* ── X axis (time) ── */
       // choose tick spacing
-      const tickMs = timeWindowMs <= 10  ? 1
-                   : timeWindowMs <= 50  ? 5
-                   : timeWindowMs <= 200 ? 20
-                   : 50;
+      const tickMs = niceStep(timeWindowMs / 8);
 
       sCtx.textAlign = 'center';
-      for (let t = 0; t <= timeWindowMs; t += tickMs) {
+      for (let t = 0; t <= timeWindowMs + 1e-9; t += tickMs) {
         const x = ml + (t / timeWindowMs) * plotW;
         // minor grid
         sCtx.strokeStyle = 'rgba(154,154,176,0.10)';
@@ -792,7 +876,7 @@
         sCtx.beginPath(); sCtx.moveTo(x, mt); sCtx.lineTo(x, H - mb); sCtx.stroke();
         // label
         sCtx.fillStyle = '#9a9ab0';
-        sCtx.fillText(t.toString(), x, H - mb + 14);
+        sCtx.fillText(+t.toFixed(3) + '', x, H - mb + 14);
       }
 
       /* ── Axis border ── */
@@ -804,11 +888,23 @@
       sCtx.lineWidth = 2;
       sCtx.strokeStyle = '#4a9eff';
       sCtx.beginPath();
-      for (let i = 0; i < samplesToShow; i++) {
-        const sample = data[triggerIdx + i] || 0;
-        const x = ml + (i / (samplesToShow - 1)) * plotW;
-        const y = mt + plotH * (1 - (sample + 1) / 2);
-        i === 0 ? sCtx.moveTo(x, y) : sCtx.lineTo(x, y);
+      const yOf = v => mt + plotH * (1 - (Math.max(-1, Math.min(1, v)) + 1) / 2);
+      if (samplesToShow > plotW * 2) {
+        // long windows: min/max envelope per pixel column (keeps peaks, stays fast)
+        const per = samplesToShow / plotW;
+        for (let px = 0; px < plotW; px++) {
+          const a = triggerIdx + Math.floor(px * per), b = triggerIdx + Math.floor((px + 1) * per);
+          let lo = Infinity, hi = -Infinity;
+          for (let k = a; k < b; k++) { const v = data[k]; if (v < lo) lo = v; if (v > hi) hi = v; }
+          if (lo === Infinity) continue;
+          sCtx.moveTo(ml + px + 0.5, yOf(hi)); sCtx.lineTo(ml + px + 0.5, yOf(lo));
+        }
+      } else {
+        for (let i = 0; i < samplesToShow; i++) {
+          const x = ml + (i / (samplesToShow - 1)) * plotW;
+          const y = yOf(data[triggerIdx + i] || 0);
+          i === 0 ? sCtx.moveTo(x, y) : sCtx.lineTo(x, y);
+        }
       }
       sCtx.stroke();
 
@@ -818,8 +914,8 @@
 
     /* ── Spectrum ── */
     function drawSpectrum(data) {
-      const W = specCanvas.width;
-      const H = specCanvas.height;
+      const W = specW;
+      const H = specH;
       const ml = SPEC_MARGIN.left, mr = SPEC_MARGIN.right;
       const mt = SPEC_MARGIN.top,  mb = SPEC_MARGIN.bottom;
       const plotW = W - ml - mr;
@@ -851,7 +947,12 @@
       const decadeMarkers = [20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000];
       // A series octaves starting from A0 = 27.5 Hz
       const octaveMarkers = [27.5, 55, 110, 220, 440, 880, 1760, 3520, 7040, 14080];
-      const majorMarkers  = markerMode === 'decade' ? decadeMarkers : octaveMarkers;
+      let majorMarkers = markerMode === 'decade' ? decadeMarkers : octaveMarkers;
+      if (freqScale === 'lin') {                       // evenly spaced markers: 0, 2k, 4k, … up to Nyquist
+        const step = niceStep(NYQUIST / 10);
+        majorMarkers = [];
+        for (let f = 0; f <= NYQUIST; f += step) majorMarkers.push(f);
+      }
 
       fCtx.textAlign = 'center';
       majorMarkers.forEach(f => {
@@ -864,6 +965,17 @@
         fCtx.fillStyle = '#9a9ab0';
         fCtx.fillText(label, x, H - mb + 14);
       });
+
+      /* ── Minor ticks (linear): four per major step ── */
+      if (freqScale === 'lin') {
+        const mstep = niceStep(NYQUIST / 10) / 4;
+        fCtx.strokeStyle = 'rgba(154,154,176,0.07)';
+        fCtx.lineWidth = 1;
+        for (let f = mstep; f < NYQUIST; f += mstep) {
+          const x = freqToX(f, W, ml, mr);
+          fCtx.beginPath(); fCtx.moveTo(x, mt); fCtx.lineTo(x, H - mb); fCtx.stroke();
+        }
+      }
 
       /* ── Minor ticks (log only) ── */
       if (freqScale === 'log') {
@@ -952,7 +1064,20 @@
       });
     }
 
-    clearPlots();
+    function resizeCanvases() {
+      const dpr = window.devicePixelRatio || 1;
+      [[scopeCanvas, sCtx], [specCanvas, fCtx]].forEach(([cv, ctx]) => {
+        cv.width  = Math.round(cv.clientWidth  * dpr);
+        cv.height = Math.round(cv.clientHeight * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      });
+      scopeW = scopeCanvas.clientWidth; scopeH = scopeCanvas.clientHeight;
+      specW  = specCanvas.clientWidth;  specH  = specCanvas.clientHeight;
+      clearPlots();
+    }
+    new ResizeObserver(resizeCanvases).observe(scopeCanvas);
+    resizeCanvases();
+    updateFftInfo();
   </script>
 </body>
 </html>
