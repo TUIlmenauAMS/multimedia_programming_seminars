@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebGL 2 – Textures Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent:    #1a73e8;
+      --danger:    #e53935;
+      --border:    #e0e0e0;
+      --canvas-bg: #1e1e2e;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px; line-height: 1.6; color: #212121;
+      background: #fff; max-width: 900px; margin: 0 auto; padding: 0 24px 48px;
+    }
+
+    [hidden] { display: none !important; }
+
+    /* ── Header ── */
+    .nb-header { display: flex; align-items: center; gap: 24px; border-bottom: 2px solid #e0e0e0; padding: 16px 0; margin-bottom: 32px; }
+    .nb-header img { width: 120px; border-radius: 12px; flex-shrink: 0; }
+    .nb-header h1 { font-size: 1.6rem; margin-bottom: 4px; }
+    .nb-header h2 { font-size: 1.1rem; font-weight: 400; margin-bottom: 8px; color: #444; }
+    .nb-header p  { font-size: 0.92rem; margin-bottom: 2px; }
+    .nb-header a  { color: #1a73e8; text-decoration: none; }
+    .nb-header a:hover { text-decoration: underline; }
+
+    /* ── Pills ── */
+    .pills { margin: 12px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill { display: inline-block; padding: 6px 14px; border: 1px solid #1a73e8; border-radius: 20px; text-decoration: none; font-weight: 600; font-size: 0.92rem; color: #1a73e8; transition: background 0.15s, color 0.15s; }
+    .pill:hover { background: #1a73e8; color: #fff; }
+
+    /* ── Sections ── */
+    h2.section { font-size: 1.3rem; margin: 40px 0 12px; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 36px 0; }
+    p  { margin-bottom: 12px; }
+    ol, ul.list { margin: 0 0 12px 24px; }
+    li { margin-bottom: 6px; }
+
+    /* ── Demo card ── */
+    .demo-card { background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 12px; padding: 28px 32px; margin: 24px 0; }
+    .demo-card h3 { font-size: 1rem; font-weight: 600; margin-bottom: 20px; color: #444; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* ── Controls ── */
+    .control-row { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+    .control-row label { min-width: 130px; font-weight: 500; font-size: 0.95rem; }
+    .control-row input[type=range] { flex: 1; min-width: 160px; accent-color: var(--accent); }
+    .control-row input[type=checkbox] { accent-color: var(--accent); width: 18px; height: 18px; }
+    .control-row select { padding: 6px 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 0.95rem; background: #fff; }
+    .value-badge { min-width: 48px; text-align: right; font-variant-numeric: tabular-nums; font-size: 0.92rem; color: #555; }
+
+    /* Keyboard focus */
+    input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible, a:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 2px;
+    }
+
+    /* ── Canvas ── */
+    canvas { display: block; width: 100%; height: 120px; border-radius: 8px; background: var(--canvas-bg); margin-top: 20px; }
+    canvas.gl-canvas { height: auto; aspect-ratio: 16 / 10; margin-top: 0; touch-action: none; cursor: grab; }
+    canvas.gl-canvas:active { cursor: grabbing; }
+    .canvas-wrap { margin-bottom: 8px; }
+    .drag-hint { font-size: 0.85rem; color: #777; text-align: center; margin-bottom: 16px; }
+
+    /* ── Stats ── */
+    .stats { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.82rem; color: #555; margin-top: 10px; line-height: 1.6; }
+
+    /* ── Error banner ── */
+    .error-banner { background: #fdecea; border-left: 5px solid var(--danger); border-radius: 6px; padding: 12px 18px; margin: 20px 0; color: #7f1d1d; }
+    .error-banner pre { white-space: pre-wrap; font-size: 0.85rem; margin-top: 8px; }
+
+    /* ── Shader source ── */
+    details.shader-source { margin: 16px 0; border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; background: #fafafa; }
+    details.shader-source summary { cursor: pointer; font-weight: 600; }
+    details.shader-source h4 { font-size: 0.92rem; margin: 14px 0 0; color: #444; }
+    details.shader-source pre { overflow-x: auto; font-size: 0.82rem; line-height: 1.5; margin-top: 6px; font-family: "SFMono-Regular", Consolas, monospace; }
+
+    /* ── Footer ── */
+    .nb-footer { text-align: center; padding: 18px 0 8px; margin-top: 48px; border-top: 2px solid #e0e0e0; font-size: 0.92rem; color: #444; line-height: 1.7; }
+    .nb-footer a { color: #1a73e8; text-decoration: none; }
+    .nb-footer a:hover { text-decoration: underline; }
+
+    /* ── Info box ── */
+    .info-box { border-left: 5px solid #1a73e8; background: rgba(26,115,232,0.07); border-radius: 6px; padding: 12px 18px; margin: 20px 0; font-size: 0.95rem; }
+    .info-box p:last-child { margin-bottom: 0; }
+
+    code { background: #f1f3f4; border-radius: 4px; padding: 1px 6px; font-size: 0.9em; font-family: "SFMono-Regular", Consolas, monospace; }
+
+    @media (max-width: 600px) {
+      .nb-header { flex-direction: column; align-items: flex-start; }
+      .demo-card { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header class="nb-header">
+    <img
+      src="https://raw.githubusercontent.com/TUIlmenauAMS/multimedia_programming_seminars/main/ams_group_tui.png"
+      alt="AMS Group – TU Ilmenau"
+    />
+    <div>
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 02: WebGL 2 &mdash; Demo: Textures</h2>
+      <p><strong>Institut für Medientechnik &ndash; Technische Universität Ilmenau</strong><br>
+        <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme" target="_blank">
+          Institut für Medientechnik &ndash; AMS Group
+        </a>
+      </p>
+      <p>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller<br>
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+      </p>
+    </div>
+  </header>
+
+  <!-- ── Section 1: Concept ── -->
+  <h2 class="section">1. Textures: Images on Geometry</h2>
+  <p>
+    A <strong>texture</strong> is a 2D image stored in GPU memory. To apply it to geometry, every vertex gets a <strong>UV coordinate</strong> — a 2D point in the range 0&hellip;1 that says "this vertex corresponds to this spot on the texture". During rasterization the GPU <strong>interpolates</strong> the UV across the triangle, and the fragment shader samples the texture at that interpolated position with the built-in <code>texture()</code> function.
+  </p>
+  <p>
+    How the GPU reads a texel when the UV lands between pixels, or when the geometry is far away, is controlled by <strong>filtering parameters</strong>. <code>NEAREST</code> picks the closest texel (sharp, blocky). <code>LINEAR</code> blends the four nearest ones (smooth). For distant or small geometry, <strong>mipmaps</strong> — pre-computed half-resolution copies of the texture — prevent shimmering aliasing by letting the GPU sample from the appropriate level.
+  </p>
+
+  <div class="info-box">
+    <p><strong>WebGL 2 removes the power-of-two restriction.</strong> In WebGL 1, mipmaps and <code>REPEAT</code> wrapping only worked on textures whose width and height were powers of two (1, 2, 4, 8, 16, 32, &hellip;). WebGL 2 lifts this restriction entirely — any size works. The <em>checker</em> texture here is 16&times;16 (a power of two anyway), and the <em>detail</em> texture is 200&times;200 (not a power of two) to demonstrate that mipmaps and repeat wrapping both work fine on it.</p>
+    <p><strong>UV coordinates outside 0&hellip;1.</strong> When <code>uvScale</code> is greater than 1, the vertex shader multiplies the UVs by that factor, sending them outside the 0&hellip;1 range. The <strong>wrap mode</strong> decides what happens: <code>REPEAT</code> tiles the texture, <code>MIRRORED_REPEAT</code> flips it on every tile, and <code>CLAMP_TO_EDGE</code> stretches the edge pixels.</p>
+  </div>
+
+  <hr />
+
+  <!-- ── Section 2: Interactive Demo ── -->
+  <h2 class="section">2. Interactive Demo</h2>
+  <p>
+    Compare <code>NEAREST</code> and <code>LINEAR</code> on the low-resolution 16&times;16 checker texture; with the detail texture, high UV scale and large distance, compare <code>NEAREST</code> with <code>LINEAR_MIPMAP_LINEAR</code> to see mipmapping in action.
+  </p>
+
+  <div id="errorSlot"></div>
+
+  <div class="demo-card">
+    <h3>Textured Cube</h3>
+
+    <div class="canvas-wrap">
+      <canvas id="glcanvas" class="gl-canvas" role="img"
+        aria-label="A textured rotating cube rendered with WebGL 2."></canvas>
+    </div>
+    <p class="drag-hint">Drag to rotate</p>
+
+    <div class="control-row">
+      <label for="textureSource">Texture</label>
+      <select id="textureSource">
+        <option value="checker">Checker (16&times;16 px)</option>
+        <option value="detail">Detail F (200&times;200 px)</option>
+      </select>
+    </div>
+
+    <div class="control-row">
+      <label for="minFilter">Min filter</label>
+      <select id="minFilter">
+        <option value="9728">NEAREST</option>
+        <option value="9729">LINEAR</option>
+        <option value="9984">NEAREST_MIPMAP_NEAREST</option>
+        <option value="9987" selected>LINEAR_MIPMAP_LINEAR</option>
+      </select>
+    </div>
+
+    <div class="control-row">
+      <label for="magFilter">Mag filter</label>
+      <select id="magFilter">
+        <option value="9728">NEAREST</option>
+        <option value="9729" selected>LINEAR</option>
+      </select>
+    </div>
+
+    <div class="control-row">
+      <label for="wrap">Wrap mode</label>
+      <select id="wrap">
+        <option value="10497" selected>REPEAT</option>
+        <option value="33648">MIRRORED_REPEAT</option>
+        <option value="33071">CLAMP_TO_EDGE</option>
+      </select>
+    </div>
+
+    <div class="control-row">
+      <label for="uvScale">UV scale</label>
+      <input type="range" id="uvScale" min="0.5" max="8" step="0.1" value="1" />
+      <span class="value-badge" id="uvScaleVal">1.0</span>
+    </div>
+
+    <div class="control-row">
+      <label for="distance">Distance</label>
+      <input type="range" id="distance" min="2" max="12" step="0.1" value="4" />
+      <span class="value-badge" id="distanceVal">4.0</span>
+    </div>
+
+    <div class="control-row">
+      <label for="autoRotate">Auto-rotate</label>
+      <input type="checkbox" id="autoRotate" checked />
+    </div>
+
+    <div class="stats" id="stats" aria-live="off"></div>
+  </div>
+
+  <hr />
+
+  <!-- ── Section 3: How It Works ── -->
+  <h2 class="section">3. How It Works</h2>
+  <p>
+    This demo is Demo 4 with colors replaced by UVs and a texture sampler. The new steps:
+  </p>
+  <ol>
+    <li><strong>UV attribute.</strong> Each of the 24 vertices gets a <code>vec2</code> UV: (0,0) at the bottom-left of its face, (1,1) at the top-right. The vertex shader multiplies by <code>u_uvScale</code> before passing the UV to the fragment shader.</li>
+    <li><strong>Procedural textures.</strong> Both textures are drawn on a hidden <code>&lt;canvas&gt;</code> element using the 2D API. No image file is needed — the cube can be opened from <code>file://</code>.</li>
+    <li><strong>Texture upload.</strong> <code>gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas2d)</code>. <code>UNPACK_FLIP_Y_WEBGL</code> is set to <code>true</code> before the upload: the 2D canvas has its origin at the top-left, but WebGL expects the origin at the bottom-left, so without flipping the texture would be upside-down.</li>
+    <li><strong>Mipmaps.</strong> <code>gl.generateMipmap(gl.TEXTURE_2D)</code> builds the mip chain automatically after upload. The chain halves the resolution at each level: 200&times;200, 100&times;100, 50&times;50, &hellip;, 1&times;1.</li>
+    <li><strong>Texture parameters.</strong> <code>gl.texParameteri</code> sets filtering and wrap mode on the currently bound texture. Changing a select calls it immediately.</li>
+    <li><strong>Texture units.</strong> <code>gl.activeTexture(gl.TEXTURE0)</code> selects unit 0; <code>gl.bindTexture</code> binds the texture to that unit. The sampler uniform is set to <code>0</code> (the unit index, not the texture object) with <code>gl.uniform1i</code>. Multiple textures are supported by using more units.</li>
+  </ol>
+
+  <div class="info-box">
+    <p><strong>Why not just send pixels?</strong> A texture is uploaded once (or rarely) to GPU memory. During rendering, the GPU samples it millions of times per second from its on-chip texture cache — far faster than reading main memory. The filtering and mipmap logic is also implemented in dedicated fixed-function hardware.</p>
+  </div>
+
+  <details class="shader-source">
+    <summary>Show the shader source that runs on your GPU</summary>
+    <h4>Vertex shader</h4>
+    <pre id="vsSource"></pre>
+    <h4>Fragment shader</h4>
+    <pre id="fsSource"></pre>
+  </details>
+
+  <div class="pills">
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Tutorial/Using_textures_in_WebGL" target="_blank">Using textures — MDN &#8599;</a>
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/texImage2D" target="_blank">texImage2D — MDN &#8599;</a>
+    <a class="pill" href="https://webgl2fundamentals.org/webgl/lessons/webgl-3d-textures.html" target="_blank">Textures — webgl2fundamentals &#8599;</a>
+  </div>
+
+  <!-- ── Footer ── -->
+  <footer class="nb-footer">
+    <p><strong>Multimediaprogrammierung</strong> &middot; Chapter 02: WebGL 2 &middot; Demo: Textures<br>
+      Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+    <p>Demo created by <strong>Renato Fera P.</strong> &middot;
+      <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+    </p>
+  </footer>
+
+  <!-- ── JavaScript ── -->
+  <script type="module">
+    /**
+     * ═══════════════════════════════════════════════════════════════════
+     * Chapter 02: WebGL 2 · Demo 5: Textures
+     *
+     * Teaches:  UV coordinates, texture creation and upload, texture
+     *           filtering (NEAREST / LINEAR), mipmaps, wrap modes, and
+     *           the sampler uniform.
+     * Notebook: section 10 (Textures).
+     *
+     * Steps in this file:
+     *   STEP 0  Collect DOM references once
+     *   STEP 1  Get the WebGL 2 context
+     *   STEP 2  Shader sources (GLSL ES 3.00)
+     *   STEP 3  Helper functions (shared WebGL + mat4 math)
+     *   STEP 4  Compile + link; cache attribute/uniform locations
+     *   STEP 5  Build cube geometry (positions + UVs, index buffer)
+     *   STEP 6  Create procedural textures
+     *   STEP 7  Wire UI events and pointer drag to state
+     *   STEP 8  Render function (per frame)
+     *   STEP 9  Start the animation loop
+     * ═══════════════════════════════════════════════════════════════════
+     */
+
+    // ══════════════════════════════════════════════════════════════════
+    // STEP 0 — Collect DOM references once
+    // ══════════════════════════════════════════════════════════════════
+    const ui = {
+      canvas:        document.querySelector('#glcanvas'),
+      textureSource: document.querySelector('#textureSource'),
+      minFilter:     document.querySelector('#minFilter'),
+      magFilter:     document.querySelector('#magFilter'),
+      wrap:          document.querySelector('#wrap'),
+      uvScale:       document.querySelector('#uvScale'),
+      uvScaleVal:    document.querySelector('#uvScaleVal'),
+      distance:      document.querySelector('#distance'),
+      distanceVal:   document.querySelector('#distanceVal'),
+      autoRotate:    document.querySelector('#autoRotate'),
+      stats:         document.querySelector('#stats'),
+      errorSlot:     document.querySelector('#errorSlot'),
+      vsSource:      document.querySelector('#vsSource'),
+      fsSource:      document.querySelector('#fsSource'),
+    };
+
+    // Rendering constants
+    const CLEAR_COLOR      = [0.118, 0.118, 0.18, 1.0];
+    const DEG_TO_RAD       = Math.PI / 180;
+    const NEAR             = 0.1;
+    const FAR              = 100.0;
+    const FOV_DEG          = 45;
+    const DISTANCE_DEFAULT = 4.0;
+    const ROT_X_CLAMP      = 90;
+
+    // Human-readable names for the GL filter/wrap constants (for the stats line).
+    const GL_CONST_NAME = {
+      9728:  'NEAREST',
+      9729:  'LINEAR',
+      9984:  'NEAREST_MIPMAP_NEAREST',
+      9986:  'NEAREST_MIPMAP_LINEAR',
+      9985:  'LINEAR_MIPMAP_NEAREST',
+      9987:  'LINEAR_MIPMAP_LINEAR',
+      10497: 'REPEAT',
+      33648: 'MIRRORED_REPEAT',
+      33071: 'CLAMP_TO_EDGE',
+    };
+
+    // ══════════════════════════════════════════════════════════════════
+    // STEP 3 — Helper functions
+    // ══════════════════════════════════════════════════════════════════
+
+    // --- Shared WebGL helpers (same as in 02_webgl_triangle.html) ---
+
+    /** @param {WebGL2RenderingContext} gl @param {number} type @param {string} source @returns {WebGLShader} */
+    function createShader(gl, type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(shader);
+        gl.deleteShader(shader);
+        throw new Error(`Shader compile error:\n${log}`);
+      }
+      return shader;
+    }
+
+    /** @param {WebGL2RenderingContext} gl @param {string} vs @param {string} fs @returns {WebGLProgram} */
+    function createProgram(gl, vs, fs) {
+      const v = createShader(gl, gl.VERTEX_SHADER, vs);
+      const f = createShader(gl, gl.FRAGMENT_SHADER, fs);
+      const program = gl.createProgram();
+      gl.attachShader(program, v); gl.attachShader(program, f);
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        const log = gl.getProgramInfoLog(program);
+        gl.deleteProgram(program);
+        throw new Error(`Program link error:\n${log}`);
+      }
+      return program;
+    }
+
+    /** @param {HTMLCanvasElement} canvas @returns {boolean} */
+    function resizeCanvasToDisplaySize(canvas) {
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.round(canvas.clientWidth * dpr);
+      const h = Math.round(canvas.clientHeight * dpr);
+      const changed = canvas.width !== w || canvas.height !== h;
+      if (changed) { canvas.width = w; canvas.height = h; }
+      return changed;
+    }
+
+    /** @param {string} message */
+    function showError(message) {
+      const banner = document.createElement('div');
+      banner.className = 'error-banner';
+      const title = document.createElement('strong');
+      title.textContent = 'This demo could not start.';
+      const pre = document.createElement('pre');
+      pre.textContent = message;
+      banner.append(title, pre);
+      ui.errorSlot.replaceChildren(banner);
+      document.querySelectorAll('.demo-card input, .demo-card select')
+        .forEach(el => { el.disabled = true; });
+    }
+
+    // NEW in this demo: mat4 helpers (same as in 02_webgl_cube.html).
+    // Same helper as in demo 02_webgl_cube.html.
+    const mat4 = {
+      identity:    () => new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]),
+      translation: (x,y,z) => new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1]),
+      rotationX:   (a) => { const c=Math.cos(a),s=Math.sin(a); return new Float32Array([1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1]); },
+      rotationY:   (a) => { const c=Math.cos(a),s=Math.sin(a); return new Float32Array([c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]); },
+      perspective: (fovY, aspect, near, far) => {
+        const f=1/Math.tan(fovY/2), nf=1/(near-far);
+        return new Float32Array([f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,2*far*near*nf,0]);
+      },
+      multiply: (a, b) => {
+        const out = new Float32Array(16);
+        for (let c=0;c<4;c++) for (let r=0;r<4;r++) {
+          let s=0; for (let k=0;k<4;k++) s+=a[k*4+r]*b[c*4+k]; out[c*4+r]=s;
+        }
+        return out;
+      },
+    };
+
+    // ══════════════════════════════════════════════════════════════════
+    // STEP 2 — Shader sources (GLSL ES 3.00)
+    // ══════════════════════════════════════════════════════════════════
+
+    // NEW in this demo: a_uv replaces a_color; v_uv is passed to the fragment
+    // shader; u_uvScale allows the UV range to exceed 0..1 so wrap modes show.
+    const vertexShaderSource = `#version 300 es
+in vec3 a_position;
+// NEW in this demo: UV coordinates (0..1 per face, then scaled).
+in vec2 a_uv;
+
+uniform mat4 u_model;
+uniform mat4 u_view;
+uniform mat4 u_projection;
+// NEW: scale UVs beyond 0..1 to show wrapping and minification.
+uniform float u_uvScale;
+
+out vec2 v_uv;
+
+void main() {
+  // Multiply UV by scale before interpolation so the fragment shader
+  // receives already-scaled coordinates (values > 1 trigger wrapping).
+  v_uv = a_uv * u_uvScale;
+  gl_Position = u_projection * u_view * u_model * vec4(a_position, 1.0);
+}`;
+
+    // NEW in this demo: sample the texture instead of using a flat color.
+    const fragmentShaderSource = `#version 300 es
+precision highp float;
+
+in vec2 v_uv;
+
+// NEW: a sampler2D uniform. The value is a texture unit index (0, 1, 2, ...),
+// not a texture object. Set it with gl.uniform1i(loc, 0) for unit 0.
+uniform sampler2D u_texture;
+
+out vec4 outColor;
+
+void main() {
+  // texture() looks up the texel at v_uv using the filtering and wrap
+  // parameters set with gl.texParameteri on the bound texture.
+  outColor = texture(u_texture, v_uv);
+}`;
+
+    // ══════════════════════════════════════════════════════════════════
+    // Entry point
+    // ══════════════════════════════════════════════════════════════════
+    function main() {
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 1 — Get the WebGL 2 context
+      // ════════════════════════════════════════════════════════════════
+      const gl = ui.canvas.getContext('webgl2');
+      if (!gl) {
+        throw new Error(
+          'WebGL 2 is not available in this browser.\n' +
+          'Use a current version of Chrome, Edge, Firefox or Safari and ' +
+          'enable hardware acceleration.'
+        );
+      }
+
+      ui.vsSource.textContent = vertexShaderSource;
+      ui.fsSource.textContent = fragmentShaderSource;
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 4 — Compile + link; cache attribute/uniform locations
+      // ════════════════════════════════════════════════════════════════
+      const program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
+
+      const aPosition   = gl.getAttribLocation(program,  'a_position');
+      const aUv         = gl.getAttribLocation(program,  'a_uv');
+      const uModel      = gl.getUniformLocation(program, 'u_model');
+      const uView       = gl.getUniformLocation(program, 'u_view');
+      const uProjection = gl.getUniformLocation(program, 'u_projection');
+      const uUvScale    = gl.getUniformLocation(program, 'u_uvScale');
+      const uTexture    = gl.getUniformLocation(program, 'u_texture');
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 5 — Build cube geometry (positions + UVs, index buffer)
+      // ════════════════════════════════════════════════════════════════
+      // Same cube as Demo 4 but a_color is replaced by a_uv.
+      // Each face maps its four corners to UV (0,0)..(1,1).
+      //
+      // Vertex layout per face (same winding convention as Demo 4):
+      //   v0 = BL (bottom-left  from outside), UV (0,0)
+      //   v1 = BR (bottom-right from outside), UV (1,0)
+      //   v2 = TL (top-left     from outside), UV (0,1)
+      //   v3 = TR (top-right    from outside), UV (1,1)
+      //
+      // Index split [0,1,3] + [0,3,2] — same as Demo 4, winds CCW from outside.
+
+      const FACES = [
+        // +X (right), -X (left), +Y (top), -Y (bottom), +Z (front), -Z (back)
+        // v0=BL,              v1=BR,              v2=TL,              v3=TR
+        [[ 0.5,-0.5, 0.5],[ 0.5,-0.5,-0.5],[ 0.5, 0.5, 0.5],[ 0.5, 0.5,-0.5]],
+        [[-0.5,-0.5,-0.5],[-0.5,-0.5, 0.5],[-0.5, 0.5,-0.5],[-0.5, 0.5, 0.5]],
+        [[-0.5, 0.5, 0.5],[ 0.5, 0.5, 0.5],[-0.5, 0.5,-0.5],[ 0.5, 0.5,-0.5]],
+        [[-0.5,-0.5,-0.5],[ 0.5,-0.5,-0.5],[-0.5,-0.5, 0.5],[ 0.5,-0.5, 0.5]],
+        [[-0.5,-0.5, 0.5],[ 0.5,-0.5, 0.5],[-0.5, 0.5, 0.5],[ 0.5, 0.5, 0.5]],
+        [[ 0.5,-0.5,-0.5],[-0.5,-0.5,-0.5],[ 0.5, 0.5,-0.5],[-0.5, 0.5,-0.5]],
+      ];
+
+      // UV corners for BL, BR, TL, TR — the same for every face.
+      const FACE_UVS = [[0,0],[1,0],[0,1],[1,1]];
+
+      const posData = [], uvData = [], indexData = [];
+      for (let f = 0; f < FACES.length; f++) {
+        const base = f * 4;
+        for (let v = 0; v < 4; v++) {
+          posData.push(...FACES[f][v]);
+          uvData.push(...FACE_UVS[v]);
+        }
+        // Index split: [0,1,3] + [0,3,2] — verified CCW from outside in Demo 4.
+        indexData.push(base,base+1,base+3, base,base+3,base+2);
+      }
+
+      const positions = new Float32Array(posData);
+      const uvs       = new Float32Array(uvData);
+      const indices   = new Uint16Array(indexData);
+      const INDEX_COUNT = indices.length; // 36
+
+      // Record two position buffers and one UV buffer in a single VAO.
+      const vao = gl.createVertexArray();
+      gl.bindVertexArray(vao);
+
+      // Position buffer
+      const posBuf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(aPosition);
+      gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+
+      // UV buffer — NEW in this demo.
+      const uvBuf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, uvs, gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(aUv);
+      gl.vertexAttribPointer(aUv, 2, gl.FLOAT, false, 0, 0);
+
+      // Index buffer — part of the VAO state (same as Demo 4).
+      const idxBuf = gl.createBuffer();
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuf);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+
+      gl.bindVertexArray(null);
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 6 — Create procedural textures
+      // ════════════════════════════════════════════════════════════════
+      // Both textures are drawn on a hidden <canvas> element using the 2D
+      // Canvas API, then uploaded to WebGL. No image files are needed.
+
+      /**
+       * Draw the 16×16 colored checkerboard texture onto a 2D canvas.
+       * Low resolution on purpose: magnification makes filtering differences obvious.
+       * A 1-px red marker in the bottom-left corner shows orientation.
+       * @returns {HTMLCanvasElement}
+       */
+      function makeCheckerCanvas() {
+        const c = document.createElement('canvas');
+        c.width = c.height = 16;
+        const ctx = c.getContext('2d');
+        for (let y = 0; y < 16; y++) {
+          for (let x = 0; x < 16; x++) {
+            // Alternate between two colors in a checkerboard pattern.
+            ctx.fillStyle = (x + y) % 2 === 0 ? '#1a73e8' : '#e8a21a';
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+        // 1-px orientation marker: bottom-left = (0, 15) in canvas coordinates.
+        ctx.fillStyle = '#ff0000';
+        ctx.fillRect(0, 15, 1, 1);
+        return c;
+      }
+
+      /**
+       * Draw the 200×200 "detail F" texture onto a 2D canvas.
+       * 200×200 is NOT a power of two — this proves WebGL 2 supports
+       * mipmaps and REPEAT on non-power-of-two textures.
+       * Contains fine 1-px grid lines + a large letter "F" for aliasing tests.
+       * @returns {HTMLCanvasElement}
+       */
+      function makeDetailCanvas() {
+        const SIZE = 200;
+        const c = document.createElement('canvas');
+        c.width = c.height = SIZE;
+        const ctx = c.getContext('2d');
+
+        // Background
+        ctx.fillStyle = '#1e1e2e';
+        ctx.fillRect(0, 0, SIZE, SIZE);
+
+        // 1-px grid lines every 10 pixels — fine detail that aliases badly
+        // without mipmaps and shows beautifully with LINEAR_MIPMAP_LINEAR.
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)';
+        ctx.lineWidth = 1;
+        for (let i = 0; i <= SIZE; i += 10) {
+          ctx.beginPath(); ctx.moveTo(i, 0);    ctx.lineTo(i, SIZE); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(0, i);    ctx.lineTo(SIZE, i); ctx.stroke();
+        }
+
+        // Large letter "F" — asymmetric so orientation is always visible.
+        ctx.fillStyle = '#e8a21a';
+        // Vertical stem
+        ctx.fillRect(40, 30, 40, 140);
+        // Top bar
+        ctx.fillRect(40, 30, 120, 35);
+        // Middle bar (shorter)
+        ctx.fillRect(40, 95, 90, 30);
+
+        return c;
+      }
+
+      /**
+       * Upload a 2D canvas as a WebGL texture and generate mipmaps.
+       * Returns the WebGLTexture object.
+       * @param {HTMLCanvasElement} srcCanvas
+       * @returns {WebGLTexture}
+       */
+      function uploadTexture(srcCanvas) {
+        const tex = gl.createTexture();
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+
+        // UNPACK_FLIP_Y_WEBGL: the 2D canvas has its y-axis pointing DOWN
+        // (origin top-left), but WebGL textures have y pointing UP (origin
+        // bottom-left). Setting this flag makes WebGL flip the rows on upload
+        // so UV (0,0) correctly maps to the bottom-left of the image.
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+        // Upload the canvas pixels into the texture at mip level 0 (full size).
+        // The two gl.RGBA parameters are: internal format and source format.
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, srcCanvas);
+
+        // Generate the mip chain: WebGL computes all the half-resolution copies
+        // automatically. For a 200×200 texture this produces levels 0..7.
+        gl.generateMipmap(gl.TEXTURE_2D);
+
+        return tex;
+      }
+
+      // Build both textures at startup and keep them in GPU memory.
+      const texChecker = uploadTexture(makeCheckerCanvas());
+      const texDetail  = uploadTexture(makeDetailCanvas());
+
+      // Start with default filter/wrap parameters on both textures.
+      // (We will update them when the selects change.)
+      function applyTexParams(tex, minF, magF, wrapMode) {
+        gl.bindTexture(gl.TEXTURE_2D, tex);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minF);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, magF);
+        // Apply the same wrap mode to both S (horizontal) and T (vertical).
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrapMode);
+        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrapMode);
+      }
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 7 — Wire UI events and pointer drag to state
+      // ════════════════════════════════════════════════════════════════
+
+      const state = {
+        textureSource: 'checker',
+        minFilter:     9987,   // LINEAR_MIPMAP_LINEAR
+        magFilter:     9729,   // LINEAR
+        wrap:          10497,  // REPEAT
+        uvScale:       1.0,
+        distance:      DISTANCE_DEFAULT,
+        autoRotate:    true,
+        rotX:          -20,
+        rotY:           30,
+        animAngle:      0,
+      };
+
+      // Apply current params to both textures so switching source is seamless.
+      function refreshTexParams() {
+        applyTexParams(texChecker, state.minFilter, state.magFilter, state.wrap);
+        applyTexParams(texDetail,  state.minFilter, state.magFilter, state.wrap);
+      }
+      refreshTexParams();
+
+      ui.textureSource.addEventListener('change', () => {
+        state.textureSource = ui.textureSource.value;
+      });
+      ui.minFilter.addEventListener('change', () => {
+        state.minFilter = parseInt(ui.minFilter.value, 10);
+        refreshTexParams();
+      });
+      ui.magFilter.addEventListener('change', () => {
+        state.magFilter = parseInt(ui.magFilter.value, 10);
+        refreshTexParams();
+      });
+      ui.wrap.addEventListener('change', () => {
+        state.wrap = parseInt(ui.wrap.value, 10);
+        refreshTexParams();
+      });
+      ui.uvScale.addEventListener('input', () => {
+        state.uvScale = parseFloat(ui.uvScale.value);
+        ui.uvScaleVal.textContent = state.uvScale.toFixed(1);
+      });
+      ui.distance.addEventListener('input', () => {
+        state.distance = parseFloat(ui.distance.value);
+        ui.distanceVal.textContent = state.distance.toFixed(1);
+      });
+      ui.autoRotate.addEventListener('change', () => {
+        state.autoRotate = ui.autoRotate.checked;
+      });
+
+      // Pointer drag (same implementation as Demo 4).
+      let isDragging = false, lastPX = 0, lastPY = 0;
+      const DRAG_SENS = 0.5;
+      ui.canvas.addEventListener('pointerdown', (e) => {
+        isDragging = true; lastPX = e.clientX; lastPY = e.clientY;
+        ui.canvas.setPointerCapture(e.pointerId);
+      });
+      ui.canvas.addEventListener('pointermove', (e) => {
+        if (!isDragging) return;
+        state.rotY += (e.clientX - lastPX) * DRAG_SENS;
+        state.rotX += (e.clientY - lastPY) * DRAG_SENS;
+        state.rotX = Math.max(-ROT_X_CLAMP, Math.min(ROT_X_CLAMP, state.rotX));
+        lastPX = e.clientX; lastPY = e.clientY;
+      });
+      const stopDrag = () => { isDragging = false; };
+      ui.canvas.addEventListener('pointerup',     stopDrag);
+      ui.canvas.addEventListener('pointercancel', stopDrag);
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 8 — Render function
+      // ════════════════════════════════════════════════════════════════
+
+      let fpsSmooth = 0, lastFpsTime = 0, frameCount = 0;
+
+      /** @param {number} timestamp */
+      function render(timestamp) {
+        resizeCanvasToDisplaySize(ui.canvas);
+        gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+        gl.enable(gl.DEPTH_TEST);
+        gl.enable(gl.CULL_FACE);
+
+        gl.clearColor(...CLEAR_COLOR);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        // Select the active texture based on the dropdown.
+        const activeTex = state.textureSource === 'checker' ? texChecker : texDetail;
+
+        // NEW in this demo: bind the texture to texture unit 0.
+        // gl.activeTexture selects which unit subsequent bindTexture calls affect.
+        // gl.TEXTURE0 through gl.TEXTURE0+N are the available units (≥8 in WebGL 2).
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, activeTex);
+
+        // Build MVP matrices (same as Demo 4).
+        const totalRotY = (state.rotY + state.animAngle * (180 / Math.PI)) * DEG_TO_RAD;
+        const totalRotX = state.rotX * DEG_TO_RAD;
+        const model = mat4.multiply(mat4.rotationY(totalRotY), mat4.rotationX(totalRotX));
+        const view  = mat4.translation(0, 0, -state.distance);
+        const proj  = mat4.perspective(FOV_DEG * DEG_TO_RAD, gl.drawingBufferWidth / gl.drawingBufferHeight, NEAR, FAR);
+
+        gl.useProgram(program);
+        gl.uniformMatrix4fv(uModel,      false, model);
+        gl.uniformMatrix4fv(uView,       false, view);
+        gl.uniformMatrix4fv(uProjection, false, proj);
+        gl.uniform1f(uUvScale, state.uvScale);
+
+        // Tell the sampler to read from texture unit 0.
+        // Note: this is the unit INDEX (0), not the texture object itself.
+        gl.uniform1i(uTexture, 0);
+
+        gl.bindVertexArray(vao);
+        gl.drawElements(gl.TRIANGLES, INDEX_COUNT, gl.UNSIGNED_SHORT, 0);
+
+        // Stats: show the current texture parameter values as code.
+        frameCount++;
+        if (timestamp - lastFpsTime >= 500) {
+          fpsSmooth   = Math.round(frameCount / ((timestamp - lastFpsTime) / 1000));
+          frameCount  = 0;
+          lastFpsTime = timestamp;
+        }
+        const srcLabel = state.textureSource === 'checker' ? 'checker (16×16)' : 'detail F (200×200)';
+        ui.stats.textContent = [
+          `source: ${srcLabel} · uvScale: ${state.uvScale.toFixed(1)} · FPS: ${fpsSmooth}`,
+          `TEXTURE_MIN_FILTER = ${GL_CONST_NAME[state.minFilter]}`,
+          `TEXTURE_MAG_FILTER = ${GL_CONST_NAME[state.magFilter]}`,
+          `TEXTURE_WRAP       = ${GL_CONST_NAME[state.wrap]}`,
+        ].join('\n');
+
+        ui.uvScaleVal.textContent  = state.uvScale.toFixed(1);
+        ui.distanceVal.textContent = state.distance.toFixed(1);
+      }
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 9 — Start the animation loop
+      // ════════════════════════════════════════════════════════════════
+      // Same accumulated-time pattern as Demo 2 and Demo 4.
+      let lastTime = null;
+
+      /** @param {number} timestamp */
+      function loop(timestamp) {
+        const dt = lastTime === null ? 0 : (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
+        if (state.autoRotate) state.animAngle += dt;
+        render(timestamp);
+        requestAnimationFrame(loop);
+      }
+
+      requestAnimationFrame(loop);
+
+    } // end main()
+
+    try {
+      main();
+    } catch (error) {
+      console.error(error);
+      showError(error.message);
+    }
+  </script>
+</body>
+</html>
