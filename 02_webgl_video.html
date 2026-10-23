@@ -1,0 +1,1037 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebGL 2 – Video Filters Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent:    #1a73e8;
+      --danger:    #e53935;
+      --border:    #e0e0e0;
+      --canvas-bg: #1e1e2e;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px; line-height: 1.6; color: #212121;
+      background: #fff; max-width: 900px; margin: 0 auto; padding: 0 24px 48px;
+    }
+
+    [hidden] { display: none !important; }
+
+    /* ── Header ── */
+    .nb-header { display: flex; align-items: center; gap: 24px; border-bottom: 2px solid #e0e0e0; padding: 16px 0; margin-bottom: 32px; }
+    .nb-header img { width: 120px; border-radius: 12px; flex-shrink: 0; }
+    .nb-header h1 { font-size: 1.6rem; margin-bottom: 4px; }
+    .nb-header h2 { font-size: 1.1rem; font-weight: 400; margin-bottom: 8px; color: #444; }
+    .nb-header p  { font-size: 0.92rem; margin-bottom: 2px; }
+    .nb-header a  { color: #1a73e8; text-decoration: none; }
+    .nb-header a:hover { text-decoration: underline; }
+
+    /* ── Pills ── */
+    .pills { margin: 12px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill { display: inline-block; padding: 6px 14px; border: 1px solid #1a73e8; border-radius: 20px; text-decoration: none; font-weight: 600; font-size: 0.92rem; color: #1a73e8; transition: background 0.15s, color 0.15s; }
+    .pill:hover { background: #1a73e8; color: #fff; }
+
+    /* ── Sections ── */
+    h2.section { font-size: 1.3rem; margin: 40px 0 12px; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 36px 0; }
+    p  { margin-bottom: 12px; }
+    ol, ul.list { margin: 0 0 12px 24px; }
+    li { margin-bottom: 6px; }
+
+    /* ── Demo card ── */
+    .demo-card { background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 12px; padding: 28px 32px; margin: 24px 0; }
+    .demo-card h3 { font-size: 1rem; font-weight: 600; margin-bottom: 20px; color: #444; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* ── Controls ── */
+    .control-row { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+    .control-row label { min-width: 130px; font-weight: 500; font-size: 0.95rem; }
+    .control-row input[type=range] { flex: 1; min-width: 160px; accent-color: var(--accent); }
+    .control-row input[type=checkbox] { accent-color: var(--accent); width: 18px; height: 18px; }
+    .control-row input[type=file]  { font-size: 0.9rem; }
+    .control-row select { padding: 6px 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 0.95rem; background: #fff; }
+    .value-badge { min-width: 48px; text-align: right; font-variant-numeric: tabular-nums; font-size: 0.92rem; color: #555; }
+
+    /* Buttons */
+    .btn-row { display: flex; gap: 12px; margin-top: 4px; flex-wrap: wrap; }
+    .btn { padding: 8px 24px; border: none; border-radius: 24px; font-size: 0.92rem; font-weight: 600; cursor: pointer; transition: opacity 0.15s, transform 0.1s; }
+    .btn:active { transform: scale(0.97); }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* Keyboard focus */
+    input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible, a:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 2px;
+    }
+
+    /* ── Canvas ── */
+    canvas { display: block; width: 100%; height: 120px; border-radius: 8px; background: var(--canvas-bg); margin-top: 20px; }
+    canvas.gl-canvas { height: auto; aspect-ratio: 16 / 10; margin-top: 0; }
+    .canvas-wrap { margin-bottom: 12px; }
+
+    /* ── Stats ── */
+    .stats { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.82rem; color: #555; margin-top: 10px; line-height: 1.6; }
+
+    /* ── Error banner ── */
+    .error-banner { background: #fdecea; border-left: 5px solid var(--danger); border-radius: 6px; padding: 12px 18px; margin: 20px 0; color: #7f1d1d; }
+    .error-banner pre { white-space: pre-wrap; font-size: 0.85rem; margin-top: 8px; }
+
+    /* ── Shader source ── */
+    details.shader-source { margin: 16px 0; border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; background: #fafafa; }
+    details.shader-source summary { cursor: pointer; font-weight: 600; }
+    details.shader-source h4 { font-size: 0.92rem; margin: 14px 0 0; color: #444; }
+    details.shader-source pre { overflow-x: auto; font-size: 0.82rem; line-height: 1.5; margin-top: 6px; font-family: "SFMono-Regular", Consolas, monospace; }
+
+    /* ── Info box ── */
+    .info-box { border-left: 5px solid #1a73e8; background: rgba(26,115,232,0.07); border-radius: 6px; padding: 12px 18px; margin: 20px 0; font-size: 0.95rem; }
+    .info-box p:last-child { margin-bottom: 0; }
+
+    code { background: #f1f3f4; border-radius: 4px; padding: 1px 6px; font-size: 0.9em; font-family: "SFMono-Regular", Consolas, monospace; }
+
+    /* ── Footer ── */
+    .nb-footer { text-align: center; padding: 18px 0 8px; margin-top: 48px; border-top: 2px solid #e0e0e0; font-size: 0.92rem; color: #444; line-height: 1.7; }
+    .nb-footer a { color: #1a73e8; text-decoration: none; }
+    .nb-footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 600px) {
+      .nb-header { flex-direction: column; align-items: flex-start; }
+      .demo-card { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header class="nb-header">
+    <img
+      src="https://raw.githubusercontent.com/TUIlmenauAMS/multimedia_programming_seminars/main/ams_group_tui.png"
+      alt="AMS Group – TU Ilmenau"
+    />
+    <div>
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 02: WebGL 2 &mdash; Demo: Video Filters</h2>
+      <p><strong>Institut für Medientechnik &ndash; Technische Universität Ilmenau</strong><br>
+        <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme" target="_blank">
+          Institut für Medientechnik &ndash; AMS Group
+        </a>
+      </p>
+      <p>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller<br>
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+      </p>
+    </div>
+  </header>
+
+  <!-- ── Section 1: Concept ── -->
+  <h2 class="section">1. Video as a Texture</h2>
+  <p>
+    A <strong>video is just a texture whose pixels change every frame.</strong> Instead of uploading an image once, the render loop calls <code>gl.texImage2D</code> every frame with the current video frame as the source. Everything else — UV coordinates, filtering, the sampler uniform — works exactly as in Demo 5.
+  </p>
+  <p>
+    Once the video frame lives in GPU memory as a texture, the <strong>fragment shader runs once per pixel in parallel</strong>. A 1080p frame has about 2 million pixels, and the GPU processes them all at the same time. This makes image-processing filters — grayscale, edge detection, blur — trivially fast: the vertex shader just draws a fullscreen quad; the fragment shader does all the work.
+  </p>
+
+  <div class="info-box">
+    <p><strong>Per-frame upload:</strong> each frame, if the video is ready (<code>readyState &ge; HAVE_CURRENT_DATA</code>), the demo calls <code>gl.texImage2D(..., videoElement)</code> to replace the texture contents. No mipmaps are generated (it would require regenerating them for every frame — use <code>LINEAR</code> min-filter instead). <code>CLAMP_TO_EDGE</code> is set so the video edges don't bleed.</p>
+    <p><strong>Optimisation note:</strong> <code>texSubImage2D</code> can update a sub-region without reallocating; <code>requestVideoFrameCallback</code> fires only when a new frame is decoded, avoiding redundant uploads. Both are mentioned in code comments but not implemented here for clarity.</p>
+  </div>
+
+  <hr />
+
+  <!-- ── Section 2: Interactive Demo ── -->
+  <h2 class="section">2. Interactive Demo</h2>
+  <p>
+    The demo starts with an animated procedural pattern — no file, no permission needed. Switch to a local video file or your webcam and compare the filters using the split slider: the left side shows the original, the right the filtered output.
+  </p>
+
+  <div id="errorSlot"></div>
+
+  <div class="demo-card">
+    <h3>Video Filters</h3>
+
+    <div class="canvas-wrap">
+      <canvas id="glcanvas" class="gl-canvas" role="img"
+        aria-label="A real-time video filter demo rendered with WebGL 2."></canvas>
+    </div>
+
+    <!-- Source -->
+    <div class="control-row">
+      <label for="source">Source</label>
+      <select id="source">
+        <option value="pattern" selected>Animated pattern</option>
+        <option value="file">Video file…</option>
+        <option value="webcam">Webcam</option>
+      </select>
+    </div>
+
+    <!-- File input — shown only when source === 'file' -->
+    <div class="control-row" id="fileRow" hidden>
+      <label for="videoFile">Video file</label>
+      <input type="file" id="videoFile" accept="video/*" />
+    </div>
+
+    <!-- Play/pause button — hidden for pattern source -->
+    <div class="btn-row" id="playPauseRow" hidden>
+      <button class="btn btn-primary" id="playPause">Pause</button>
+    </div>
+
+    <!-- Filter -->
+    <div class="control-row" style="margin-top: 18px;">
+      <label for="filter">Filter</label>
+      <select id="filter">
+        <option value="0" selected>None</option>
+        <option value="1">Grayscale</option>
+        <option value="2">Sepia</option>
+        <option value="3">Invert</option>
+        <option value="4">Threshold</option>
+        <option value="5">Edge detection (Sobel)</option>
+        <option value="6">Blur (3×3 box)</option>
+      </select>
+    </div>
+
+    <!-- Amount blend -->
+    <div class="control-row">
+      <label for="amount">Amount</label>
+      <input type="range" id="amount" min="0" max="1" step="0.01" value="1" />
+      <span class="value-badge" id="amountVal">1.00</span>
+    </div>
+
+    <!-- Split view -->
+    <div class="control-row">
+      <label for="split">Split view</label>
+      <input type="checkbox" id="split" checked />
+    </div>
+
+    <div class="control-row" id="splitPosRow">
+      <label for="splitPos">Split position</label>
+      <input type="range" id="splitPos" min="0" max="1" step="0.01" value="0.5" />
+      <span class="value-badge" id="splitPosVal">0.50</span>
+    </div>
+
+    <div class="stats" id="stats" aria-live="off"></div>
+  </div>
+
+  <hr />
+
+  <!-- ── Section 3: How It Works ── -->
+  <h2 class="section">3. How It Works</h2>
+  <p>
+    This demo is Demo 5 with the cube replaced by a fullscreen quad and the static texture replaced by a live video feed. The key differences:
+  </p>
+  <ol>
+    <li><strong>Three frame sources.</strong> <code>getFrameSource()</code> returns either a <code>&lt;video&gt;</code> element or a procedurally animated 2D <code>&lt;canvas&gt;</code> — the render loop does not need to know which.</li>
+    <li><strong>Per-frame texture upload.</strong> Each frame, if the source has data, <code>texImage2D</code> is called with the source element. The texture is set up once at init with <code>LINEAR</code> filtering and <code>CLAMP_TO_EDGE</code> wrapping, and mipmaps are skipped.</li>
+    <li><strong>Letterboxing.</strong> The vertex shader receives a <code>u_scale</code> vec2 that shrinks the quad so the video's aspect ratio is preserved within the canvas. The area outside stays the canvas background color.</li>
+    <li><strong>Split view.</strong> A second varying, <code>v_canvasUv</code>, carries the canvas-relative x position (0…1). The fragment shader uses it — not <code>v_uv</code> — to draw the divider line and select left (original) vs right (filtered).</li>
+    <li><strong>Seven filters</strong> implemented as GLSL functions, selected at runtime by <code>uniform int u_filter</code>. Each function takes and returns a <code>vec3</code> color. Neighbor sampling (Sobel, blur) uses <code>textureSize(u_texture, 0)</code> to compute a texel step.</li>
+  </ol>
+
+  <div class="info-box">
+    <p><strong>Webcam and <code>file://</code>:</strong> <code>getUserMedia</code> requires a secure context (HTTPS or localhost). When run via <code>file://</code>, the browser may block it. The demo catches the failure, shows an error banner, and falls back to the animated pattern. Switching sources stops old media tracks and revokes any object URL to avoid leaks.</p>
+    <p><strong>GPU cost model:</strong> <code>if/else if</code> on a uniform in GLSL ES 3.00 is legal and clear for teaching. On a GPU, branches that are uniform (all threads take the same path) are cheap — the driver compiles them as conditional moves or separate code paths. Dynamic branches on <em>per-pixel</em> data would cost more.</p>
+  </div>
+
+  <details class="shader-source">
+    <summary>Show the shader source that runs on your GPU</summary>
+    <h4>Vertex shader</h4>
+    <pre id="vsSource"></pre>
+    <h4>Fragment shader</h4>
+    <pre id="fsSource"></pre>
+  </details>
+
+  <div class="pills">
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/texImage2D" target="_blank">texImage2D &mdash; MDN &#8599;</a>
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement" target="_blank">HTMLVideoElement &mdash; MDN &#8599;</a>
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia" target="_blank">getUserMedia &mdash; MDN &#8599;</a>
+    <a class="pill" href="https://registry.khronos.org/OpenGL/specs/es/3.0/GLSL_ES_Specification_3.00.pdf" target="_blank">GLSL ES 3.00 spec (textureSize) &#8599;</a>
+  </div>
+
+  <!-- ── Footer ── -->
+  <footer class="nb-footer">
+    <p><strong>Multimediaprogrammierung</strong> &middot; Chapter 02: WebGL 2 &middot; Demo: Video Filters<br>
+      Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+    <p>Demo created by <strong>Renato Fera P.</strong> &middot;
+      <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+    </p>
+  </footer>
+
+  <!-- ── JavaScript ── -->
+  <script type="module">
+    /**
+     * ═══════════════════════════════════════════════════════════════════
+     * Chapter 02: WebGL 2 · Demo 6: Video Filters
+     *
+     * Teaches:  Using video as a per-frame texture, per-frame texImage2D
+     *           upload, image-processing filters in the fragment shader
+     *           (grayscale, sepia, invert, threshold, Sobel, blur),
+     *           split-view comparison, letterboxed quad rendering.
+     * Notebook: section 10 (Textures — video subsection).
+     *
+     * Steps in this file:
+     *   STEP 0  Collect DOM references once
+     *   STEP 1  Get the WebGL 2 context
+     *   STEP 2  Shader sources (GLSL ES 3.00)
+     *   STEP 3  Helper functions (shared WebGL helpers)
+     *   STEP 4  Compile + link; cache attribute/uniform locations
+     *   STEP 5  Create fullscreen quad geometry + VAO
+     *   STEP 6  Create the video texture (parameters set once at init)
+     *   STEP 7  Frame source management (pattern / file / webcam)
+     *   STEP 8  Wire UI events to state
+     *   STEP 9  Render function (per frame): upload texture, draw quad
+     *   STEP 10 Start the animation loop
+     * ═══════════════════════════════════════════════════════════════════
+     */
+
+    // ══════════════════════════════════════════════════════════════════
+    // STEP 0 — Collect DOM references once
+    // ══════════════════════════════════════════════════════════════════
+    const ui = {
+      canvas:      document.querySelector('#glcanvas'),
+      source:      document.querySelector('#source'),
+      fileRow:     document.querySelector('#fileRow'),
+      videoFile:   document.querySelector('#videoFile'),
+      playPauseRow:document.querySelector('#playPauseRow'),
+      playPause:   document.querySelector('#playPause'),
+      filter:      document.querySelector('#filter'),
+      amount:      document.querySelector('#amount'),
+      amountVal:   document.querySelector('#amountVal'),
+      split:       document.querySelector('#split'),
+      splitPosRow: document.querySelector('#splitPosRow'),
+      splitPos:    document.querySelector('#splitPos'),
+      splitPosVal: document.querySelector('#splitPosVal'),
+      stats:       document.querySelector('#stats'),
+      errorSlot:   document.querySelector('#errorSlot'),
+      vsSource:    document.querySelector('#vsSource'),
+      fsSource:    document.querySelector('#fsSource'),
+    };
+
+    // ══════════════════════════════════════════════════════════════════
+    // STEP 2 — Shader sources (GLSL ES 3.00)
+    // ══════════════════════════════════════════════════════════════════
+
+    // NEW in this demo: the vertex shader emits two UVs:
+    //   v_uv        — texture-space coordinate (0..1 within the letterboxed video)
+    //   v_canvasUv  — canvas-relative x (0..1 left→right, used for the split line)
+    // u_scale shrinks the quad to preserve the source's aspect ratio.
+    const vertexShaderSource = `#version 300 es
+
+in vec2 a_position; // NDC position of the fullscreen quad, -1..+1
+in vec2 a_uv;       // UV of the quad corner in texture space, 0..1
+
+// NEW in this demo: u_scale letterboxes the quad so the video's aspect
+// ratio is preserved. Components are <= 1.0 and are computed in JS from
+// the ratio of source-aspect vs canvas-aspect.
+uniform vec2 u_scale;
+
+out vec2 v_uv;
+// NEW: canvas-relative x: (a_position.x * u_scale.x + 1.0) / 2.0 mapped to 0..1.
+// Used by the fragment shader for the split line and left/right decision.
+// This stays in canvas space and does NOT move with the letterbox.
+out float v_canvasX;
+
+void main() {
+  v_uv      = a_uv;
+  // v_canvasX: remap the NDC x after scaling to 0..1 canvas space.
+  // We compute it from the *unscaled* position so the split line
+  // is anchored to the canvas, not to the video quad.
+  v_canvasX = (a_position.x + 1.0) * 0.5;
+  // Apply letterbox scale — the quad stays centered at (0,0).
+  gl_Position = vec4(a_position * u_scale, 0.0, 1.0);
+}`;
+
+    // NEW in this demo: the fragment shader implements 7 filters selected
+    // by uniform int u_filter. Each filter is a small GLSL function.
+    // textureSize(sampler, lod) is GLSL ES 3.00 — it returns the texture's
+    // pixel dimensions, which we use to compute a one-texel step for
+    // neighbor-sampling (Sobel, blur).
+    const fragmentShaderSource = `#version 300 es
+precision highp float;
+
+in vec2  v_uv;
+in float v_canvasX;
+
+uniform sampler2D u_texture;  // texture unit 0 — the video/pattern frame
+uniform int       u_filter;   // 0=none 1=gray 2=sepia 3=invert 4=thresh 5=sobel 6=blur
+uniform float     u_amount;   // 0..1 blend: 0 = original, 1 = fully filtered
+uniform bool      u_split;    // enable left/right split view
+uniform float     u_splitPos; // canvas-relative x of the split divider, 0..1
+
+out vec4 outColor;
+
+// ── Helper: Rec. 709 luminance ─────────────────────────────────────
+// These weights match human eye sensitivity: green contributes most,
+// red moderate, blue least. Using 0.333 for all three gives a "flat"
+// gray that looks too bright in blue/green areas.
+float luma(vec3 c) {
+  return dot(c, vec3(0.2126, 0.7152, 0.0722));
+}
+
+// ── Filter functions (all take/return linear sRGB vec3) ───────────
+
+vec3 filterGrayscale(vec3 c) {
+  float l = luma(c);
+  return vec3(l);
+}
+
+vec3 filterSepia(vec3 c) {
+  // Standard 3x3 sepia color matrix.
+  return vec3(
+    dot(c, vec3(0.393, 0.769, 0.189)),
+    dot(c, vec3(0.349, 0.686, 0.168)),
+    dot(c, vec3(0.272, 0.534, 0.131))
+  );
+}
+
+vec3 filterInvert(vec3 c) {
+  return 1.0 - c;
+}
+
+vec3 filterThreshold(vec3 c) {
+  // Convert to luminance, then snap to black or white at 0.5.
+  return vec3(luma(c) > 0.5 ? 1.0 : 0.0);
+}
+
+// ── Sobel edge detection ──────────────────────────────────────────
+// Samples a 3x3 neighbourhood of luminance values and applies the
+// Sobel kernels Gx (horizontal) and Gy (vertical).
+// textureSize(u_texture, 0) returns the texture dimensions in pixels,
+// so 1.0/dims is a one-texel offset in UV space.
+vec3 filterSobel(vec2 uv) {
+  vec2 t = 1.0 / vec2(textureSize(u_texture, 0)); // one texel in UV space
+
+  // Sample luminance in a 3x3 grid around the current texel.
+  float tl = luma(texture(u_texture, uv + vec2(-t.x,  t.y)).rgb);
+  float tc = luma(texture(u_texture, uv + vec2( 0.0,  t.y)).rgb);
+  float tr = luma(texture(u_texture, uv + vec2( t.x,  t.y)).rgb);
+  float ml = luma(texture(u_texture, uv + vec2(-t.x,  0.0)).rgb);
+  float mr = luma(texture(u_texture, uv + vec2( t.x,  0.0)).rgb);
+  float bl = luma(texture(u_texture, uv + vec2(-t.x, -t.y)).rgb);
+  float bc = luma(texture(u_texture, uv + vec2( 0.0, -t.y)).rgb);
+  float br = luma(texture(u_texture, uv + vec2( t.x, -t.y)).rgb);
+
+  // Sobel kernels:  Gx detects vertical edges, Gy horizontal edges.
+  float gx = -tl - 2.0*ml - bl + tr + 2.0*mr + br;
+  float gy = -tl - 2.0*tc - tr + bl + 2.0*bc + br;
+
+  float edge = length(vec2(gx, gy)); // gradient magnitude
+  return vec3(clamp(edge, 0.0, 1.0));
+}
+
+// ── 3x3 box blur ─────────────────────────────────────────────────
+// Averages all 9 texels in a 3x3 neighbourhood — simple but effective.
+vec3 filterBlur(vec2 uv) {
+  vec2 t = 1.0 / vec2(textureSize(u_texture, 0));
+  vec3 sum = vec3(0.0);
+  for (int dy = -1; dy <= 1; dy++) {
+    for (int dx = -1; dx <= 1; dx++) {
+      sum += texture(u_texture, uv + vec2(float(dx), float(dy)) * t).rgb;
+    }
+  }
+  return sum / 9.0;
+}
+
+// ── Main ──────────────────────────────────────────────────────────
+void main() {
+  vec3 original = texture(u_texture, v_uv).rgb;
+
+  // Apply the selected filter.
+  // Branching on a uniform int is legal in GLSL ES 3.00.
+  // Because u_filter is the same for every fragment in a draw call
+  // (it is uniform), the GPU takes the same branch for all pixels
+  // — this is cheap ("uniform branch").
+  vec3 filtered;
+  if      (u_filter == 1) { filtered = filterGrayscale(original); }
+  else if (u_filter == 2) { filtered = filterSepia(original); }
+  else if (u_filter == 3) { filtered = filterInvert(original); }
+  else if (u_filter == 4) { filtered = filterThreshold(original); }
+  else if (u_filter == 5) { filtered = filterSobel(v_uv); }
+  else if (u_filter == 6) { filtered = filterBlur(v_uv); }
+  else                    { filtered = original; } // filter == 0: passthrough
+
+  // Blend between original and filtered by u_amount.
+  vec3 result = mix(original, filtered, u_amount);
+
+  // Split view: left of the divider shows the original, right the result.
+  // v_canvasX is in canvas space (0..1), independent of letterboxing.
+  if (u_split) {
+    // Thin white divider line: ~2 px wide (0.003 is ~2.7 px on a 900 px canvas).
+    float dividerHalfWidth = 0.003;
+    if (abs(v_canvasX - u_splitPos) < dividerHalfWidth) {
+      outColor = vec4(1.0);
+      return;
+    }
+    result = v_canvasX < u_splitPos ? original : result;
+  }
+
+  outColor = vec4(result, 1.0);
+}`;
+
+    // ══════════════════════════════════════════════════════════════════
+    // STEP 3 — Helper functions
+    // (Same helpers as in 02_webgl_triangle.html and 02_webgl_texture.html)
+    // ══════════════════════════════════════════════════════════════════
+
+    /** Compile one shader stage; throw with the driver's info log on failure.
+     * @param {WebGL2RenderingContext} gl
+     * @param {number} type
+     * @param {string} source
+     * @returns {WebGLShader}
+     */
+    function createShader(gl, type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(shader);
+        gl.deleteShader(shader);
+        throw new Error(`Shader compile error:\n${log}`);
+      }
+      return shader;
+    }
+
+    /** Link a vertex + fragment shader into a program; throw on failure.
+     * @param {WebGL2RenderingContext} gl
+     * @param {string} vs
+     * @param {string} fs
+     * @returns {WebGLProgram}
+     */
+    function createProgram(gl, vs, fs) {
+      const v = createShader(gl, gl.VERTEX_SHADER, vs);
+      const f = createShader(gl, gl.FRAGMENT_SHADER, fs);
+      const program = gl.createProgram();
+      gl.attachShader(program, v);
+      gl.attachShader(program, f);
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        const log = gl.getProgramInfoLog(program);
+        gl.deleteProgram(program);
+        throw new Error(`Program link error:\n${log}`);
+      }
+      return program;
+    }
+
+    /** Match the drawing buffer to the CSS display size × devicePixelRatio.
+     * @param {HTMLCanvasElement} canvas
+     * @returns {boolean} true if the size changed
+     */
+    function resizeCanvasToDisplaySize(canvas) {
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.round(canvas.clientWidth  * dpr);
+      const h = Math.round(canvas.clientHeight * dpr);
+      const changed = canvas.width !== w || canvas.height !== h;
+      if (changed) { canvas.width = w; canvas.height = h; }
+      return changed;
+    }
+
+    /** Show an error banner and disable all controls.
+     * @param {string} message
+     * @param {boolean} [fatal=true] if false, just shows the banner without disabling controls
+     */
+    function showError(message, fatal = true) {
+      const banner = document.createElement('div');
+      banner.className = 'error-banner';
+      const title = document.createElement('strong');
+      title.textContent = fatal ? 'This demo could not start.' : 'Warning';
+      const pre = document.createElement('pre');
+      pre.textContent = message;
+      banner.append(title, pre);
+      ui.errorSlot.replaceChildren(banner);
+      if (fatal) {
+        document.querySelectorAll('.demo-card input, .demo-card select, .demo-card button')
+          .forEach(el => { el.disabled = true; });
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // STEP 7 — Frame source management
+    // (Defined before main() so it is available at module scope)
+    // ══════════════════════════════════════════════════════════════════
+
+    // The hidden <video> element that plays file or webcam sources.
+    // It is created once and reused across source switches.
+    const videoEl = document.createElement('video');
+    videoEl.loop       = true;
+    videoEl.muted      = true;  // required for autoplay in most browsers
+    videoEl.playsInline = true;
+
+    // Track the current object URL so we can revoke it when a new file is chosen.
+    let currentObjectURL = null;
+
+    // Track the active webcam stream so we can stop its tracks on source switch.
+    let currentStream = null;
+
+    // The animated pattern canvas — drawn into each frame by drawPatternFrame().
+    const patternCanvas = document.createElement('canvas');
+    patternCanvas.width  = 512;
+    patternCanvas.height = 512;
+    const patternCtx = patternCanvas.getContext('2d');
+
+    /**
+     * Draw one frame of the animated pattern into patternCanvas.
+     * The pattern produces moving coloured circles on a shifting gradient
+     * background, plus a high-contrast grid so edge-detection filters
+     * have something to detect.
+     * @param {number} t  elapsed time in seconds
+     */
+    function drawPatternFrame(t) {
+      const W = patternCanvas.width;
+      const H = patternCanvas.height;
+
+      // Hue-shifting gradient background.
+      const hue = (t * 20) % 360;
+      const grad = patternCtx.createLinearGradient(0, 0, W, H);
+      grad.addColorStop(0, `hsl(${hue}, 70%, 20%)`);
+      grad.addColorStop(1, `hsl(${(hue + 120) % 360}, 70%, 10%)`);
+      patternCtx.fillStyle = grad;
+      patternCtx.fillRect(0, 0, W, H);
+
+      // Fine 20-px grid — gives the Sobel filter sharp edges everywhere.
+      patternCtx.strokeStyle = 'rgba(255,255,255,0.15)';
+      patternCtx.lineWidth = 1;
+      for (let i = 0; i < W; i += 20) {
+        patternCtx.beginPath(); patternCtx.moveTo(i, 0);   patternCtx.lineTo(i, H); patternCtx.stroke();
+        patternCtx.beginPath(); patternCtx.moveTo(0, i);   patternCtx.lineTo(W, i); patternCtx.stroke();
+      }
+
+      // Three large moving circles with distinct bright colors.
+      const circles = [
+        { hue: 200, r: 80, ox: 0.5, oy: 0.5, speed: 1.0, orbit: 0.25 },
+        { hue: 40,  r: 60, ox: 0.5, oy: 0.5, speed: 1.7, orbit: 0.20 },
+        { hue: 320, r: 50, ox: 0.5, oy: 0.5, speed: 0.8, orbit: 0.30 },
+      ];
+      for (let i = 0; i < circles.length; i++) {
+        const cfg = circles[i];
+        const angle = t * cfg.speed + (i * Math.PI * 2 / 3);
+        const cx = (cfg.ox + Math.cos(angle) * cfg.orbit) * W;
+        const cy = (cfg.oy + Math.sin(angle) * cfg.orbit) * H;
+        const radial = patternCtx.createRadialGradient(cx, cy, 0, cx, cy, cfg.r);
+        radial.addColorStop(0, `hsl(${cfg.hue}, 100%, 70%)`);
+        radial.addColorStop(1, `hsla(${cfg.hue}, 100%, 40%, 0)`);
+        patternCtx.beginPath();
+        patternCtx.arc(cx, cy, cfg.r, 0, Math.PI * 2);
+        patternCtx.fillStyle = radial;
+        patternCtx.fill();
+      }
+
+      // High-contrast rotating rectangle — clearly visible in threshold/Sobel.
+      patternCtx.save();
+      patternCtx.translate(W / 2, H / 2);
+      patternCtx.rotate(t * 0.5);
+      patternCtx.strokeStyle = 'rgba(255,255,255,0.8)';
+      patternCtx.lineWidth = 3;
+      patternCtx.strokeRect(-100, -60, 200, 120);
+      patternCtx.restore();
+    }
+
+    /**
+     * Return the current frame source: either patternCanvas or videoEl,
+     * depending on the active source setting.
+     * The render loop calls this and passes the result to texImage2D —
+     * it does not need to know which type it received.
+     * @param {string} sourceMode  'pattern' | 'file' | 'webcam'
+     * @returns {HTMLCanvasElement | HTMLVideoElement}
+     */
+    function getFrameSource(sourceMode) {
+      return sourceMode === 'pattern' ? patternCanvas : videoEl;
+    }
+
+    /**
+     * Stop the webcam stream and release tracks, if one is active.
+     */
+    function stopWebcam() {
+      if (currentStream) {
+        currentStream.getTracks().forEach(track => track.stop());
+        currentStream = null;
+        videoEl.srcObject = null;
+      }
+    }
+
+    /**
+     * Revoke the current object URL, if any.
+     */
+    function revokeObjectURL() {
+      if (currentObjectURL) {
+        URL.revokeObjectURL(currentObjectURL);
+        currentObjectURL = null;
+      }
+    }
+
+    /**
+     * Switch the active source. Cleans up the previous source first,
+     * then sets up the new one.
+     * @param {string} mode  'pattern' | 'file' | 'webcam'
+     * @param {File|null} [file]  required when mode === 'file'
+     * @returns {Promise<void>}
+     */
+    async function switchSource(mode, file = null) {
+      // Always stop and release the previous source before starting a new one.
+      stopWebcam();
+      revokeObjectURL();
+      videoEl.pause();
+      videoEl.src = '';
+
+      // Show/hide the file input row and play/pause button.
+      ui.fileRow.hidden     = mode !== 'file';
+      ui.playPauseRow.hidden = mode === 'pattern';
+      ui.playPause.textContent = 'Pause';
+
+      if (mode === 'pattern') {
+        // Nothing more to set up — drawPatternFrame() handles it each frame.
+        return;
+      }
+
+      if (mode === 'file') {
+        if (!file) return; // wait until the user picks a file
+        currentObjectURL = URL.createObjectURL(file);
+        videoEl.src = currentObjectURL;
+        videoEl.load();
+        await videoEl.play().catch(() => {});
+        return;
+      }
+
+      if (mode === 'webcam') {
+        // getUserMedia requires a secure context (HTTPS or localhost).
+        // On file://, some browsers block it. We catch and fall back.
+        if (!navigator.mediaDevices?.getUserMedia) {
+          showError(
+            'getUserMedia is not available.\n' +
+            'This usually means the page is not served over HTTPS.\n' +
+            'Falling back to animated pattern.',
+            false
+          );
+          ui.source.value = 'pattern';
+          state.source = 'pattern';
+          ui.fileRow.hidden     = true;
+          ui.playPauseRow.hidden = true;
+          return;
+        }
+        try {
+          currentStream = await navigator.mediaDevices.getUserMedia({ video: true });
+          videoEl.srcObject = currentStream;
+          await videoEl.play().catch(() => {});
+        } catch (err) {
+          showError(
+            `Webcam access failed: ${err.message}\nFalling back to animated pattern.`,
+            false
+          );
+          stopWebcam();
+          ui.source.value = 'pattern';
+          state.source = 'pattern';
+          ui.fileRow.hidden     = true;
+          ui.playPauseRow.hidden = true;
+        }
+      }
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // Entry point
+    // ══════════════════════════════════════════════════════════════════
+    function main() {
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 1 — Get the WebGL 2 context
+      // ════════════════════════════════════════════════════════════════
+      const gl = ui.canvas.getContext('webgl2');
+      if (!gl) {
+        throw new Error(
+          'WebGL 2 is not available in this browser.\n' +
+          'Use a current version of Chrome, Edge, Firefox or Safari and ' +
+          'enable hardware acceleration.'
+        );
+      }
+
+      // Populate the collapsible shader source viewer.
+      ui.vsSource.textContent = vertexShaderSource;
+      ui.fsSource.textContent = fragmentShaderSource;
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 4 — Compile + link; cache attribute/uniform locations
+      // ════════════════════════════════════════════════════════════════
+      const program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
+
+      // Attribute locations
+      const aPosition = gl.getAttribLocation(program, 'a_position');
+      const aUv       = gl.getAttribLocation(program, 'a_uv');
+
+      // Uniform locations — cached here, never looked up per frame.
+      const uTexture  = gl.getUniformLocation(program, 'u_texture');
+      const uFilter   = gl.getUniformLocation(program, 'u_filter');
+      const uAmount   = gl.getUniformLocation(program, 'u_amount');
+      const uSplit    = gl.getUniformLocation(program, 'u_split');
+      const uSplitPos = gl.getUniformLocation(program, 'u_splitPos');
+      const uScale    = gl.getUniformLocation(program, 'u_scale');
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 5 — Create fullscreen quad geometry + VAO
+      // ════════════════════════════════════════════════════════════════
+      // A quad from 4 vertices drawn with TRIANGLE_STRIP.
+      // Positions span -1..+1 (NDC). UVs span 0..1.
+      // Vertex order for TRIANGLE_STRIP: TL, TR, BL, BR
+      //   (the strip connects them as two triangles: TL-TR-BL and TR-BL-BR).
+      //
+      // NOTE: UV.y is 0 at the bottom and 1 at the top in WebGL.
+      // We set UNPACK_FLIP_Y_WEBGL=true so the canvas/video is flipped
+      // on upload — then UV (0,0) correctly maps to the bottom-left.
+      const quadPositions = new Float32Array([
+        -1,  1,   // TL
+         1,  1,   // TR
+        -1, -1,   // BL
+         1, -1,   // BR
+      ]);
+      const quadUVs = new Float32Array([
+        0, 1,   // TL
+        1, 1,   // TR
+        0, 0,   // BL
+        1, 0,   // BR
+      ]);
+
+      const vao = gl.createVertexArray();
+      gl.bindVertexArray(vao);
+
+      // Position buffer
+      const posBuf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, quadPositions, gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(aPosition);
+      gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false, 0, 0);
+
+      // UV buffer
+      const uvBuf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, uvBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, quadUVs, gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(aUv);
+      gl.vertexAttribPointer(aUv, 2, gl.FLOAT, false, 0, 0);
+
+      gl.bindVertexArray(null);
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 6 — Create the video texture (parameters set once at init)
+      // ════════════════════════════════════════════════════════════════
+      // The texture object is created once. Its *contents* are replaced
+      // every frame by texImage2D in the render function.
+      //
+      // Parameter choices for video:
+      //   MIN_FILTER = LINEAR   — no mipmaps (generating them each frame
+      //                           is too expensive; requestVideoFrameCallback
+      //                           + texSubImage2D are the production approach)
+      //   MAG_FILTER = LINEAR   — smooth upscaling
+      //   WRAP_S/T   = CLAMP_TO_EDGE — video pixels must not bleed from
+      //                               the opposite edge
+      const texture = gl.createTexture();
+      gl.activeTexture(gl.TEXTURE0); // select texture unit 0
+      gl.bindTexture(gl.TEXTURE_2D, texture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+
+      // Upload a 1×1 placeholder so the texture is complete and the
+      // first render call does not draw garbage.
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0,
+                    gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([30, 30, 46, 255]));
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 8 — Wire UI events to state
+      // ════════════════════════════════════════════════════════════════
+
+      // Central state object — the render function reads from this.
+      const state = {
+        source:   'pattern',
+        filter:   0,
+        amount:   1.0,
+        split:    true,
+        splitPos: 0.5,
+        // sourceW/sourceH track the frame dimensions for stats and u_scale.
+        sourceW:  512,
+        sourceH:  512,
+      };
+
+      // Source select — triggers async switchSource.
+      ui.source.addEventListener('change', () => {
+        state.source = ui.source.value;
+        switchSource(state.source);
+      });
+
+      // File picker — fires when the user selects a file.
+      ui.videoFile.addEventListener('change', () => {
+        const file = ui.videoFile.files[0];
+        if (file) switchSource('file', file);
+      });
+
+      // Play/pause button — toggles videoEl playback.
+      ui.playPause.addEventListener('click', () => {
+        if (videoEl.paused) {
+          videoEl.play().catch(() => {});
+          ui.playPause.textContent = 'Pause';
+        } else {
+          videoEl.pause();
+          ui.playPause.textContent = 'Play';
+        }
+      });
+
+      ui.filter.addEventListener('change', () => {
+        state.filter = parseInt(ui.filter.value, 10);
+      });
+
+      ui.amount.addEventListener('input', () => {
+        state.amount = parseFloat(ui.amount.value);
+        ui.amountVal.textContent = state.amount.toFixed(2);
+      });
+
+      ui.split.addEventListener('change', () => {
+        state.split = ui.split.checked;
+        ui.splitPosRow.hidden = !state.split;
+      });
+
+      ui.splitPos.addEventListener('input', () => {
+        state.splitPos = parseFloat(ui.splitPos.value);
+        ui.splitPosVal.textContent = state.splitPos.toFixed(2);
+      });
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 9 — Render function
+      // ════════════════════════════════════════════════════════════════
+
+      const FILTER_NAMES = ['None', 'Grayscale', 'Sepia', 'Invert',
+                            'Threshold', 'Edge (Sobel)', 'Blur 3×3'];
+      let fpsSmooth = 0, lastFpsTime = 0, frameCount = 0;
+      let elapsed = 0; // accumulated time in seconds, for the pattern animation
+
+      /** @param {number} timestamp  DOMHighResTimeStamp from rAF */
+      function render(timestamp) {
+        resizeCanvasToDisplaySize(ui.canvas);
+        gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+        // No depth test — we are drawing a flat 2D quad.
+        gl.disable(gl.DEPTH_TEST);
+        gl.disable(gl.CULL_FACE);
+
+        // Clear to the canvas background color.
+        gl.clearColor(0.118, 0.118, 0.18, 1.0);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        // ── Upload the current frame to the texture ─────────────────
+        //
+        // UNPACK_FLIP_Y_WEBGL: canvas/video have origin top-left;
+        // WebGL textures have origin bottom-left. Flip on upload so
+        // UV (0,0) maps to the bottom-left of the image. Same reason
+        // as in Demo 5.
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true);
+
+        const src = getFrameSource(state.source);
+
+        // For video: only upload if a frame is available.
+        // For the pattern canvas: always upload (we just drew it).
+        const videoReady = (src instanceof HTMLVideoElement) &&
+                           src.readyState >= src.HAVE_CURRENT_DATA &&
+                           src.videoWidth > 0;
+        const isPattern  = src === patternCanvas;
+
+        if (isPattern || videoReady) {
+          // texImage2D replaces the texture contents each frame.
+          // This is the per-frame upload cost: for 512×512 RGBA it is
+          // ~1 MB of data transferred from CPU to GPU.
+          // Optimisation (not implemented): texSubImage2D can update a
+          // sub-region; requestVideoFrameCallback fires only on a new
+          // decoded frame, avoiding redundant uploads.
+          gl.bindTexture(gl.TEXTURE_2D, texture);
+          gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+
+          // Update tracked dimensions for stats and u_scale.
+          state.sourceW = isPattern ? patternCanvas.width  : src.videoWidth;
+          state.sourceH = isPattern ? patternCanvas.height : src.videoHeight;
+        }
+
+        // ── Compute u_scale for letterboxing ───────────────────────
+        // We want the quad to fill as much of the canvas as possible
+        // while preserving the source's aspect ratio.
+        // If source is wider than canvas: scale.y < 1; else scale.x < 1.
+        const canvasAspect = gl.drawingBufferWidth / gl.drawingBufferHeight;
+        const sourceAspect = state.sourceW / (state.sourceH || 1);
+        let scaleX = 1.0, scaleY = 1.0;
+        if (sourceAspect > canvasAspect) {
+          // Source is wider → letterbox top/bottom.
+          scaleY = canvasAspect / sourceAspect;
+        } else {
+          // Source is taller → letterbox left/right.
+          scaleX = sourceAspect / canvasAspect;
+        }
+
+        // ── Draw ───────────────────────────────────────────────────
+        gl.useProgram(program);
+
+        // Bind the texture to unit 0 and tell the sampler.
+        gl.activeTexture(gl.TEXTURE0);
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.uniform1i(uTexture, 0); // unit index, not the texture object
+
+        gl.uniform2f(uScale,    scaleX, scaleY);
+        gl.uniform1i(uFilter,   state.filter);
+        gl.uniform1f(uAmount,   state.amount);
+        gl.uniform1i(uSplit,    state.split ? 1 : 0);
+        gl.uniform1f(uSplitPos, state.splitPos);
+
+        gl.bindVertexArray(vao);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+        // ── Stats ──────────────────────────────────────────────────
+        frameCount++;
+        if (timestamp - lastFpsTime >= 500) {
+          fpsSmooth   = Math.round(frameCount / ((timestamp - lastFpsTime) / 1000));
+          frameCount  = 0;
+          lastFpsTime = timestamp;
+        }
+        const srcLabel = state.source === 'pattern' ? 'pattern'
+                       : state.source === 'file'    ? 'file'
+                       :                              'webcam';
+        ui.stats.textContent =
+          `source: ${srcLabel} · frame: ${state.sourceW}×${state.sourceH} · ` +
+          `filter: ${FILTER_NAMES[state.filter]} · FPS: ${fpsSmooth}`;
+      }
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 10 — Start the animation loop
+      // ════════════════════════════════════════════════════════════════
+      let lastTime = null;
+
+      /** @param {number} timestamp */
+      function loop(timestamp) {
+        const dt = lastTime === null ? 0 : (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
+
+        // Advance the pattern animation.
+        elapsed += dt;
+        if (state.source === 'pattern') {
+          drawPatternFrame(elapsed);
+        }
+
+        render(timestamp);
+        requestAnimationFrame(loop);
+      }
+
+      requestAnimationFrame(loop);
+
+    } // end main()
+
+    try {
+      main();
+    } catch (error) {
+      console.error(error);
+      // showError is defined at module scope — call it here.
+      const banner = document.createElement('div');
+      banner.className = 'error-banner';
+      const title = document.createElement('strong');
+      title.textContent = 'This demo could not start.';
+      const pre = document.createElement('pre');
+      pre.textContent = error.message;
+      banner.append(title, pre);
+      document.querySelector('#errorSlot').replaceChildren(banner);
+    }
+  </script>
+</body>
+</html>
