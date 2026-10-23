@@ -19,6 +19,7 @@
     --accent:    #4f9cf9;
     --accent2:   #a78bfa;
     --green:     #34d399;
+    --orange:    #fb923c;
     --mono: 'IBM Plex Mono', monospace;
     --sans: 'IBM Plex Sans', sans-serif;
   }
@@ -47,18 +48,11 @@
     gap: 24px;
   }
 
-  .header-logo {
-    width: 100px;
-    flex-shrink: 0;
-  }
-
   .header-logo img {
     width: 100px;
     border-radius: 10px;
     display: block;
   }
-
-  .header-info {}
 
   .header-info h1 {
     font-size: clamp(18px, 3vw, 26px);
@@ -82,11 +76,7 @@
     line-height: 1.6;
   }
 
-  .header-meta a {
-    color: var(--accent);
-    text-decoration: none;
-  }
-
+  .header-meta a { color: var(--accent); text-decoration: none; }
   .header-meta a:hover { text-decoration: underline; }
 
   /* ── main layout ── */
@@ -135,7 +125,6 @@
     flex-wrap: wrap;
   }
 
-  /* notebook 01 expands to contain its demos */
   .notebook-row.has-demos {
     flex-wrap: wrap;
     align-items: flex-start;
@@ -162,6 +151,15 @@
     color: #eef0f6;
     flex: 1;
     min-width: 160px;
+  }
+
+  .notebook-title a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .notebook-title a:hover {
+    color: var(--accent);
   }
 
   .notebook-title span {
@@ -204,13 +202,19 @@
     border-color: rgba(242, 142, 33, 0.25);
   }
 
-  .badge-nbviewer {
+  .badge-nbview {
     background: rgba(79, 156, 249, 0.1);
     color: var(--accent);
     border-color: rgba(79, 156, 249, 0.25);
   }
 
-  /* ── demo sub-section inside notebook 01 row ── */
+  .badge-page {
+    background: rgba(167, 139, 250, 0.1);
+    color: var(--accent2);
+    border-color: rgba(167, 139, 250, 0.25);
+  }
+
+  /* ── demo sub-section inside notebook rows ── */
   .demo-subsection {
     width: 100%;
     margin-top: 16px;
@@ -265,9 +269,19 @@
     justify-content: center;
   }
 
+  /* Web Audio icons */
   .icon-osc  { background: rgba(79, 156, 249, 0.12); color: var(--accent); }
   .icon-viz  { background: rgba(167, 139, 250, 0.12); color: var(--accent2); }
   .icon-syn  { background: rgba(52, 211, 153, 0.12); color: var(--green); }
+
+  /* WebGL icons */
+  .icon-tri  { background: rgba(79, 156, 249, 0.12); color: var(--accent); }
+  .icon-uni  { background: rgba(251, 146, 60, 0.12); color: var(--orange); }
+  .icon-tx2  { background: rgba(167, 139, 250, 0.12); color: var(--accent2); }
+  .icon-cube { background: rgba(52, 211, 153, 0.12); color: var(--green); }
+  .icon-tex  { background: rgba(251, 146, 60, 0.12); color: var(--orange); }
+  .icon-vid  { background: rgba(79, 156, 249, 0.12); color: var(--accent); }
+  .icon-lit  { background: rgba(167, 139, 250, 0.12); color: var(--accent2); }
 
   .demo-icon svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
@@ -295,6 +309,19 @@
 
   .demo-link-label svg { width: 9px; height: 9px; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
+  /* optional badge on demo cards */
+  .demo-optional {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--muted);
+    background: rgba(90,97,117,0.15);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 1px 5px;
+    align-self: flex-start;
+    letter-spacing: 0.05em;
+  }
+
   /* ── footer ── */
   footer {
     border-top: 2px solid var(--border);
@@ -307,21 +334,14 @@
     line-height: 1.7;
   }
 
-  footer p { margin: 0; }
   footer p + p { margin-top: 4px; font-size: 12px; color: var(--muted); }
-
-  footer a {
-    color: var(--accent);
-    text-decoration: none;
-  }
-
+  footer a { color: var(--accent); text-decoration: none; }
   footer a:hover { text-decoration: underline; }
 
   @media (max-width: 600px) {
     .header-inner, main, footer { padding-left: 20px; padding-right: 20px; }
     .notebook-row { flex-direction: column; align-items: flex-start; }
     .notebook-row.has-demos .notebook-row-top { flex-direction: column; align-items: flex-start; }
-    footer { text-align: center; }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -362,21 +382,27 @@
       <div class="notebook-row">
         <div class="notebook-num">00</div>
         <div class="notebook-title">
-          Introduction
+          <a href="00_multimediaprogrammierung_intro.html">Introduction</a>
           <span>00_multimediaprogrammierung_intro.ipynb</span>
         </div>
         <div class="badge-group">
           <a class="badge badge-colab"
              href="https://colab.research.google.com/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/00_multimediaprogrammierung_intro.ipynb"
              target="_blank" rel="noopener">
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-1-7l6-3.5L11 8v7z"/></svg>
+            <svg viewBox="0 0 24 24"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-1-7l6-3.5L11 8v7z"/></svg>
             Colab
           </a>
-          <a class="badge badge-nbviewer"
-             href="https://nbviewer.org/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/00_multimediaprogrammierung_intro.ipynb"
+          <a class="badge badge-nbview"
+             href="https://nbview.org/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/00_multimediaprogrammierung_intro.ipynb"
              target="_blank" rel="noopener">
             <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm1 14.5v-9l6 4.5-6 4.5zM5 7h2v10H5z"/></svg>
-            NBViewer
+            NBView
+          </a>
+          <a class="badge badge-page"
+             href="00_multimediaprogrammierung_intro.html"
+             rel="noopener">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"/><polyline points="14 2 14 8 20 8" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Read
           </a>
         </div>
       </div>
@@ -386,26 +412,31 @@
         <div class="notebook-row-top">
           <div class="notebook-num">01</div>
           <div class="notebook-title">
-            Web Audio API
+            <a href="01_multimediaprogrammierung_webaudio.html">Web Audio API</a>
             <span>01_multimediaprogrammierung_webaudio.ipynb</span>
           </div>
           <div class="badge-group">
             <a class="badge badge-colab"
                href="https://colab.research.google.com/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/01_multimediaprogrammierung_webaudio.ipynb"
                target="_blank" rel="noopener">
-              <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-1-7l6-3.5L11 8v7z"/></svg>
+              <svg viewBox="0 0 24 24"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-1-7l6-3.5L11 8v7z"/></svg>
               Colab
             </a>
-            <a class="badge badge-nbviewer"
-               href="https://nbview.org/?utm_source=chatgpt.com#/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/01_multimediaprogrammierung_webaudio.ipynb"
+            <a class="badge badge-nbview"
+               href="https://nbview.org/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/01_multimediaprogrammierung_webaudio.ipynb"
                target="_blank" rel="noopener">
               <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm1 14.5v-9l6 4.5-6 4.5zM5 7h2v10H5z"/></svg>
-              NBViewer
+              NBView
+            </a>
+            <a class="badge badge-page"
+               href="01_multimediaprogrammierung_webaudio.html"
+               rel="noopener">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"/><polyline points="14 2 14 8 20 8" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Read
             </a>
           </div>
         </div>
 
-        <!-- Demo cards nested inside notebook 01 -->
         <div class="demo-subsection">
           <p class="demo-sublabel">Interactive demos — Web Audio API</p>
           <div class="demo-grid">
@@ -434,6 +465,115 @@
               </div>
               <div class="demo-title">Synthesizer</div>
               <div class="demo-desc">Polyphonic synth with oscillator, biquad filter, and ADSR envelope. Play notes on the on-screen keyboard.</div>
+              <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Notebook 02 + demos -->
+      <div class="notebook-row has-demos">
+        <div class="notebook-row-top">
+          <div class="notebook-num">02</div>
+          <div class="notebook-title">
+            <a href="02_multimediaprogrammierung_webgl.html">WebGL 2</a>
+            <span>02_multimediaprogrammierung_webgl.ipynb</span>
+          </div>
+          <div class="badge-group">
+            <a class="badge badge-colab"
+               href="https://colab.research.google.com/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/02_multimediaprogrammierung_webgl.ipynb"
+               target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24"><path d="M12 22C6.477 22 2 17.523 2 12S6.477 2 12 2s10 4.477 10 10-4.477 10-10 10zm-1-7l6-3.5L11 8v7z"/></svg>
+              Colab
+            </a>
+            <a class="badge badge-nbview"
+               href="https://nbview.org/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/02_multimediaprogrammierung_webgl.ipynb"
+               target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 100 20A10 10 0 0012 2zm1 14.5v-9l6 4.5-6 4.5zM5 7h2v10H5z"/></svg>
+              NBView
+            </a>
+            <a class="badge badge-page"
+               href="02_multimediaprogrammierung_webgl.html"
+               rel="noopener">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"/><polyline points="14 2 14 8 20 8" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Read
+            </a>
+          </div>
+        </div>
+
+        <div class="demo-subsection">
+          <p class="demo-sublabel">Interactive demos — WebGL 2</p>
+          <div class="demo-grid">
+
+            <a class="demo-card" href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_triangle.html" target="_blank" rel="noopener">
+              <div class="demo-icon icon-tri">
+                <!-- triangle outline -->
+                <svg viewBox="0 0 24 24"><polygon points="12,3 21,20 3,20"/></svg>
+              </div>
+              <div class="demo-title">Triangle</div>
+              <div class="demo-desc">Context, shaders, buffers, VAO and varyings — your first complete WebGL 2 program with interpolated vertex colors.</div>
+              <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+            <a class="demo-card" href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_uniforms.html" target="_blank" rel="noopener">
+              <div class="demo-icon icon-uni">
+                <!-- clock / animation -->
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12,7 12,12 15,15"/></svg>
+              </div>
+              <div class="demo-title">Uniforms &amp; Animation</div>
+              <div class="demo-desc">Feed uniforms from sliders and animate a glowing quad with <code style="font-family:var(--mono);font-size:11px">requestAnimationFrame</code>.</div>
+              <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+            <a class="demo-card" href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_transform.html" target="_blank" rel="noopener">
+              <div class="demo-icon icon-tx2">
+                <!-- rotate arrows -->
+                <svg viewBox="0 0 24 24"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 01-15 6.7L3 16"/></svg>
+              </div>
+              <div class="demo-title">2D Transformations</div>
+              <div class="demo-desc">Translate, rotate and scale with a 3×3 matrix uniform. Watch the matrix update live as you move the sliders.</div>
+              <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+            <a class="demo-card" href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_cube.html" target="_blank" rel="noopener">
+              <div class="demo-icon icon-cube">
+                <!-- cube / box -->
+                <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27,6.96 12,12.01 20.73,6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+              </div>
+              <div class="demo-title">Rotating Cube</div>
+              <div class="demo-desc">MVP matrices, perspective projection, depth test and index buffer. Drag to rotate.</div>
+              <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+            <a class="demo-card" href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_texture.html" target="_blank" rel="noopener">
+              <div class="demo-icon icon-tex">
+                <!-- grid / texture -->
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+              </div>
+              <div class="demo-title">Textures</div>
+              <div class="demo-desc">UV coordinates, filtering (nearest / linear), mipmaps and wrap modes on a textured cube.</div>
+              <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+            <a class="demo-card" href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_video.html" target="_blank" rel="noopener">
+              <div class="demo-icon icon-vid">
+                <!-- video / film -->
+                <svg viewBox="0 0 24 24"><rect x="2" y="7" width="15" height="10" rx="2"/><polyline points="17,10 22,7 22,17 17,14"/></svg>
+              </div>
+              <div class="demo-title">Video Filters</div>
+              <div class="demo-desc">Real-time fragment-shader filters on video: grayscale, sepia, edge detection, blur and more. Split-view comparison.</div>
+              <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+            <a class="demo-card" href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_lighting.html" target="_blank" rel="noopener">
+              <div class="demo-icon icon-lit">
+                <!-- lightbulb / sun -->
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2" x2="12" y2="4"/><line x1="12" y1="20" x2="12" y2="22"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="2" y1="12" x2="4" y2="12"/><line x1="20" y1="12" x2="22" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+              </div>
+              <div class="demo-title">Lighting</div>
+              <div class="demo-desc">Normals and diffuse lighting on a cube and a sphere. Move the directional light and compare flat vs smooth shading.</div>
+              <div class="demo-optional">optional</div>
               <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
             </a>
 
