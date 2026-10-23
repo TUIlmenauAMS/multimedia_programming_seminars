@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 00: Introduction — Multimediaprogrammierung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0d0f14;
+    --surface: #161a22;
+    --border:  #252b38;
+    --text:    #d8dce6;
+    --muted:   #5a6175;
+    --accent:  #4f9cf9;
+    --accent2: #a78bfa;
+    --green:   #34d399;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* ── header ── */
+  header {
+    border-bottom: 2px solid var(--border);
+    padding: 24px 0 20px;
+  }
+  .header-inner {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .header-logo img { width: 100px; border-radius: 10px; display: block; }
+  .header-info h1 { font-size: clamp(18px,3vw,26px); font-weight: 500; color: #f0f2f7; line-height: 1.2; margin-bottom: 4px; }
+  .header-info h2 { font-size: 14px; font-weight: 400; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; }
+  .header-meta { font-size: 13px; color: var(--text); line-height: 1.6; }
+  .header-meta a { color: var(--accent); text-decoration: none; }
+  .header-meta a:hover { text-decoration: underline; }
+
+  /* ── breadcrumb ── */
+  .breadcrumb {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 14px 32px 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .breadcrumb a { color: var(--accent); text-decoration: none; }
+  .breadcrumb a:hover { text-decoration: underline; }
+  .breadcrumb span { margin: 0 6px; }
+
+  /* ── notebook badges ── */
+  .nb-badges {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 18px 32px 0;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    text-decoration: none;
+    border: 1px solid transparent;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+    font-family: var(--mono);
+  }
+  .badge:hover { opacity: 0.8; }
+  .badge-colab { background: rgba(242,142,33,0.1); color: #f2a23c; border-color: rgba(242,142,33,0.25); }
+  .badge-nb    { background: rgba(79,156,249,0.1); color: var(--accent); border-color: rgba(79,156,249,0.25); }
+
+  /* ── main ── */
+  main {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 40px 32px 80px;
+  }
+
+  /* ── notebook content ── */
+  .nb-content { display: flex; flex-direction: column; gap: 0; }
+
+  /* cells that are just HTML (header cell) are rendered as-is but restyled */
+  .nb-cell { padding: 0; }
+
+  /* Hide the notebook's own white-theme header table — we have our own header */
+  .nb-header-cell { display: none; }
+
+  /* ── prose styling (markdown cells rendered as HTML) ── */
+  .nb-cell h1 {
+    font-size: clamp(22px, 3.5vw, 32px);
+    font-weight: 500;
+    color: #f0f2f7;
+    line-height: 1.25;
+    margin: 40px 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .nb-cell h2 {
+    font-size: 20px;
+    font-weight: 500;
+    color: #e8eaf2;
+    margin: 48px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .nb-cell h3 {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--accent2);
+    margin: 28px 0 10px;
+    font-family: var(--mono);
+    letter-spacing: 0.02em;
+  }
+  .nb-cell p { margin-bottom: 14px; color: var(--text); }
+  .nb-cell ul, .nb-cell ol { margin: 0 0 14px 22px; }
+  .nb-cell li { margin-bottom: 6px; }
+  .nb-cell strong { color: #eef0f6; font-weight: 500; }
+  .nb-cell em { color: var(--text); }
+  .nb-cell a { color: var(--accent); text-decoration: none; }
+  .nb-cell a:hover { text-decoration: underline; }
+  .nb-cell hr { border: none; border-top: 1px solid var(--border); margin: 8px 0 0; }
+
+  /* tables */
+  .nb-cell table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 20px;
+    font-size: 13.5px;
+  }
+  .nb-cell th {
+    text-align: left;
+    padding: 8px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .nb-cell td {
+    padding: 9px 12px;
+    border-bottom: 1px solid rgba(37,43,56,0.6);
+    vertical-align: top;
+    color: var(--text);
+  }
+  .nb-cell tr:last-child td { border-bottom: none; }
+  .nb-cell tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* inline code */
+  .nb-cell code {
+    background: rgba(79,156,249,0.08);
+    color: #93c5fd;
+    font-family: var(--mono);
+    font-size: 0.88em;
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  /* pill links — override notebook light-theme pills */
+  .nb-cell a[style*="border:1px solid #1a73e8"],
+  .nb-cell a[style*="border: 1px solid #1a73e8"] {
+    display: inline-flex !important;
+    align-items: center;
+    padding: 5px 14px !important;
+    margin: 4px 6px 4px 0 !important;
+    border: 1px solid rgba(79,156,249,0.4) !important;
+    border-radius: 20px !important;
+    text-decoration: none !important;
+    font-weight: 500 !important;
+    font-size: 12px !important;
+    color: var(--accent) !important;
+    background: rgba(79,156,249,0.07) !important;
+    font-family: var(--mono);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .nb-cell a[style*="border:1px solid #1a73e8"]:hover,
+  .nb-cell a[style*="border: 1px solid #1a73e8"]:hover {
+    background: rgba(79,156,249,0.14) !important;
+    border-color: rgba(79,156,249,0.7) !important;
+  }
+
+  /* info/task boxes */
+  .nb-cell div[style*="border-left:5px solid #1a73e8"],
+  .nb-cell div[style*="border-left: 5px solid #1a73e8"] {
+    border-left: 4px solid var(--accent) !important;
+    background: rgba(79,156,249,0.06) !important;
+    border-radius: 6px;
+    padding: 16px 20px !important;
+    margin: 20px 0 !important;
+    color: var(--text);
+  }
+
+  /* images — YouTube thumbnails etc. */
+  .nb-cell img {
+    max-width: 100%;
+    border-radius: 10px;
+    display: block;
+  }
+
+  /* footer cell */
+  .nb-footer-cell {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 2px solid var(--border);
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .nb-footer-cell b { color: var(--text); }
+  .nb-footer-cell a { color: var(--accent); text-decoration: none; }
+  .nb-footer-cell a:hover { text-decoration: underline; }
+  /* hide the notebook's own light-theme footer div border */
+  .nb-footer-cell div[style*="border-top:2px solid #e0e0e0"],
+  .nb-footer-cell div[style*="border-top: 2px solid #e0e0e0"] {
+    border-top: none !important;
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+  }
+
+  /* ── page footer ── */
+  footer {
+    border-top: 2px solid var(--border);
+    padding: 18px 32px 24px;
+    max-width: 860px;
+    margin: 0 auto;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.7;
+  }
+  footer p + p { margin-top: 4px; font-size: 12px; color: var(--muted); }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 600px) {
+    .header-inner, main, footer, .breadcrumb, .nb-badges { padding-left: 20px; padding-right: 20px; }
+    .header-inner { flex-direction: column; align-items: flex-start; gap: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="header-logo">
+      <img src="ams_group_tui.png" alt="AMS Group – TU Ilmenau">
+    </div>
+    <div class="header-info">
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 00: Introduction</h2>
+      <p class="header-meta">
+        <strong>Institut für Medientechnik –
+          <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme"
+             target="_blank" rel="noopener">AMS Group</a>
+          – Technische Universität Ilmenau</strong><br>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller &nbsp;·&nbsp;
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+      </p>
+    </div>
+  </div>
+</header>
+
+<nav class="breadcrumb">
+  <a href="index.html">Seminar Materials</a>
+  <span>›</span>
+  Chapter 00: Introduction
+</nav>
+
+<div class="nb-badges">
+  <a class="badge badge-colab"
+     href="https://colab.research.google.com/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/00_multimediaprogrammierung_intro.ipynb"
+     target="_blank" rel="noopener">▶ Open in Colab</a>
+  <a class="badge badge-nb"
+     href="https://nbview.org/#/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/00_multimediaprogrammierung_intro.ipynb"
+     target="_blank" rel="noopener">⬡ NBView</a>
+</div>
+
+<main>
+<div class="nb-content">
+
+<!-- Cell 1 -->
+<div class="nb-cell">
+<h1>Welcome to Multimediaprogrammierung</h1>
+<p>Welcome to the first class of <strong>Multimediaprogrammierung</strong> (Multimedia Coding). In this course you will learn how digital multimedia, such as audio, images and video, is represented, processed and coded, and you will turn that knowledge into working software.</p>
+<p>This introductory chapter presents the tools, platforms and resources we will use throughout the semester, and the first task you will complete.</p>
+<h3>Goal of the course</h3>
+<p>By the end of the course you will be able to write software, either a <strong>desktop application</strong>, a <strong>mobile application</strong> or a <strong>web application</strong>, using the knowledge acquired in class.</p>
+<h3>Evaluation</h3>
+<p>You will be evaluated on two things:</p>
+<ol>
+  <li><strong>Your software</strong>, the application you develop during the course.</li>
+  <li><strong>A scientific paper</strong> describing your software, written with the official <strong>IEEE template</strong>.</li>
+</ol>
+<h3>What this chapter covers</h3>
+<table>
+  <thead><tr><th>#</th><th>Topic</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Jitsi</td><td>Online classes</td></tr>
+    <tr><td>2</td><td>IEEE</td><td>Scientific literature and the paper template</td></tr>
+    <tr><td>3</td><td>Open Source Multimedia Software</td><td>Free tools to explore and learn from</td></tr>
+    <tr><td>4</td><td>Your First Task</td><td>Read a paper, use a tool, reflect</td></tr>
+    <tr><td>5</td><td>Linux (Ubuntu)</td><td>A free operating system for development</td></tr>
+    <tr><td>6</td><td>Windows Subsystem for Linux (WSL)</td><td>Linux inside Windows</td></tr>
+    <tr><td>7</td><td>Git, GitHub and GitLab</td><td>Version control and code hosting</td></tr>
+    <tr><td>8</td><td>Python Programming</td><td>Our programming language</td></tr>
+    <tr><td>9</td><td>Jupyter Notebooks and Google Colab</td><td>Interactive coding environments</td></tr>
+    <tr><td>10</td><td>IDE and Visual Studio Code</td><td>Your development environment</td></tr>
+    <tr><td>11</td><td>Virtual Environment and uv</td><td>Reproducible Python projects</td></tr>
+    <tr><td>12</td><td>Claude</td><td>AI assistant for research and coding</td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- Cell 2 -->
+<div class="nb-cell">
+<hr>
+<h2>1. Jitsi</h2>
+<p><strong>Jitsi</strong> is a free and open source video conferencing platform that runs directly in your web browser, with no account and no installation required. We will use it for our <strong>online classes</strong>: lectures, questions and discussions. Join the room with the link below. A stable internet connection, a headset and a working microphone are recommended.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://meet.jit.si/TUIAMS" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Join the TUI AMS room &#8599;</a>
+  <a href="https://jitsi.org" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">About Jitsi &#8599;</a>
+</p>
+</div>
+
+<!-- Cell 3 -->
+<div class="nb-cell">
+<hr>
+<h2>2. IEEE</h2>
+<p>The <strong>IEEE</strong> (Institute of Electrical and Electronics Engineers) is the world's largest technical professional organization. It publishes a large share of the world's research in electrical engineering, computer science and multimedia technology, and it defines many technical standards. In this course it matters in two ways: it is our main source of <strong>scientific literature</strong>, and its <strong>paper template</strong> is the format in which you will write your final paper.</p>
+<table>
+  <thead><tr><th>Resource</th><th>What it is</th></tr></thead>
+  <tbody>
+    <tr><td><strong>IEEE Xplore</strong></td><td>The digital library of the IEEE, giving access to millions of journal articles, conference papers and standards. This is where you will search for the paper in your first task. Access is available through the university network.</td></tr>
+    <tr><td><strong>IEEE Audio Coding</strong></td><td>A topic page collecting publications on audio coding: the compression of audio signals, from perceptual codecs such as MP3 and AAC to modern neural audio codecs.</td></tr>
+    <tr><td><strong>IEEE Video Coding</strong></td><td>A topic page on video coding: the techniques behind video compression, such as the H.264/AVC, H.265/HEVC and H.266/VVC standards.</td></tr>
+    <tr><td><strong>IEEE Programming</strong></td><td>A topic page on programming: languages, software development methods and tools that are the foundation of any software project.</td></tr>
+  </tbody>
+</table>
+<p style="margin:12px 0 0 0;">
+  <a href="https://ieeexplore.ieee.org/Xplore/home.jsp" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">IEEE Xplore &#8599;</a>
+  <a href="https://technav.ieee.org/topic/audio-coding/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Audio Coding &#8599;</a>
+  <a href="https://technav.ieee.org/topic/video-coding/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Video Coding &#8599;</a>
+  <a href="https://technav.ieee.org/topic/programming/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Programming &#8599;</a>
+  <a href="https://technav.ieee.org/topic/animation/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Animation &#8599;</a>
+</p>
+<h3>Writing your paper</h3>
+<p>Your final paper must follow the official IEEE template. You can find the right template for your document type in the IEEE Template Selector. For writing, we recommend <strong>Overleaf</strong>, an online LaTeX editor with IEEE templates built in. The university provides access to it for students.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://template-selector.ieee.org/secure/templateSelector/publicationType" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">IEEE Template Selector &#8599;</a>
+  <a href="https://www.overleaf.com/edu/tu-ilmenau" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">TU Ilmenau Overleaf &#8599;</a>
+</p>
+</div>
+
+<!-- Cell 4 -->
+<div class="nb-cell">
+<hr>
+<h2>3. Open Source Multimedia Software</h2>
+<p><strong>Open source software</strong> is software whose source code is publicly available, so that anyone may use, study, modify and share it. For multimedia coding this is a great opportunity: you can use professional-grade tools for free, read how real codecs, editors and players are implemented, and even contribute to them. The two catalogues below list free multimedia and animation software that you can browse by category. You will choose one of these programs for your first task.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://sourceforge.net/software/multimedia/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Source Multimedia Software &#8599;</a>
+  <a href="https://sourceforge.net/software/animation/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Source Animation Software &#8599;</a>
+</p>
+</div>
+
+<!-- Cell 5 -->
+<div class="nb-cell">
+<hr>
+<h2>4. Your First Task</h2>
+<div style="border-left:5px solid #1a73e8; padding:4px 18px; border-radius:6px; background:rgba(26,115,232,0.08);">
+<p>This task connects the two worlds of the course: <strong>scientific research</strong> and <strong>practical software</strong>.</p>
+<p><strong>Part 1: Read a paper.</strong><br>Choose and read <strong>one paper from IEEE related to Multimedia Coding</strong>. Use IEEE Xplore and the topic pages for audio coding and video coding to find it.</p>
+<p><strong>Part 2: Use a program.</strong><br>Choose <strong>one free software related to multimedia coding</strong> and actually use it. Install it, work with it and explore its features. The catalogues in the previous section are a good starting point.</p>
+<p><strong>Part 3: Reflect.</strong><br>Tell us about both, the paper and the software:</p>
+<ul>
+  <li>What did you <strong>like</strong>?</li>
+  <li>What are the <strong>best parts</strong>?</li>
+  <li>Where could they be <strong>improved</strong>?</li>
+</ul>
+</div>
+<p>Be specific and honest. Your own opinion, backed by what you observed, is what matters here.</p>
+</div>
+
+<!-- Cell 6 -->
+<div class="nb-cell">
+<hr>
+<h2>5. Linux (Ubuntu)</h2>
+<p><strong>Linux</strong> is a free and open source operating system. It runs most of the world's servers and a large share of the tools used in software development, and many multimedia and animation programs are developed for it first. Learning to work with Linux, and especially with its command line, is a valuable skill for any programmer.</p>
+<p><strong>Ubuntu</strong> is one of the most popular Linux distributions. It is free, well documented and has a large community, and its long-term support (LTS) releases receive updates for years. This makes it a common choice for people who are new to Linux.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://ubuntu.com" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Ubuntu &#8599;</a>
+  <a href="https://ubuntu.com/download" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Download Ubuntu &#8599;</a>
+</p>
+</div>
+
+<!-- Cell 7 -->
+<div class="nb-cell">
+<hr>
+<h2>6. Windows Subsystem for Linux (WSL)</h2>
+<p>The <strong>Windows Subsystem for Linux (WSL)</strong> is a feature of Windows that lets you run a real Linux environment, such as Ubuntu, directly on a Windows computer. You get the Linux terminal and Linux development tools without leaving Windows, and without setting up a separate virtual machine or a dual-boot installation. Microsoft's documentation explains what WSL is and how to install it.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://learn.microsoft.com/windows/wsl/about" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">What is WSL? &#8599;</a>
+  <a href="https://learn.microsoft.com/windows/wsl/install" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Install WSL &#8599;</a>
+</p>
+</div>
+
+<!-- Cell 8 -->
+<div class="nb-cell">
+<hr>
+<h2>7. Git, GitHub and GitLab</h2>
+<p><strong>Git</strong> is a version control system. It records every change to your files, lets you go back to any earlier state, and allows many people to work on the same project without overwriting each other's work. It is the standard tool in software development, and you will use it for your project.</p>
+<p><strong>GitHub</strong> and <strong>GitLab</strong> are web platforms that host Git repositories. They add collaboration features such as issue tracking, code review and project pages, and they make it easy to back up and share your code. The two are very similar in how they work.</p>
+<ul>
+  <li>The AMS group publishes its teaching material and code on <strong>GitHub</strong>.</li>
+  <li>The university runs its own <strong>GitLab</strong> server, available to every student with a university account.</li>
+</ul>
+<p>If you have never used Git, the W3Schools tutorial below is a good place to start.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://github.com/TUIlmenauAMS" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">AMS Group on GitHub &#8599;</a>
+  <a href="https://gitlab.tu-ilmenau.de/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">TU Ilmenau GitLab &#8599;</a>
+  <a href="https://www.w3schools.com/git/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Git Tutorial (W3Schools) &#8599;</a>
+</p>
+</div>
+
+<!-- Cell 9 -->
+<div class="nb-cell">
+<hr>
+<h2>8. Python Programming</h2>
+<p><strong>Python</strong> is a high-level, readable and very popular programming language. Its large ecosystem of libraries for audio, image, video and signal processing makes it an excellent choice for multimedia work, and it is the language we will use in this course. You can use it to build desktop, web and mobile applications alike.</p>
+<p>The playlist below, <em>Python for Beginner: Basics of Digital Audio Processing and Machine Learning using Python</em>, is a from-zero-to-hero video series that teaches Python while introducing digital audio signal processing. No prior knowledge is required.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://www.python.org" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Python Official Website &#8599;</a>
+</p>
+<p align="center" style="margin:20px 0;">
+  <a href="https://youtube.com/playlist?list=PL6QnpHKwdPYi-600wCa4PPIrP2DpgKqFk&si=6i3RG5KHFIjpi7un" target="_blank">
+    <img src="https://img.youtube.com/vi/zzEHTIJZMuc/maxresdefault.jpg" width="640" alt="Python for Beginner: Basics of Digital Audio Processing and Machine Learning using Python" style="max-width:100%; border-radius:14px; box-shadow:0 4px 18px rgba(0,0,0,0.35);">
+  </a>
+</p>
+<p align="center" style="margin:0;"><em>Click the image to open the playlist on YouTube.</em></p>
+</div>
+
+<!-- Cell 10 -->
+<div class="nb-cell">
+<hr>
+<h2>9. Jupyter Notebooks and Google Colab</h2>
+<p>A <strong>Jupyter Notebook</strong> is an interactive document that combines explanatory text, executable code and results such as plots, images and audio in one place. This is the format of the document you are reading right now. It is ideal for learning, experimenting and presenting results.</p>
+<p><strong>Google Colab</strong> (Colaboratory) runs Jupyter Notebooks in the cloud, for free, directly in your browser. There is nothing to install, and your notebooks are saved to your Google Drive. It is the quickest way to start, and it is a useful fallback when something does not work on your own computer.</p>
+<p>The playlist below, <em>Introduction to Google Colaboratory for Research</em>, explains the notebook structure and how to work with Colab step by step.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://jupyter.org" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Jupyter Project &#8599;</a>
+  <a href="https://colab.research.google.com" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Google Colab &#8599;</a>
+</p>
+<p align="center" style="margin:20px 0;">
+  <a href="https://youtube.com/playlist?list=PL6QnpHKwdPYgKlgb9MjaGVlN9YPEWdGkJ&si=D0zEQQmGu8o_N1sZ" target="_blank">
+    <img src="https://img.youtube.com/vi/zn2UriZ9QoM/maxresdefault.jpg" width="640" alt="Introduction to Google Colaboratory for Research" style="max-width:100%; border-radius:14px; box-shadow:0 4px 18px rgba(0,0,0,0.35);">
+  </a>
+</p>
+<p align="center" style="margin:0;"><em>Click the image to open the playlist on YouTube.</em></p>
+</div>
+
+<!-- Cell 11 -->
+<div class="nb-cell">
+<hr>
+<h2>10. IDE and Visual Studio Code</h2>
+<p>An <strong>IDE</strong> (Integrated Development Environment) is a program that brings together everything you need to write software: a code editor with syntax highlighting and auto-completion, a debugger, a terminal and tools for version control. It makes you faster and helps you find errors early.</p>
+<p><strong>Visual Studio Code</strong> (VS Code) is a free, lightweight and very popular editor with extensions for almost every language. With the Python and Jupyter extensions it can run Python scripts and notebooks, work with Git and manage virtual environments. It can also connect to a WSL environment. We recommend VS Code for the course, and it is also the way to develop larger projects such as your final application.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://code.visualstudio.com/learn" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">VS Code Learn &#8599;</a>
+  <a href="https://code.visualstudio.com/download" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Download VS Code &#8599;</a>
+</p>
+</div>
+
+<!-- Cell 12 -->
+<div class="nb-cell">
+<hr>
+<h2>11. Virtual Environment and uv</h2>
+<p>A <strong>virtual environment</strong> is an isolated folder holding a project's own copy of Python and its libraries. Different projects often need different library versions, and installing everything globally leads to conflicts. With one environment per project, your setup stays clean, and anyone can reproduce it on their own machine. This matters for your final software, because others should be able to run it.</p>
+<p><strong>uv</strong> is a fast, modern tool for Python that creates virtual environments, installs packages and manages Python versions and project dependencies, all in one program. It replaces the combination of <code>pip</code>, <code>venv</code> and several other tools with a single simple workflow, and it is much faster than the traditional tools.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://docs.astral.sh/uv/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">uv Documentation &#8599;</a>
+  <a href="https://docs.python.org/3/library/venv.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Python venv Documentation &#8599;</a>
+</p>
+</div>
+
+<!-- Cell 13 -->
+<div class="nb-cell">
+<hr>
+<h2>12. Claude</h2>
+<p><strong>Claude</strong> is an AI assistant developed by Anthropic. You can have a conversation with it in plain language, and it can read, write and explain text and code. For this course it is useful in two areas.</p>
+<ul>
+  <li><strong>Research:</strong> Claude can explain difficult concepts in a paper, summarize a topic and help you find the right questions to ask. Always verify its statements against the original sources.</li>
+  <li><strong>Coding:</strong> Claude can help you understand error messages, explain what a piece of code does, suggest approaches and review your code. It works best when you describe your problem clearly.</li>
+</ul>
+<p>Claude is a helper for learning, not a replacement for it. You are responsible for your own work, so make sure you understand every piece of code that ends up in your project.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://claude.ai" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Claude &#8599;</a>
+  <a href="https://www.anthropic.com" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Anthropic &#8599;</a>
+</p>
+</div>
+
+<!-- Footer cell -->
+<div class="nb-footer-cell">
+  <p><strong>Multimediaprogrammierung</strong> &middot; Chapter 00: Introduction<br>
+  Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+  <p>Notebook created by <strong>Renato Fera P.</strong> &middot;
+  <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a></p>
+</div>
+
+</div>
+</main>
+
+<footer>
+  <p><strong>Multimediaprogrammierung</strong> &middot; Seminar Materials<br>
+  Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+  <p>
+    Page maintained by <strong>Renato Fera P.</strong> &middot;
+    <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+    &nbsp;&middot;&nbsp;
+    <a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars" target="_blank" rel="noopener">github.com/TUIlmenauAMS/multimedia_programming_seminars</a>
+  </p>
+</footer>
+
+</body>
+</html>
