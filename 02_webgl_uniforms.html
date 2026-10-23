@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebGL 2 – Uniforms and Animation Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Design tokens: the values are the same as in the Chapter 01 template. */
+    :root {
+      --accent: #1a73e8;
+      --danger: #e53935;
+      --border: #e0e0e0;
+      --canvas-bg: #1e1e2e;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      color: #212121;
+      background: #fff;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px 48px;
+    }
+
+    /* The hidden attribute must win over any display rule below. */
+    [hidden] { display: none !important; }
+
+    /* ── Header ── */
+    .nb-header {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      border-bottom: 2px solid #e0e0e0;
+      padding: 16px 0;
+      margin-bottom: 32px;
+    }
+    .nb-header img {
+      width: 120px;
+      border-radius: 12px;
+      flex-shrink: 0;
+    }
+    .nb-header h1 { font-size: 1.6rem; margin-bottom: 4px; }
+    .nb-header h2 { font-size: 1.1rem; font-weight: 400; margin-bottom: 8px; color: #444; }
+    .nb-header p  { font-size: 0.92rem; margin-bottom: 2px; }
+    .nb-header a  { color: #1a73e8; text-decoration: none; }
+    .nb-header a:hover { text-decoration: underline; }
+
+    /* ── Pill buttons ── */
+    .pills { margin: 12px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill {
+      display: inline-block;
+      padding: 6px 14px;
+      border: 1px solid #1a73e8;
+      border-radius: 20px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.92rem;
+      color: #1a73e8;
+      transition: background 0.15s, color 0.15s;
+    }
+    .pill:hover { background: #1a73e8; color: #fff; }
+
+    /* ── Section headings ── */
+    h2.section { font-size: 1.3rem; margin: 40px 0 12px; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 36px 0; }
+    p  { margin-bottom: 12px; }
+    ol, ul.list { margin: 0 0 12px 24px; }
+    li { margin-bottom: 6px; }
+
+    /* ── Comparison table ── */
+    table.compare { border-collapse: collapse; width: 100%; margin: 16px 0; font-size: 0.95rem; }
+    table.compare th, table.compare td { border: 1px solid var(--border); padding: 8px 12px; text-align: left; vertical-align: top; }
+    table.compare th { background: #f8f9fa; font-weight: 600; }
+
+    /* ── Demo card ── */
+    .demo-card {
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin: 24px 0;
+    }
+    .demo-card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: #444;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Controls ── */
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+    .control-row label {
+      min-width: 120px;
+      font-weight: 500;
+      font-size: 0.95rem;
+    }
+    .control-row input[type=range] {
+      flex: 1;
+      min-width: 160px;
+      accent-color: #1a73e8;
+    }
+    .control-row input[type=checkbox] {
+      accent-color: var(--accent);
+      width: 18px;
+      height: 18px;
+    }
+    .control-row input[type=color] {
+      width: 44px;
+      height: 32px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      padding: 2px;
+      background: #fff;
+    }
+    .value-badge {
+      min-width: 64px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.92rem;
+      color: #555;
+    }
+    .hint { font-size: 0.9rem; color: #555; }
+
+    /* Visible keyboard focus for every control */
+    input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible, a:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* ── Canvas ──
+       The template uses a fixed 120px height. A WebGL canvas gets an aspect
+       ratio instead, and the page controls the size through CSS only. */
+    canvas {
+      display: block;
+      width: 100%;
+      height: 120px;
+      border-radius: 8px;
+      background: var(--canvas-bg);
+      margin-top: 20px;
+    }
+    canvas.gl-canvas { height: auto; aspect-ratio: 16 / 10; margin-top: 0; touch-action: none; }
+
+    .canvas-wrap { margin-bottom: 20px; }
+
+    /* Read-out under the controls */
+    .stats {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.82rem;
+      color: #555;
+      white-space: pre-line;
+      margin-top: 10px;
+    }
+
+    .error-banner {
+      background: #fdecea;
+      border-left: 5px solid var(--danger);
+      border-radius: 6px;
+      padding: 12px 18px;
+      margin: 20px 0;
+      color: #7f1d1d;
+    }
+    .error-banner pre { white-space: pre-wrap; font-size: 0.85rem; margin-top: 8px; }
+
+    /* ── Live shader source ── */
+    details.shader-source {
+      margin: 16px 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      background: #fafafa;
+    }
+    details.shader-source summary { cursor: pointer; font-weight: 600; }
+    details.shader-source h4 { font-size: 0.92rem; margin: 14px 0 0; color: #444; }
+    details.shader-source pre {
+      overflow-x: auto;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      margin-top: 6px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+    }
+
+    /* ── Footer ── */
+    .nb-footer {
+      text-align: center;
+      padding: 18px 0 8px;
+      margin-top: 48px;
+      border-top: 2px solid #e0e0e0;
+      font-size: 0.92rem;
+      color: #444;
+      line-height: 1.7;
+    }
+    .nb-footer a { color: #1a73e8; text-decoration: none; }
+    .nb-footer a:hover { text-decoration: underline; }
+
+    /* ── Info box ── */
+    .info-box {
+      border-left: 5px solid #1a73e8;
+      background: rgba(26,115,232,0.07);
+      border-radius: 6px;
+      padding: 12px 18px;
+      margin: 20px 0;
+      font-size: 0.95rem;
+    }
+    .info-box p:last-child { margin-bottom: 0; }
+
+    code {
+      background: #f1f3f4;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 0.9em;
+      font-family: "SFMono-Regular", Consolas, monospace;
+    }
+
+    @media (max-width: 600px) {
+      .nb-header { flex-direction: column; align-items: flex-start; }
+      .demo-card { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header class="nb-header">
+    <img
+      src="https://raw.githubusercontent.com/TUIlmenauAMS/multimedia_programming_seminars/main/ams_group_tui.png"
+      alt="AMS Group – TU Ilmenau"
+    />
+    <div>
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 02: WebGL 2 &mdash; Demo: Uniforms and Animation</h2>
+      <p><strong>Institut für Medientechnik &ndash; Technische Universität Ilmenau</strong><br>
+        <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme" target="_blank">
+          Institut für Medientechnik &ndash; AMS Group
+        </a>
+      </p>
+      <p>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller<br>
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+      </p>
+    </div>
+  </header>
+
+  <!-- ── Concept ── -->
+  <h2 class="section">1. Uniforms and the Animation Loop</h2>
+  <p>
+    In the previous demo, all data came from a buffer: every vertex had its own position and color. A <strong>uniform</strong> is different. It has <strong>one value for the whole draw call</strong>, and every vertex and every pixel sees the same value. Uniforms are how JavaScript talks to the shaders: the elapsed time, a color from a color picker, a number from a slider.
+  </p>
+  <table class="compare">
+    <thead>
+      <tr><th></th><th>Attribute</th><th>Uniform</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Value changes</td><td>for every vertex</td><td>once per draw call</td></tr>
+      <tr><td>Comes from</td><td>a buffer</td><td>a JavaScript call, <code>gl.uniform*</code></td></tr>
+      <tr><td>Declared in GLSL with</td><td><code>in</code> (vertex shader only)</td><td><code>uniform</code> (either shader)</td></tr>
+      <tr><td>In this demo</td><td>position, texture coordinate</td><td>time, color, pulse, aspect ratio</td></tr>
+    </tbody>
+  </table>
+  <p>
+    To animate, the scene is redrawn about 60 times per second with a new time value. The browser calls <code>requestAnimationFrame</code> callbacks right before each screen refresh, and passes a timestamp.
+  </p>
+  <div class="info-box">
+    <code>JavaScript state</code> &rarr; <code>gl.uniform*</code> &rarr; <code>Vertex + fragment shader</code> &rarr; <code>Canvas</code> &nbsp;&nbsp;(repeated every frame)
+  </div>
+
+  <hr />
+
+  <!-- ── Demo ── -->
+  <h2 class="section">2. Interactive Demo</h2>
+  <p>Move the sliders while the animation runs. Then pause it, change the speed and resume: time continues exactly where it stopped.</p>
+
+  <!-- Filled by JavaScript if WebGL 2 or a shader is not available -->
+  <div id="errorSlot"></div>
+
+  <div class="demo-card">
+    <h3>Glow</h3>
+
+    <div class="canvas-wrap">
+      <canvas
+        id="glcanvas"
+        class="gl-canvas"
+        role="img"
+        aria-label="A soft glowing circle that pulses in size and brightness."
+      ></canvas>
+    </div>
+
+    <div class="control-row">
+      <label for="speed">Speed</label>
+      <input type="range" id="speed" min="0" max="3" step="0.05" value="1" />
+      <span class="value-badge" id="speedVal">1.00&times;</span>
+    </div>
+
+    <div class="control-row">
+      <label for="pulse">Pulse</label>
+      <input type="range" id="pulse" min="0" max="0.5" step="0.01" value="0.15" />
+      <span class="value-badge" id="pulseVal">0.15</span>
+    </div>
+
+    <div class="control-row">
+      <label for="color">Glow color</label>
+      <input type="color" id="color" value="#1a73e8" />
+    </div>
+
+    <div class="control-row">
+      <label for="paused">Pause</label>
+      <input type="checkbox" id="paused" />
+      <span class="hint">Freezes the time uniform</span>
+    </div>
+
+    <div class="stats" id="stats" aria-live="off"></div>
+  </div>
+
+  <hr />
+
+  <!-- ── Explanation ── -->
+  <h2 class="section">3. How It Works</h2>
+  <p>
+    The source of this page uses the same six steps as the Triangle demo. Only what is <strong>new</strong> is marked in the code with <code>NEW in this demo</code>:
+  </p>
+  <ol>
+    <li><strong>Get the context.</strong> Same as before.</li>
+    <li><strong>Write the shaders.</strong> <em>New:</em> four <code>uniform</code> declarations. The vertex shader scales the quad with <code>u_time</code> and <code>u_pulse</code>; the fragment shader draws the glow.</li>
+    <li><strong>Compile and link.</strong> <em>New:</em> <code>getUniformLocation</code> looks up where each uniform lives. This happens once, not every frame.</li>
+    <li><strong>Upload the vertex data.</strong> A quad with four vertices (position and texture coordinate each).</li>
+    <li><strong>Describe the layout and record a VAO.</strong> Same idea as before, with <code>a_uv</code> instead of a color.</li>
+    <li><strong>Animate.</strong> <em>New:</em> a <code>requestAnimationFrame</code> loop. Every frame it advances the time, sets the uniforms and draws.</li>
+  </ol>
+
+  <div class="info-box">
+    <p><strong>Why is time accumulated?</strong> The loop adds a small step to <code>time</code> every frame (the time since the last frame, multiplied by the speed). If it used the raw timestamp multiplied by the speed instead, then changing the speed after one minute would make the animation jump to another point in time. Pausing works the same way: no step is added.</p>
+    <p><strong>Why is x divided by the aspect ratio?</strong> This canvas is wider than it is tall, but clip space still runs from &minus;1 to +1 on both axes. The shader divides x by <code>u_aspect</code> (width divided by height), so the circle stays a circle when the canvas is resized. This fixes the stretching of the first demo.</p>
+    <p><strong>Why is the step limited?</strong> The browser stops calling <code>requestAnimationFrame</code> while the tab is hidden. When you come back, one frame would see a huge time step. The code caps the step at 100 ms.</p>
+  </div>
+
+  <details class="shader-source">
+    <summary>Show the shader source that runs on your GPU</summary>
+    <h4>Vertex shader</h4>
+    <pre id="vsSource"></pre>
+    <h4>Fragment shader</h4>
+    <pre id="fsSource"></pre>
+  </details>
+
+  <div class="pills">
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/uniform" target="_blank">Uniforms — MDN &#8599;</a>
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame" target="_blank">requestAnimationFrame — MDN &#8599;</a>
+  </div>
+
+  <!-- ── Footer ── -->
+  <footer class="nb-footer">
+    <p><strong>Multimediaprogrammierung</strong> &middot; Chapter 02: WebGL 2 &middot; Demo: Uniforms and Animation<br>
+      Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+    <p>Demo created by <strong>Renato Fera P.</strong> &middot;
+      <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+    </p>
+  </footer>
+
+  <!-- ── JavaScript ── -->
+  <script type="module">
+    /**
+     * ═══════════════════════════════════════════════════════════════════
+     * Chapter 02: WebGL 2 · Demo: Uniforms and Animation
+     *
+     * Teaches:  uniforms (values sent from JavaScript to the shaders) and the
+     *           animation loop with requestAnimationFrame.
+     * Notebook: section 7.
+     *
+     * The six steps (the same structure as in the Triangle demo):
+     *   STEP 1  Get the WebGL 2 context                       (same as before)
+     *   STEP 2  Write the shaders                             (NEW: uniforms)
+     *   STEP 3  Compile and link the program                  (NEW: uniform locations)
+     *   STEP 4  Upload the vertex data to a buffer            (a quad)
+     *   STEP 5  Describe the data layout and record a VAO     (same idea)
+     *   STEP 6  Animate                                       (NEW: the loop)
+     * ═══════════════════════════════════════════════════════════════════
+     */
+
+    // ══════════════════════════════════════════════════════════════════
+    // PREPARATION A — DOM references, state and constants
+    // ══════════════════════════════════════════════════════════════════
+    const ui = {
+      canvas:    document.querySelector('#glcanvas'),
+      speed:     document.querySelector('#speed'),
+      speedVal:  document.querySelector('#speedVal'),
+      pulse:     document.querySelector('#pulse'),
+      pulseVal:  document.querySelector('#pulseVal'),
+      color:     document.querySelector('#color'),
+      paused:    document.querySelector('#paused'),
+      stats:     document.querySelector('#stats'),
+      errorSlot: document.querySelector('#errorSlot'),
+      vsSource:  document.querySelector('#vsSource'),
+      fsSource:  document.querySelector('#fsSource'),
+    };
+
+    // Same dark blue-grey as the CSS background of the canvas (0.0 to 1.0).
+    const CLEAR_COLOR = [0.118, 0.118, 0.18, 1.0];
+
+    // Longest time step (in seconds) that one frame may add. See the
+    // explanation in the render loop.
+    const MAX_FRAME_STEP = 0.1;
+
+    // How often the FPS number is updated (milliseconds).
+    const FPS_INTERVAL_MS = 500;
+
+    // The animation state lives in plain JavaScript. The controls change it,
+    // and the render loop copies it into uniforms every frame.
+    const state = {
+      time:   0,                                  // animation time in seconds
+      speed:  Number(ui.speed.value),
+      pulse:  Number(ui.pulse.value),
+      color:  hexToRgb01(ui.color.value),         // [r, g, b], each 0.0 to 1.0
+      // People who asked their system for reduced motion start with a frozen animation.
+      paused: window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    };
+    ui.paused.checked = state.paused;
+
+    // ══════════════════════════════════════════════════════════════════
+    // PREPARATION B — Helper functions
+    // ══════════════════════════════════════════════════════════════════
+    // createShader, createProgram and resizeCanvasToDisplaySize are the same
+    // helpers as in 02_webgl_triangle.html.
+
+    /** Compile one shader stage; throws with the driver's log on failure. */
+    function createShader(gl, type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(shader);
+        gl.deleteShader(shader);
+        throw new Error(`Shader compile error:\n${log}`);
+      }
+      return shader;
+    }
+
+    /** Link a vertex and a fragment shader into one program; throws on failure. */
+    function createProgram(gl, vertexSource, fragmentSource) {
+      const vs = createShader(gl, gl.VERTEX_SHADER, vertexSource);
+      const fs = createShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+
+      const program = gl.createProgram();
+      gl.attachShader(program, vs);
+      gl.attachShader(program, fs);
+      gl.linkProgram(program);
+
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        const log = gl.getProgramInfoLog(program);
+        gl.deleteProgram(program);
+        throw new Error(`Program link error:\n${log}`);
+      }
+      return program;
+    }
+
+    /**
+     * Match the drawing buffer to the display size times devicePixelRatio.
+     * @param {HTMLCanvasElement} canvas
+     * @returns {boolean} true if the drawing buffer size changed
+     */
+    function resizeCanvasToDisplaySize(canvas) {
+      const dpr = window.devicePixelRatio || 1;
+      const width  = Math.round(canvas.clientWidth  * dpr);
+      const height = Math.round(canvas.clientHeight * dpr);
+
+      const changed = canvas.width !== width || canvas.height !== height;
+      if (changed) {
+        canvas.width  = width;
+        canvas.height = height;
+      }
+      return changed;
+    }
+
+    /** Show a friendly message in the page instead of failing silently. */
+    function showError(message) {
+      const banner = document.createElement('div');
+      banner.className = 'error-banner';
+
+      const title = document.createElement('strong');
+      title.textContent = 'This demo could not start.';
+
+      const details = document.createElement('pre');
+      details.textContent = message;
+
+      banner.append(title, details);
+      ui.errorSlot.replaceChildren(banner);
+
+      // Nothing can be drawn, so the controls are of no use.
+      for (const control of [ui.speed, ui.pulse, ui.color, ui.paused]) {
+        control.disabled = true;
+      }
+    }
+
+    /**
+     * NEW in this demo: convert a color picker value such as "#1a73e8" into
+     * three numbers from 0.0 to 1.0, which is what shaders expect.
+     * @param {string} hex  "#rrggbb"
+     * @returns {number[]}  [r, g, b]
+     */
+    function hexToRgb01(hex) {
+      const value = parseInt(hex.slice(1), 16);
+      return [
+        ((value >> 16) & 255) / 255,
+        ((value >> 8)  & 255) / 255,
+        ( value        & 255) / 255,
+      ];
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // Main program. The six steps run inside main() so that any error ends up
+    // in one try/catch (see the last lines of the file).
+    // ══════════════════════════════════════════════════════════════════
+    function main() {
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 1 — Get the WebGL 2 context (same as before)
+      // ════════════════════════════════════════════════════════════════
+      const gl = ui.canvas.getContext('webgl2');
+      if (!gl) {
+        throw new Error(
+          'WebGL 2 is not available in this browser or on this device.\n' +
+          'Use a current version of Chrome, Edge, Firefox or Safari and check ' +
+          'that hardware acceleration is enabled.'
+        );
+      }
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 2 — Write the shaders (NEW: uniforms)
+      // ════════════════════════════════════════════════════════════════
+      // "#version 300 es" must be the very first thing in the string.
+      // Keep the GLSL comments ASCII-only.
+
+      const vertexShaderSource = `#version 300 es
+in vec2 a_position;   // corner of the quad, from -1 to +1
+in vec2 a_uv;         // texture coordinate of that corner, from 0 to 1
+
+// NEW in this demo: uniforms. They have the same value for every vertex of
+// the draw call and are set from JavaScript.
+uniform float u_time;    // animation time in seconds
+uniform float u_pulse;   // how strongly the size pulses (0 = not at all)
+uniform float u_aspect;  // canvas width divided by canvas height
+
+out vec2 v_uv;
+
+// The quad covers this fraction of the canvas height when u_pulse is 0.
+const float HALF_SIZE = 0.6;
+
+void main() {
+  v_uv = a_uv;
+
+  // The scale oscillates around 1.0 between 1 - u_pulse and 1 + u_pulse.
+  float scale = 1.0 + u_pulse * sin(u_time * 2.0);
+  vec2 pos = a_position * HALF_SIZE * scale;
+
+  // Clip space is -1..+1 on both axes, but the canvas is wider than tall.
+  // Dividing x by the aspect ratio keeps the circle round.
+  pos.x /= u_aspect;
+
+  gl_Position = vec4(pos, 0.0, 1.0);
+}`;
+
+      const fragmentShaderSource = `#version 300 es
+precision highp float;
+
+in vec2 v_uv;
+
+// NEW in this demo: more uniforms, now in the fragment shader.
+uniform float u_time;
+uniform vec3  u_color;        // glow color from the color picker
+uniform vec3  u_background;   // the clear color of the canvas
+
+out vec4 outColor;
+
+void main() {
+  // Distance from the center of the quad: 0.0 in the middle, 1.0 at the
+  // middle of each edge.
+  float d = length(v_uv - 0.5) * 2.0;
+
+  // 1.0 in the center, falling smoothly to 0.0 at the edge of the circle.
+  float glow = 1.0 - smoothstep(0.0, 1.0, d);
+
+  // The brightness flickers slowly between 0.4 and 1.0.
+  float brightness = 0.7 + 0.3 * sin(u_time * 3.0);
+
+  // The quad is a rectangle, so outside the glow we must output the same color
+  // as the background. Otherwise you would see a black square.
+  vec3 color = mix(u_background, u_color * brightness, glow);
+  outColor = vec4(color, 1.0);
+}`;
+
+      // Show the exact strings that get compiled.
+      ui.vsSource.textContent = vertexShaderSource;
+      ui.fsSource.textContent = fragmentShaderSource;
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 3 — Compile and link the program (NEW: uniform locations)
+      // ════════════════════════════════════════════════════════════════
+      const program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
+
+      const aPosition = gl.getAttribLocation(program, 'a_position');
+      const aUv       = gl.getAttribLocation(program, 'a_uv');
+
+      // NEW in this demo: a uniform is found by name with getUniformLocation.
+      // Do this ONCE and keep the results. Looking up names every frame is slow.
+      // The same uniform name in both shaders (u_time) is ONE uniform.
+      const uTime       = gl.getUniformLocation(program, 'u_time');
+      const uPulse      = gl.getUniformLocation(program, 'u_pulse');
+      const uAspect     = gl.getUniformLocation(program, 'u_aspect');
+      const uColor      = gl.getUniformLocation(program, 'u_color');
+      const uBackground = gl.getUniformLocation(program, 'u_background');
+
+      // A uniform can only be set while its program is in use. Its value then
+      // STAYS in the program until it is set again. So a value that never
+      // changes, like the background color, is set only once, here.
+      gl.useProgram(program);
+      gl.uniform3f(uBackground, CLEAR_COLOR[0], CLEAR_COLOR[1], CLEAR_COLOR[2]);
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 4 — Upload the vertex data to a buffer
+      // ════════════════════════════════════════════════════════════════
+      // A quad (rectangle) has four corners. Each vertex has a position (x, y)
+      // and a texture coordinate (u, v), interleaved as in the Triangle demo.
+      const vertices = new Float32Array([
+        //   x     y      u    v
+        -1.0, -1.0,    0.0, 0.0,   // v0: bottom left
+         1.0, -1.0,    1.0, 0.0,   // v1: bottom right
+        -1.0,  1.0,    0.0, 1.0,   // v2: top left
+         1.0,  1.0,    1.0, 1.0,   // v3: top right
+      ]);
+
+      const FLOAT_BYTES       = Float32Array.BYTES_PER_ELEMENT;
+      const FLOATS_PER_VERTEX = 4;                                // x, y, u, v
+      const STRIDE            = FLOATS_PER_VERTEX * FLOAT_BYTES;
+      const VERTEX_COUNT      = vertices.length / FLOATS_PER_VERTEX;
+
+      const vertexBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 5 — Describe the data layout and record a VAO
+      // ════════════════════════════════════════════════════════════════
+      const vao = gl.createVertexArray();
+      gl.bindVertexArray(vao);
+
+      gl.enableVertexAttribArray(aPosition);
+      gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false, STRIDE, 0);
+
+      // The texture coordinates start after the two position floats.
+      gl.enableVertexAttribArray(aUv);
+      gl.vertexAttribPointer(aUv, 2, gl.FLOAT, false, STRIDE, 2 * FLOAT_BYTES);
+
+      gl.bindVertexArray(null);
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 6 — Animate (NEW: the animation loop)
+      // ════════════════════════════════════════════════════════════════
+      // A quad is two triangles. With gl.TRIANGLE_STRIP we only list the four
+      // corners, and every new vertex forms a triangle with the previous two:
+      //
+      //    v2 ------ v3          first triangle:  v0, v1, v2
+      //     |  \      |          second triangle: v1, v2, v3
+      //     |    \    |
+      //    v0 ------ v1
+      //
+      // (Six vertices with gl.TRIANGLES would give the same result.)
+
+      let lastTimestamp = null;     // timestamp of the previous frame (ms)
+      let fps = 0;                  // last measured frames per second
+      let fpsFrames = 0;            // frames counted in the current interval
+      let fpsIntervalStart = null;  // start of the current interval (ms)
+
+      /** Count frames and update the FPS number about twice per second. */
+      function trackFps(now) {
+        if (fpsIntervalStart === null) fpsIntervalStart = now;
+        fpsFrames += 1;
+
+        const elapsed = now - fpsIntervalStart;
+        if (elapsed >= FPS_INTERVAL_MS) {
+          fps = Math.round((fpsFrames * 1000) / elapsed);
+          fpsFrames = 0;
+          fpsIntervalStart = now;
+        }
+      }
+
+      /**
+       * Draw one frame. The browser calls this function right before the next
+       * screen refresh and passes a high-resolution timestamp in milliseconds.
+       * @param {number} now  timestamp in milliseconds
+       */
+      function render(now) {
+        // ── 1. Advance the animation time ──────────────────────────────
+        // The time step is the time since the last frame, in seconds. It is
+        // ADDED to the animation time, multiplied by the speed. Adding small
+        // steps means that changing the speed or pausing never makes the
+        // animation jump. The step is capped: the browser stops calling this
+        // function in a hidden tab, and the first frame after coming back
+        // would otherwise see a huge step.
+        const step = lastTimestamp === null
+          ? 0
+          : Math.min((now - lastTimestamp) / 1000, MAX_FRAME_STEP);
+        lastTimestamp = now;
+
+        if (!state.paused) {
+          state.time += step * state.speed;
+        }
+
+        // ── 2. Prepare the canvas ──────────────────────────────────────
+        // The loop runs every frame, so it can check the canvas size here. No
+        // ResizeObserver is needed in this demo.
+        resizeCanvasToDisplaySize(ui.canvas);
+        gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+        gl.clearColor(...CLEAR_COLOR);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        // ── 3. Send the current values to the shaders ──────────────────
+        // The function name has to match the GLSL type:
+        //   float -> uniform1f,  vec3 -> uniform3f
+        gl.useProgram(program);
+        gl.uniform1f(uTime, state.time);
+        gl.uniform1f(uPulse, state.pulse);
+        gl.uniform1f(uAspect, gl.drawingBufferWidth / gl.drawingBufferHeight);
+        gl.uniform3f(uColor, state.color[0], state.color[1], state.color[2]);
+
+        // ── 4. Draw ────────────────────────────────────────────────────
+        gl.bindVertexArray(vao);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, VERTEX_COUNT);
+
+        // ── 5. Update the read-out and schedule the next frame ─────────
+        trackFps(now);
+        ui.stats.textContent = `time: ${state.time.toFixed(2)} s \u00B7 FPS: ${fps || '\u2013'}`;
+
+        // requestAnimationFrame runs the callback ONCE, so every frame has to
+        // ask for the next one.
+        requestAnimationFrame(render);
+      }
+
+      // ════════════════════════════════════════════════════════════════
+      // After the six steps — Connect the controls and start
+      // ════════════════════════════════════════════════════════════════
+      // The controls only change the state. The loop picks the new values up
+      // in the next frame, even while the animation is paused.
+      ui.speed.addEventListener('input', () => {
+        state.speed = Number(ui.speed.value);
+        ui.speedVal.textContent = `${state.speed.toFixed(2)}\u00D7`;
+      });
+
+      ui.pulse.addEventListener('input', () => {
+        state.pulse = Number(ui.pulse.value);
+        ui.pulseVal.textContent = state.pulse.toFixed(2);
+      });
+
+      ui.color.addEventListener('input', () => {
+        state.color = hexToRgb01(ui.color.value);
+      });
+
+      ui.paused.addEventListener('change', () => {
+        state.paused = ui.paused.checked;
+      });
+
+      // Start the loop. The first call also receives a timestamp.
+      requestAnimationFrame(render);
+    }
+
+    try {
+      main();
+    } catch (error) {
+      console.error(error);
+      showError(error.message);
+    }
+  </script>
+</body>
+</html>
