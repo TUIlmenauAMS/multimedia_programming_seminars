@@ -10,7 +10,7 @@
 **The user will upload with this file:**
 1. `01_webaudio_oscillator.html`: the HTML **template** from Chapter 01. It is the reference for look and structure (header, footer, info boxes, pills, demo card).
 2. `01_multimediaprogrammierung_webaudio.ipynb`: the Chapter 01 notebook (reference only).
-3. `02_multimediaprogrammierung_webgl.ipynb`: the Chapter 02 **theory notebook**. The demos must match its terminology, naming conventions and code snippets.
+3. `02_multimediaprogrammierung_webgl.ipynb`: the Chapter 02 **theory notebook**. The demos must match its terminology, naming conventions and code snippets. Each demo is announced in the notebook right after its section (see Section 6), so the demo must offer what its "What to look for" sentence promises.
 
 If any of these is missing, everything needed is embedded in Section 3 (page template). Say which file is missing and continue.
 
@@ -613,20 +613,50 @@ The light direction is in **world space**; the model rotates, the light does not
 
 ---
 
-## 6. Notebook synchronisation (pending change)
+## 6. Notebook layout (already applied; verify, do not redo)
 
-The theory notebook `02_multimediaprogrammierung_webgl.ipynb` was written when there were **six** demos. The video demo adds a **seventh**. When asked (or when the user uploads the notebook and says "sync it"), apply these changes with a small Python script editing the notebook JSON (preserve the template style: markdown cells only, `---` separators, pill links, the same header and footer):
+The theory notebook `02_multimediaprogrammierung_webgl.ipynb` that the user uploads **already has this layout**: seven demos, each placed **right after the section it illustrates**, plus a summary index at the end. Check that it matches the list below. Only if it does not (for example an older notebook with a single demo block at the end), rebuild or edit it with a small Python script on the notebook JSON. Keep the template style: markdown cells only, `---` separators, pill links, the same header and footer, unique cell ids, all other cells untouched.
 
-1. **Overview table (cell 1):** change row 12's description to "Triangle, uniforms, transform, cube, texture, video and lighting demos".
-2. **Section 10 (Textures):** add a subsection **"Video as a texture"** after "Sampling in the shader":
-   - `texImage2D` accepts an `HTMLVideoElement`; a video is a texture whose pixels change every frame, so upload once per frame inside the render loop.
-   - Short snippet: check `video.readyState >= video.HAVE_CURRENT_DATA`, then `gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video)`.
-   - Short note on **real-time filters in the fragment shader** (grayscale, Sobel…) and a tiny GLSL grayscale example.
-   - A note on sources: `<video>` from a file (`URL.createObjectURL`), webcam (`getUserMedia`).
-3. **Section 12 (Interactive Demos):** insert **Demo 6 — Video Filters** (link `02_webgl_video.html`, pill label "Open Video Demo") before the lighting demo, and renumber **Lighting to Demo 7 (optional)**. The link base is `https://htmlpreview.github.io/?url=https://raw.githubusercontent.com/TUIlmenauAMS/multimedia_programming_seminars/main/<file>`.
-4. **Section 13 (Further Resources):** add a pill/row for MDN "Using video as a texture" / `getUserMedia` only if helpful.
+### 6.1 Where each demo appears
 
-Keep all other cells byte-identical. Cell ids must stay unique.
+| Demo | File | Appended at the end of notebook section |
+|-----:|------|------------------------------------------|
+| 1 | `02_webgl_triangle.html` | § 6 Varyings |
+| 2 | `02_webgl_uniforms.html` | § 7 Uniforms and the Animation Loop |
+| 3 | `02_webgl_transform.html` | § 8 Transformations and Matrices |
+| 4 | `02_webgl_cube.html` | § 9 Going 3D |
+| 5 | `02_webgl_texture.html` | § 10 Textures |
+| 6 | `02_webgl_video.html` | § 10 Textures (after the video subsection, right after Demo 5) |
+| 7 | `02_webgl_lighting.html` | § 11 Lighting (optional demo) |
+
+§ 12 is a **Demo Index** with a table of all seven demos (columns: `#`, Demo, New concepts, Section, Link), the "How to open them" text (locally, or via htmlpreview.github.io), the WebGL 2 browser requirement and a note on the video demo (starts with an animated pattern, needs no file or permission; the webcam needs permission and may be blocked when the page is shown through htmlpreview). § 13 is Further Resources. Demo 1 also says that § 12 explains how to open the demos.
+
+### 6.2 Format of an in-place demo block (HTML inside the markdown cell, after the section's pills)
+
+```html
+<div style="border-left:5px solid #1a73e8; background:rgba(26,115,232,0.07); border-radius:6px; padding:12px 18px; margin:20px 0;">
+  <p style="margin:0 0 6px 0;"><b>Interactive Demo N &mdash; TITLE</b></p>
+  <p style="margin:0 0 6px 0;">One or two sentences: what the demo shows.</p>
+  <p style="margin:0 0 6px 0;"><i>What to look for:</i> one concrete thing the student should try.</p>
+  <a href="https://htmlpreview.github.io/?url=https://raw.githubusercontent.com/TUIlmenauAMS/multimedia_programming_seminars/main/FILE.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open TITLE Demo &#8599;</a>
+</div>
+```
+
+The "What to look for" sentence of every block must be **achievable with the demo's controls as specified in Section 5**. If a demo spec changes, update the notebook text in the same step:
+
+| Demo | What to look for (as written in the notebook) |
+|-----:|-----------------------------------------------|
+| 1 | Toggle the wireframe; resize the window and compare the drawing buffer size with the CSS size in the read-out. |
+| 2 | Pause and change the speed: time does not jump because it is accumulated. |
+| 3 | With a translation set, switch `T·R·S` to `R·T·S` and rotate: spins in place vs. orbits the origin. |
+| 4 | Switch off depth test and face culling and watch faces painted in the wrong order; change fov and distance. |
+| 5 | Compare `NEAREST` and `LINEAR` on the low-resolution texture; with the detailed texture, high UV scale and large distance compare `NEAREST` with `LINEAR_MIPMAP_LINEAR`. |
+| 6 | The demo starts with an animated pattern (no file, no permission); switch to a video file or the webcam and compare the filters with the split slider. |
+| 7 | Enable "show normals"; compare cube (flat) and sphere (smooth); the light stays fixed while the model rotates. |
+
+### 6.3 Video content inside notebook § 10 (Textures)
+
+After the "Sampling in the shader" subsection the notebook has the subsections **"Video as a texture"** (a video is a texture whose pixels change every frame; per-frame `texImage2D` with an `HTMLVideoElement` guarded by `readyState >= HAVE_CURRENT_DATA`; `LINEAR` + `CLAMP_TO_EDGE`, no mipmaps; sources: `URL.createObjectURL`, `getUserMedia`, muted for autoplay) and **"Real-time filters in the fragment shader"** (fragment shader runs once per pixel in parallel; a grayscale GLSL example with Rec. 709 weights; neighbour sampling with `1.0 / vec2(textureSize(u_texture, 0))` for blur and Sobel). The pills of § 10 include HTMLVideoElement – MDN and getUserMedia – MDN. These subsections must stay consistent with the video demo's code.
 
 ---
 
@@ -653,5 +683,5 @@ The container may have no GPU and no network. Verify what can be verified; state
 2. Build **one demo at a time** in the order of Section 4. Write the file to `/mnt/user-data/outputs/<filename>` (plain `create_file`; these are downloadable course files).
 3. Run the quality gates (Section 7). Fix issues.
 4. Present the file with `present_files`. Reply with **at most**: one sentence about what the demo shows, a short list of anything that could not be verified (e.g. no GPU in the sandbox), and a question whether to continue with the next demo. No long recap.
-5. When all seven exist, offer to apply the notebook synchronisation (Section 6).
+5. When all seven exist, check that the notebook's demo blocks (Section 6) still match what the demos actually offer, and report any mismatch. Do not edit the notebook unless asked.
 6. Do not change the file names, ids or layout without asking.
