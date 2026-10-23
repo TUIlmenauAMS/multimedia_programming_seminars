@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebGL 2 – 2D Transformations Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Design tokens — same values as the Chapter 01 / Demo 01 template. */
+    :root {
+      --accent:    #1a73e8;
+      --danger:    #e53935;
+      --border:    #e0e0e0;
+      --canvas-bg: #1e1e2e;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      color: #212121;
+      background: #fff;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px 48px;
+    }
+
+    [hidden] { display: none !important; }
+
+    /* ── Header ── */
+    .nb-header {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      border-bottom: 2px solid #e0e0e0;
+      padding: 16px 0;
+      margin-bottom: 32px;
+    }
+    .nb-header img { width: 120px; border-radius: 12px; flex-shrink: 0; }
+    .nb-header h1 { font-size: 1.6rem; margin-bottom: 4px; }
+    .nb-header h2 { font-size: 1.1rem; font-weight: 400; margin-bottom: 8px; color: #444; }
+    .nb-header p  { font-size: 0.92rem; margin-bottom: 2px; }
+    .nb-header a  { color: #1a73e8; text-decoration: none; }
+    .nb-header a:hover { text-decoration: underline; }
+
+    /* ── Pills ── */
+    .pills { margin: 12px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill {
+      display: inline-block;
+      padding: 6px 14px;
+      border: 1px solid #1a73e8;
+      border-radius: 20px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.92rem;
+      color: #1a73e8;
+      transition: background 0.15s, color 0.15s;
+    }
+    .pill:hover { background: #1a73e8; color: #fff; }
+
+    /* ── Sections ── */
+    h2.section { font-size: 1.3rem; margin: 40px 0 12px; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 36px 0; }
+    p  { margin-bottom: 12px; }
+    ol, ul.list { margin: 0 0 12px 24px; }
+    li { margin-bottom: 6px; }
+
+    /* ── Demo card ── */
+    .demo-card {
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin: 24px 0;
+    }
+    .demo-card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: #444;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Controls ── */
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+    .control-row label { min-width: 120px; font-weight: 500; font-size: 0.95rem; }
+    .control-row input[type=range] { flex: 1; min-width: 160px; accent-color: var(--accent); }
+    .control-row input[type=checkbox] { accent-color: var(--accent); width: 18px; height: 18px; }
+    .control-row select {
+      padding: 6px 10px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      background: #fff;
+    }
+    .value-badge {
+      min-width: 64px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      font-size: 0.92rem;
+      color: #555;
+    }
+    .hint { font-size: 0.9rem; color: #555; }
+
+    /* ── Buttons ── */
+    .btn-row { display: flex; gap: 12px; margin-top: 4px; flex-wrap: wrap; }
+    .btn {
+      padding: 10px 28px;
+      border: none;
+      border-radius: 24px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s, transform 0.1s;
+      background: #1a73e8;
+      color: #fff;
+    }
+    .btn:active { transform: scale(0.97); }
+
+    /* Keyboard focus */
+    input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible, a:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* ── Canvas ── */
+    canvas {
+      display: block;
+      width: 100%;
+      height: 120px;
+      border-radius: 8px;
+      background: var(--canvas-bg);
+      margin-top: 20px;
+    }
+    canvas.gl-canvas { height: auto; aspect-ratio: 16 / 10; margin-top: 0; touch-action: none; }
+    canvas.gl-canvas.square {
+      aspect-ratio: 1 / 1;
+      max-width: 520px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .canvas-wrap { margin-bottom: 20px; }
+
+    /* ── Matrix display ── */
+    .matrix-wrap {
+      margin: 16px 0 8px;
+      display: flex;
+      align-items: flex-start;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+    .matrix-label {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.92rem;
+      color: #444;
+      margin-bottom: 6px;
+    }
+    /* The 3×3 matrix rendered as a table in mathematical (row-major display) notation. */
+    table.matrix {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.85rem;
+      border-collapse: collapse;
+      border-left: 2px solid #555;
+      border-right: 2px solid #555;
+    }
+    table.matrix td { padding: 2px 10px; text-align: right; border: none; }
+    .order-hint {
+      font-size: 0.88rem;
+      color: #666;
+      font-style: italic;
+      margin-top: 4px;
+    }
+
+    /* ── Stats ── */
+    .stats {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.82rem;
+      color: #555;
+      margin-top: 10px;
+    }
+
+    /* ── Error banner ── */
+    .error-banner {
+      background: #fdecea;
+      border-left: 5px solid var(--danger);
+      border-radius: 6px;
+      padding: 12px 18px;
+      margin: 20px 0;
+      color: #7f1d1d;
+    }
+    .error-banner pre { white-space: pre-wrap; font-size: 0.85rem; margin-top: 8px; }
+
+    /* ── Shader source collapsible ── */
+    details.shader-source {
+      margin: 16px 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      background: #fafafa;
+    }
+    details.shader-source summary { cursor: pointer; font-weight: 600; }
+    details.shader-source h4 { font-size: 0.92rem; margin: 14px 0 0; color: #444; }
+    details.shader-source pre {
+      overflow-x: auto;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      margin-top: 6px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+    }
+
+    /* ── Footer ── */
+    .nb-footer {
+      text-align: center;
+      padding: 18px 0 8px;
+      margin-top: 48px;
+      border-top: 2px solid #e0e0e0;
+      font-size: 0.92rem;
+      color: #444;
+      line-height: 1.7;
+    }
+    .nb-footer a { color: #1a73e8; text-decoration: none; }
+    .nb-footer a:hover { text-decoration: underline; }
+
+    /* ── Info box ── */
+    .info-box {
+      border-left: 5px solid #1a73e8;
+      background: rgba(26,115,232,0.07);
+      border-radius: 6px;
+      padding: 12px 18px;
+      margin: 20px 0;
+      font-size: 0.95rem;
+    }
+    .info-box p:last-child { margin-bottom: 0; }
+
+    code {
+      background: #f1f3f4;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 0.9em;
+      font-family: "SFMono-Regular", Consolas, monospace;
+    }
+
+    @media (max-width: 600px) {
+      .nb-header { flex-direction: column; align-items: flex-start; }
+      .demo-card { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header class="nb-header">
+    <img
+      src="https://raw.githubusercontent.com/TUIlmenauAMS/multimedia_programming_seminars/main/ams_group_tui.png"
+      alt="AMS Group – TU Ilmenau"
+    />
+    <div>
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 02: WebGL 2 &mdash; Demo: 2D Transformations</h2>
+      <p><strong>Institut für Medientechnik &ndash; Technische Universität Ilmenau</strong><br>
+        <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme" target="_blank">
+          Institut für Medientechnik &ndash; AMS Group
+        </a>
+      </p>
+      <p>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller<br>
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+      </p>
+    </div>
+  </header>
+
+  <!-- ── Section 1: Concept ── -->
+  <h2 class="section">1. Matrices as Composable Transformations</h2>
+  <p>
+    A <strong>transformation matrix</strong> encodes translation, rotation or scale as a single mathematical object. To move a 2D point with a matrix, we extend it to <strong>homogeneous coordinates</strong> — a 3-component vector <code>(x, y, 1)</code> — and multiply: <code>p&prime; = M &middot; p</code>. The matrix lives in the vertex shader, so the GPU applies it to every vertex in parallel without touching the CPU after the upload.
+  </p>
+  <p>
+    The real power is <strong>composition</strong>: multiplying two matrices together gives a single matrix that does both transforms in one step. But matrix multiplication is not commutative — <strong>order matters</strong>. Translating first and then rotating gives a completely different result from rotating first and then translating.
+  </p>
+
+  <div class="info-box">
+    <p><strong>Column-major storage.</strong> GLSL and WebGL store matrices <em>column by column</em> in memory, not row by row. A <code>mat3</code> passed with <code>uniformMatrix3fv</code> must therefore be laid out as column 0 first, then column 1, then column 2. The matrix readout below shows the matrix in the usual <em>mathematical</em> (row-major display) notation, so the numbers you see match what you would write on paper — but the array in memory is transposed relative to that.</p>
+    <p><strong>Read the formula right to left.</strong> When we write <code>M = T &middot; R &middot; S</code>, the rightmost factor (<strong>S</strong>) is applied <em>first</em>. This is because we compute <code>M &middot; p = T &middot; (R &middot; (S &middot; p))</code>: S acts on the point first, then R, then T.</p>
+  </div>
+
+  <hr />
+
+  <!-- ── Section 2: Interactive Demo ── -->
+  <h2 class="section">2. Interactive Demo</h2>
+  <p>
+    Move the sliders to apply translation, rotation and scale to the letter "F". The reference grid stays fixed at the identity matrix. Try switching the composition order: with a translation set, <strong>T&middot;R&middot;S</strong> makes the F spin in place, while <strong>R&middot;T&middot;S</strong> makes it orbit the origin.
+  </p>
+
+  <div id="errorSlot"></div>
+
+  <div class="demo-card">
+    <h3>2D Transformations</h3>
+
+    <div class="canvas-wrap">
+      <canvas
+        id="glcanvas"
+        class="gl-canvas square"
+        role="img"
+        aria-label="A letter F on a grid, transformed by the controls below."
+      ></canvas>
+    </div>
+
+    <!-- Translation -->
+    <div class="control-row">
+      <label for="tx">Translate X</label>
+      <input type="range" id="tx" min="-0.8" max="0.8" step="0.01" value="0" />
+      <span class="value-badge" id="txVal">0.00</span>
+    </div>
+    <div class="control-row">
+      <label for="ty">Translate Y</label>
+      <input type="range" id="ty" min="-0.8" max="0.8" step="0.01" value="0" />
+      <span class="value-badge" id="tyVal">0.00</span>
+    </div>
+
+    <!-- Rotation -->
+    <div class="control-row">
+      <label for="rot">Rotation</label>
+      <input type="range" id="rot" min="-180" max="180" step="1" value="0" />
+      <span class="value-badge" id="rotVal">0°</span>
+    </div>
+
+    <!-- Scale -->
+    <div class="control-row">
+      <label for="sx">Scale X</label>
+      <input type="range" id="sx" min="0.2" max="2.5" step="0.01" value="1" />
+      <span class="value-badge" id="sxVal">1.00</span>
+    </div>
+    <div class="control-row">
+      <label for="sy">Scale Y</label>
+      <input type="range" id="sy" min="0.2" max="2.5" step="0.01" value="1" />
+      <span class="value-badge" id="syVal">1.00</span>
+    </div>
+
+    <!-- Composition order -->
+    <div class="control-row">
+      <label for="order">Order</label>
+      <select id="order">
+        <option value="TRS">T &middot; R &middot; S</option>
+        <option value="RTS">R &middot; T &middot; S</option>
+        <option value="TSR">T &middot; S &middot; R</option>
+        <option value="SRT">S &middot; R &middot; T</option>
+      </select>
+    </div>
+    <!-- Dynamic hint that translates the formula into plain English -->
+    <p class="order-hint" id="orderHint"></p>
+
+    <!-- Animate + Reset -->
+    <div class="control-row">
+      <label for="animate">Auto-rotate</label>
+      <input type="checkbox" id="animate" />
+      <span class="hint">Continuously adds to the rotation slider value</span>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="reset">Reset all</button>
+    </div>
+
+    <!-- Live matrix readout -->
+    <div class="matrix-wrap">
+      <div>
+        <div class="matrix-label" id="matrixFormula">M = T &middot; R &middot; S</div>
+        <table class="matrix" id="matrixTable" aria-label="Current 3×3 transformation matrix">
+          <tbody>
+            <tr><td id="m00">1.000</td><td id="m01">0.000</td><td id="m02">0.000</td></tr>
+            <tr><td id="m10">0.000</td><td id="m11">1.000</td><td id="m12">0.000</td></tr>
+            <tr><td id="m20">0.000</td><td id="m21">0.000</td><td id="m22">1.000</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="stats" id="stats" aria-live="off"></div>
+  </div>
+
+  <hr />
+
+  <!-- ── Section 3: How It Works ── -->
+  <h2 class="section">3. How It Works</h2>
+  <p>
+    The source is split into numbered steps. Open it in your editor alongside the running demo:
+  </p>
+  <ol>
+    <li><strong>Get the context.</strong> Same as Demo 1 — <code>getContext('webgl2')</code>, check for null, show an error banner if unavailable.</li>
+    <li><strong>Write the shaders.</strong> The vertex shader has one new line compared to Demo 1: <code>gl_Position = vec4(u_matrix * vec3(a_position, 1.0), 0.0, 1.0)</code>. The whole transformation lives in one uniform matrix upload.</li>
+    <li><strong>Compile and link.</strong> Same helpers as Demo 1.</li>
+    <li><strong>Upload geometry.</strong> Two separate VAOs: the letter "F" and the reference grid. Both use the same program; the grid is drawn with the identity matrix and a gray color.</li>
+    <li><strong>Wire the UI.</strong> Each slider updates a state variable. The matrix is re-composed from those values on every frame.</li>
+    <li><strong>Render loop.</strong> <code>requestAnimationFrame</code> accumulates time for the auto-rotate animation. The matrix is built, uploaded as a uniform, and the draw call is made.</li>
+  </ol>
+
+  <div class="info-box">
+    <p><strong>Why a letter "F"?</strong> Any symmetric shape (circle, square) looks the same after rotation, so you cannot tell rotation from the identity at a glance. The F has a clear top, a horizontal bar, and a stub — making every transformation immediately visible.</p>
+    <p><strong>Why column-major?</strong> OpenGL (and WebGL) historically stores matrices column by column in memory. The <code>mat3</code> helper in this demo therefore stores columns, and <code>uniformMatrix3fv(loc, false, m)</code> — note <code>false</code>, meaning "do not transpose" — passes the array straight to the GPU. The live readout above re-indexes into row-major display so the numbers match the textbook.</p>
+  </div>
+
+  <details class="shader-source">
+    <summary>Show the shader source that runs on your GPU</summary>
+    <h4>Vertex shader</h4>
+    <pre id="vsSource"></pre>
+    <h4>Fragment shader</h4>
+    <pre id="fsSource"></pre>
+  </details>
+
+  <div class="pills">
+    <a class="pill" href="https://webgl2fundamentals.org/webgl/lessons/webgl-2d-matrices.html" target="_blank">2D Matrices — webgl2fundamentals &#8599;</a>
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/uniformMatrix" target="_blank">uniformMatrix — MDN &#8599;</a>
+  </div>
+
+  <!-- ── Footer ── -->
+  <footer class="nb-footer">
+    <p><strong>Multimediaprogrammierung</strong> &middot; Chapter 02: WebGL 2 &middot; Demo: 2D Transformations<br>
+      Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+    <p>Demo created by <strong>Renato Fera P.</strong> &middot;
+      <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+    </p>
+  </footer>
+
+  <!-- ── JavaScript ── -->
+  <script type="module">
+    /**
+     * ═══════════════════════════════════════════════════════════════════
+     * Chapter 02: WebGL 2 · Demo 3: 2D Transformations
+     *
+     * Teaches:  mat3 transformation matrices, homogeneous 2D coordinates,
+     *           column-major storage, and why composition ORDER matters.
+     * Notebook: section 8 (Transformations and Matrices).
+     *
+     * Steps in this file:
+     *   STEP 0  Collect DOM references once
+     *   STEP 1  Get the WebGL 2 context
+     *   STEP 2  Shader sources (GLSL ES 3.00)
+     *   STEP 3  Helper functions (shared + mat3 math)
+     *   STEP 4  Compile + link; cache attribute/uniform locations
+     *   STEP 5  Build geometry; create VAOs (letter F and grid)
+     *   STEP 6  Wire UI events to state
+     *   STEP 7  Render function (per frame)
+     *   STEP 8  Start the animation loop
+     * ═══════════════════════════════════════════════════════════════════
+     */
+
+    // ══════════════════════════════════════════════════════════════════
+    // STEP 0 — Collect DOM references once
+    // ══════════════════════════════════════════════════════════════════
+    // One place for all querySelector calls; the rest of the code uses `ui`.
+    const ui = {
+      canvas:       document.querySelector('#glcanvas'),
+      tx:           document.querySelector('#tx'),
+      ty:           document.querySelector('#ty'),
+      rot:          document.querySelector('#rot'),
+      sx:           document.querySelector('#sx'),
+      sy:           document.querySelector('#sy'),
+      order:        document.querySelector('#order'),
+      animate:      document.querySelector('#animate'),
+      reset:        document.querySelector('#reset'),
+      orderHint:    document.querySelector('#orderHint'),
+      matrixFormula: document.querySelector('#matrixFormula'),
+      // Individual matrix cell elements — indexed [row][col] for display.
+      matCells: [
+        [document.querySelector('#m00'), document.querySelector('#m01'), document.querySelector('#m02')],
+        [document.querySelector('#m10'), document.querySelector('#m11'), document.querySelector('#m12')],
+        [document.querySelector('#m20'), document.querySelector('#m21'), document.querySelector('#m22')],
+      ],
+      txVal:    document.querySelector('#txVal'),
+      tyVal:    document.querySelector('#tyVal'),
+      rotVal:   document.querySelector('#rotVal'),
+      sxVal:    document.querySelector('#sxVal'),
+      syVal:    document.querySelector('#syVal'),
+      stats:    document.querySelector('#stats'),
+      errorSlot: document.querySelector('#errorSlot'),
+      vsSource: document.querySelector('#vsSource'),
+      fsSource: document.querySelector('#fsSource'),
+    };
+
+    // Background color (GLSL ES floats, matches --canvas-bg: #1e1e2e).
+    const CLEAR_COLOR = [0.118, 0.118, 0.18, 1.0];
+
+    // ══════════════════════════════════════════════════════════════════
+    // STEP 3 (declared first so helpers are in scope everywhere)
+    // — Shared helper functions
+    // ══════════════════════════════════════════════════════════════════
+
+    // --- WebGL helpers (same as in 02_webgl_triangle.html) ---
+
+    /**
+     * Compile one shader stage. Throws with the driver's info log on failure.
+     * @param {WebGL2RenderingContext} gl
+     * @param {number} type  gl.VERTEX_SHADER or gl.FRAGMENT_SHADER
+     * @param {string} source
+     * @returns {WebGLShader}
+     */
+    function createShader(gl, type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(shader);
+        gl.deleteShader(shader);
+        throw new Error(`Shader compile error:\n${log}`);
+      }
+      return shader;
+    }
+
+    /**
+     * Link a vertex + fragment shader into a program; throw on failure.
+     * @param {WebGL2RenderingContext} gl
+     * @param {string} vertexSource
+     * @param {string} fragmentSource
+     * @returns {WebGLProgram}
+     */
+    function createProgram(gl, vertexSource, fragmentSource) {
+      const vs = createShader(gl, gl.VERTEX_SHADER, vertexSource);
+      const fs = createShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+      const program = gl.createProgram();
+      gl.attachShader(program, vs);
+      gl.attachShader(program, fs);
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        const log = gl.getProgramInfoLog(program);
+        gl.deleteProgram(program);
+        throw new Error(`Program link error:\n${log}`);
+      }
+      return program;
+    }
+
+    /**
+     * Match the drawing buffer to the CSS display size × devicePixelRatio.
+     * Returns true if the size changed (caller should redraw).
+     * @param {HTMLCanvasElement} canvas
+     * @returns {boolean}
+     */
+    function resizeCanvasToDisplaySize(canvas) {
+      const dpr = window.devicePixelRatio || 1;
+      const width  = Math.round(canvas.clientWidth  * dpr);
+      const height = Math.round(canvas.clientHeight * dpr);
+      const changed = canvas.width !== width || canvas.height !== height;
+      if (changed) { canvas.width = width; canvas.height = height; }
+      return changed;
+    }
+
+    /**
+     * Display a friendly error banner and disable all controls.
+     * @param {string} message
+     */
+    function showError(message) {
+      const banner = document.createElement('div');
+      banner.className = 'error-banner';
+      const title = document.createElement('strong');
+      title.textContent = 'This demo could not start.';
+      const details = document.createElement('pre');
+      details.textContent = message;
+      banner.append(title, details);
+      ui.errorSlot.replaceChildren(banner);
+      // Disable every interactive element inside the demo card.
+      document.querySelectorAll('.demo-card input, .demo-card select, .demo-card button')
+        .forEach(el => { el.disabled = true; });
+    }
+
+    // NEW in this demo: mat3 math helpers (column-major Float32Array[9])
+    // (For 3D demos 4–7 these grow into mat4; the structure is the same.)
+    // Note: a production project would use gl-matrix (https://glmatrix.net/)
+    // rather than hand-written helpers. Here we write them ourselves so
+    // students see exactly what the numbers mean.
+    const mat3 = {
+      /** Identity matrix: the transform that does nothing. */
+      identity: () => new Float32Array([1,0,0, 0,1,0, 0,0,1]),
+
+      /** Translate by (tx, ty). */
+      translation: (tx, ty) => new Float32Array([1,0,0, 0,1,0, tx,ty,1]),
+
+      /**
+       * Rotate by angle a (radians), counter-clockwise.
+       * Column-major layout:
+       *   col 0: [ cos(a),  sin(a), 0 ]
+       *   col 1: [-sin(a),  cos(a), 0 ]
+       *   col 2: [0,        0,      1 ]
+       */
+      rotation: (a) => {
+        const c = Math.cos(a), s = Math.sin(a);
+        return new Float32Array([c,s,0, -s,c,0, 0,0,1]);
+      },
+
+      /** Scale by (sx, sy). */
+      scaling: (sx, sy) => new Float32Array([sx,0,0, 0,sy,0, 0,0,1]),
+
+      /**
+       * Multiply two mat3: returns a × b.
+       * In the formula "M = A · B", B is applied to the point FIRST.
+       * (Matrix multiplication is associative but not commutative.)
+       * @param {Float32Array} a  left factor
+       * @param {Float32Array} b  right factor
+       * @returns {Float32Array}
+       */
+      multiply: (a, b) => {
+        const out = new Float32Array(9);
+        // Column-major indexing: element at row r, col c is stored at c*3+r.
+        for (let c = 0; c < 3; c++) {
+          for (let r = 0; r < 3; r++) {
+            let sum = 0;
+            for (let k = 0; k < 3; k++) sum += a[k*3 + r] * b[c*3 + k];
+            out[c*3 + r] = sum;
+          }
+        }
+        return out;
+      },
+    };
+
+    // ══════════════════════════════════════════════════════════════════
+    // STEP 2 — Shader sources (GLSL ES 3.00)
+    // ══════════════════════════════════════════════════════════════════
+    // IMPORTANT: "#version 300 es" must be the very first line of the string
+    // (no blank line, no space before the backtick). The GLSL version pragma
+    // must appear before any other content.
+
+    // NEW in this demo: the vertex shader now multiplies u_matrix * position.
+    // The point is extended to homogeneous coordinates (x, y, 1) so that
+    // translation can be encoded in the matrix (otherwise a 2×2 matrix only
+    // handles rotation and scale).
+    const vertexShaderSource = `#version 300 es
+// 2D position in clip space (will be transformed by the matrix).
+in vec2 a_position;
+
+// NEW in this demo: the full 3x3 transformation matrix uploaded from JS.
+// Encodes translation, rotation and scale in one value.
+uniform mat3 u_matrix;
+
+void main() {
+  // Extend (x, y) to homogeneous (x, y, 1), multiply by the matrix,
+  // then project back to 2D clip space (z = 0 in clip, w = 1).
+  vec2 pos = (u_matrix * vec3(a_position, 1.0)).xy;
+  gl_Position = vec4(pos, 0.0, 1.0);
+}`;
+
+    // The fragment shader is minimal: just output a flat u_color.
+    // This lets us draw the F and the grid with different colors
+    // using the same program — only the uniform changes.
+    const fragmentShaderSource = `#version 300 es
+precision highp float;
+
+// A flat color uniform: different draw calls use different values.
+uniform vec3 u_color;
+
+out vec4 outColor;
+
+void main() {
+  outColor = vec4(u_color, 1.0);
+}`;
+
+    // Fill the collapsible shader source view (same pattern as Demo 1).
+    ui.vsSource.textContent = vertexShaderSource;
+    ui.fsSource.textContent = fragmentShaderSource;
+
+    // ══════════════════════════════════════════════════════════════════
+    // STEP 1 — Get the WebGL 2 context
+    // ══════════════════════════════════════════════════════════════════
+    // (Listed as Step 1 in the page, declared here because we need
+    // the shader strings above before we can call main().)
+
+    /**
+     * Entry point. Wrapped in a function so that any throw is caught below.
+     */
+    function main() {
+
+      const gl = ui.canvas.getContext('webgl2');
+      if (!gl) {
+        throw new Error(
+          'WebGL 2 is not available in this browser.\n' +
+          'Use a current version of Chrome, Edge, Firefox or Safari and ' +
+          'enable hardware acceleration.'
+        );
+      }
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 4 — Compile + link; cache attribute/uniform locations
+      // ════════════════════════════════════════════════════════════════
+      const program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
+
+      // Cache locations once at init — looking them up per frame is wasteful.
+      const aPosition = gl.getAttribLocation(program, 'a_position');
+      const uMatrix   = gl.getUniformLocation(program, 'u_matrix');
+      const uColor    = gl.getUniformLocation(program, 'u_color');
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 5 — Build geometry; create VAOs
+      // ════════════════════════════════════════════════════════════════
+
+      // --- Helper: upload a Float32Array into a new buffer and VAO ---
+      /**
+       * Create a VAO that reads 2-component float positions from vertices.
+       * @param {Float32Array} vertices  Flat array of (x, y) pairs.
+       * @returns {WebGLVertexArrayObject}
+       */
+      function makeVAO(vertices) {
+        const buf = gl.createBuffer();
+        // WebGL is a STATE MACHINE: bindBuffer sets the "current" ARRAY_BUFFER;
+        // bufferData and vertexAttribPointer act on it.
+        gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+        gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+        const vao = gl.createVertexArray();
+        gl.bindVertexArray(vao);  // start recording the layout description
+
+        gl.enableVertexAttribArray(aPosition);
+        // 2 components per vertex, float, no normalize, stride=0 (tightly packed), offset=0.
+        gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false, 0, 0);
+
+        gl.bindVertexArray(null); // stop recording
+        return vao;
+      }
+
+      // --- Letter "F" geometry ---
+      // The F is built from 3 rectangles (6 triangles = 18 vertices) and is
+      // centered at the origin, spanning roughly ±0.25. Using an asymmetric
+      // shape makes rotation, mirroring and translation all immediately visible.
+      //
+      // Each rect(x0, y0, x1, y1) emits 2 triangles in CCW winding:
+      //   (x0,y0), (x1,y0), (x0,y1)  and  (x0,y1), (x1,y0), (x1,y1)
+      /**
+       * Build two CCW triangles for an axis-aligned rectangle.
+       * @param {number} x0  left
+       * @param {number} y0  bottom
+       * @param {number} x1  right
+       * @param {number} y1  top
+       * @returns {number[]} 12 floats
+       */
+      function rect(x0, y0, x1, y1) {
+        return [
+          x0, y0,  x1, y0,  x0, y1,   // triangle 1
+          x0, y1,  x1, y0,  x1, y1,   // triangle 2
+        ];
+      }
+
+      // The F spans x: -0.15 … +0.15, y: -0.25 … +0.25.
+      // Three parts: the vertical stem, the top horizontal bar, the middle bar.
+      const fVertices = new Float32Array([
+        ...rect(-0.15, -0.25,  0.15,  0.25),   // vertical stem
+        ...rect(-0.15,  0.10,  0.15,  0.25),   // top horizontal bar (overlap is fine)
+        ...rect(-0.15,  0.00,  0.05,  0.10),   // middle horizontal bar (shorter)
+      ]);
+      const F_VERTEX_COUNT = fVertices.length / 2;
+      const vaoF = makeVAO(fVertices);
+
+      // --- Reference grid geometry ---
+      // Lines at x and y = -1, -0.5, 0, 0.5, 1.
+      // The x and y axes (value 0) will be drawn brighter than minor lines.
+      // We build two separate arrays so we can draw them with different colors.
+      const GRID_LINES  = [-1, -0.5, 0.5, 1];   // minor grid values (skip 0)
+      const AXIS_VALUES = [0];                    // major axes
+
+      const gridMinorVerts = [];
+      for (const v of GRID_LINES) {
+        gridMinorVerts.push(-1, v,  1, v);   // horizontal line
+        gridMinorVerts.push( v,-1,  v, 1);   // vertical line
+      }
+      const gridAxisVerts = [];
+      for (const v of AXIS_VALUES) {
+        gridAxisVerts.push(-1, v,  1, v);    // x-axis (y=0)
+        gridAxisVerts.push( v,-1,  v, 1);    // y-axis (x=0)
+      }
+
+      const vaoGridMinor = makeVAO(new Float32Array(gridMinorVerts));
+      const vaoGridAxis  = makeVAO(new Float32Array(gridAxisVerts));
+      const GRID_MINOR_COUNT = gridMinorVerts.length / 2;
+      const GRID_AXIS_COUNT  = gridAxisVerts.length / 2;
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 6 — Wire UI events to mutable state
+      // ════════════════════════════════════════════════════════════════
+
+      // All controllable state lives here. The render function reads only this.
+      const state = {
+        tx:       0,
+        ty:       0,
+        rotDeg:   0,    // slider value in degrees
+        sx:       1,
+        sy:       1,
+        order:    'TRS',
+        animate:  false,
+        animAngle: 0,   // accumulated rotation from animation (radians)
+      };
+
+      // Lookup tables for the order dropdown.
+      // Key: select value. Value: [English description, display formula].
+      const ORDER_META = {
+        TRS: ['scale → rotate → translate', 'M = T &middot; R &middot; S'],
+        RTS: ['scale → translate → rotate', 'M = R &middot; T &middot; S'],
+        TSR: ['rotate → scale → translate',  'M = T &middot; S &middot; R'],
+        SRT: ['translate → rotate → scale',  'M = S &middot; R &middot; T'],
+      };
+
+      /**
+       * Build the 3×3 matrix for the current state (slider + animated angle).
+       * Order is read LEFT→RIGHT in the formula, meaning the RIGHTMOST factor
+       * is applied to the point first.
+       * @returns {Float32Array} column-major 3×3
+       */
+      function buildMatrix() {
+        const totalRot = (state.rotDeg * Math.PI / 180) + state.animAngle;
+        const T = mat3.translation(state.tx, state.ty);
+        const R = mat3.rotation(totalRot);
+        const S = mat3.scaling(state.sx, state.sy);
+
+        // mat3.multiply(A, B) = A × B, so B is applied first.
+        // "TRS" in the menu means: T is leftmost, S is rightmost (applied first).
+        switch (state.order) {
+          case 'TRS': return mat3.multiply(T, mat3.multiply(R, S));
+          case 'RTS': return mat3.multiply(R, mat3.multiply(T, S));
+          case 'TSR': return mat3.multiply(T, mat3.multiply(S, R));
+          case 'SRT': return mat3.multiply(S, mat3.multiply(R, T));
+          default:    return mat3.identity();
+        }
+      }
+
+      /**
+       * Update the live 3×3 table and formula text.
+       * The array is column-major: element at (row r, col c) = m[c*3 + r].
+       * We display it in ROW-MAJOR (mathematical) notation, so the printed
+       * matrix matches what you would write on paper.
+       * @param {Float32Array} m
+       */
+      function updateMatrixDisplay(m) {
+        for (let r = 0; r < 3; r++) {
+          for (let c = 0; c < 3; c++) {
+            ui.matCells[r][c].textContent = m[c*3 + r].toFixed(3);
+          }
+        }
+        const [, formula] = ORDER_META[state.order];
+        ui.matrixFormula.innerHTML = formula;
+      }
+
+      /** Update all badge spans and the stats line. */
+      function updateBadges() {
+        ui.txVal.textContent  = state.tx.toFixed(2);
+        ui.tyVal.textContent  = state.ty.toFixed(2);
+        ui.rotVal.textContent = `${Math.round(state.rotDeg)}°`;
+        ui.sxVal.textContent  = state.sx.toFixed(2);
+        ui.syVal.textContent  = state.sy.toFixed(2);
+        ui.stats.textContent  =
+          `tx: ${state.tx.toFixed(2)} · ty: ${state.ty.toFixed(2)} · ` +
+          `rot: ${Math.round(state.rotDeg)}° · sx: ${state.sx.toFixed(2)} · sy: ${state.sy.toFixed(2)}`;
+      }
+
+      /** Update the plain-English hint below the order selector. */
+      function updateOrderHint() {
+        const [desc] = ORDER_META[state.order];
+        ui.orderHint.textContent = `Applies: ${desc}`;
+      }
+
+      // Wire all sliders and controls to state.
+      ui.tx.addEventListener('input', () => { state.tx = parseFloat(ui.tx.value); });
+      ui.ty.addEventListener('input', () => { state.ty = parseFloat(ui.ty.value); });
+      ui.rot.addEventListener('input', () => { state.rotDeg = parseFloat(ui.rot.value); });
+      ui.sx.addEventListener('input', () => { state.sx = parseFloat(ui.sx.value); });
+      ui.sy.addEventListener('input', () => { state.sy = parseFloat(ui.sy.value); });
+
+      ui.order.addEventListener('change', () => {
+        state.order = ui.order.value;
+        updateOrderHint();
+      });
+
+      ui.animate.addEventListener('change', () => {
+        state.animate = ui.animate.checked;
+      });
+
+      ui.reset.addEventListener('click', () => {
+        // Reset all controls to their defaults and sync the state.
+        ui.tx.value  = '0';   state.tx = 0;
+        ui.ty.value  = '0';   state.ty = 0;
+        ui.rot.value = '0';   state.rotDeg = 0;
+        ui.sx.value  = '1';   state.sx = 1;
+        ui.sy.value  = '1';   state.sy = 1;
+        state.animAngle = 0;
+        ui.animate.checked = false;
+        state.animate = false;
+        updateBadges();
+      });
+
+      // Set the initial hint.
+      updateOrderHint();
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 7 — Render function (called every animation frame)
+      // ════════════════════════════════════════════════════════════════
+
+      /**
+       * Draw one frame.
+       * @param {number} _timestamp  rAF timestamp in ms (used by the loop, not here)
+       */
+      function render(_timestamp) {
+        // 1. Make the drawing buffer match the CSS display size.
+        resizeCanvasToDisplaySize(ui.canvas);
+        gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+        // 2. Clear.
+        gl.clearColor(...CLEAR_COLOR);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        // 3. Select the (only) program for all draw calls in this frame.
+        gl.useProgram(program);
+
+        // 4. Draw the minor grid lines (dim white).
+        //    The grid always uses the identity matrix — it never moves.
+        gl.uniformMatrix3fv(uMatrix, false, mat3.identity());
+        gl.uniform3f(uColor, 1.0, 1.0, 1.0);   // white...
+        gl.bindVertexArray(vaoGridMinor);
+        // drawArrays(primitive, first, count)
+        // gl.LINES draws each pair of vertices as an independent line segment.
+        gl.lineWidth(1);  // lineWidth > 1 is not guaranteed; 1 is always safe
+        // Minor lines: very dim — just visual scaffolding.
+        gl.uniform3f(uColor, 0.25, 0.25, 0.35);
+        gl.drawArrays(gl.LINES, 0, GRID_MINOR_COUNT);
+
+        // 5. Draw the x/y axes (brighter so they stand out as the origin).
+        gl.uniform3f(uColor, 0.55, 0.55, 0.70);
+        gl.bindVertexArray(vaoGridAxis);
+        gl.drawArrays(gl.LINES, 0, GRID_AXIS_COUNT);
+
+        // 6. Build the F's transform from the current UI state.
+        const M = buildMatrix();
+
+        // Upload M to the shader. transpose=false because our mat3 is already
+        // column-major (the format WebGL expects).
+        gl.uniformMatrix3fv(uMatrix, false, M);
+
+        // Draw the F in a warm yellow-orange.
+        gl.uniform3f(uColor, 0.95, 0.75, 0.20);
+        gl.bindVertexArray(vaoF);
+        gl.drawArrays(gl.TRIANGLES, 0, F_VERTEX_COUNT);
+
+        // 7. Update text displays (cheap; only string formatting).
+        updateMatrixDisplay(M);
+        updateBadges();
+      }
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 8 — Start the animation loop
+      // ════════════════════════════════════════════════════════════════
+      // NEW in this demo: we need requestAnimationFrame even when the scene
+      // is not always moving, because the animate checkbox can switch on/off
+      // at any time. The loop runs continuously; when animate is off it just
+      // redraws the static scene (cheap: the GPU clears + draws ~60 frames/s
+      // even when nothing changes).
+      //
+      // Accumulated animation: we add (dt * speed) to animAngle each frame
+      // instead of deriving it from the raw timestamp. This means pausing the
+      // checkbox never makes the angle jump.
+      const ANIM_SPEED_RAD_S = 1.0;   // radians per second for auto-rotate
+      let lastTime = null;
+
+      /**
+       * The rAF loop. Accumulates time, delegates drawing to render().
+       * @param {number} timestamp  milliseconds since page load (from rAF)
+       */
+      function loop(timestamp) {
+        const dt = lastTime === null ? 0 : (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
+
+        if (state.animate) {
+          state.animAngle += dt * ANIM_SPEED_RAD_S;
+        }
+
+        render(timestamp);
+        requestAnimationFrame(loop);
+      }
+
+      requestAnimationFrame(loop);
+    } // end main()
+
+    try {
+      main();
+    } catch (error) {
+      console.error(error);
+      showError(error.message);
+    }
+  </script>
+</body>
+</html>

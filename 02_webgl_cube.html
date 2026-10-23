@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebGL 2 – Rotating Cube Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent:    #1a73e8;
+      --danger:    #e53935;
+      --border:    #e0e0e0;
+      --canvas-bg: #1e1e2e;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      color: #212121;
+      background: #fff;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px 48px;
+    }
+
+    [hidden] { display: none !important; }
+
+    /* ── Header ── */
+    .nb-header { display: flex; align-items: center; gap: 24px; border-bottom: 2px solid #e0e0e0; padding: 16px 0; margin-bottom: 32px; }
+    .nb-header img { width: 120px; border-radius: 12px; flex-shrink: 0; }
+    .nb-header h1 { font-size: 1.6rem; margin-bottom: 4px; }
+    .nb-header h2 { font-size: 1.1rem; font-weight: 400; margin-bottom: 8px; color: #444; }
+    .nb-header p  { font-size: 0.92rem; margin-bottom: 2px; }
+    .nb-header a  { color: #1a73e8; text-decoration: none; }
+    .nb-header a:hover { text-decoration: underline; }
+
+    /* ── Pills ── */
+    .pills { margin: 12px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill { display: inline-block; padding: 6px 14px; border: 1px solid #1a73e8; border-radius: 20px; text-decoration: none; font-weight: 600; font-size: 0.92rem; color: #1a73e8; transition: background 0.15s, color 0.15s; }
+    .pill:hover { background: #1a73e8; color: #fff; }
+
+    /* ── Sections ── */
+    h2.section { font-size: 1.3rem; margin: 40px 0 12px; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 36px 0; }
+    p  { margin-bottom: 12px; }
+    ol, ul.list { margin: 0 0 12px 24px; }
+    li { margin-bottom: 6px; }
+
+    /* ── Demo card ── */
+    .demo-card { background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 12px; padding: 28px 32px; margin: 24px 0; }
+    .demo-card h3 { font-size: 1rem; font-weight: 600; margin-bottom: 20px; color: #444; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* ── Controls ── */
+    .control-row { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+    .control-row label { min-width: 120px; font-weight: 500; font-size: 0.95rem; }
+    .control-row input[type=range] { flex: 1; min-width: 160px; accent-color: var(--accent); }
+    .control-row input[type=checkbox] { accent-color: var(--accent); width: 18px; height: 18px; }
+    .value-badge { min-width: 64px; text-align: right; font-variant-numeric: tabular-nums; font-size: 0.92rem; color: #555; }
+    .hint { font-size: 0.9rem; color: #555; }
+
+    /* Keyboard focus */
+    input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible, a:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 2px;
+    }
+
+    /* ── Canvas ── */
+    canvas { display: block; width: 100%; height: 120px; border-radius: 8px; background: var(--canvas-bg); margin-top: 20px; }
+    canvas.gl-canvas { height: auto; aspect-ratio: 16 / 10; margin-top: 0; touch-action: none; cursor: grab; }
+    canvas.gl-canvas:active { cursor: grabbing; }
+    .canvas-wrap { margin-bottom: 8px; }
+    .drag-hint { font-size: 0.85rem; color: #777; text-align: center; margin-bottom: 16px; }
+
+    /* ── Stats ── */
+    .stats { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.82rem; color: #555; margin-top: 10px; }
+
+    /* ── Error banner ── */
+    .error-banner { background: #fdecea; border-left: 5px solid var(--danger); border-radius: 6px; padding: 12px 18px; margin: 20px 0; color: #7f1d1d; }
+    .error-banner pre { white-space: pre-wrap; font-size: 0.85rem; margin-top: 8px; }
+
+    /* ── Shader source collapsible ── */
+    details.shader-source { margin: 16px 0; border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; background: #fafafa; }
+    details.shader-source summary { cursor: pointer; font-weight: 600; }
+    details.shader-source h4 { font-size: 0.92rem; margin: 14px 0 0; color: #444; }
+    details.shader-source pre { overflow-x: auto; font-size: 0.82rem; line-height: 1.5; margin-top: 6px; font-family: "SFMono-Regular", Consolas, monospace; }
+
+    /* ── Footer ── */
+    .nb-footer { text-align: center; padding: 18px 0 8px; margin-top: 48px; border-top: 2px solid #e0e0e0; font-size: 0.92rem; color: #444; line-height: 1.7; }
+    .nb-footer a { color: #1a73e8; text-decoration: none; }
+    .nb-footer a:hover { text-decoration: underline; }
+
+    /* ── Info box ── */
+    .info-box { border-left: 5px solid #1a73e8; background: rgba(26,115,232,0.07); border-radius: 6px; padding: 12px 18px; margin: 20px 0; font-size: 0.95rem; }
+    .info-box p:last-child { margin-bottom: 0; }
+
+    code { background: #f1f3f4; border-radius: 4px; padding: 1px 6px; font-size: 0.9em; font-family: "SFMono-Regular", Consolas, monospace; }
+
+    @media (max-width: 600px) {
+      .nb-header { flex-direction: column; align-items: flex-start; }
+      .demo-card { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header class="nb-header">
+    <img
+      src="https://raw.githubusercontent.com/TUIlmenauAMS/multimedia_programming_seminars/main/ams_group_tui.png"
+      alt="AMS Group – TU Ilmenau"
+    />
+    <div>
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 02: WebGL 2 &mdash; Demo: Rotating Cube</h2>
+      <p><strong>Institut für Medientechnik &ndash; Technische Universität Ilmenau</strong><br>
+        <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme" target="_blank">
+          Institut für Medientechnik &ndash; AMS Group
+        </a>
+      </p>
+      <p>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller<br>
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+      </p>
+    </div>
+  </header>
+
+  <!-- ── Section 1: Concept ── -->
+  <h2 class="section">1. Into the Third Dimension: the MVP Pipeline</h2>
+  <p>
+    Moving from 2D to 3D requires three matrices chained together — the <strong>MVP pipeline</strong>. The <strong>Model</strong> matrix places the object in the world (rotation, translation, scale). The <strong>View</strong> matrix moves the world in front of a fixed camera. The <strong>Projection</strong> matrix maps the 3D scene onto the 2D canvas, adding perspective foreshortening so distant objects appear smaller.
+  </p>
+  <p>
+    In the vertex shader: <code>gl_Position = u_projection &times; u_view &times; u_model &times; vertex</code>. The rightmost matrix is applied first, as always. The result is a 4-component <em>clip-space</em> coordinate; the GPU divides by <code>w</code> (the perspective divide) and then maps the result to the viewport.
+  </p>
+
+  <div class="info-box">
+    <p><strong>Depth test.</strong> WebGL keeps a <em>depth buffer</em> — one depth value per pixel. Before writing a pixel, the GPU checks whether it is closer than what was already there. If not, it is discarded. This ensures the front face always wins, regardless of draw order.</p>
+    <p><strong>Face culling.</strong> Every triangle has a front side and a back side, determined by the winding order of its vertices. With culling on, the GPU skips back-facing triangles entirely — roughly halving the fragment work. The cube's triangles are wound counter-clockwise when seen from outside, so back faces (pointing away from the camera) are culled.</p>
+    <p><strong>Index buffer.</strong> Instead of repeating vertex data for shared edges, we store 24 unique vertices (4 per face) and a separate list of 36 indices (6 per face &times; 6 faces = 36) that reference them. The GPU reads the indices and fetches the right vertex for each triangle.</p>
+  </div>
+
+  <hr />
+
+  <!-- ── Section 2: Interactive Demo ── -->
+  <h2 class="section">2. Interactive Demo</h2>
+  <p>
+    Drag the cube to rotate it freely. Try switching off the depth test and face culling to see faces painted in the wrong order — a clear illustration of why those two features exist.
+  </p>
+
+  <div id="errorSlot"></div>
+
+  <div class="demo-card">
+    <h3>Rotating Cube</h3>
+
+    <div class="canvas-wrap">
+      <canvas
+        id="glcanvas"
+        class="gl-canvas"
+        role="img"
+        aria-label="A colorful rotating cube rendered with WebGL 2."
+      ></canvas>
+    </div>
+    <p class="drag-hint">Drag to rotate</p>
+
+    <!-- Auto-rotate -->
+    <div class="control-row">
+      <label for="autoRotate">Auto-rotate</label>
+      <input type="checkbox" id="autoRotate" checked />
+    </div>
+    <div class="control-row">
+      <label for="speed">Speed</label>
+      <input type="range" id="speed" min="0" max="3" step="0.05" value="1" />
+      <span class="value-badge" id="speedVal">1.00</span>
+    </div>
+
+    <!-- Camera -->
+    <div class="control-row">
+      <label for="fov">Field of view</label>
+      <input type="range" id="fov" min="20" max="100" step="1" value="45" />
+      <span class="value-badge" id="fovVal">45°</span>
+    </div>
+    <div class="control-row">
+      <label for="distance">Distance</label>
+      <input type="range" id="distance" min="2" max="10" step="0.1" value="4" />
+      <span class="value-badge" id="distanceVal">4.0</span>
+    </div>
+
+    <!-- Rendering toggles -->
+    <div class="control-row">
+      <label for="depthTest">Depth test</label>
+      <input type="checkbox" id="depthTest" checked />
+      <span class="hint">Discard fragments behind closer ones</span>
+    </div>
+    <div class="control-row">
+      <label for="cullFace">Cull back faces</label>
+      <input type="checkbox" id="cullFace" checked />
+      <span class="hint">Skip triangles facing away from the camera</span>
+    </div>
+
+    <div class="stats" id="stats" aria-live="off"></div>
+  </div>
+
+  <hr />
+
+  <!-- ── Section 3: How It Works ── -->
+  <h2 class="section">3. How It Works</h2>
+  <p>
+    The source follows the same numbered steps as earlier demos. The new pieces introduced here:
+  </p>
+  <ol>
+    <li><strong>mat4 helpers.</strong> All transforms are now 4&times;4 column-major matrices. The perspective matrix encodes the field of view and near/far clip planes.</li>
+    <li><strong>Cube geometry.</strong> Built from a table of 6 faces. Each face contributes 4 vertices (with the face color) and 6 indices (two triangles, wound CCW from outside). The index buffer sits in the VAO so <code>drawElements</code> can reference it.</li>
+    <li><strong>Three uniform matrices.</strong> <code>u_model</code>, <code>u_view</code> and <code>u_projection</code> are uploaded separately each frame. The view matrix places the camera at distance <em>d</em> on the +z axis looking at the origin: <code>view = translation(0, 0, -d)</code>.</li>
+    <li><strong>Depth and cull state.</strong> <code>gl.enable/disable(gl.DEPTH_TEST)</code> and <code>gl.enable/disable(gl.CULL_FACE)</code> are set every frame to keep the toggles responsive.</li>
+    <li><strong>Pointer drag.</strong> <code>pointerdown</code> / <code>pointermove</code> / <code>pointerup</code> with <code>setPointerCapture</code> work for mouse and touch alike.</li>
+  </ol>
+
+  <div class="info-box">
+    <p><strong>Why turn off depth test?</strong> When the depth test is off, every fragment overwrites the pixel regardless of depth. For a cube this means the last face drawn always "wins" — you see faces painted on top of nearer ones. The draw order in the index buffer determines what is visible, which is arbitrary and looks wrong.</p>
+    <p><strong>Why turn off culling?</strong> Without culling, back-facing triangles are drawn too. With the depth test <em>on</em>, this still looks correct (the front face wins). With <em>both</em> off, you get the full chaos.</p>
+  </div>
+
+  <details class="shader-source">
+    <summary>Show the shader source that runs on your GPU</summary>
+    <h4>Vertex shader</h4>
+    <pre id="vsSource"></pre>
+    <h4>Fragment shader</h4>
+    <pre id="fsSource"></pre>
+  </details>
+
+  <div class="pills">
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_model_view_projection" target="_blank">Model View Projection — MDN &#8599;</a>
+    <a class="pill" href="https://webgl2fundamentals.org/webgl/lessons/webgl-3d-perspective.html" target="_blank">Perspective — webgl2fundamentals &#8599;</a>
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/drawElements" target="_blank">drawElements — MDN &#8599;</a>
+  </div>
+
+  <!-- ── Footer ── -->
+  <footer class="nb-footer">
+    <p><strong>Multimediaprogrammierung</strong> &middot; Chapter 02: WebGL 2 &middot; Demo: Rotating Cube<br>
+      Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+    <p>Demo created by <strong>Renato Fera P.</strong> &middot;
+      <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+    </p>
+  </footer>
+
+  <!-- ── JavaScript ── -->
+  <script type="module">
+    /**
+     * ═══════════════════════════════════════════════════════════════════
+     * Chapter 02: WebGL 2 · Demo 4: Rotating Cube
+     *
+     * Teaches:  mat4 MVP matrices, perspective projection, depth test,
+     *           face culling, index buffers, and pointer-drag interaction.
+     * Notebook: section 9 (Going 3D).
+     *
+     * Steps in this file:
+     *   STEP 0  Collect DOM references once
+     *   STEP 1  Get the WebGL 2 context
+     *   STEP 2  Shader sources (GLSL ES 3.00)
+     *   STEP 3  Helper functions (shared WebGL + mat4 math)
+     *   STEP 4  Compile + link; cache attribute/uniform locations
+     *   STEP 5  Build cube geometry; create VAO with index buffer
+     *   STEP 6  Wire UI events and pointer drag to state
+     *   STEP 7  Render function (per frame)
+     *   STEP 8  Start the animation loop
+     * ═══════════════════════════════════════════════════════════════════
+     */
+
+    // ══════════════════════════════════════════════════════════════════
+    // STEP 0 — Collect DOM references once
+    // ══════════════════════════════════════════════════════════════════
+    const ui = {
+      canvas:      document.querySelector('#glcanvas'),
+      autoRotate:  document.querySelector('#autoRotate'),
+      speed:       document.querySelector('#speed'),
+      speedVal:    document.querySelector('#speedVal'),
+      fov:         document.querySelector('#fov'),
+      fovVal:      document.querySelector('#fovVal'),
+      distance:    document.querySelector('#distance'),
+      distanceVal: document.querySelector('#distanceVal'),
+      depthTest:   document.querySelector('#depthTest'),
+      cullFace:    document.querySelector('#cullFace'),
+      stats:       document.querySelector('#stats'),
+      errorSlot:   document.querySelector('#errorSlot'),
+      vsSource:    document.querySelector('#vsSource'),
+      fsSource:    document.querySelector('#fsSource'),
+    };
+
+    // Constants
+    const CLEAR_COLOR     = [0.118, 0.118, 0.18, 1.0];  // matches --canvas-bg
+    const DEG_TO_RAD      = Math.PI / 180;
+    const NEAR            = 0.1;
+    const FAR             = 100.0;
+    const FOV_DEFAULT     = 45;    // degrees
+    const DISTANCE_DEFAULT = 4.0;
+    const ROT_X_CLAMP     = 90;   // degrees: clamp vertical drag to ±90°
+
+    // ══════════════════════════════════════════════════════════════════
+    // STEP 3 — Helper functions
+    // ══════════════════════════════════════════════════════════════════
+
+    // --- Shared WebGL helpers (same as in 02_webgl_triangle.html) ---
+
+    /**
+     * Compile one shader stage; throw with the driver's info log on failure.
+     * @param {WebGL2RenderingContext} gl
+     * @param {number} type  gl.VERTEX_SHADER or gl.FRAGMENT_SHADER
+     * @param {string} source
+     * @returns {WebGLShader}
+     */
+    function createShader(gl, type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(shader);
+        gl.deleteShader(shader);
+        throw new Error(`Shader compile error:\n${log}`);
+      }
+      return shader;
+    }
+
+    /**
+     * Link a vertex + fragment shader into a program; throw on failure.
+     * @param {WebGL2RenderingContext} gl
+     * @param {string} vertexSource
+     * @param {string} fragmentSource
+     * @returns {WebGLProgram}
+     */
+    function createProgram(gl, vertexSource, fragmentSource) {
+      const vs = createShader(gl, gl.VERTEX_SHADER, vertexSource);
+      const fs = createShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+      const program = gl.createProgram();
+      gl.attachShader(program, vs);
+      gl.attachShader(program, fs);
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        const log = gl.getProgramInfoLog(program);
+        gl.deleteProgram(program);
+        throw new Error(`Program link error:\n${log}`);
+      }
+      return program;
+    }
+
+    /**
+     * Match the drawing buffer to the CSS display size × devicePixelRatio.
+     * @param {HTMLCanvasElement} canvas
+     * @returns {boolean} true if size changed
+     */
+    function resizeCanvasToDisplaySize(canvas) {
+      const dpr = window.devicePixelRatio || 1;
+      const width  = Math.round(canvas.clientWidth  * dpr);
+      const height = Math.round(canvas.clientHeight * dpr);
+      const changed = canvas.width !== width || canvas.height !== height;
+      if (changed) { canvas.width = width; canvas.height = height; }
+      return changed;
+    }
+
+    /**
+     * Show a friendly error banner and disable all controls.
+     * @param {string} message
+     */
+    function showError(message) {
+      const banner = document.createElement('div');
+      banner.className = 'error-banner';
+      const title = document.createElement('strong');
+      title.textContent = 'This demo could not start.';
+      const details = document.createElement('pre');
+      details.textContent = message;
+      banner.append(title, details);
+      ui.errorSlot.replaceChildren(banner);
+      document.querySelectorAll('.demo-card input, .demo-card select, .demo-card button')
+        .forEach(el => { el.disabled = true; });
+    }
+
+    // NEW in this demo: mat4 helpers (column-major Float32Array[16]).
+    // (For a production project you would use gl-matrix: https://glmatrix.net/)
+    // Column-major means column 0 is stored first: [m00,m10,m20,m30, m01,…].
+    // Element at row r, column c: index = c*4 + r.
+    const mat4 = {
+      /** Identity matrix. */
+      identity: () => new Float32Array([
+        1,0,0,0,
+        0,1,0,0,
+        0,0,1,0,
+        0,0,0,1,
+      ]),
+
+      /** Translate by (x, y, z). */
+      translation: (x, y, z) => new Float32Array([
+        1,0,0,0,
+        0,1,0,0,
+        0,0,1,0,
+        x,y,z,1,
+      ]),
+
+      /** Rotate around the X axis by a (radians). */
+      rotationX: (a) => {
+        const c = Math.cos(a), s = Math.sin(a);
+        return new Float32Array([
+          1, 0, 0, 0,
+          0, c, s, 0,
+          0,-s, c, 0,
+          0, 0, 0, 1,
+        ]);
+      },
+
+      /** Rotate around the Y axis by a (radians). */
+      rotationY: (a) => {
+        const c = Math.cos(a), s = Math.sin(a);
+        return new Float32Array([
+          c, 0,-s, 0,
+          0, 1, 0, 0,
+          s, 0, c, 0,
+          0, 0, 0, 1,
+        ]);
+      },
+
+      /**
+       * Perspective projection matrix.
+       * Maps the view frustum to the NDC cube [-1,1]^3.
+       * @param {number} fovY  vertical field of view in radians
+       * @param {number} aspect  width / height
+       * @param {number} near  near clip distance (> 0)
+       * @param {number} far   far clip distance (> near)
+       */
+      perspective: (fovY, aspect, near, far) => {
+        const f   = 1.0 / Math.tan(fovY / 2);
+        const nf  = 1.0 / (near - far);
+        return new Float32Array([
+          f / aspect, 0, 0,                    0,
+          0,          f, 0,                    0,
+          0,          0, (far + near) * nf,   -1,
+          0,          0, 2 * far * near * nf,  0,
+        ]);
+      },
+
+      /**
+       * Multiply two mat4: returns a × b (b is applied to the point first).
+       * @param {Float32Array} a
+       * @param {Float32Array} b
+       * @returns {Float32Array}
+       */
+      multiply: (a, b) => {
+        const out = new Float32Array(16);
+        for (let c = 0; c < 4; c++) {
+          for (let r = 0; r < 4; r++) {
+            let sum = 0;
+            for (let k = 0; k < 4; k++) sum += a[k*4 + r] * b[c*4 + k];
+            out[c*4 + r] = sum;
+          }
+        }
+        return out;
+      },
+    };
+
+    // ══════════════════════════════════════════════════════════════════
+    // STEP 2 — Shader sources (GLSL ES 3.00)
+    // ══════════════════════════════════════════════════════════════════
+    // IMPORTANT: "#version 300 es" must be the very first characters of the
+    // string — no blank line or space before it.
+
+    // NEW in this demo: three separate MVP matrices as uniforms, and a 3D
+    // position attribute. The vertex shader chains them: projection × view × model.
+    const vertexShaderSource = `#version 300 es
+// 3D position of this vertex in model (object) space.
+in vec3 a_position;
+
+// Per-vertex color (one color per face; shared by all 4 vertices of that face).
+in vec3 a_color;
+
+// NEW in this demo: three separate transform matrices.
+// Keeping them separate lets us update only the model matrix each frame
+// (the view and projection rarely change).
+uniform mat4 u_model;       // places the object in the world
+uniform mat4 u_view;        // moves the world in front of the camera
+uniform mat4 u_projection;  // maps 3D → 2D with perspective
+
+// Color passed to the fragment shader (interpolated across the triangle).
+out vec3 v_color;
+
+void main() {
+  v_color = a_color;
+
+  // The MVP pipeline, read right to left:
+  // 1. u_model     — rotate/translate the cube into world space
+  // 2. u_view      — move everything relative to the camera
+  // 3. u_projection — apply perspective (divide by w happens automatically)
+  gl_Position = u_projection * u_view * u_model * vec4(a_position, 1.0);
+}`;
+
+    // Fragment shader is identical to Demo 3 — just pass the varying color through.
+    const fragmentShaderSource = `#version 300 es
+precision highp float;
+
+in vec3 v_color;
+out vec4 outColor;
+
+void main() {
+  outColor = vec4(v_color, 1.0);
+}`;
+
+    // ══════════════════════════════════════════════════════════════════
+    // Entry point
+    // ══════════════════════════════════════════════════════════════════
+    function main() {
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 1 — Get the WebGL 2 context
+      // ════════════════════════════════════════════════════════════════
+      const gl = ui.canvas.getContext('webgl2');
+      if (!gl) {
+        throw new Error(
+          'WebGL 2 is not available in this browser.\n' +
+          'Use a current version of Chrome, Edge, Firefox or Safari and ' +
+          'enable hardware acceleration.'
+        );
+      }
+
+      // Fill the collapsible shader view (same as Demo 1).
+      ui.vsSource.textContent = vertexShaderSource;
+      ui.fsSource.textContent = fragmentShaderSource;
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 4 — Compile + link; cache attribute/uniform locations
+      // ════════════════════════════════════════════════════════════════
+      const program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
+
+      // Cache all locations at init — never look them up inside render().
+      const aPosition   = gl.getAttribLocation(program, 'a_position');
+      const aColor      = gl.getAttribLocation(program, 'a_color');
+      const uModel      = gl.getUniformLocation(program, 'u_model');
+      const uView       = gl.getUniformLocation(program, 'u_view');
+      const uProjection = gl.getUniformLocation(program, 'u_projection');
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 5 — Build cube geometry; create VAO with index buffer
+      // ════════════════════════════════════════════════════════════════
+      //
+      // A cube has 6 faces. Each face needs 4 vertices (so we can give every
+      // face its own flat color). 6 faces × 4 vertices = 24 vertices total.
+      //
+      // Each face contributes 2 triangles = 6 indices.
+      // 6 faces × 6 indices = 36 indices total.
+      //
+      // Winding: triangles are counter-clockwise (CCW) when seen from OUTSIDE
+      // the cube. This is WebGL's default front-face convention (gl.CCW).
+      // With face culling on, back-facing triangles are discarded.
+      //
+      // Face data table: [normal direction, color [r,g,b], four corner offsets].
+      // Each corner is a ±0.5 offset from the cube centre (unit cube).
+      //
+      // We use the normal direction only to pick the correct corner signs;
+      // the normal itself is not sent to the shader in this demo.
+      //
+      // The four corners of each face are ordered so that the two triangles
+      // made from indices [0,1,2] and [0,2,3] are CCW from outside.
+      //
+      //       v1----v3
+      //       |  \  |    tri 0: v0, v1, v2  (CCW from outside)
+      //       |   \ |    tri 1: v0, v2, v3  (CCW from outside)
+      //       v0----v2
+      //
+      // (This quad split is standard; adjust per face so winding is always
+      //  outward-facing.)
+
+      // Face vertex layout convention (verified by the winding test below):
+      //   v0 = bottom-left, v1 = bottom-right, v2 = top-left, v3 = top-right
+      //   — all as seen from OUTSIDE the cube.
+      //
+      // Index split: [0,1,3] and [0,3,2] (NOT [0,1,2]+[0,2,3]).
+      // This gives:
+      //   tri0: BL → BR → TR  (CCW from outside ✓)
+      //   tri1: BL → TR → TL  (CCW from outside ✓)
+      //
+      // The split [0,1,2]+[0,2,3] would make tri1 go BL→TL→TR = CW → inside-out.
+      //
+      // "Outside" direction per face:
+      //   +X: looking from +x; right = -z, up = +y
+      //   -X: looking from -x; right = +z, up = +y
+      //   +Y: looking from +y; right = +x, forward = -z
+      //   -Y: looking from -y; right = +x, forward = +z
+      //   +Z: looking from +z; right = +x, up = +y
+      //   -Z: looking from -z; right = -x, up = +y
+
+      /** One face: color [r,g,b] + 4 corners [v0=BL, v1=BR, v2=TL, v3=TR]. */
+      const FACES = [
+        // color [r,g,b]         v0=BL               v1=BR               v2=TL               v3=TR
+        { c: [1.0, 0.2, 0.2],  // +X face (right) — red
+          v: [[ 0.5,-0.5, 0.5],[ 0.5,-0.5,-0.5],[ 0.5, 0.5, 0.5],[ 0.5, 0.5,-0.5]] },
+        { c: [0.2, 0.5, 1.0],  // -X face (left)  — blue
+          v: [[-0.5,-0.5,-0.5],[-0.5,-0.5, 0.5],[-0.5, 0.5,-0.5],[-0.5, 0.5, 0.5]] },
+        { c: [0.2, 0.9, 0.3],  // +Y face (top)   — green
+          v: [[-0.5, 0.5, 0.5],[ 0.5, 0.5, 0.5],[-0.5, 0.5,-0.5],[ 0.5, 0.5,-0.5]] },
+        { c: [0.9, 0.6, 0.1],  // -Y face (bottom) — orange
+          v: [[-0.5,-0.5,-0.5],[ 0.5,-0.5,-0.5],[-0.5,-0.5, 0.5],[ 0.5,-0.5, 0.5]] },
+        { c: [0.9, 0.9, 0.2],  // +Z face (front) — yellow
+          v: [[-0.5,-0.5, 0.5],[ 0.5,-0.5, 0.5],[-0.5, 0.5, 0.5],[ 0.5, 0.5, 0.5]] },
+        { c: [0.7, 0.2, 0.9],  // -Z face (back)  — purple
+          v: [[ 0.5,-0.5,-0.5],[-0.5,-0.5,-0.5],[ 0.5, 0.5,-0.5],[-0.5, 0.5,-0.5]] },
+      ];
+
+      // Build flat position and color arrays, and the index list.
+      const posData   = [];
+      const colorData = [];
+      const indexData = [];
+
+      for (let f = 0; f < FACES.length; f++) {
+        const face      = FACES[f];
+        const baseIndex = f * 4;   // 4 vertices per face
+
+        for (const v of face.v) {
+          posData.push(...v);        // x, y, z
+          colorData.push(...face.c); // r, g, b (same for all 4 verts of this face)
+        }
+
+        // Index split [0,1,3]+[0,3,2]: both triangles wind CCW from outside.
+        indexData.push(
+          baseIndex + 0, baseIndex + 1, baseIndex + 3,
+          baseIndex + 0, baseIndex + 3, baseIndex + 2,
+        );
+      }
+
+      const positions = new Float32Array(posData);
+      const colors    = new Float32Array(colorData);
+      const indices   = new Uint16Array(indexData);   // 36 indices, fits Uint16
+
+      const VERTEX_COUNT = positions.length / 3;  // = 24
+      const INDEX_COUNT  = indices.length;         // = 36
+
+      // Create a VAO to record the buffer layout.
+      // NEW in this demo: the index buffer (ELEMENT_ARRAY_BUFFER) is also
+      // bound while the VAO is active, so drawElements knows where to find it.
+      const vao = gl.createVertexArray();
+      gl.bindVertexArray(vao);  // start recording
+
+      // --- Position buffer ---
+      // WebGL STATE MACHINE: bindBuffer sets the current ARRAY_BUFFER.
+      const posBuf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(aPosition);
+      gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+
+      // --- Color buffer ---
+      const colBuf = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, colBuf);
+      gl.bufferData(gl.ARRAY_BUFFER, colors, gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(aColor);
+      gl.vertexAttribPointer(aColor, 3, gl.FLOAT, false, 0, 0);
+
+      // --- Index buffer ---
+      // ELEMENT_ARRAY_BUFFER is part of the VAO state; binding it here means
+      // drawElements will automatically use it when this VAO is bound.
+      const idxBuf = gl.createBuffer();
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuf);
+      gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+
+      gl.bindVertexArray(null);  // stop recording
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 6 — Wire UI events and pointer drag to state
+      // ════════════════════════════════════════════════════════════════
+
+      // All mutable render state lives here.
+      const state = {
+        rotX:       -20,       // degrees; set by drag and auto-rotate
+        rotY:        30,       // degrees
+        speed:       1.0,
+        fovDeg:      FOV_DEFAULT,
+        distance:    DISTANCE_DEFAULT,
+        autoRotate:  true,
+        depthTest:   true,
+        cullFace:    true,
+        animAngle:   0,        // radians accumulated by auto-rotate
+      };
+
+      // --- Slider wiring ---
+      ui.speed.addEventListener('input', () => {
+        state.speed = parseFloat(ui.speed.value);
+        ui.speedVal.textContent = state.speed.toFixed(2);
+      });
+      ui.fov.addEventListener('input', () => {
+        state.fovDeg = parseFloat(ui.fov.value);
+        ui.fovVal.textContent = `${Math.round(state.fovDeg)}°`;
+      });
+      ui.distance.addEventListener('input', () => {
+        state.distance = parseFloat(ui.distance.value);
+        ui.distanceVal.textContent = state.distance.toFixed(1);
+      });
+
+      // --- Checkbox wiring ---
+      ui.autoRotate.addEventListener('change', () => { state.autoRotate = ui.autoRotate.checked; });
+      ui.depthTest.addEventListener('change',  () => { state.depthTest  = ui.depthTest.checked; });
+      ui.cullFace.addEventListener('change',   () => { state.cullFace   = ui.cullFace.checked; });
+
+      // --- Pointer drag — rotate the cube with mouse or touch ---
+      // NEW in this demo: pointer events with setPointerCapture so the drag
+      // continues even when the pointer leaves the canvas element.
+      let isDragging   = false;
+      let lastPointerX = 0;
+      let lastPointerY = 0;
+      const DRAG_SENSITIVITY = 0.5;  // degrees per CSS pixel
+
+      ui.canvas.addEventListener('pointerdown', (e) => {
+        isDragging   = true;
+        lastPointerX = e.clientX;
+        lastPointerY = e.clientY;
+        // setPointerCapture: all subsequent pointer events for this pointerId
+        // are sent to this element even if the pointer moves outside it.
+        ui.canvas.setPointerCapture(e.pointerId);
+      });
+
+      ui.canvas.addEventListener('pointermove', (e) => {
+        if (!isDragging) return;
+        const dx = e.clientX - lastPointerX;
+        const dy = e.clientY - lastPointerY;
+        lastPointerX = e.clientX;
+        lastPointerY = e.clientY;
+
+        state.rotY += dx * DRAG_SENSITIVITY;
+        state.rotX += dy * DRAG_SENSITIVITY;
+        // Clamp vertical rotation so the cube never flips upside-down,
+        // which would reverse left/right drag direction and confuse users.
+        state.rotX = Math.max(-ROT_X_CLAMP, Math.min(ROT_X_CLAMP, state.rotX));
+      });
+
+      const stopDrag = () => { isDragging = false; };
+      ui.canvas.addEventListener('pointerup',    stopDrag);
+      ui.canvas.addEventListener('pointercancel', stopDrag);
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 7 — Render function (called every frame by the loop)
+      // ════════════════════════════════════════════════════════════════
+
+      // Smoothed FPS counter.
+      let fpsSmooth    = 0;
+      let lastFpsTime  = 0;
+      let frameCount   = 0;
+
+      /** Draw one frame.
+       * @param {number} timestamp  rAF timestamp in milliseconds
+       */
+      function render(timestamp) {
+        // 1. Resize drawing buffer to match the CSS size × devicePixelRatio.
+        resizeCanvasToDisplaySize(ui.canvas);
+        gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+        // 2. Apply depth test and cull settings every frame (cheap toggle).
+        if (state.depthTest) gl.enable(gl.DEPTH_TEST);
+        else                  gl.disable(gl.DEPTH_TEST);
+
+        if (state.cullFace) gl.enable(gl.CULL_FACE);
+        else                 gl.disable(gl.CULL_FACE);
+
+        // 3. Clear both color and depth buffers.
+        //    Clearing the depth buffer resets it to the maximum depth (1.0)
+        //    so every new pixel has a chance to be written.
+        gl.clearColor(...CLEAR_COLOR);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        // 4. Build the MVP matrices.
+        //
+        // Model = rotationY × rotationX (Y applied first, then X on top).
+        // The drag accumulates into rotX/rotY; auto-rotate adds to rotY.
+        const totalRotY = (state.rotY + (state.animAngle * 180 / Math.PI)) * DEG_TO_RAD;
+        const totalRotX = state.rotX * DEG_TO_RAD;
+        const model = mat4.multiply(
+          mat4.rotationY(totalRotY),
+          mat4.rotationX(totalRotX),
+        );
+
+        // View: camera sits at (0, 0, distance) on the +z axis, looking
+        // toward the origin. Translating by -distance moves the world away.
+        const view = mat4.translation(0, 0, -state.distance);
+
+        // Projection: perspective matrix computed from fov and current aspect.
+        const aspect = gl.drawingBufferWidth / gl.drawingBufferHeight;
+        const projection = mat4.perspective(
+          state.fovDeg * DEG_TO_RAD,
+          aspect,
+          NEAR,
+          FAR,
+        );
+
+        // 5. Upload matrices and draw.
+        gl.useProgram(program);
+        // transpose=false: our column-major arrays are already in WebGL's format.
+        gl.uniformMatrix4fv(uModel,      false, model);
+        gl.uniformMatrix4fv(uView,       false, view);
+        gl.uniformMatrix4fv(uProjection, false, projection);
+
+        gl.bindVertexArray(vao);
+
+        // drawElements reads vertices via the index buffer bound in the VAO.
+        // Arguments: primitive, count of indices, index type, byte offset.
+        gl.drawElements(gl.TRIANGLES, INDEX_COUNT, gl.UNSIGNED_SHORT, 0);
+
+        // 6. Update stats display.
+        frameCount++;
+        if (timestamp - lastFpsTime >= 500) {
+          fpsSmooth    = Math.round(frameCount / ((timestamp - lastFpsTime) / 1000));
+          frameCount   = 0;
+          lastFpsTime  = timestamp;
+        }
+        const displayRotX = Math.round(state.rotX);
+        const displayRotY = Math.round((state.rotY + (state.animAngle * 180 / Math.PI)) % 360);
+        ui.stats.textContent =
+          `rotX: ${displayRotX}° · rotY: ${displayRotY}° · fov: ${Math.round(state.fovDeg)}° · FPS: ${fpsSmooth}`;
+
+        // Update badge values (could also be done inside event listeners, but
+        // doing it here ensures they always match the render).
+        ui.speedVal.textContent    = state.speed.toFixed(2);
+        ui.fovVal.textContent      = `${Math.round(state.fovDeg)}°`;
+        ui.distanceVal.textContent = state.distance.toFixed(1);
+      }
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 8 — Start the animation loop
+      // ════════════════════════════════════════════════════════════════
+      // Accumulated time: add dt*speed to animAngle each frame so that
+      // pausing and changing speed never cause a jump. Same principle as Demo 2.
+      let lastTime = null;
+
+      /**
+       * @param {number} timestamp  milliseconds from requestAnimationFrame
+       */
+      function loop(timestamp) {
+        const dt = lastTime === null ? 0 : (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
+
+        if (state.autoRotate) {
+          // Speed=1 → one full rotation in about 6 seconds.
+          state.animAngle += dt * state.speed;
+        }
+
+        render(timestamp);
+        requestAnimationFrame(loop);
+      }
+
+      requestAnimationFrame(loop);
+
+    } // end main()
+
+    try {
+      main();
+    } catch (error) {
+      console.error(error);
+      showError(error.message);
+    }
+  </script>
+</body>
+</html>
