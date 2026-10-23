@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 01: Web Audio API — Multimediaprogrammierung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0d0f14;
+    --surface: #161a22;
+    --border:  #252b38;
+    --text:    #d8dce6;
+    --muted:   #5a6175;
+    --accent:  #4f9cf9;
+    --accent2: #a78bfa;
+    --green:   #34d399;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* ── header ── */
+  header {
+    border-bottom: 2px solid var(--border);
+    padding: 24px 0 20px;
+  }
+  .header-inner {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .header-logo img { width: 100px; border-radius: 10px; display: block; }
+  .header-info h1 { font-size: clamp(18px,3vw,26px); font-weight: 500; color: #f0f2f7; line-height: 1.2; margin-bottom: 4px; }
+  .header-info h2 { font-size: 14px; font-weight: 400; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; }
+  .header-meta { font-size: 13px; color: var(--text); line-height: 1.6; }
+  .header-meta a { color: var(--accent); text-decoration: none; }
+  .header-meta a:hover { text-decoration: underline; }
+
+  /* ── breadcrumb ── */
+  .breadcrumb {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 14px 32px 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .breadcrumb a { color: var(--accent); text-decoration: none; }
+  .breadcrumb a:hover { text-decoration: underline; }
+  .breadcrumb span { margin: 0 6px; }
+
+  /* ── notebook badges ── */
+  .nb-badges {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 18px 32px 0;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    text-decoration: none;
+    border: 1px solid transparent;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+    font-family: var(--mono);
+  }
+  .badge:hover { opacity: 0.8; }
+  .badge-colab { background: rgba(242,142,33,0.1); color: #f2a23c; border-color: rgba(242,142,33,0.25); }
+  .badge-nb    { background: rgba(79,156,249,0.1); color: var(--accent); border-color: rgba(79,156,249,0.25); }
+
+  /* ── main ── */
+  main {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 40px 32px 80px;
+  }
+
+  /* ── notebook content ── */
+  .nb-content { display: flex; flex-direction: column; gap: 0; }
+  .nb-cell { padding: 0; }
+
+  /* ── prose ── */
+  .nb-cell h1 {
+    font-size: clamp(22px, 3.5vw, 32px);
+    font-weight: 500;
+    color: #f0f2f7;
+    line-height: 1.25;
+    margin: 40px 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .nb-cell h2 {
+    font-size: 20px;
+    font-weight: 500;
+    color: #e8eaf2;
+    margin: 48px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .nb-cell h3 {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--accent2);
+    margin: 28px 0 10px;
+    font-family: var(--mono);
+    letter-spacing: 0.02em;
+  }
+  .nb-cell p { margin-bottom: 14px; color: var(--text); }
+  .nb-cell ul, .nb-cell ol { margin: 0 0 14px 22px; }
+  .nb-cell li { margin-bottom: 6px; }
+  .nb-cell strong { color: #eef0f6; font-weight: 500; }
+  .nb-cell em { color: var(--text); }
+  .nb-cell a { color: var(--accent); text-decoration: none; }
+  .nb-cell a:hover { text-decoration: underline; }
+  .nb-cell hr { border: none; border-top: 1px solid var(--border); margin: 8px 0 0; }
+
+  /* tables */
+  .nb-cell table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 20px;
+    font-size: 13.5px;
+  }
+  .nb-cell th {
+    text-align: left;
+    padding: 8px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .nb-cell td {
+    padding: 9px 12px;
+    border-bottom: 1px solid rgba(37,43,56,0.6);
+    vertical-align: top;
+    color: var(--text);
+  }
+  .nb-cell tr:last-child td { border-bottom: none; }
+  .nb-cell tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* inline code */
+  .nb-cell code {
+    background: rgba(79,156,249,0.08);
+    color: #93c5fd;
+    font-family: var(--mono);
+    font-size: 0.88em;
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  /* code blocks */
+  .nb-cell pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin: 14px 0 20px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.65;
+    color: #c9d1e0;
+  }
+  .nb-cell pre code {
+    background: none;
+    color: inherit;
+    font-size: inherit;
+    padding: 0;
+    border-radius: 0;
+  }
+
+  /* pill links — override notebook light-theme pills */
+  .nb-cell a[style*="border:1px solid #1a73e8"],
+  .nb-cell a[style*="border: 1px solid #1a73e8"] {
+    display: inline-flex !important;
+    align-items: center;
+    padding: 5px 14px !important;
+    margin: 4px 6px 4px 0 !important;
+    border: 1px solid rgba(79,156,249,0.4) !important;
+    border-radius: 20px !important;
+    text-decoration: none !important;
+    font-weight: 500 !important;
+    font-size: 12px !important;
+    color: var(--accent) !important;
+    background: rgba(79,156,249,0.07) !important;
+    font-family: var(--mono);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .nb-cell a[style*="border:1px solid #1a73e8"]:hover,
+  .nb-cell a[style*="border: 1px solid #1a73e8"]:hover {
+    background: rgba(79,156,249,0.14) !important;
+    border-color: rgba(79,156,249,0.7) !important;
+  }
+
+  /* callout / info boxes */
+  .nb-cell div[style*="border-left:5px solid #1a73e8"],
+  .nb-cell div[style*="border-left: 5px solid #1a73e8"] {
+    border-left: 4px solid var(--accent) !important;
+    background: rgba(79,156,249,0.06) !important;
+    border-radius: 6px;
+    padding: 16px 20px !important;
+    margin: 20px 0 !important;
+    color: var(--text);
+  }
+
+  /* images */
+  .nb-cell img {
+    max-width: 100%;
+    border-radius: 10px;
+    display: block;
+  }
+  .nb-cell p[align="center"] { text-align: center; }
+  .nb-cell p[align="center"] img { margin: 0 auto; }
+  .nb-cell p[align="center"] em { display: block; margin-top: 8px; font-size: 13px; color: var(--muted); }
+
+  /* footer cell */
+  .nb-footer-cell {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 2px solid var(--border);
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .nb-footer-cell b { color: var(--text); }
+  .nb-footer-cell a { color: var(--accent); text-decoration: none; }
+  .nb-footer-cell a:hover { text-decoration: underline; }
+
+  /* ── prev / next navigation ── */
+  .chapter-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-top: 56px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .chapter-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    text-decoration: none;
+    padding: 8px 14px;
+    border: 1px solid rgba(79,156,249,0.3);
+    border-radius: 6px;
+    background: rgba(79,156,249,0.05);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .chapter-nav a:hover {
+    background: rgba(79,156,249,0.12);
+    border-color: rgba(79,156,249,0.6);
+  }
+  .chapter-nav .nav-label {
+    font-size: 11px;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 1px;
+  }
+  .chapter-nav .nav-title { color: var(--accent); }
+
+  /* ── page footer ── */
+  footer {
+    border-top: 2px solid var(--border);
+    padding: 18px 32px 24px;
+    max-width: 860px;
+    margin: 0 auto;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.7;
+  }
+  footer p + p { margin-top: 4px; font-size: 12px; color: var(--muted); }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 600px) {
+    .header-inner, main, footer, .breadcrumb, .nb-badges { padding-left: 20px; padding-right: 20px; }
+    .header-inner { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .chapter-nav { flex-direction: column; align-items: stretch; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="header-logo">
+      <img src="ams_group_tui.png" alt="AMS Group – TU Ilmenau">
+    </div>
+    <div class="header-info">
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 01: Web Audio API</h2>
+      <p class="header-meta">
+        <strong>Institut für Medientechnik –
+          <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme"
+             target="_blank" rel="noopener">AMS Group</a>
+          – Technische Universität Ilmenau</strong><br>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller &nbsp;·&nbsp;
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+      </p>
+    </div>
+  </div>
+</header>
+
+<nav class="breadcrumb">
+  <a href="index.html">Seminar Materials</a>
+  <span>›</span>
+  Chapter 01: Web Audio API
+</nav>
+
+<div class="nb-badges">
+  <a class="badge badge-colab"
+     href="https://colab.research.google.com/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/01_multimediaprogrammierung_webaudio.ipynb"
+     target="_blank" rel="noopener">▶ Open in Colab</a>
+  <a class="badge badge-nb"
+     href="https://nbview.org/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/01_multimediaprogrammierung_webaudio.ipynb"
+     target="_blank" rel="noopener">⬡ NBView</a>
+</div>
+
+<main>
+<div class="nb-content">
+
+<!-- Cell 1 — chapter intro -->
+<div class="nb-cell">
+<h1>Chapter 01: Web Audio API</h1>
+<p>The <strong>Web Audio API</strong> is a high-level JavaScript API built into every modern browser that gives you full control over audio processing and synthesis — without any plugins or external libraries. It was designed for games, interactive applications and creative tools, but it is also an excellent environment for learning the fundamentals of digital audio: oscillators, filters, gain, panning, analysis and effects.</p>
+<p>What makes it special is its <strong>audio graph model</strong>: instead of writing raw DSP code, you connect nodes together into a signal chain. Each node does one job — generate a tone, apply a filter, control the volume — and you connect them like modules in a synthesizer. The browser handles the real-time audio engine underneath.</p>
+<p>This chapter covers the core concepts of the Web Audio API from the ground up, with interactive demos that run directly in the browser.</p>
+<h3>What this chapter covers</h3>
+<table>
+  <thead><tr><th>#</th><th>Topic</th><th>What you will learn</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>The Audio Graph</td><td>How the Web Audio API models signal flow</td></tr>
+    <tr><td>2</td><td>AudioContext</td><td>The entry point for all audio operations</td></tr>
+    <tr><td>3</td><td>OscillatorNode</td><td>Generating tones and waveforms</td></tr>
+    <tr><td>4</td><td>GainNode</td><td>Controlling volume and amplitude envelopes</td></tr>
+    <tr><td>5</td><td>BiquadFilterNode</td><td>Filtering: low-pass, high-pass, band-pass</td></tr>
+    <tr><td>6</td><td>StereoPannerNode</td><td>Positioning sound in the stereo field</td></tr>
+    <tr><td>7</td><td>AnalyserNode</td><td>Visualizing waveforms and frequency spectra</td></tr>
+    <tr><td>8</td><td>Loading and Playing Audio Files</td><td>Fetch, decode and play back audio from files</td></tr>
+    <tr><td>9</td><td>Interactive Demos</td><td>Oscillator, visualizer and synthesizer demos</td></tr>
+    <tr><td>10</td><td>Further Resources</td><td>MDN reference, specifications and tutorials</td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- Cell 2 — The Audio Graph -->
+<div class="nb-cell">
+<hr>
+<h2>1. The Audio Graph</h2>
+<p>The central idea of the Web Audio API is the <strong>audio graph</strong>: a directed network of processing nodes through which audio flows from sources to a destination. You build this graph by creating nodes and connecting their outputs to the inputs of other nodes. The browser then runs the entire graph in a real-time audio thread, sample by sample.</p>
+<p>Every audio graph has three kinds of nodes:</p>
+<table>
+  <thead><tr><th>Node type</th><th>Role</th><th>Examples</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Source nodes</strong></td><td>Generate or supply audio signal</td><td><code>OscillatorNode</code>, <code>AudioBufferSourceNode</code>, <code>MediaElementAudioSourceNode</code></td></tr>
+    <tr><td><strong>Processing nodes</strong></td><td>Transform the signal</td><td><code>GainNode</code>, <code>BiquadFilterNode</code>, <code>ConvolverNode</code>, <code>StereoPannerNode</code>, <code>AnalyserNode</code></td></tr>
+    <tr><td><strong>Destination node</strong></td><td>The final output (speakers)</td><td><code>AudioContext.destination</code></td></tr>
+  </tbody>
+</table>
+<p>A simple signal chain looks like this:</p>
+<pre><code>OscillatorNode  →  GainNode  →  AudioContext.destination</code></pre>
+<p>Nodes connect with the <code>.connect()</code> method:</p>
+<pre><code>oscillator.connect(gainNode);
+gainNode.connect(audioCtx.destination);</code></pre>
+<p>The graph can branch and merge freely. You can connect one source to multiple processing chains, or feed multiple sources into the same destination. The <code>AnalyserNode</code> is a useful example of branching: it passes audio through unchanged but also exposes the signal for visualization, so you can tap into any point in the graph without affecting the sound.</p>
+<pre><code>OscillatorNode  →  GainNode  →  AnalyserNode  →  AudioContext.destination
+                                     ↓
+                              (canvas oscilloscope)</code></pre>
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Basic_concepts_behind_Web_Audio_API" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Audio Graph – MDN &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/AudioNode" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">AudioNode – MDN &#8599;</a>
+</p>
+</div>
+
+<!-- Cell 3 — AudioContext -->
+<div class="nb-cell">
+<hr>
+<h2>2. AudioContext</h2>
+<p>The <code>AudioContext</code> is the root object of the Web Audio API. It represents the audio hardware of the device and controls the <strong>sample rate</strong>, the <strong>current time</strong> and the <strong>destination</strong> (your speakers or headphones). Every node you create belongs to exactly one context, and all nodes in a graph must share the same context.</p>
+<p>You create an <code>AudioContext</code> with a single line:</p>
+<pre><code>const audioCtx = new AudioContext();</code></pre>
+<p><strong>Important — the autoplay policy.</strong> Modern browsers block audio from starting without a user gesture (a click, tap or keypress). If you try to create or resume an <code>AudioContext</code> before the user has interacted with the page, the browser will either refuse or suspend it. Always start audio in response to a button click.</p>
+<pre><code>button.addEventListener('click', () => {
+    const audioCtx = new AudioContext();  // safe: inside a user gesture
+    // ... create nodes, connect, start
+});</code></pre>
+<p>A few key properties of <code>AudioContext</code>:</p>
+<table>
+  <thead><tr><th>Property / Method</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>audioCtx.sampleRate</code></td><td>The sample rate in Hz (typically 44100 or 48000)</td></tr>
+    <tr><td><code>audioCtx.currentTime</code></td><td>The running playback clock in seconds (read-only, high-precision)</td></tr>
+    <tr><td><code>audioCtx.destination</code></td><td>The final output node (connects to speakers)</td></tr>
+    <tr><td><code>audioCtx.state</code></td><td><code>"suspended"</code>, <code>"running"</code> or <code>"closed"</code></td></tr>
+    <tr><td><code>audioCtx.resume()</code></td><td>Resume a suspended context</td></tr>
+    <tr><td><code>audioCtx.close()</code></td><td>Release all resources</td></tr>
+  </tbody>
+</table>
+<p>The <code>currentTime</code> clock is very important for scheduling: you can tell a node to start or change a parameter at a precise future time, enabling glitch-free audio transitions and rhythm-accurate sequencing.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/AudioContext" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">AudioContext – MDN &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/AudioContext/currentTime" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">currentTime – MDN &#8599;</a>
+</p>
+</div>
+
+<!-- Cell 4 — OscillatorNode -->
+<div class="nb-cell">
+<hr>
+<h2>3. OscillatorNode</h2>
+<p>An <code>OscillatorNode</code> is a <strong>source node</strong> that generates a periodic waveform at a given frequency. It is the most fundamental building block for sound synthesis in the browser — no audio file needed.</p>
+<p>You create and start an oscillator like this:</p>
+<pre><code>const oscillator = audioCtx.createOscillator();
+oscillator.type = 'sine';         // waveform shape
+oscillator.frequency.value = 440; // frequency in Hz (A4)
+oscillator.connect(audioCtx.destination);
+oscillator.start();               // begin generating audio
+oscillator.stop(audioCtx.currentTime + 2); // stop after 2 seconds</code></pre>
+<h3>Waveform types</h3>
+<p>The <code>type</code> property selects the waveform. Each has a different harmonic content and timbre:</p>
+<table>
+  <thead><tr><th>Type</th><th>Harmonics</th><th>Sound character</th></tr></thead>
+  <tbody>
+    <tr><td><code>sine</code></td><td>Fundamental only</td><td>Pure, smooth, flute-like</td></tr>
+    <tr><td><code>square</code></td><td>Odd harmonics (strong)</td><td>Hollow, buzzy, clarinet-like</td></tr>
+    <tr><td><code>sawtooth</code></td><td>All harmonics</td><td>Bright, rich, string/brass-like</td></tr>
+    <tr><td><code>triangle</code></td><td>Odd harmonics (weak)</td><td>Soft, mellow, somewhere between sine and square</td></tr>
+    <tr><td><code>custom</code></td><td>User-defined via <code>PeriodicWave</code></td><td>Any waveform you can describe with Fourier coefficients</td></tr>
+  </tbody>
+</table>
+<h3>AudioParam and smooth transitions</h3>
+<p>Properties like <code>frequency</code> and <code>detune</code> are <strong>AudioParam</strong> objects, not plain numbers. This lets you schedule precise changes in time, which is essential for smooth, glitch-free audio:</p>
+<pre><code>// Ramp the frequency smoothly from 440 Hz to 880 Hz over 1 second
+oscillator.frequency.linearRampToValueAtTime(880, audioCtx.currentTime + 1);
+
+// Set a value immediately but with a short smoothing time constant
+oscillator.frequency.setTargetAtTime(660, audioCtx.currentTime, 0.01);</code></pre>
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/OscillatorNode" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">OscillatorNode – MDN &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/AudioParam" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">AudioParam – MDN &#8599;</a>
+</p>
+</div>
+
+<!-- Cell 5 — GainNode -->
+<div class="nb-cell">
+<hr>
+<h2>4. GainNode</h2>
+<p>A <code>GainNode</code> multiplies the amplitude of its input signal by a factor called <strong>gain</strong>. A gain of <code>1.0</code> means no change, <code>0.5</code> halves the amplitude (roughly −6 dB), and <code>0.0</code> produces silence. Values above <code>1.0</code> amplify the signal.</p>
+<pre><code>const gainNode = audioCtx.createGain();
+gainNode.gain.value = 0.5;  // 50% amplitude
+
+oscillator.connect(gainNode);
+gainNode.connect(audioCtx.destination);</code></pre>
+<h3>Amplitude envelopes (ADSR)</h3>
+<p><code>GainNode</code> is also how you shape the <strong>amplitude envelope</strong> of a sound — the way the volume rises and falls over time. In synthesis this is described with the <strong>ADSR</strong> model:</p>
+<table>
+  <thead><tr><th>Stage</th><th>Meaning</th><th>What it sounds like</th></tr></thead>
+  <tbody>
+    <tr><td><strong>A</strong>ttack</td><td>Time to reach peak amplitude</td><td>How quickly the note "hits"</td></tr>
+    <tr><td><strong>D</strong>ecay</td><td>Time to fall from peak to sustain level</td><td>The initial drop after the hit</td></tr>
+    <tr><td><strong>S</strong>ustain</td><td>The level held while the key is pressed</td><td>The steady-state volume</td></tr>
+    <tr><td><strong>R</strong>elease</td><td>Time to fade to silence after the key is released</td><td>How long the tail rings out</td></tr>
+  </tbody>
+</table>
+<p>You implement an ADSR envelope using <code>AudioParam</code> scheduling on the gain:</p>
+<pre><code>const now = audioCtx.currentTime;
+const gain = gainNode.gain;
+
+gain.setValueAtTime(0, now);                        // start at silence
+gain.linearRampToValueAtTime(1.0, now + 0.01);      // Attack: 10 ms
+gain.linearRampToValueAtTime(0.7, now + 0.1);       // Decay: 90 ms → sustain level
+// ... key held ...
+gain.setValueAtTime(0.7, now + 0.5);                // begin Release
+gain.linearRampToValueAtTime(0.0, now + 0.7);       // Release: 200 ms to silence</code></pre>
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/GainNode" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">GainNode – MDN &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/AudioParam#methods" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">AudioParam scheduling – MDN &#8599;</a>
+</p>
+</div>
+
+<!-- Cell 6 — BiquadFilterNode -->
+<div class="nb-cell">
+<hr>
+<h2>5. BiquadFilterNode</h2>
+<p>A <code>BiquadFilterNode</code> applies a <strong>second-order IIR filter</strong> to the audio signal. Filters shape the frequency content of a sound by boosting or cutting certain frequency ranges. They are used in equalizers, synthesizer filter sweeps, speaker crossovers and countless other applications.</p>
+<pre><code>const filter = audioCtx.createBiquadFilter();
+filter.type = 'lowpass';
+filter.frequency.value = 1000;  // cutoff frequency in Hz
+filter.Q.value = 1;             // resonance (Q factor)
+
+oscillator.connect(filter);
+filter.connect(audioCtx.destination);</code></pre>
+<h3>Filter types</h3>
+<table>
+  <thead><tr><th>Type</th><th>What it does</th></tr></thead>
+  <tbody>
+    <tr><td><code>lowpass</code></td><td>Passes frequencies below the cutoff, attenuates above</td></tr>
+    <tr><td><code>highpass</code></td><td>Passes frequencies above the cutoff, attenuates below</td></tr>
+    <tr><td><code>bandpass</code></td><td>Passes a band of frequencies around the cutoff</td></tr>
+    <tr><td><code>notch</code></td><td>Attenuates a narrow band (the opposite of bandpass)</td></tr>
+    <tr><td><code>peaking</code></td><td>Boosts or cuts around the center frequency (like an equalizer band)</td></tr>
+    <tr><td><code>lowshelf</code></td><td>Boosts or cuts all frequencies below the shelf frequency</td></tr>
+    <tr><td><code>highshelf</code></td><td>Boosts or cuts all frequencies above the shelf frequency</td></tr>
+  </tbody>
+</table>
+<h3>The Q factor</h3>
+<p>The <code>Q</code> (quality factor) controls the <strong>resonance</strong> of the filter — how sharply it acts around the cutoff frequency. A high Q on a low-pass filter produces a characteristic resonant peak just before the cutoff, which is the classic "synth filter sweep" sound.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/BiquadFilterNode" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">BiquadFilterNode – MDN &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/BiquadFilterNode/type" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Filter types – MDN &#8599;</a>
+</p>
+</div>
+
+<!-- Cell 7 — StereoPannerNode -->
+<div class="nb-cell">
+<hr>
+<h2>6. StereoPannerNode</h2>
+<p>A <code>StereoPannerNode</code> positions a mono or stereo signal in the <strong>stereo field</strong> using a single <code>pan</code> parameter. A value of <code>-1</code> sends the signal fully to the left channel, <code>0</code> centers it, and <code>+1</code> sends it fully to the right.</p>
+<pre><code>const panner = audioCtx.createStereoPanner();
+panner.pan.value = -0.5;  // slightly left of center
+
+oscillator.connect(gainNode);
+gainNode.connect(panner);
+panner.connect(audioCtx.destination);</code></pre>
+<p>Like all AudioParam values, <code>pan</code> can be automated over time. You can use <code>linearRampToValueAtTime</code> or <code>setTargetAtTime</code> to animate the pan position, creating a moving or sweeping stereo effect.</p>
+<p>For more advanced 3D spatial audio positioning — with distance, room modelling and head-related transfer functions (HRTF) — the Web Audio API also provides a <code>PannerNode</code>. The <code>StereoPannerNode</code> is the simpler and more common choice for stereo mixing.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/StereoPannerNode" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">StereoPannerNode – MDN &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/PannerNode" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">PannerNode (3D) – MDN &#8599;</a>
+</p>
+</div>
+
+<!-- Cell 8 — AnalyserNode -->
+<div class="nb-cell">
+<hr>
+<h2>7. AnalyserNode</h2>
+<p>The <code>AnalyserNode</code> is a <strong>pass-through processing node</strong> that exposes the audio signal for real-time analysis without modifying it. You insert it into the signal chain and then read data from it in a <code>requestAnimationFrame</code> loop to drive a visualization.</p>
+<pre><code>const analyser = audioCtx.createAnalyser();
+analyser.fftSize = 2048;  // size of the FFT; determines frequency resolution
+
+oscillator.connect(gainNode);
+gainNode.connect(analyser);
+analyser.connect(audioCtx.destination);</code></pre>
+<p>Two types of data are available:</p>
+<table>
+  <thead><tr><th>Method</th><th>Data</th><th>Use case</th></tr></thead>
+  <tbody>
+    <tr><td><code>getFloatTimeDomainData(array)</code></td><td>Waveform samples (−1 to +1)</td><td>Oscilloscope</td></tr>
+    <tr><td><code>getByteFrequencyData(array)</code></td><td>Frequency magnitudes (0–255)</td><td>Spectrum analyser / equalizer bar display</td></tr>
+  </tbody>
+</table>
+<h3>Drawing a waveform on a canvas</h3>
+<pre><code>const bufferLength = analyser.frequencyBinCount; // fftSize / 2
+const dataArray = new Float32Array(bufferLength);
+
+function draw() {
+    requestAnimationFrame(draw);
+    analyser.getFloatTimeDomainData(dataArray);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.beginPath();
+    const sliceWidth = canvas.width / bufferLength;
+    let x = 0;
+    for (let i = 0; i < bufferLength; i++) {
+        const y = (dataArray[i] * 0.9 + 1) / 2 * canvas.height;
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        x += sliceWidth;
+    }
+    ctx.stroke();
+}
+draw();</code></pre>
+<p>The <code>fftSize</code> must be a power of two between 32 and 32768. A larger <code>fftSize</code> gives better <strong>frequency resolution</strong> in the spectrum display but uses more memory and CPU.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">AnalyserNode – MDN &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/AnalyserNode/fftSize" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">fftSize – MDN &#8599;</a>
+</p>
+</div>
+
+<!-- Cell 9 — Loading Audio Files -->
+<div class="nb-cell">
+<hr>
+<h2>8. Loading and Playing Audio Files</h2>
+<p>To play an audio file with the Web Audio API you need to load it, decode it into raw PCM samples, and then play it through an <code>AudioBufferSourceNode</code>. This gives you full control over playback speed, looping, scheduling and further processing through the audio graph.</p>
+<h3>Step 1 — Fetch and decode</h3>
+<pre><code>async function loadAudio(url) {
+    const response = await fetch(url);
+    const arrayBuffer = await response.arrayBuffer();
+    const audioBuffer = await audioCtx.decodeAudioData(arrayBuffer);
+    return audioBuffer;  // decoded PCM samples in an AudioBuffer
+}</code></pre>
+<p><code>decodeAudioData</code> accepts compressed formats like MP3, OGG and WAV, and returns an <code>AudioBuffer</code> object holding the raw floating-point samples at the context's sample rate.</p>
+<h3>Step 2 — Play with AudioBufferSourceNode</h3>
+<pre><code>const buffer = await loadAudio('sound.mp3');
+
+const source = audioCtx.createBufferSource();
+source.buffer = buffer;
+source.loop = false;
+source.connect(audioCtx.destination);
+source.start();  // play immediately</code></pre>
+<p>An <code>AudioBufferSourceNode</code> is <strong>single-use</strong>: once it has played, it is finished. To play the same sound again you create a new source node and assign the same buffer to it. The buffer itself is reusable and is decoded only once.</p>
+<h3>AudioBuffer properties</h3>
+<table>
+  <thead><tr><th>Property</th><th>What it gives you</th></tr></thead>
+  <tbody>
+    <tr><td><code>buffer.duration</code></td><td>Length in seconds</td></tr>
+    <tr><td><code>buffer.sampleRate</code></td><td>Sample rate in Hz</td></tr>
+    <tr><td><code>buffer.numberOfChannels</code></td><td>1 = mono, 2 = stereo</td></tr>
+    <tr><td><code>buffer.getChannelData(n)</code></td><td><code>Float32Array</code> of PCM samples for channel n</td></tr>
+  </tbody>
+</table>
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/AudioBufferSourceNode" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">AudioBufferSourceNode – MDN &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/BaseAudioContext/decodeAudioData" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">decodeAudioData – MDN &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/AudioBuffer" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">AudioBuffer – MDN &#8599;</a>
+</p>
+</div>
+
+<!-- Cell 10 — Interactive Demos -->
+<div class="nb-cell">
+<hr>
+<h2>9. Interactive Demos</h2>
+<p>The following demos let you hear and explore the concepts covered in this chapter. Because the Web Audio API requires a full browser environment with user-gesture controls and a canvas for visualization, the demos are provided as standalone HTML files.</p>
+<p><strong>How to open them:</strong></p>
+<ul>
+  <li><strong>Locally:</strong> The HTML files are in the same folder as this notebook. Open them directly in your browser.</li>
+  <li><strong>On GitHub:</strong> Use the links below, which render the files via <a href="https://htmlpreview.github.io" target="_blank" rel="noopener">htmlpreview.github.io</a>.</li>
+</ul>
+
+<h3>Demo 1 — Oscillator</h3>
+<p>Explore the four standard waveform types (sine, square, sawtooth, triangle) and adjust frequency and gain in real time. A live oscilloscope shows the waveform as audio is generated.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://htmlpreview.github.io/?url=https://raw.githubusercontent.com/TUIlmenauAMS/multimedia_programming_seminars/main/01_webaudio_oscillator.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Oscillator Demo &#8599;</a>
+</p>
+
+<hr style="border:none; border-top:1px solid var(--border); margin:24px 0;">
+
+<h3>Demo 2 — Visualizer</h3>
+<p>See the <code>AnalyserNode</code> in action. This demo shows both a real-time waveform (oscilloscope) and a frequency spectrum display (FFT), side by side, for an oscillator signal.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://htmlpreview.github.io/?url=https://raw.githubusercontent.com/TUIlmenauAMS/multimedia_programming_seminars/main/01_webaudio_visualizer.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Visualizer Demo &#8599;</a>
+</p>
+
+<hr style="border:none; border-top:1px solid var(--border); margin:24px 0;">
+
+<h3>Demo 3 — Synthesizer</h3>
+<p>A simple polyphonic synthesizer that combines an oscillator, a <code>BiquadFilterNode</code> and a <code>GainNode</code> with an ADSR envelope. Play notes with the on-screen keyboard and experiment with the filter cutoff, resonance and envelope controls.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://htmlpreview.github.io/?url=https://raw.githubusercontent.com/TUIlmenauAMS/multimedia_programming_seminars/main/01_webaudio_synth.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Synthesizer Demo &#8599;</a>
+</p>
+</div>
+
+<!-- Cell 11 — Further Resources -->
+<div class="nb-cell">
+<hr>
+<h2>10. Further Resources</h2>
+<p>The Web Audio API is a large specification with many more nodes and features beyond what this chapter covers. The resources below are good next steps.</p>
+<table>
+  <thead><tr><th>Resource</th><th>What it covers</th></tr></thead>
+  <tbody>
+    <tr><td><strong>MDN Web Audio API guide</strong></td><td>The most complete and practical reference, with examples for every node</td></tr>
+    <tr><td><strong>W3C Web Audio API specification</strong></td><td>The formal specification; useful for precise behaviour and edge cases</td></tr>
+    <tr><td><strong>Web Audio API book (O'Reilly)</strong></td><td>A free online book covering synthesis, effects and game audio in depth</td></tr>
+    <tr><td><strong>Web Audio Weekly</strong></td><td>A newsletter and archive of demos, libraries and articles from the community</td></tr>
+  </tbody>
+</table>
+<p>The video tutorial below, <em>Web Audio API Tutorial</em>, is the recommended companion video for this chapter. It walks through the core concepts hands-on, from creating an <code>AudioContext</code> to building a small synthesizer.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">MDN Web Audio API &#8599;</a>
+  <a href="https://www.w3.org/TR/webaudio/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">W3C Specification &#8599;</a>
+  <a href="https://webaudioapi.com/book/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Web Audio API Book &#8599;</a>
+</p>
+<p align="center" style="margin:20px 0;">
+  <a href="https://www.youtube.com/watch?v=FCiQg7G-HF8" target="_blank" rel="noopener">
+    <img src="https://img.youtube.com/vi/FCiQg7G-HF8/maxresdefault.jpg" width="640" alt="Web Audio API Tutorial"
+         style="max-width:100%; border-radius:14px; box-shadow:0 4px 18px rgba(0,0,0,0.35);">
+  </a>
+</p>
+<p align="center" style="margin:0;"><em>Click the image to watch the tutorial on YouTube.</em></p>
+</div>
+
+<!-- prev / next navigation -->
+<nav class="chapter-nav">
+  <a href="00_multimediaprogrammierung_intro.html">
+    <span class="nav-label">← Previous</span>
+    <span class="nav-title">Chapter 00: Introduction</span>
+  </a>
+  <a href="02_multimediaprogrammierung_webgl.html">
+    <span class="nav-label">Next →</span>
+    <span class="nav-title">Chapter 02: WebGL 2</span>
+  </a>
+</nav>
+
+<!-- Footer cell -->
+<div class="nb-footer-cell">
+  <p><strong>Multimediaprogrammierung</strong> &middot; Chapter 01: Web Audio API<br>
+  Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+  <p>Notebook created by <strong>Renato Fera P.</strong> &middot;
+  <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a></p>
+</div>
+
+</div>
+</main>
+
+<footer>
+  <p><strong>Multimediaprogrammierung</strong> &middot; Seminar Materials<br>
+  Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+  <p>
+    Page maintained by <strong>Renato Fera P.</strong> &middot;
+    <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+    &nbsp;&middot;&nbsp;
+    <a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars" target="_blank" rel="noopener">github.com/TUIlmenauAMS/multimedia_programming_seminars</a>
+  </p>
+</footer>
+
+</body>
+</html>
