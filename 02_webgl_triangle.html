@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebGL 2 – Triangle Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    /* Design tokens: the values are the same as in the Chapter 01 template. */
+    :root {
+      --accent: #1a73e8;
+      --danger: #e53935;
+      --border: #e0e0e0;
+      --canvas-bg: #1e1e2e;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      color: #212121;
+      background: #fff;
+      max-width: 900px;
+      margin: 0 auto;
+      padding: 0 24px 48px;
+    }
+
+    /* The hidden attribute must win over any display rule below. */
+    [hidden] { display: none !important; }
+
+    /* ── Header ── */
+    .nb-header {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      border-bottom: 2px solid #e0e0e0;
+      padding: 16px 0;
+      margin-bottom: 32px;
+    }
+    .nb-header img {
+      width: 120px;
+      border-radius: 12px;
+      flex-shrink: 0;
+    }
+    .nb-header h1 { font-size: 1.6rem; margin-bottom: 4px; }
+    .nb-header h2 { font-size: 1.1rem; font-weight: 400; margin-bottom: 8px; color: #444; }
+    .nb-header p  { font-size: 0.92rem; margin-bottom: 2px; }
+    .nb-header a  { color: #1a73e8; text-decoration: none; }
+    .nb-header a:hover { text-decoration: underline; }
+
+    /* ── Pill buttons ── */
+    .pills { margin: 12px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill {
+      display: inline-block;
+      padding: 6px 14px;
+      border: 1px solid #1a73e8;
+      border-radius: 20px;
+      text-decoration: none;
+      font-weight: 600;
+      font-size: 0.92rem;
+      color: #1a73e8;
+      transition: background 0.15s, color 0.15s;
+    }
+    .pill:hover { background: #1a73e8; color: #fff; }
+
+    /* ── Section headings ── */
+    h2.section { font-size: 1.3rem; margin: 40px 0 12px; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 36px 0; }
+    p  { margin-bottom: 12px; }
+    ol, ul.list { margin: 0 0 12px 24px; }
+    li { margin-bottom: 6px; }
+
+    /* ── Demo card ── */
+    .demo-card {
+      background: #f8f9fa;
+      border: 1px solid #e0e0e0;
+      border-radius: 12px;
+      padding: 28px 32px;
+      margin: 24px 0;
+    }
+    .demo-card h3 {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: #444;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Controls ── */
+    .control-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-bottom: 18px;
+      flex-wrap: wrap;
+    }
+    .control-row label {
+      min-width: 120px;
+      font-weight: 500;
+      font-size: 0.95rem;
+    }
+    .control-row input[type=checkbox] {
+      accent-color: var(--accent);
+      width: 18px;
+      height: 18px;
+    }
+    .hint { font-size: 0.9rem; color: #555; }
+
+    /* Visible keyboard focus for every control */
+    input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible, a:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* ── Canvas ──
+       The template uses a fixed 120px height. A WebGL canvas gets an aspect
+       ratio instead, and the page controls the size through CSS only. */
+    canvas {
+      display: block;
+      width: 100%;
+      height: 120px;
+      border-radius: 8px;
+      background: var(--canvas-bg);
+      margin-top: 20px;
+    }
+    canvas.gl-canvas { height: auto; aspect-ratio: 16 / 10; margin-top: 0; touch-action: none; }
+    canvas.gl-canvas.square { aspect-ratio: 1 / 1; max-width: 520px; margin-left: auto; margin-right: auto; }
+
+    .canvas-wrap { margin-bottom: 20px; }
+
+    /* Legend below the canvas: one entry per vertex */
+    .legend {
+      list-style: none;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 8px 20px;
+      margin: 12px 0 0;
+      font-size: 0.88rem;
+      color: #444;
+    }
+    .legend li { margin: 0; display: flex; align-items: center; gap: 8px; }
+    .swatch { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+    .swatch.red   { background: #ff0000; }
+    .swatch.green { background: #00ff00; }
+    .swatch.blue  { background: #0000ff; }
+
+    /* Read-out under the controls */
+    .stats {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.82rem;
+      color: #555;
+      white-space: pre-line;
+      margin-top: 10px;
+    }
+
+    .error-banner {
+      background: #fdecea;
+      border-left: 5px solid var(--danger);
+      border-radius: 6px;
+      padding: 12px 18px;
+      margin: 20px 0;
+      color: #7f1d1d;
+    }
+    .error-banner pre { white-space: pre-wrap; font-size: 0.85rem; margin-top: 8px; }
+
+    /* ── Live shader source ── */
+    details.shader-source {
+      margin: 16px 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 14px;
+      background: #fafafa;
+    }
+    details.shader-source summary { cursor: pointer; font-weight: 600; }
+    details.shader-source h4 { font-size: 0.92rem; margin: 14px 0 0; color: #444; }
+    details.shader-source pre {
+      overflow-x: auto;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      margin-top: 6px;
+      font-family: "SFMono-Regular", Consolas, monospace;
+    }
+
+    /* ── Footer ── */
+    .nb-footer {
+      text-align: center;
+      padding: 18px 0 8px;
+      margin-top: 48px;
+      border-top: 2px solid #e0e0e0;
+      font-size: 0.92rem;
+      color: #444;
+      line-height: 1.7;
+    }
+    .nb-footer a { color: #1a73e8; text-decoration: none; }
+    .nb-footer a:hover { text-decoration: underline; }
+
+    /* ── Info box ── */
+    .info-box {
+      border-left: 5px solid #1a73e8;
+      background: rgba(26,115,232,0.07);
+      border-radius: 6px;
+      padding: 12px 18px;
+      margin: 20px 0;
+      font-size: 0.95rem;
+    }
+    .info-box p:last-child { margin-bottom: 0; }
+
+    code {
+      background: #f1f3f4;
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 0.9em;
+      font-family: "SFMono-Regular", Consolas, monospace;
+    }
+
+    @media (max-width: 600px) {
+      .nb-header { flex-direction: column; align-items: flex-start; }
+      .demo-card { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header class="nb-header">
+    <img
+      src="https://raw.githubusercontent.com/TUIlmenauAMS/multimedia_programming_seminars/main/ams_group_tui.png"
+      alt="AMS Group – TU Ilmenau"
+    />
+    <div>
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 02: WebGL 2 &mdash; Demo: Triangle</h2>
+      <p><strong>Institut für Medientechnik &ndash; Technische Universität Ilmenau</strong><br>
+        <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme" target="_blank">
+          Institut für Medientechnik &ndash; AMS Group
+        </a>
+      </p>
+      <p>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller<br>
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+      </p>
+    </div>
+  </header>
+
+  <!-- ── Concept ── -->
+  <h2 class="section">1. Your First WebGL 2 Program</h2>
+  <p>
+    This demo draws a single triangle. Even this smallest possible scene needs the whole WebGL structure: a <strong>context</strong>, two <strong>shaders</strong>, a <strong>buffer</strong> with vertex data, a <strong>Vertex Array Object</strong> and a <strong>draw call</strong>. Everything later in this chapter builds on it.
+  </p>
+  <p>
+    Each of the three vertices carries a position and a color. The vertex shader passes the color on as a <strong>varying</strong>. During rasterization the GPU <strong>interpolates</strong> it across the triangle, and the fragment shader runs once for every pixel inside it.
+  </p>
+  <div class="info-box">
+    <code>Vertex data</code> &rarr; <code>Vertex shader</code> &rarr; <code>Rasterization</code> &rarr; <code>Fragment shader</code> &rarr; <code>Canvas</code>
+  </div>
+
+  <hr />
+
+  <!-- ── Demo ── -->
+  <h2 class="section">2. Interactive Demo</h2>
+  <p>Switch on the wireframe to see the three vertices connected by lines, and resize the browser window to watch the drawing buffer follow the display size.</p>
+
+  <!-- Filled by JavaScript if WebGL 2 or a shader is not available -->
+  <div id="errorSlot"></div>
+
+  <div class="demo-card">
+    <h3>Triangle</h3>
+
+    <div class="canvas-wrap">
+      <canvas
+        id="glcanvas"
+        class="gl-canvas square"
+        role="img"
+        aria-label="A triangle with a red top corner, a green bottom left corner and a blue bottom right corner. The colors blend smoothly."
+      ></canvas>
+      <ul class="legend" id="legend">
+        <li><span class="swatch red"></span>Top (0.0, 0.6): red</li>
+        <li><span class="swatch green"></span>Bottom left (&minus;0.6, &minus;0.6): green</li>
+        <li><span class="swatch blue"></span>Bottom right (0.6, &minus;0.6): blue</li>
+      </ul>
+    </div>
+
+    <div class="control-row">
+      <label for="wireframe">Wireframe</label>
+      <input type="checkbox" id="wireframe" />
+      <span class="hint">Draws the outline with <code>gl.LINE_LOOP</code></span>
+    </div>
+
+    <div class="control-row">
+      <label for="showCorners">Show corners</label>
+      <input type="checkbox" id="showCorners" checked />
+      <span class="hint">Shows the legend with the vertex data</span>
+    </div>
+
+    <div class="stats" id="stats" aria-live="off"></div>
+  </div>
+
+  <hr />
+
+  <!-- ── Explanation ── -->
+  <h2 class="section">3. How It Works</h2>
+  <p>
+    The source of this page is organized in numbered steps. Open it in your editor next to the running demo:
+  </p>
+  <ol>
+    <li><strong>Get the context.</strong> <code>canvas.getContext('webgl2')</code> returns <code>null</code> if WebGL 2 is not available, so the result is always checked.</li>
+    <li><strong>Write the shaders.</strong> A vertex shader and a fragment shader in GLSL ES 3.00, stored as JavaScript strings.</li>
+    <li><strong>Compile and link.</strong> The driver compiles the strings at runtime. Compile and link errors are printed and shown in the page.</li>
+    <li><strong>Upload the vertex data.</strong> One interleaved <code>Float32Array</code> (<code>x, y, r, g, b</code> per vertex) is copied into a GPU buffer.</li>
+    <li><strong>Describe the layout and record a VAO.</strong> Stride and offset tell WebGL how to read the buffer; the Vertex Array Object remembers the setup.</li>
+    <li><strong>Draw.</strong> Set the viewport, clear, select the program and the VAO, and call <code>drawArrays</code>.</li>
+  </ol>
+
+  <div class="info-box">
+    <p><strong>Why is there no animation loop?</strong> The scene never changes by itself, so it is drawn once and again only when something changes: a resize or a toggle. Steps 1 to 5 run once at start-up. Only step 6 is repeated.</p>
+    <p><strong>Why is the canvas square?</strong> Clip space always runs from &minus;1 to +1 on both axes, whatever the shape of the canvas. On a wide canvas the triangle would be stretched. The next demo fixes this with an aspect-ratio uniform.</p>
+  </div>
+
+  <details class="shader-source">
+    <summary>Show the shader source that runs on your GPU</summary>
+    <h4>Vertex shader</h4>
+    <pre id="vsSource"></pre>
+    <h4>Fragment shader</h4>
+    <pre id="fsSource"></pre>
+  </details>
+
+  <div class="pills">
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API" target="_blank">WebGL API — MDN &#8599;</a>
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/drawArrays" target="_blank">drawArrays — MDN &#8599;</a>
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/WebGL2RenderingContext/createVertexArray" target="_blank">createVertexArray — MDN &#8599;</a>
+  </div>
+
+  <!-- ── Footer ── -->
+  <footer class="nb-footer">
+    <p><strong>Multimediaprogrammierung</strong> &middot; Chapter 02: WebGL 2 &middot; Demo: Triangle<br>
+      Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+    <p>Demo created by <strong>Renato Fera P.</strong> &middot;
+      <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+    </p>
+  </footer>
+
+  <!-- ── JavaScript ── -->
+  <script type="module">
+    /**
+     * ═══════════════════════════════════════════════════════════════════
+     * Chapter 02: WebGL 2 · Demo: Triangle
+     *
+     * Teaches:  the complete minimal WebGL 2 program: context, shaders,
+     *           buffer, attributes, Vertex Array Object, draw call, and
+     *           varyings (interpolated per-vertex colors).
+     * Notebook: sections 3, 4, 5 and 6.
+     *
+     * The six WebGL steps (the same list as in section 3 of the page):
+     *   STEP 1  Get the WebGL 2 context
+     *   STEP 2  Write the shaders (GLSL ES 3.00)
+     *   STEP 3  Compile and link the program
+     *   STEP 4  Upload the vertex data to a buffer
+     *   STEP 5  Describe the data layout and record a VAO
+     *   STEP 6  Draw
+     * Around them: preparation (DOM references, helper functions) before the
+     * steps, and the event wiring and start-up after them.
+     * ═══════════════════════════════════════════════════════════════════
+     */
+
+    // ══════════════════════════════════════════════════════════════════
+    // PREPARATION A — Collect the DOM references once
+    // ══════════════════════════════════════════════════════════════════
+    // Looking elements up once, in one place, keeps the rest of the code short.
+    const ui = {
+      canvas:      document.querySelector('#glcanvas'),
+      wireframe:   document.querySelector('#wireframe'),
+      showCorners: document.querySelector('#showCorners'),
+      legend:      document.querySelector('#legend'),
+      stats:       document.querySelector('#stats'),
+      errorSlot:   document.querySelector('#errorSlot'),
+      vsSource:    document.querySelector('#vsSource'),
+      fsSource:    document.querySelector('#fsSource'),
+    };
+
+    // Same dark blue-grey as the CSS background of the canvas (0.0 to 1.0).
+    const CLEAR_COLOR = [0.118, 0.118, 0.18, 1.0];
+
+    // ══════════════════════════════════════════════════════════════════
+    // PREPARATION B — Helper functions
+    // ══════════════════════════════════════════════════════════════════
+    // The first three helpers are repeated unchanged in every demo of this chapter.
+
+    /**
+     * Compile one shader stage. Throws an error with the driver's log if the
+     * compilation fails; otherwise a shader error is completely silent and you
+     * only see a black canvas.
+     * @param {WebGL2RenderingContext} gl
+     * @param {number} type  gl.VERTEX_SHADER or gl.FRAGMENT_SHADER
+     * @param {string} source  GLSL source code
+     * @returns {WebGLShader}
+     */
+    function createShader(gl, type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(shader);
+        gl.deleteShader(shader);
+        throw new Error(`Shader compile error:\n${log}`);
+      }
+      return shader;
+    }
+
+    /**
+     * Link a vertex shader and a fragment shader into one program.
+     * Linking also checks that the "out" of the vertex shader matches the
+     * "in" of the fragment shader.
+     * @param {WebGL2RenderingContext} gl
+     * @param {string} vertexSource
+     * @param {string} fragmentSource
+     * @returns {WebGLProgram}
+     */
+    function createProgram(gl, vertexSource, fragmentSource) {
+      const vs = createShader(gl, gl.VERTEX_SHADER, vertexSource);
+      const fs = createShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+
+      const program = gl.createProgram();
+      gl.attachShader(program, vs);
+      gl.attachShader(program, fs);
+      gl.linkProgram(program);
+
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        const log = gl.getProgramInfoLog(program);
+        gl.deleteProgram(program);
+        throw new Error(`Program link error:\n${log}`);
+      }
+      return program;
+    }
+
+    /**
+     * A canvas has TWO sizes: the size it is displayed at (CSS) and the number
+     * of pixels WebGL really draws (canvas.width / canvas.height). If they
+     * differ, the browser stretches the image and it looks blurry. On
+     * high-resolution screens devicePixelRatio is 2 or more, so the drawing
+     * buffer needs that many pixels per CSS pixel.
+     * @param {HTMLCanvasElement} canvas
+     * @returns {boolean} true if the drawing buffer size changed
+     */
+    function resizeCanvasToDisplaySize(canvas) {
+      const dpr = window.devicePixelRatio || 1;
+      const width  = Math.round(canvas.clientWidth  * dpr);
+      const height = Math.round(canvas.clientHeight * dpr);
+
+      const changed = canvas.width !== width || canvas.height !== height;
+      if (changed) {
+        canvas.width  = width;
+        canvas.height = height;
+      }
+      return changed;
+    }
+
+    /**
+     * Show a friendly message in the page instead of failing silently.
+     * @param {string} message
+     */
+    function showError(message) {
+      const banner = document.createElement('div');
+      banner.className = 'error-banner';
+
+      const title = document.createElement('strong');
+      title.textContent = 'This demo could not start.';
+
+      const details = document.createElement('pre');
+      details.textContent = message;
+
+      banner.append(title, details);
+      ui.errorSlot.replaceChildren(banner);
+
+      // Nothing can be drawn, so the controls are of no use.
+      ui.wireframe.disabled = true;
+      ui.showCorners.disabled = true;
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // Main program. The six steps run inside main() so that any error ends up
+    // in one try/catch (see the last lines of the file).
+    // ══════════════════════════════════════════════════════════════════
+    function main() {
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 1 — Get the WebGL 2 context
+      // ════════════════════════════════════════════════════════════════
+      // The context is the object that has all WebGL functions as methods.
+      // By convention it is called "gl". It is null if WebGL 2 is not
+      // supported (old browser, disabled hardware acceleration, ...).
+      const gl = ui.canvas.getContext('webgl2');
+      if (!gl) {
+        throw new Error(
+          'WebGL 2 is not available in this browser or on this device.\n' +
+          'Use a current version of Chrome, Edge, Firefox or Safari and check ' +
+          'that hardware acceleration is enabled.'
+        );
+      }
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 2 — Write the shaders (GLSL ES 3.00)
+      // ════════════════════════════════════════════════════════════════
+      // Shaders are small programs that run on the GPU. They are written in
+      // GLSL and stored here as plain JavaScript strings.
+      //
+      // IMPORTANT: "#version 300 es" must be the very first thing in the
+      // string: no blank line and no space before it. That is why the text
+      // starts directly after the opening backtick.
+      // (Keep the GLSL comments ASCII-only: GLSL ES 3.00 does not allow
+      // other characters in the source.)
+
+      // The vertex shader runs ONCE PER VERTEX (three times for our triangle).
+      const vertexShaderSource = `#version 300 es
+// Inputs: one value per vertex, read from the buffer (attributes).
+in vec2 a_position;   // x, y in clip space
+in vec3 a_color;      // r, g, b
+
+// Output to the fragment shader (a "varying"). The GPU interpolates it
+// across the triangle.
+out vec3 v_color;
+
+void main() {
+  v_color = a_color;
+
+  // gl_Position is the required output. Clip space runs from -1 to +1:
+  //   x: -1 = left edge,   +1 = right edge
+  //   y: -1 = bottom edge, +1 = top edge
+  // z = 0.0 because we draw in 2D, and w = 1.0 means no perspective.
+  gl_Position = vec4(a_position, 0.0, 1.0);
+}`;
+
+      // The fragment shader runs ONCE PER PIXEL covered by the triangle.
+      const fragmentShaderSource = `#version 300 es
+// Fragment shaders need a default precision for floats.
+precision highp float;
+
+// Must match the vertex shader's "out vec3 v_color" by name and type.
+// The value here is the interpolated color of THIS pixel.
+in vec3 v_color;
+
+// A uniform is a value that is the same for the whole draw call. Here it
+// switches between the interpolated color and white, so we can draw the
+// outline. Uniforms are explained in detail in the next demo.
+uniform bool u_outline;
+
+// The color of this pixel (red, green, blue, alpha).
+out vec4 outColor;
+
+void main() {
+  vec3 color = u_outline ? vec3(1.0) : v_color;
+  outColor = vec4(color, 1.0);
+}`;
+
+      // Show the exact strings that get compiled, so the page never drifts
+      // away from the code. textContent is used so nothing is parsed as HTML.
+      ui.vsSource.textContent = vertexShaderSource;
+      ui.fsSource.textContent = fragmentShaderSource;
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 3 — Compile and link the program
+      // ════════════════════════════════════════════════════════════════
+      // The driver compiles the strings for your GPU at runtime. The helper
+      // functions above check the result and report errors.
+      const program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
+
+      // Ask the linked program where its inputs are. Do this ONCE here and
+      // keep the results: looking them up for every frame would be wasteful.
+      const aPosition = gl.getAttribLocation(program, 'a_position');
+      const aColor    = gl.getAttribLocation(program, 'a_color');
+      const uOutline  = gl.getUniformLocation(program, 'u_outline');
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 4 — Upload the vertex data to a buffer
+      // ════════════════════════════════════════════════════════════════
+      // The geometry lives in a typed array in JavaScript. We use ONE
+      // interleaved array: the five numbers of vertex 0, then the five of
+      // vertex 1, and so on.
+      const vertices = new Float32Array([
+        //   x      y       r    g    b
+         0.0,   0.6,     1.0, 0.0, 0.0,   // top vertex:          red
+        -0.6,  -0.6,     0.0, 1.0, 0.0,   // bottom-left vertex:  green
+         0.6,  -0.6,     0.0, 0.0, 1.0,   // bottom-right vertex: blue
+      ]);
+
+      const FLOAT_BYTES       = Float32Array.BYTES_PER_ELEMENT;   // 4 bytes
+      const FLOATS_PER_VERTEX = 5;                                // x, y, r, g, b
+      const STRIDE            = FLOATS_PER_VERTEX * FLOAT_BYTES;  // bytes from one vertex to the next
+      const VERTEX_COUNT      = vertices.length / FLOATS_PER_VERTEX;
+
+      // WebGL is a STATE MACHINE: bindBuffer sets the "current" ARRAY_BUFFER,
+      // and the calls after it act on whatever is currently bound.
+      const vertexBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, vertexBuffer);
+
+      // Copy the data to GPU memory. STATIC_DRAW is a hint: written once,
+      // drawn many times.
+      gl.bufferData(gl.ARRAY_BUFFER, vertices, gl.STATIC_DRAW);
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 5 — Describe the data layout and record a VAO
+      // ════════════════════════════════════════════════════════════════
+      // The GPU only sees raw bytes in the buffer. We have to tell it how to
+      // cut them into attributes. A Vertex Array Object (VAO) records this
+      // description, so at draw time we just bind the VAO again instead of
+      // repeating every call.
+      const vao = gl.createVertexArray();
+      gl.bindVertexArray(vao);   // start recording
+
+      // vertexAttribPointer(location, components, type, normalize, stride, offset):
+      // it connects the attribute to the buffer that is bound RIGHT NOW (the
+      // one from step 4), and the VAO remembers this connection.
+      gl.enableVertexAttribArray(aPosition);
+      gl.vertexAttribPointer(aPosition, 2, gl.FLOAT, false, STRIDE, 0);
+
+      // The colors start after the two position floats, so the offset is 2 floats.
+      gl.enableVertexAttribArray(aColor);
+      gl.vertexAttribPointer(aColor, 3, gl.FLOAT, false, STRIDE, 2 * FLOAT_BYTES);
+
+      gl.bindVertexArray(null);  // stop recording
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 6 — Draw
+      // ════════════════════════════════════════════════════════════════
+      // Steps 1 to 5 ran once. Only the code in render() is repeated.
+
+      /** Show the numbers behind the two canvas sizes. */
+      function updateStats() {
+        const dpr = Number((window.devicePixelRatio || 1).toFixed(2));
+        ui.stats.textContent = [
+          `WebGL: ${gl.getParameter(gl.VERSION)}`,
+          `Drawing buffer: ${ui.canvas.width}\u00D7${ui.canvas.height} px`,
+          `CSS size: ${ui.canvas.clientWidth}\u00D7${ui.canvas.clientHeight} px`,
+          `devicePixelRatio: ${dpr}`,
+        ].join('\n');
+      }
+
+      /** Draw one frame. */
+      function render() {
+        // 1. Make the drawing buffer match the display size.
+        resizeCanvasToDisplaySize(ui.canvas);
+
+        // 2. The viewport maps clip space (-1..+1) to pixels of the canvas.
+        gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+        // 3. Clear the previous picture.
+        gl.clearColor(...CLEAR_COLOR);
+        gl.clear(gl.COLOR_BUFFER_BIT);
+
+        // 4. Select the shader program and the recorded vertex setup.
+        gl.useProgram(program);
+        gl.bindVertexArray(vao);
+
+        // 5. Draw the filled triangle:
+        //    drawArrays(primitive type, first vertex, number of vertices).
+        gl.uniform1i(uOutline, 0);   // 0 = false: use the interpolated colors
+        gl.drawArrays(gl.TRIANGLES, 0, VERTEX_COUNT);
+
+        // 6. Optional: draw the same three vertices again as a closed line
+        //    loop in white. WebGL has no "wireframe mode", so we simply draw
+        //    the same data with a different primitive type.
+        //    (Line width is always 1 pixel in WebGL.)
+        if (ui.wireframe.checked) {
+          gl.uniform1i(uOutline, 1); // 1 = true: output white
+          gl.drawArrays(gl.LINE_LOOP, 0, VERTEX_COUNT);
+        }
+
+        updateStats();
+      }
+
+      // ════════════════════════════════════════════════════════════════
+      // After the six steps — Connect the controls and start
+      // ════════════════════════════════════════════════════════════════
+      // The scene is static, so we redraw only when something changes.
+      ui.wireframe.addEventListener('change', render);
+
+      // The legend is plain HTML: it needs no WebGL call.
+      ui.showCorners.addEventListener('change', () => {
+        ui.legend.hidden = !ui.showCorners.checked;
+      });
+      ui.legend.hidden = !ui.showCorners.checked;
+
+      // A resize changes the canvas size. Resizing the drawing buffer clears
+      // it, so we must draw again. ResizeObserver also fires when the page is
+      // zoomed, which changes the CSS size and the devicePixelRatio.
+      new ResizeObserver(render).observe(ui.canvas);
+
+      // Draw the first frame.
+      render();
+    }
+
+    try {
+      main();
+    } catch (error) {
+      console.error(error);
+      showError(error.message);
+    }
+  </script>
+</body>
+</html>
