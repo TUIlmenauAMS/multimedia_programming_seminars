@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 02: WebGL 2 — Multimediaprogrammierung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0d0f14;
+    --surface: #161a22;
+    --border:  #252b38;
+    --text:    #d8dce6;
+    --muted:   #5a6175;
+    --accent:  #4f9cf9;
+    --accent2: #a78bfa;
+    --green:   #34d399;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* ── header ── */
+  header {
+    border-bottom: 2px solid var(--border);
+    padding: 24px 0 20px;
+  }
+  .header-inner {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .header-logo img { width: 100px; border-radius: 10px; display: block; }
+  .header-info h1 { font-size: clamp(18px,3vw,26px); font-weight: 500; color: #f0f2f7; line-height: 1.2; margin-bottom: 4px; }
+  .header-info h2 { font-size: 14px; font-weight: 400; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; }
+  .header-meta { font-size: 13px; color: var(--text); line-height: 1.6; }
+  .header-meta a { color: var(--accent); text-decoration: none; }
+  .header-meta a:hover { text-decoration: underline; }
+
+  /* ── breadcrumb ── */
+  .breadcrumb {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 14px 32px 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .breadcrumb a { color: var(--accent); text-decoration: none; }
+  .breadcrumb a:hover { text-decoration: underline; }
+  .breadcrumb span { margin: 0 6px; }
+
+  /* ── notebook badges ── */
+  .nb-badges {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 18px 32px 0;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 12px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 500;
+    text-decoration: none;
+    border: 1px solid transparent;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+    font-family: var(--mono);
+  }
+  .badge:hover { opacity: 0.8; }
+  .badge-colab { background: rgba(242,142,33,0.1); color: #f2a23c; border-color: rgba(242,142,33,0.25); }
+  .badge-nb    { background: rgba(79,156,249,0.1); color: var(--accent); border-color: rgba(79,156,249,0.25); }
+
+  /* ── main ── */
+  main {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 40px 32px 80px;
+  }
+
+  /* ── notebook content ── */
+  .nb-content { display: flex; flex-direction: column; gap: 0; }
+
+  .nb-cell { padding: 0; }
+
+  /* ── prose styling ── */
+  .nb-cell h1 {
+    font-size: clamp(22px, 3.5vw, 32px);
+    font-weight: 500;
+    color: #f0f2f7;
+    line-height: 1.25;
+    margin: 40px 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .nb-cell h2 {
+    font-size: 20px;
+    font-weight: 500;
+    color: #e8eaf2;
+    margin: 48px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .nb-cell h3 {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--accent2);
+    margin: 28px 0 10px;
+    font-family: var(--mono);
+    letter-spacing: 0.02em;
+  }
+  .nb-cell p { margin-bottom: 14px; color: var(--text); }
+  .nb-cell ul, .nb-cell ol { margin: 0 0 14px 22px; }
+  .nb-cell li { margin-bottom: 6px; }
+  .nb-cell strong { color: #eef0f6; font-weight: 500; }
+  .nb-cell em { color: var(--text); }
+  .nb-cell a { color: var(--accent); text-decoration: none; }
+  .nb-cell a:hover { text-decoration: underline; }
+  .nb-cell hr { border: none; border-top: 1px solid var(--border); margin: 8px 0 0; }
+
+  /* tables */
+  .nb-cell table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 20px;
+    font-size: 13.5px;
+  }
+  .nb-cell th {
+    text-align: left;
+    padding: 8px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .nb-cell td {
+    padding: 9px 12px;
+    border-bottom: 1px solid rgba(37,43,56,0.6);
+    vertical-align: top;
+    color: var(--text);
+  }
+  .nb-cell tr:last-child td { border-bottom: none; }
+  .nb-cell tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* inline code */
+  .nb-cell code {
+    background: rgba(79,156,249,0.08);
+    color: #93c5fd;
+    font-family: var(--mono);
+    font-size: 0.88em;
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  /* code blocks */
+  .nb-cell pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    margin: 16px 0 20px;
+  }
+  .nb-cell pre code {
+    background: none;
+    color: #c9d1d9;
+    font-size: 13px;
+    padding: 0;
+    border-radius: 0;
+    line-height: 1.6;
+  }
+
+  /* pill links — override notebook light-theme pills */
+  .nb-cell a[style*="border:1px solid #1a73e8"],
+  .nb-cell a[style*="border: 1px solid #1a73e8"] {
+    display: inline-flex !important;
+    align-items: center;
+    padding: 5px 14px !important;
+    margin: 4px 6px 4px 0 !important;
+    border: 1px solid rgba(79,156,249,0.4) !important;
+    border-radius: 20px !important;
+    text-decoration: none !important;
+    font-weight: 500 !important;
+    font-size: 12px !important;
+    color: var(--accent) !important;
+    background: rgba(79,156,249,0.07) !important;
+    font-family: var(--mono);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .nb-cell a[style*="border:1px solid #1a73e8"]:hover,
+  .nb-cell a[style*="border: 1px solid #1a73e8"]:hover {
+    background: rgba(79,156,249,0.14) !important;
+    border-color: rgba(79,156,249,0.7) !important;
+  }
+
+  /* info/demo callout boxes */
+  .nb-cell div[style*="border-left:5px solid #1a73e8"],
+  .nb-cell div[style*="border-left: 5px solid #1a73e8"] {
+    border-left: 4px solid var(--accent) !important;
+    background: rgba(79,156,249,0.06) !important;
+    border-radius: 6px;
+    padding: 16px 20px !important;
+    margin: 20px 0 !important;
+    color: var(--text);
+  }
+
+  /* images */
+  .nb-cell img {
+    max-width: 100%;
+    border-radius: 10px;
+    display: block;
+  }
+
+  /* footer cell */
+  .nb-footer-cell {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 2px solid var(--border);
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .nb-footer-cell b { color: var(--text); }
+  .nb-footer-cell a { color: var(--accent); text-decoration: none; }
+  .nb-footer-cell a:hover { text-decoration: underline; }
+  .nb-footer-cell div[style*="border-top:2px solid #e0e0e0"],
+  .nb-footer-cell div[style*="border-top: 2px solid #e0e0e0"] {
+    border-top: none !important;
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+  }
+
+  /* ── page footer ── */
+  footer {
+    border-top: 2px solid var(--border);
+    padding: 18px 32px 24px;
+    max-width: 860px;
+    margin: 0 auto;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.7;
+  }
+  footer p + p { margin-top: 4px; font-size: 12px; color: var(--muted); }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 600px) {
+    .header-inner, main, footer, .breadcrumb, .nb-badges { padding-left: 20px; padding-right: 20px; }
+    .header-inner { flex-direction: column; align-items: flex-start; gap: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="header-logo">
+      <img src="ams_group_tui.png" alt="AMS Group – TU Ilmenau">
+    </div>
+    <div class="header-info">
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 02: WebGL 2</h2>
+      <p class="header-meta">
+        <strong>Institut für Medientechnik –
+          <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme"
+             target="_blank" rel="noopener">AMS Group</a>
+          – Technische Universität Ilmenau</strong><br>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller &nbsp;·&nbsp;
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+      </p>
+    </div>
+  </div>
+</header>
+
+<nav class="breadcrumb">
+  <a href="index.html">Seminar Materials</a>
+  <span>›</span>
+  Chapter 02: WebGL 2
+</nav>
+
+<div class="nb-badges">
+  <a class="badge badge-colab"
+     href="https://colab.research.google.com/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/02_multimediaprogrammierung_webgl.ipynb"
+     target="_blank" rel="noopener">▶ Open in Colab</a>
+  <a class="badge badge-nb"
+     href="https://nbview.org/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/02_multimediaprogrammierung_webgl.ipynb"
+     target="_blank" rel="noopener">⬡ NBView</a>
+</div>
+
+<main>
+<div class="nb-content">
+
+<div class="nb-cell">
+<h1>Chapter 02: WebGL 2</h1>
+<p><strong>WebGL 2</strong> is a JavaScript API for rendering interactive 2D and 3D graphics in any modern browser — without plugins. It gives you direct access to the <strong>GPU</strong> (graphics processing unit) through a small, low-level interface based on OpenGL ES 3.0. Everything you see in browser-based games, data visualizations, 3D product viewers and creative coding is ultimately drawn by a WebGL program.</p>
+<p>What makes WebGL different from the Web Audio API of the previous chapter is that there is <strong>no ready-made scene graph and no built-in objects</strong>. WebGL does not know what a cube, a camera or a light is. It only knows how to draw <strong>points, lines and triangles</strong> very fast, using small programs called <strong>shaders</strong> that you write yourself and that run in parallel on the GPU. Everything else — transformations, projection, lighting, textures — you build on top of this.</p>
+<p>That is exactly why it is worth learning with raw WebGL first: once you understand the pipeline, libraries such as Three.js, Babylon.js or the newer WebGPU API become much easier to understand.</p>
+<p>This chapter walks through the core concepts from the first triangle to a lit, textured 3D object and real-time video filters. Each section ends with an interactive demo: a standalone HTML file whose source code is heavily commented, so you can read it like a tutorial.</p>
+<h3>What this chapter covers</h3>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Topic</th>
+<th>What you will learn</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>What is WebGL?</td>
+<td>Where WebGL comes from and why we use WebGL 2</td>
+</tr>
+<tr>
+<td>2</td>
+<td>The Rendering Pipeline</td>
+<td>How vertices become pixels</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Canvas and WebGL Context</td>
+<td>Getting a <code>WebGL2RenderingContext</code> and handling resize</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Shaders and GLSL</td>
+<td>Writing, compiling and linking GPU programs</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Buffers, Attributes and VAOs</td>
+<td>Sending geometry to the GPU: the first triangle</td>
+</tr>
+<tr>
+<td>6</td>
+<td>Varyings</td>
+<td>Interpolating data across a triangle</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Uniforms and the Animation Loop</td>
+<td>Passing values from JavaScript and animating over time</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Transformations and Matrices</td>
+<td>Translate, rotate and scale with matrices</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Going 3D</td>
+<td>Projection, depth test and index buffers</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Textures</td>
+<td>Mapping images and video onto geometry</td>
+</tr>
+<tr>
+<td>11</td>
+<td>Lighting</td>
+<td>Normals and diffuse lighting (outlook)</td>
+</tr>
+<tr>
+<td>12</td>
+<td>Demo Index</td>
+<td>Overview of all seven demos and how to open them</td>
+</tr>
+<tr>
+<td>13</td>
+<td>Further Resources</td>
+<td>MDN reference, specifications and tutorials</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+<div class="nb-cell">
+<hr />
+<h2>1. What is WebGL?</h2>
+<p><strong>OpenGL</strong> is a long-standing, cross-platform graphics API standardized by the Khronos Group. <strong>OpenGL ES</strong> is its slimmed-down version for embedded systems and mobile devices. <strong>WebGL</strong> is a JavaScript binding of OpenGL ES that runs inside the browser and draws onto an HTML <code>&lt;canvas&gt;</code> element.</p>
+<table>
+<thead>
+<tr>
+<th>Version</th>
+<th>Based on</th>
+<th>Shader language</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>WebGL 1</strong></td>
+<td>OpenGL ES 2.0</td>
+<td>GLSL ES 1.00 (<code>attribute</code>, <code>varying</code>)</td>
+<td>Legacy; many older tutorials still use it</td>
+</tr>
+<tr>
+<td><strong>WebGL 2</strong></td>
+<td>OpenGL ES 3.0</td>
+<td>GLSL ES 3.00 (<code>in</code>, <code>out</code>)</td>
+<td>Current standard, supported by all major browsers</td>
+</tr>
+</tbody>
+</table>
+<h3>Why WebGL 2 in this course?</h3>
+<p>WebGL 2 is the modern baseline and is available in current versions of Chrome, Edge, Firefox and Safari. Compared to WebGL 1 it offers:</p>
+<ul>
+<li><strong>GLSL ES 3.00</strong> with a cleaner syntax (<code>in</code> / <code>out</code> instead of <code>attribute</code> / <code>varying</code>)</li>
+<li><strong>Vertex Array Objects (VAOs)</strong> as a core feature, which make attribute setup much easier to manage</li>
+<li><strong>Non-power-of-two textures</strong> with mipmaps and repeat wrapping, <strong>3D textures</strong> and <strong>texture arrays</strong></li>
+<li><strong>Instanced rendering</strong>, <strong>uniform buffer objects</strong>, <strong>multiple render targets</strong> and <strong>transform feedback</strong> without extensions</li>
+<li>Many more texture and renderbuffer formats</li>
+</ul>
+<h3>An outlook: WebGPU</h3>
+<p><strong>WebGPU</strong> is the successor of WebGL. It maps to modern GPU APIs (Vulkan, Metal, Direct3D 12), adds <strong>compute shaders</strong> and has a more explicit design. It is still being rolled out across browsers, while WebGL 2 works everywhere today. The concepts you learn in this chapter — buffers, shaders, pipelines, uniforms, textures — carry over directly to WebGPU.</p>
+<pre><code>WebGL 1  →  WebGL 2  →  WebGPU
+(ES 2.0)    (ES 3.0)    (modern, explicit API)
+</code></pre>
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">WebGL API – MDN &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGL2RenderingContext" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">WebGL 2 – MDN &#8599;</a>
+  <a href="https://webgl2fundamentals.org/webgl/lessons/webgl2-whats-new.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">What's new in WebGL 2 &#8599;</a>
+</p>
+</div>
+
+<div class="nb-cell">
+<hr />
+<h2>2. The Rendering Pipeline</h2>
+<p>The central idea of WebGL is the <strong>rendering pipeline</strong>: a fixed sequence of stages that turns a list of vertices into colored pixels on the screen. Some stages are <strong>programmable</strong> — you write the code — and some are <strong>fixed-function</strong> — you only configure them.</p>
+<pre><code>Vertex data  →  Vertex Shader  →  Primitive Assembly  →  Rasterization  →  Fragment Shader  →  Per-fragment operations  →  Framebuffer
+(your arrays)   (programmable)    (fixed)                 (fixed)           (programmable)       (depth, blending: fixed)    (canvas)
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>What happens</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Vertex shader</strong></td>
+<td>Runs <strong>once per vertex</strong>. Its main job is to compute the vertex position in <em>clip space</em> and write it to <code>gl_Position</code>.</td>
+</tr>
+<tr>
+<td><strong>Primitive assembly</strong></td>
+<td>Groups vertices into primitives (points, lines or triangles) and clips everything outside the visible volume.</td>
+</tr>
+<tr>
+<td><strong>Rasterization</strong></td>
+<td>Determines which <strong>pixels</strong> (fragments) are covered by each triangle and interpolates data across it.</td>
+</tr>
+<tr>
+<td><strong>Fragment shader</strong></td>
+<td>Runs <strong>once per fragment</strong>. Its job is to compute the final color of that pixel.</td>
+</tr>
+<tr>
+<td><strong>Per-fragment operations</strong></td>
+<td>Depth test, blending and other tests decide whether and how the fragment is written to the framebuffer.</td>
+</tr>
+</tbody>
+</table>
+<p>The key property of this design is <strong>massive parallelism</strong>. A GPU has thousands of small cores, and the same vertex shader runs on many vertices at the same time, and the same fragment shader on many pixels at the same time. That is why shaders are small, self-contained programs without shared state.</p>
+<h3>Coordinate systems in WebGL</h3>
+<p>WebGL uses <strong>clip space</strong> for positions: after the vertex shader, x, y and z must be within the range <strong>−1 to +1</strong> (after the perspective divide) to be visible. The center of the canvas is (0, 0), the left edge is x = −1, the right edge x = +1, the bottom edge y = −1 and the top edge y = +1.</p>
+<pre><code>        y = +1
+          │
+ x = −1 ──┼── x = +1
+          │
+        y = −1
+</code></pre>
+<p>The <strong>viewport transform</strong> (<code>gl.viewport</code>) then maps this −1…+1 range to actual pixel coordinates on the canvas.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://webgl2fundamentals.org/webgl/lessons/webgl-how-it-works.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">How WebGL works &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_model_view_projection" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Graphics pipeline – MDN &#8599;</a>
+</p>
+</div>
+
+<div class="nb-cell">
+<hr />
+<h2>3. Canvas and WebGL Context</h2>
+<p>WebGL draws onto a <code>&lt;canvas&gt;</code> element. You access the API through a <strong>rendering context</strong> object, which in WebGL 2 is a <code>WebGL2RenderingContext</code>. By convention it is stored in a variable called <code>gl</code>, and every WebGL function is a method of this object.</p>
+<pre><code class="language-html">&lt;canvas id=&quot;glcanvas&quot;&gt;&lt;/canvas&gt;
+</code></pre>
+<pre><code class="language-javascript">const canvas = document.querySelector('#glcanvas');
+const gl = canvas.getContext('webgl2');
+
+if (!gl) {
+    // The browser or GPU does not support WebGL 2.
+    throw new Error('WebGL 2 is not available.');
+}
+</code></pre>
+<p><code>getContext</code> returns <code>null</code> if WebGL 2 is not supported, so you should always check the result and show a helpful message instead of failing silently.</p>
+<h3>Canvas size vs. display size</h3>
+<p>A canvas has <strong>two sizes</strong>, and mixing them up is the most common beginner mistake:</p>
+<table>
+<thead>
+<tr>
+<th>Size</th>
+<th>Property</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Drawing buffer size</strong></td>
+<td><code>canvas.width</code>, <code>canvas.height</code></td>
+<td>The number of pixels WebGL actually renders</td>
+</tr>
+<tr>
+<td><strong>Display size</strong></td>
+<td>CSS <code>width</code> / <code>height</code>, <code>canvas.clientWidth</code></td>
+<td>The size of the canvas on the page</td>
+</tr>
+</tbody>
+</table>
+<p>If the two differ, the browser stretches the image and it looks blurry. On high-resolution screens the device pixel ratio (<code>window.devicePixelRatio</code>) is often 2 or more, so a professional setup resizes the drawing buffer to match the display:</p>
+<pre><code class="language-javascript">function resizeCanvasToDisplaySize(canvas) {
+    const dpr = window.devicePixelRatio || 1;
+    const width  = Math.round(canvas.clientWidth  * dpr);
+    const height = Math.round(canvas.clientHeight * dpr);
+
+    if (canvas.width !== width || canvas.height !== height) {
+        canvas.width  = width;
+        canvas.height = height;
+    }
+}
+</code></pre>
+<p>After resizing, tell WebGL how to map clip space to pixels and clear the canvas:</p>
+<pre><code class="language-javascript">gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+gl.clearColor(0.12, 0.12, 0.18, 1.0);   // r, g, b, a  (0.0 to 1.0)
+gl.clear(gl.COLOR_BUFFER_BIT);
+</code></pre>
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/getContext" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">getContext – MDN &#8599;</a>
+  <a href="https://webgl2fundamentals.org/webgl/lessons/webgl-resizing-the-canvas.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Resizing the canvas &#8599;</a>
+</p>
+</div>
+
+<div class="nb-cell">
+<hr />
+<h2>4. Shaders and GLSL</h2>
+<p>A <strong>shader</strong> is a small program that runs on the GPU. Shaders are written in <strong>GLSL ES 3.00</strong> (OpenGL Shading Language), a C-like language with built-in vector and matrix types such as <code>vec2</code>, <code>vec3</code>, <code>vec4</code> and <code>mat4</code>. In WebGL you always need a pair: one <strong>vertex shader</strong> and one <strong>fragment shader</strong>, linked together into a <strong>program</strong>.</p>
+<h3>The vertex shader</h3>
+<pre><code class="language-glsl">#version 300 es
+in vec2 a_position;          // input: one 2D position per vertex
+
+void main() {
+    gl_Position = vec4(a_position, 0.0, 1.0);   // required output
+}
+</code></pre>
+<h3>The fragment shader</h3>
+<pre><code class="language-glsl">#version 300 es
+precision highp float;       // required in fragment shaders
+out vec4 outColor;           // output: the color of this pixel
+
+void main() {
+    outColor = vec4(1.0, 0.5, 0.0, 1.0);        // orange, fully opaque
+}
+</code></pre>
+<p>Note the first line: <code>#version 300 es</code> <strong>must</strong> be the very first thing in the source string, with no blank line or whitespace before it.</p>
+<h3>Naming conventions</h3>
+<p>By convention, variables get a prefix that tells you where the data comes from: <code>a_</code> for <strong>attributes</strong>, <code>u_</code> for <strong>uniforms</strong> and <code>v_</code> for <strong>varyings</strong>. This is not required by GLSL, but it makes shader code much easier to read.</p>
+<h3>Compiling and linking</h3>
+<p>The shader source is just a string in JavaScript. It has to be compiled by the GPU driver at runtime:</p>
+<pre><code class="language-javascript">function createShader(gl, type, source) {
+    const shader = gl.createShader(type);       // gl.VERTEX_SHADER or gl.FRAGMENT_SHADER
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+
+    if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(shader);
+        gl.deleteShader(shader);
+        throw new Error('Shader compile error: ' + log);
+    }
+    return shader;
+}
+
+function createProgram(gl, vertexSource, fragmentSource) {
+    const vs = createShader(gl, gl.VERTEX_SHADER, vertexSource);
+    const fs = createShader(gl, gl.FRAGMENT_SHADER, fragmentSource);
+
+    const program = gl.createProgram();
+    gl.attachShader(program, vs);
+    gl.attachShader(program, fs);
+    gl.linkProgram(program);
+
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        const log = gl.getProgramInfoLog(program);
+        gl.deleteProgram(program);
+        throw new Error('Program link error: ' + log);
+    }
+    return program;
+}
+</code></pre>
+<p>Always check the compile and link status and print the info log. A shader error is otherwise completely silent: you just see a black canvas.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Data#shaders" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Shaders – MDN &#8599;</a>
+  <a href="https://registry.khronos.org/OpenGL/specs/es/3.0/GLSL_ES_Specification_3.00.pdf" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">GLSL ES 3.00 Spec – Khronos &#8599;</a>
+  <a href="https://webgl2fundamentals.org/webgl/lessons/webgl-fundamentals.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Fundamentals &#8599;</a>
+</p>
+</div>
+
+<div class="nb-cell">
+<hr />
+<h2>5. Buffers, Attributes and VAOs</h2>
+<p>The geometry data (positions, colors, …) lives in JavaScript arrays and has to be copied to GPU memory. This happens in three steps.</p>
+<h3>Step 1 — Buffers</h3>
+<p>A <strong>buffer</strong> is a block of GPU memory. You create it, bind it and upload typed-array data to it:</p>
+<pre><code class="language-javascript">const positions = new Float32Array([
+     0.0,  0.6,     // top vertex
+    -0.6, -0.6,     // bottom left
+     0.6, -0.6,     // bottom right
+]);
+
+const positionBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
+gl.bufferData(gl.ARRAY_BUFFER, positions, gl.STATIC_DRAW);
+</code></pre>
+<p>WebGL is a <strong>state machine</strong>: <code>gl.bindBuffer</code> sets the "current" <code>ARRAY_BUFFER</code>, and later calls such as <code>gl.bufferData</code> act on whatever is currently bound. <code>gl.STATIC_DRAW</code> is a hint that the data is written once and drawn many times.</p>
+<h3>Step 2 — Attributes</h3>
+<p>An <strong>attribute</strong> is a per-vertex input of the vertex shader. You must tell WebGL how to read the buffer: how many numbers per vertex, which type, and where they start.</p>
+<pre><code class="language-javascript">const posLoc = gl.getAttribLocation(program, 'a_position');
+
+gl.enableVertexAttribArray(posLoc);
+gl.vertexAttribPointer(
+    posLoc,      // which attribute
+    2,           // components per vertex (x, y)
+    gl.FLOAT,    // data type
+    false,       // normalize?
+    0,           // stride (0 = tightly packed)
+    0            // offset in bytes
+);
+</code></pre>
+<h3>Step 3 — Vertex Array Objects</h3>
+<p>In WebGL 2, all of this attribute setup is stored in a <strong>Vertex Array Object (VAO)</strong>. You record the setup once, and at draw time you just bind the VAO again instead of repeating every <code>vertexAttribPointer</code> call.</p>
+<pre><code class="language-javascript">const vao = gl.createVertexArray();
+gl.bindVertexArray(vao);       // start recording
+
+// ... bindBuffer / enableVertexAttribArray / vertexAttribPointer here ...
+
+gl.bindVertexArray(null);      // stop recording
+</code></pre>
+<h3>Drawing</h3>
+<pre><code class="language-javascript">gl.useProgram(program);
+gl.bindVertexArray(vao);
+gl.drawArrays(gl.TRIANGLES, 0, 3);   // primitive type, first vertex, vertex count
+</code></pre>
+<p>The primitive type tells WebGL how to group vertices: <code>gl.POINTS</code>, <code>gl.LINES</code>, <code>gl.LINE_STRIP</code>, <code>gl.TRIANGLES</code>, <code>gl.TRIANGLE_STRIP</code> and <code>gl.TRIANGLE_FAN</code>. Triangles are by far the most common, because every surface can be built from them.</p>
+<p><strong>Setup once, draw many times.</strong> Creating shaders, buffers and VAOs is <em>initialization</em> and happens once. Only <code>useProgram</code>, <code>bindVertexArray</code> and the draw call happen every frame.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/bufferData" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Buffers – MDN &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGL2RenderingContext/createVertexArray" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">VAOs – MDN &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/drawArrays" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">drawArrays – MDN &#8599;</a>
+</p>
+</div>
+
+<div class="nb-cell">
+<hr />
+<h2>6. Varyings</h2>
+<p>So far every pixel of the triangle has the same color. To give each vertex its own color you add a second attribute and pass it from the vertex shader to the fragment shader. Such a value is called a <strong>varying</strong> (in GLSL ES 3.00 it is simply an <code>out</code> variable in the vertex shader and a matching <code>in</code> variable in the fragment shader).</p>
+<pre><code class="language-glsl">#version 300 es
+// ---- vertex shader ----
+in vec2 a_position;
+in vec3 a_color;
+out vec3 v_color;            // passed on to the fragment shader
+
+void main() {
+    v_color = a_color;
+    gl_Position = vec4(a_position, 0.0, 1.0);
+}
+</code></pre>
+<pre><code class="language-glsl">#version 300 es
+// ---- fragment shader ----
+precision highp float;
+in vec3 v_color;             // same name and type as the vertex shader's out
+out vec4 outColor;
+
+void main() {
+    outColor = vec4(v_color, 1.0);
+}
+</code></pre>
+<h3>Interpolation</h3>
+<p>The vertex shader runs only three times for a triangle, but the fragment shader runs for <strong>every pixel inside it</strong>. During rasterization the GPU automatically <strong>interpolates</strong> each varying across the triangle using <em>barycentric coordinates</em>. A pixel in the middle of an edge between a red and a green vertex receives a 50/50 mix of both colors; a pixel in the center of the triangle receives a mix of all three.</p>
+<pre><code>      red
+      /\
+     /  \       →  smooth color gradient
+    /    \         across the triangle
+ green────blue
+</code></pre>
+<p>This interpolation is not limited to colors. The same mechanism is used for <strong>texture coordinates</strong>, <strong>normals</strong> and any other per-vertex data that must vary smoothly across a surface.</p>
+<p>For the second attribute you can either use a second buffer or <strong>interleave</strong> the data in one buffer (<code>x, y, r, g, b, x, y, r, g, b, …</code>). For interleaved data you set the <code>stride</code> to the size of one whole vertex in bytes and the <code>offset</code> to where each attribute starts inside it.</p>
+<pre><code class="language-javascript">// Interleaved: 2 floats position + 3 floats color = 5 floats per vertex
+const stride = 5 * Float32Array.BYTES_PER_ELEMENT;
+
+gl.vertexAttribPointer(posLoc,   2, gl.FLOAT, false, stride, 0);
+gl.vertexAttribPointer(colorLoc, 3, gl.FLOAT, false, stride, 2 * Float32Array.BYTES_PER_ELEMENT);
+</code></pre>
+<p style="margin:12px 0 0 0;">
+  <a href="https://webgl2fundamentals.org/webgl/lessons/webgl-shaders-and-glsl.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Barycentric interpolation &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Games/Techniques/3D_on_the_web/GLSL_Shaders" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">GLSL – MDN &#8599;</a>
+</p>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(26,115,232,0.07); border-radius:6px; padding:12px 18px; margin:20px 0;">
+  <p style="margin:0 0 6px 0;"><b>Interactive Demo 1 &mdash; Triangle</b></p>
+  <p style="margin:0 0 6px 0;">Your first complete WebGL 2 program: context, shaders, an interleaved buffer, a VAO and a draw call. Each corner has its own color, and the GPU interpolates the colors across the triangle.</p>
+  <p style="margin:0 0 6px 0;"><i>What to look for:</i> Toggle the wireframe, and resize the window to compare the <i>drawing buffer</i> size with the <i>CSS</i> size in the read-out.</p>
+  <p style="margin:0 0 6px 0;">All demos are standalone HTML files; section 12 explains how to open them.</p>
+  <a href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_triangle.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Triangle Demo &#8599;</a>
+</div>
+</div>
+
+<div class="nb-cell">
+<hr />
+<h2>7. Uniforms and the Animation Loop</h2>
+<p>An attribute has a <strong>different value for every vertex</strong>. A <strong>uniform</strong> has the <strong>same value for all vertices and fragments</strong> of one draw call. Uniforms are how JavaScript sends data to a shader: the elapsed time, a color from a slider, the mouse position, a transformation matrix.</p>
+<pre><code class="language-glsl">#version 300 es
+precision highp float;
+uniform vec3 u_color;        // set from JavaScript
+out vec4 outColor;
+
+void main() {
+    outColor = vec4(u_color, 1.0);
+}
+</code></pre>
+<p>You look up the uniform's location once during initialization and then set it with a function that matches its type:</p>
+<pre><code class="language-javascript">const colorLoc = gl.getUniformLocation(program, 'u_color');
+
+gl.useProgram(program);            // the program must be active first
+gl.uniform3f(colorLoc, 1.0, 0.5, 0.0);
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>GLSL type</th>
+<th>JavaScript call</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>float</code></td>
+<td><code>gl.uniform1f(loc, x)</code></td>
+</tr>
+<tr>
+<td><code>vec2</code> / <code>vec3</code> / <code>vec4</code></td>
+<td><code>gl.uniform2f</code> / <code>gl.uniform3f</code> / <code>gl.uniform4f</code></td>
+</tr>
+<tr>
+<td><code>int</code>, <code>sampler2D</code></td>
+<td><code>gl.uniform1i(loc, n)</code></td>
+</tr>
+<tr>
+<td><code>mat3</code> / <code>mat4</code></td>
+<td><code>gl.uniformMatrix3fv</code> / <code>gl.uniformMatrix4fv</code></td>
+</tr>
+</tbody>
+</table>
+<h3>The animation loop</h3>
+<p>To animate, you redraw the scene about 60 times per second. The browser provides <code>requestAnimationFrame</code> for this: it calls your function right before the next screen refresh and passes a high-resolution timestamp in milliseconds.</p>
+<pre><code class="language-javascript">function render(timeMs) {
+    const t = timeMs * 0.001;                 // convert to seconds
+
+    resizeCanvasToDisplaySize(gl.canvas);
+    gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+    gl.clear(gl.COLOR_BUFFER_BIT);
+
+    gl.useProgram(program);
+    gl.uniform1f(timeLoc, t);                 // new value every frame
+    gl.bindVertexArray(vao);
+    gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+    requestAnimationFrame(render);            // schedule the next frame
+}
+requestAnimationFrame(render);
+</code></pre>
+<p>Using the <strong>timestamp</strong> instead of a frame counter makes animations run at the same speed on a 60 Hz and a 144 Hz display. Compared with the Web Audio API, the idea is similar: JavaScript is the <em>control</em> layer, and the real-time work happens on a separate processor — the audio thread there, the GPU here.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/uniform" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Uniforms – MDN &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/requestAnimationFrame" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">requestAnimationFrame – MDN &#8599;</a>
+</p>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(26,115,232,0.07); border-radius:6px; padding:12px 18px; margin:20px 0;">
+  <p style="margin:0 0 6px 0;"><b>Interactive Demo 2 &mdash; Uniforms and Animation</b></p>
+  <p style="margin:0 0 6px 0;">Control shader values from JavaScript. Sliders and a color picker feed uniforms, and a <code>requestAnimationFrame</code> loop animates a glowing quad with the elapsed time.</p>
+  <p style="margin:0 0 6px 0;"><i>What to look for:</i> Pause the animation and change the speed: time does not jump, because it is <i>accumulated</i> instead of read from the raw timestamp.</p>
+  <a href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_uniforms.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Uniforms Demo &#8599;</a>
+</div>
+</div>
+
+<div class="nb-cell">
+<hr />
+<h2>8. Transformations and Matrices</h2>
+<p>To move, rotate or scale an object you do <strong>not</strong> change its vertex data. You keep the geometry as it is and transform it in the vertex shader with a <strong>matrix</strong>. Matrices are the standard tool because they can <strong>combine</strong> several transformations into one, and the GPU multiplies them extremely fast.</p>
+<h3>Homogeneous coordinates</h3>
+<p>A 2D translation cannot be written as a 2×2 matrix multiplication. The trick is to add a third coordinate that is always 1, so a 2D point <code>(x, y)</code> becomes <code>(x, y, 1)</code>. Then all three basic transformations become 3×3 matrices:</p>
+<pre><code>Translation              Rotation (angle θ)           Scale
+| 1  0  tx |             | cos θ  −sin θ  0 |         | sx  0   0 |
+| 0  1  ty |             | sin θ   cos θ  0 |         | 0   sy  0 |
+| 0  0  1  |             |   0       0    1 |         | 0   0   1 |
+</code></pre>
+<p>The vertex shader multiplies each position by one matrix uniform:</p>
+<pre><code class="language-glsl">#version 300 es
+in vec2 a_position;
+uniform mat3 u_matrix;
+
+void main() {
+    vec3 pos = u_matrix * vec3(a_position, 1.0);
+    gl_Position = vec4(pos.xy, 0.0, 1.0);
+}
+</code></pre>
+<h3>Order matters</h3>
+<p>Matrices are multiplied from <strong>right to left</strong>. In <code>M = T · R · S</code> the vertex is scaled first, then rotated, then translated. Changing the order changes the result: <em>rotate, then translate</em> moves an object along a rotated direction, while <em>translate, then rotate</em> swings it around the origin.</p>
+<pre><code>M = Translation × Rotation × Scale
+      (last)       (middle)   (first)
+</code></pre>
+<h3>Column-major order in JavaScript</h3>
+<p>WebGL expects matrices as a flat array in <strong>column-major order</strong>: the numbers of the first column come first. The <code>transpose</code> argument of <code>uniformMatrix*</code> must be <code>false</code> in WebGL.</p>
+<pre><code class="language-javascript">function rotation(angle) {
+    const c = Math.cos(angle), s = Math.sin(angle);
+    return new Float32Array([
+         c,  s, 0,     // column 0
+        -s,  c, 0,     // column 1
+         0,  0, 1,     // column 2
+    ]);
+}
+
+gl.uniformMatrix3fv(matrixLoc, false, rotation(t));
+</code></pre>
+<p>In practice, most projects use a library such as <strong>gl-matrix</strong> for matrix math. In our demos we write a small helper ourselves, so you can see exactly what happens.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://webgl2fundamentals.org/webgl/lessons/webgl-2d-matrices.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">2D Matrices &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/uniformMatrix" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">uniformMatrix – MDN &#8599;</a>
+  <a href="https://glmatrix.net/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">gl-matrix &#8599;</a>
+</p>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(26,115,232,0.07); border-radius:6px; padding:12px 18px; margin:20px 0;">
+  <p style="margin:0 0 6px 0;"><b>Interactive Demo 3 &mdash; 2D Transformations</b></p>
+  <p style="margin:0 0 6px 0;">Translate, rotate and scale an asymmetric letter &ldquo;F&rdquo; with a 3&times;3 matrix, and watch the matrix update live.</p>
+  <p style="margin:0 0 6px 0;"><i>What to look for:</i> Set a translation, then switch the order from <code>T&middot;R&middot;S</code> to <code>R&middot;T&middot;S</code> and rotate: the F spins in place in one case and orbits the origin in the other.</p>
+  <a href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_transform.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Transformations Demo &#8599;</a>
+</div>
+</div>
+
+<div class="nb-cell">
+<hr />
+<h2>9. Going 3D</h2>
+<p>WebGL itself is always a 2D rasterizer. 3D is an <strong>illusion</strong> created by the vertex shader, which projects 3D positions onto the 2D screen. This is done with three matrices that are combined into one.</p>
+<h3>Model, View and Projection</h3>
+<table>
+<thead>
+<tr>
+<th>Matrix</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Model</strong></td>
+<td>Places the object in the world: its position, rotation and scale</td>
+</tr>
+<tr>
+<td><strong>View</strong></td>
+<td>Moves the world so that the camera sits at the origin and looks along −z</td>
+</tr>
+<tr>
+<td><strong>Projection</strong></td>
+<td>Turns the camera's view volume into clip space, creating perspective</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-glsl">#version 300 es
+in vec3 a_position;
+uniform mat4 u_model;
+uniform mat4 u_view;
+uniform mat4 u_projection;
+
+void main() {
+    gl_Position = u_projection * u_view * u_model * vec4(a_position, 1.0);
+}
+</code></pre>
+<p>The <strong>perspective projection</strong> is defined by the field of view, the aspect ratio of the canvas and the near and far clipping planes. After the vertex shader, the GPU automatically divides x, y and z by the fourth component <code>w</code> (the <strong>perspective divide</strong>). Objects far away have a large <code>w</code>, so they end up smaller on screen.</p>
+<pre><code class="language-javascript">function perspective(fovY, aspect, near, far) {
+    const f  = 1 / Math.tan(fovY / 2);
+    const nf = 1 / (near - far);
+    return new Float32Array([
+        f / aspect, 0, 0,                    0,
+        0,          f, 0,                    0,
+        0,          0, (far + near) * nf,   -1,
+        0,          0, 2 * far * near * nf,  0,
+    ]);
+}
+</code></pre>
+<h3>The depth test</h3>
+<p>When several triangles cover the same pixel, WebGL must decide which one is in front. Without any help it simply draws them in the order you submit them, so a back face can paint over a front face. The <strong>depth buffer</strong> solves this: it stores the depth of the closest fragment drawn so far for every pixel, and discards fragments that are farther away.</p>
+<pre><code class="language-javascript">gl.enable(gl.DEPTH_TEST);
+
+// Clear both color and depth at the start of every frame
+gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+</code></pre>
+<p>You can also enable <strong>back-face culling</strong> with <code>gl.enable(gl.CULL_FACE)</code>. Triangles whose vertices appear in clockwise order on screen are then skipped. By default, <strong>counter-clockwise</strong> winding means front-facing.</p>
+<h3>Index buffers</h3>
+<p>A cube has 8 corners but 12 triangles, which means 36 vertices if every triangle is listed separately. An <strong>index buffer</strong> (<code>ELEMENT_ARRAY_BUFFER</code>) lists each vertex once and then refers to vertices by number, so shared corners are not duplicated.</p>
+<pre><code class="language-javascript">const indices = new Uint16Array([
+    0, 1, 2,   0, 2, 3,     // first face: two triangles
+    // ... more faces ...
+]);
+
+const indexBuffer = gl.createBuffer();
+gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, indexBuffer);
+gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, indices, gl.STATIC_DRAW);
+
+// At draw time:
+gl.drawElements(gl.TRIANGLES, indices.length, gl.UNSIGNED_SHORT, 0);
+</code></pre>
+<p>The index buffer binding is stored in the <strong>VAO</strong>, so bind the VAO first and then create the index buffer. In practice, if each face needs its own color, normal or texture coordinate, a cube uses <strong>24 vertices</strong> (4 per face) so that a corner can have different data on each face it belongs to.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/WebGL_model_view_projection" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Model View Projection – MDN &#8599;</a>
+  <a href="https://webgl2fundamentals.org/webgl/lessons/webgl-3d-perspective.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Perspective &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/drawElements" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">drawElements – MDN &#8599;</a>
+</p>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(26,115,232,0.07); border-radius:6px; padding:12px 18px; margin:20px 0;">
+  <p style="margin:0 0 6px 0;"><b>Interactive Demo 4 &mdash; Rotating Cube</b></p>
+  <p style="margin:0 0 6px 0;">Your first 3D scene: an indexed cube with model, view and perspective matrices. Drag to rotate it.</p>
+  <p style="margin:0 0 6px 0;"><i>What to look for:</i> Switch off the <i>depth test</i> and <i>face culling</i> and watch faces get painted in the wrong order. Change the field of view and the camera distance to see how perspective works.</p>
+  <a href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_cube.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Cube Demo &#8599;</a>
+</div>
+</div>
+
+<div class="nb-cell">
+<hr />
+<h2>10. Textures</h2>
+<p>A <strong>texture</strong> is an image stored in GPU memory that shaders can read from. Instead of giving each vertex a color, you give it a <strong>texture coordinate</strong> (also called UV coordinate) that says which point of the image belongs to that vertex. The GPU interpolates these coordinates across the triangle, just like a varying color.</p>
+<pre><code>(0,1) ┌───────────┐ (1,1)
+      │           │            u goes left → right
+      │  texture  │            v goes bottom → top
+      │           │
+(0,0) └───────────┘ (1,0)
+</code></pre>
+<p>Texture coordinates always range from 0 to 1, independent of the image size in pixels.</p>
+<h3>Creating a texture</h3>
+<pre><code class="language-javascript">const texture = gl.createTexture();
+gl.bindTexture(gl.TEXTURE_2D, texture);
+
+// Upload the pixels. The source can be an &lt;img&gt;, a &lt;canvas&gt;, a &lt;video&gt; or typed array data.
+gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, sourceCanvas);
+
+gl.generateMipmap(gl.TEXTURE_2D);
+</code></pre>
+<p>HTML images have their origin at the <strong>top left</strong>, while texture coordinates start at the <strong>bottom left</strong>. To compensate, call <code>gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, true)</code> before uploading.</p>
+<h3>Filtering and wrapping</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>Options</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>TEXTURE_MAG_FILTER</code></td>
+<td><code>NEAREST</code>, <code>LINEAR</code></td>
+<td>Used when the texture is magnified: blocky pixels or smooth blending</td>
+</tr>
+<tr>
+<td><code>TEXTURE_MIN_FILTER</code></td>
+<td><code>NEAREST</code>, <code>LINEAR</code>, <code>LINEAR_MIPMAP_LINEAR</code>, …</td>
+<td>Used when the texture is shrunk. Mipmaps (pre-scaled smaller copies) avoid flickering and aliasing</td>
+</tr>
+<tr>
+<td><code>TEXTURE_WRAP_S/T</code></td>
+<td><code>CLAMP_TO_EDGE</code>, <code>REPEAT</code>, <code>MIRRORED_REPEAT</code></td>
+<td>What happens for coordinates outside 0…1</td>
+</tr>
+</tbody>
+</table>
+<pre><code class="language-javascript">gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+</code></pre>
+<p>In WebGL 1 mipmaps and <code>REPEAT</code> only worked for power-of-two image sizes. In WebGL 2 this restriction is gone.</p>
+<h3>Sampling in the shader</h3>
+<p>A texture is read in the fragment shader through a <strong>sampler</strong> uniform. The texture is bound to a <strong>texture unit</strong>, and the sampler uniform holds the number of that unit.</p>
+<pre><code class="language-glsl">#version 300 es
+precision highp float;
+in vec2 v_uv;                  // interpolated texture coordinate
+uniform sampler2D u_texture;
+out vec4 outColor;
+
+void main() {
+    outColor = texture(u_texture, v_uv);
+}
+</code></pre>
+<pre><code class="language-javascript">gl.activeTexture(gl.TEXTURE0);              // select texture unit 0
+gl.bindTexture(gl.TEXTURE_2D, texture);
+gl.uniform1i(textureLoc, 0);                // sampler reads from unit 0
+</code></pre>
+<p>In our texture demo the image is generated in JavaScript on a 2D canvas, so there is no external file and no loading or cross-origin issues when you open the file locally.</p>
+<h3>Video as a texture</h3>
+<p><code>texImage2D</code> also accepts an <code>HTMLVideoElement</code>. A video is simply <strong>a texture whose pixels change every frame</strong>: you keep the <code>&lt;video&gt;</code> element playing in the background and copy its current frame to the texture once per frame in the render loop.</p>
+<pre><code class="language-javascript">function render() {
+    // Upload only when the video has a frame available
+    if (video.readyState &gt;= video.HAVE_CURRENT_DATA) {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, video);
+    }
+
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(render);
+}
+</code></pre>
+<p>For video, the texture is usually set up with <code>LINEAR</code> filtering, <code>CLAMP_TO_EDGE</code> wrapping and <strong>no mipmaps</strong>: mipmaps would have to be regenerated every frame, and a video is typically shown at about its original size.</p>
+<p><strong>Video sources.</strong> A local file is played through <code>URL.createObjectURL(file)</code>; the webcam is available through <code>navigator.mediaDevices.getUserMedia({ video: true })</code> and needs the user's permission. For autoplay the video element must be <code>muted</code>.</p>
+<h3>Real-time filters in the fragment shader</h3>
+<p>Because the fragment shader runs once per pixel, in parallel, it is ideal for image and video processing. A 1080p frame has about 2 million pixels, and the GPU processes all of them at the same time. The vertex shader only draws a quad; all the work happens in the fragment shader.</p>
+<pre><code class="language-glsl">uniform sampler2D u_texture;
+
+vec3 grayscale(vec3 c) {
+    // Luminance weights for Rec. 709: the eye is most sensitive to green
+    float y = dot(c, vec3(0.2126, 0.7152, 0.0722));
+    return vec3(y);
+}
+
+void main() {
+    vec3 color = texture(u_texture, v_uv).rgb;
+    outColor = vec4(grayscale(color), 1.0);
+}
+</code></pre>
+<p>Filters that need neighbouring pixels, such as <strong>blur</strong> or <strong>Sobel edge detection</strong>, sample the texture several times with small offsets. In GLSL ES 3.00 the size of one texel is <code>1.0 / vec2(textureSize(u_texture, 0))</code>.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Tutorial/Using_textures_in_WebGL" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Using textures – MDN &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/texImage2D" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">texImage2D – MDN &#8599;</a>
+  <a href="https://webgl2fundamentals.org/webgl/lessons/webgl-3d-textures.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Textures &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">HTMLVideoElement – MDN &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">getUserMedia – MDN &#8599;</a>
+</p>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(26,115,232,0.07); border-radius:6px; padding:12px 18px; margin:20px 0;">
+  <p style="margin:0 0 6px 0;"><b>Interactive Demo 5 &mdash; Textures</b></p>
+  <p style="margin:0 0 6px 0;">Map a procedurally generated texture onto the cube. Choose the filtering, the mipmaps, the wrap mode and the UV scale.</p>
+  <p style="margin:0 0 6px 0;"><i>What to look for:</i> With the low-resolution texture, compare <code>NEAREST</code> and <code>LINEAR</code>. With the detailed texture, a high UV scale and a large distance, compare <code>NEAREST</code> with <code>LINEAR_MIPMAP_LINEAR</code>: the first shimmers, the second does not.</p>
+  <a href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_texture.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Texture Demo &#8599;</a>
+</div>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(26,115,232,0.07); border-radius:6px; padding:12px 18px; margin:20px 0;">
+  <p style="margin:0 0 6px 0;"><b>Interactive Demo 6 &mdash; Video Filters</b></p>
+  <p style="margin:0 0 6px 0;">Use a video as a texture and process it in real time with fragment shaders: grayscale, sepia, invert, threshold, Sobel edge detection and blur. A split view shows the original next to the filtered result.</p>
+  <p style="margin:0 0 6px 0;"><i>What to look for:</i> The demo starts with an animated pattern, so it needs no file and no permission. Switch to a local video file or the webcam, and compare the filters side by side with the split slider.</p>
+  <a href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_video.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Video Demo &#8599;</a>
+</div>
+</div>
+
+<div class="nb-cell">
+<hr />
+<h2>11. Lighting</h2>
+<p>WebGL has <strong>no built-in lighting</strong>. The old fixed-function OpenGL had it, modern APIs do not. Lighting is simply math in your shaders. This section is an outlook for the optional demo.</p>
+<h3>Normals</h3>
+<p>To compute how much light hits a surface, the shader needs the surface <strong>normal</strong>: a unit vector pointing perpendicular to the surface. Normals are provided as an additional attribute, one per vertex.</p>
+<h3>Diffuse (Lambert) lighting</h3>
+<p>A matte surface is brightest when it faces the light and darkens as it turns away. This is described by the <strong>dot product</strong> of the normal <strong>N</strong> and the direction to the light <strong>L</strong>, both normalized:</p>
+<pre><code>diffuse = max( dot(N, L), 0 )
+</code></pre>
+<p>If N and L point in the same direction the dot product is 1 (full brightness). At 90° it is 0, and for surfaces facing away it is negative, so we clamp it to 0.</p>
+<pre><code class="language-glsl">#version 300 es
+precision highp float;
+in vec3 v_normal;
+uniform vec3 u_lightDirection;   // direction pointing TOWARD the light
+uniform vec3 u_baseColor;
+uniform float u_ambient;         // minimum brightness, e.g. 0.15
+out vec4 outColor;
+
+void main() {
+    vec3 N = normalize(v_normal);    // interpolation can shorten the vector
+    vec3 L = normalize(u_lightDirection);
+
+    float diffuse = max(dot(N, L), 0.0);
+    vec3 color = u_baseColor * (u_ambient + diffuse);
+
+    outColor = vec4(color, 1.0);
+}
+</code></pre>
+<h3>The normal matrix</h3>
+<p>When an object is rotated, its normals must rotate as well. For rotations the model matrix works fine. For non-uniform scaling, normals must be transformed with the <strong>inverse transpose</strong> of the upper-left 3×3 part of the model matrix (the <em>normal matrix</em>), otherwise they stop being perpendicular to the surface.</p>
+<h3>Beyond diffuse</h3>
+<p>Real-time shading models build on this foundation: <strong>ambient</strong> (constant base light), <strong>diffuse</strong> (this section), <strong>specular</strong> (highlights, depending on the viewer's position — the <em>Phong</em> and <em>Blinn-Phong</em> models) and, in modern engines, <strong>physically based rendering (PBR)</strong>.</p>
+<p style="margin:12px 0 0 0;">
+  <a href="https://webgl2fundamentals.org/webgl/lessons/webgl-3d-lighting-directional.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Directional lighting &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Tutorial/Lighting_in_WebGL" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Lighting – MDN &#8599;</a>
+</p>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(26,115,232,0.07); border-radius:6px; padding:12px 18px; margin:20px 0;">
+  <p style="margin:0 0 6px 0;"><b>Interactive Demo 7 &mdash; Lighting (optional)</b></p>
+  <p style="margin:0 0 6px 0;">Add normals and a diffuse light to a cube (flat normals) or a sphere (smooth normals). Move the light with azimuth and elevation, and change the ambient level.</p>
+  <p style="margin:0 0 6px 0;"><i>What to look for:</i> Enable <i>show normals</i> to see them as colors, compare the faceted cube with the smooth sphere, and notice that the light stays fixed while the model rotates.</p>
+  <a href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_lighting.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Lighting Demo &#8599;</a>
+</div>
+</div>
+
+<div class="nb-cell">
+<hr />
+<h2>12. Demo Index</h2>
+<p>Each demo was introduced after the section it belongs to. This table is the overview, in the order in which the demos build on each other. Every demo is a standalone HTML file with <strong>WebGL 2</strong>, written without any library. The source code is commented step by step like a tutorial, so open it in your editor next to the running page.</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Demo</th>
+<th>New concepts</th>
+<th>Section</th>
+<th>Link</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Triangle</td>
+<td>Context, shaders, buffers, VAO, varyings</td>
+<td>3 – 6</td>
+<td><a href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_triangle.html">Open &#8599;</a></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Uniforms and Animation</td>
+<td>Uniforms, animation loop</td>
+<td>7</td>
+<td><a href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_uniforms.html">Open &#8599;</a></td>
+</tr>
+<tr>
+<td>3</td>
+<td>2D Transformations</td>
+<td>Matrices, order of operations</td>
+<td>8</td>
+<td><a href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_transform.html">Open &#8599;</a></td>
+</tr>
+<tr>
+<td>4</td>
+<td>Rotating Cube</td>
+<td>MVP, perspective, depth test, index buffer</td>
+<td>9</td>
+<td><a href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_cube.html">Open &#8599;</a></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Textures</td>
+<td>UV coordinates, filtering, mipmaps, wrapping</td>
+<td>10</td>
+<td><a href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_texture.html">Open &#8599;</a></td>
+</tr>
+<tr>
+<td>6</td>
+<td>Video Filters</td>
+<td>Video textures, real-time fragment-shader filters</td>
+<td>10</td>
+<td><a href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_video.html">Open &#8599;</a></td>
+</tr>
+<tr>
+<td>7</td>
+<td>Lighting <em>(optional)</em></td>
+<td>Normals, diffuse lighting</td>
+<td>11</td>
+<td><a href="https://tuilmenauams.github.io/multimedia_programming_seminars/02_webgl_lighting.html">Open &#8599;</a></td>
+</tr>
+</tbody>
+</table>
+<p><strong>How to open them:</strong>
+- <strong>Locally:</strong> The HTML files are in the same folder as this notebook. Open them directly in your browser.
+- <strong>On GitHub Pages:</strong> Use the links in the table, which open the demos directly from <a href="https://tuilmenauams.github.io/multimedia_programming_seminars/">tuilmenauams.github.io</a>.</p>
+<p><strong>Requirements:</strong> a current browser with WebGL 2 enabled (Chrome, Edge, Firefox or Safari). Each demo shows a message if WebGL 2 is not available.</p>
+<p><strong>Note on the video demo:</strong> it starts with an animated pattern and needs no file and no permission. Playing a local video file works everywhere. The webcam needs your permission and may be blocked on some browsers when opened remotely; open the file locally if that happens.</p>
+</div>
+
+<div class="nb-cell">
+<hr />
+<h2>13. Further Resources</h2>
+<p>WebGL is a deep topic. This chapter covered the fundamentals; the resources below are good next steps.</p>
+<table>
+<thead>
+<tr>
+<th>Resource</th>
+<th>What it covers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>MDN WebGL API guide</strong></td>
+<td>A complete reference of all WebGL objects and methods, with tutorials</td>
+</tr>
+<tr>
+<td><strong>WebGL2 Fundamentals</strong></td>
+<td>A free, step-by-step course from the first triangle to lighting, textures and framebuffers</td>
+</tr>
+<tr>
+<td><strong>Khronos WebGL 2.0 specification</strong></td>
+<td>The formal specification; useful for precise behaviour and edge cases</td>
+</tr>
+<tr>
+<td><strong>The Book of Shaders</strong></td>
+<td>An introduction to fragment shaders and generative graphics</td>
+</tr>
+<tr>
+<td><strong>Three.js documentation</strong></td>
+<td>The most popular high-level library on top of WebGL; a natural next step after raw WebGL</td>
+</tr>
+<tr>
+<td><strong>WebGPU Fundamentals</strong></td>
+<td>The successor API, with the same concepts in a modern, explicit design</td>
+</tr>
+</tbody>
+</table>
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">MDN WebGL API &#8599;</a>
+  <a href="https://webgl2fundamentals.org/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">WebGL2 Fundamentals &#8599;</a>
+  <a href="https://registry.khronos.org/webgl/specs/latest/2.0/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Khronos WebGL 2.0 Spec &#8599;</a>
+  <a href="https://thebookofshaders.com/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">The Book of Shaders &#8599;</a>
+  <a href="https://threejs.org/docs/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Three.js &#8599;</a>
+  <a href="https://webgpufundamentals.org/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">WebGPU Fundamentals &#8599;</a>
+</p>
+</div>
+
+<!-- Footer cell -->
+<div class="nb-footer-cell">
+<hr />
+<div style="text-align:center; padding:18px 0 8px 0; margin-top:24px; border-top:2px solid #e0e0e0;">
+  <p style="margin:0 0 6px 0;">
+    <b>Multimediaprogrammierung</b> &middot; Chapter 02: WebGL 2<br>
+    Institut für Medientechnik &ndash; Technische Universität Ilmenau
+  </p>
+  <p style="margin:0; font-size:0.95em;">
+    Notebook created by <b>Renato Fera P.</b> &middot;
+    <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+  </p>
+</div>
+</div>
+
+</div>
+</main>
+
+<footer>
+  <p><strong>Multimediaprogrammierung</strong> &middot; Seminar Materials<br>
+  Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+  <p>
+    Page maintained by <strong>Renato Fera P.</strong> &middot;
+    <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+    &nbsp;&middot;&nbsp;
+    <a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars" target="_blank" rel="noopener">github.com/TUIlmenauAMS/multimedia_programming_seminars</a>
+  </p>
+</footer>
+
+</body>
+</html>
