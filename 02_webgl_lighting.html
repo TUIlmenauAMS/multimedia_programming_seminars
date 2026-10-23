@@ -1,0 +1,846 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebGL 2 – Lighting Demo</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --accent:    #1a73e8;
+      --danger:    #e53935;
+      --border:    #e0e0e0;
+      --canvas-bg: #1e1e2e;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 16px; line-height: 1.6; color: #212121;
+      background: #fff; max-width: 900px; margin: 0 auto; padding: 0 24px 48px;
+    }
+
+    [hidden] { display: none !important; }
+
+    /* ── Header ── */
+    .nb-header { display: flex; align-items: center; gap: 24px; border-bottom: 2px solid #e0e0e0; padding: 16px 0; margin-bottom: 32px; }
+    .nb-header img { width: 120px; border-radius: 12px; flex-shrink: 0; }
+    .nb-header h1 { font-size: 1.6rem; margin-bottom: 4px; }
+    .nb-header h2 { font-size: 1.1rem; font-weight: 400; margin-bottom: 8px; color: #444; }
+    .nb-header p  { font-size: 0.92rem; margin-bottom: 2px; }
+    .nb-header a  { color: #1a73e8; text-decoration: none; }
+    .nb-header a:hover { text-decoration: underline; }
+
+    /* ── Pills ── */
+    .pills { margin: 12px 0; display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill { display: inline-block; padding: 6px 14px; border: 1px solid #1a73e8; border-radius: 20px; text-decoration: none; font-weight: 600; font-size: 0.92rem; color: #1a73e8; transition: background 0.15s, color 0.15s; }
+    .pill:hover { background: #1a73e8; color: #fff; }
+
+    /* ── Sections ── */
+    h2.section { font-size: 1.3rem; margin: 40px 0 12px; }
+    hr { border: none; border-top: 1px solid #e0e0e0; margin: 36px 0; }
+    p  { margin-bottom: 12px; }
+    ol, ul.list { margin: 0 0 12px 24px; }
+    li { margin-bottom: 6px; }
+
+    /* ── Demo card ── */
+    .demo-card { background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 12px; padding: 28px 32px; margin: 24px 0; }
+    .demo-card h3 { font-size: 1rem; font-weight: 600; margin-bottom: 20px; color: #444; text-transform: uppercase; letter-spacing: 0.04em; }
+
+    /* ── Controls ── */
+    .control-row { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+    .control-row label { min-width: 130px; font-weight: 500; font-size: 0.95rem; }
+    .control-row input[type=range] { flex: 1; min-width: 160px; accent-color: var(--accent); }
+    .control-row input[type=checkbox] { accent-color: var(--accent); width: 18px; height: 18px; }
+    .control-row input[type=color] { width: 44px; height: 32px; border: 1px solid #ccc; border-radius: 8px; padding: 2px; background: #fff; cursor: pointer; }
+    .control-row select { padding: 6px 10px; border: 1px solid #ccc; border-radius: 8px; font-size: 0.95rem; background: #fff; }
+    .value-badge { min-width: 52px; text-align: right; font-variant-numeric: tabular-nums; font-size: 0.92rem; color: #555; }
+
+    /* Keyboard focus */
+    input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible, a:focus-visible {
+      outline: 2px solid var(--accent); outline-offset: 2px;
+    }
+
+    /* ── Canvas ── */
+    canvas { display: block; width: 100%; height: 120px; border-radius: 8px; background: var(--canvas-bg); margin-top: 20px; }
+    canvas.gl-canvas { height: auto; aspect-ratio: 16 / 10; margin-top: 0; touch-action: none; cursor: grab; }
+    canvas.gl-canvas:active { cursor: grabbing; }
+    .canvas-wrap { margin-bottom: 8px; }
+    .drag-hint { font-size: 0.85rem; color: #777; text-align: center; margin-bottom: 16px; }
+
+    /* ── Stats ── */
+    .stats { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.82rem; color: #555; margin-top: 10px; line-height: 1.6; }
+
+    /* ── Error banner ── */
+    .error-banner { background: #fdecea; border-left: 5px solid var(--danger); border-radius: 6px; padding: 12px 18px; margin: 20px 0; color: #7f1d1d; }
+    .error-banner pre { white-space: pre-wrap; font-size: 0.85rem; margin-top: 8px; }
+
+    /* ── Shader source ── */
+    details.shader-source { margin: 16px 0; border: 1px solid var(--border); border-radius: 8px; padding: 8px 14px; background: #fafafa; }
+    details.shader-source summary { cursor: pointer; font-weight: 600; }
+    details.shader-source h4 { font-size: 0.92rem; margin: 14px 0 0; color: #444; }
+    details.shader-source pre { overflow-x: auto; font-size: 0.82rem; line-height: 1.5; margin-top: 6px; font-family: "SFMono-Regular", Consolas, monospace; }
+
+    /* ── Info box ── */
+    .info-box { border-left: 5px solid #1a73e8; background: rgba(26,115,232,0.07); border-radius: 6px; padding: 12px 18px; margin: 20px 0; font-size: 0.95rem; }
+    .info-box p:last-child { margin-bottom: 0; }
+
+    code { background: #f1f3f4; border-radius: 4px; padding: 1px 6px; font-size: 0.9em; font-family: "SFMono-Regular", Consolas, monospace; }
+
+    /* ── Footer ── */
+    .nb-footer { text-align: center; padding: 18px 0 8px; margin-top: 48px; border-top: 2px solid #e0e0e0; font-size: 0.92rem; color: #444; line-height: 1.7; }
+    .nb-footer a { color: #1a73e8; text-decoration: none; }
+    .nb-footer a:hover { text-decoration: underline; }
+
+    @media (max-width: 600px) {
+      .nb-header { flex-direction: column; align-items: flex-start; }
+      .demo-card { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <header class="nb-header">
+    <img
+      src="https://raw.githubusercontent.com/TUIlmenauAMS/multimedia_programming_seminars/main/ams_group_tui.png"
+      alt="AMS Group – TU Ilmenau"
+    />
+    <div>
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 02: WebGL 2 &mdash; Demo: Lighting</h2>
+      <p><strong>Institut für Medientechnik &ndash; Technische Universität Ilmenau</strong><br>
+        <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme" target="_blank">
+          Institut für Medientechnik &ndash; AMS Group
+        </a>
+      </p>
+      <p>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller<br>
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+      </p>
+    </div>
+  </header>
+
+  <!-- ── Section 1: Concept ── -->
+  <h2 class="section">1. Diffuse (Lambert) Lighting</h2>
+  <p>
+    Lighting in real-time graphics starts with the <strong>surface normal</strong> — a unit vector perpendicular to the surface at each point. The <strong>Lambert (diffuse) model</strong> says that the brightness of a surface patch depends only on the angle between the normal <strong>N</strong> and the direction toward the light <strong>L</strong>: surfaces facing the light are bright; surfaces facing away receive no light.
+  </p>
+  <p>
+    The formula is: <code>diffuse = max(dot(N, L), 0)</code>. The <code>dot</code> product gives the cosine of the angle (1 when parallel, 0 at 90°, negative when facing away — clamped to 0). An <strong>ambient</strong> term is added so surfaces facing away from the light are not pure black.
+  </p>
+
+  <div class="info-box">
+    <p><strong>Lambert formula:</strong> <code>color = baseColor &times; (ambient + max(dot(N, L), 0))</code> — where <strong>N</strong> is the surface normal and <strong>L</strong> is the unit direction <em>toward</em> the light.</p>
+    <p><strong>Flat vs smooth normals:</strong> the cube has four identical normals per face (flat shading — each face is one constant colour). The sphere has a unique normal per vertex pointing directly outward from the centre (smooth shading — brightness varies continuously). That is why the cube looks faceted and the sphere looks rounded.</p>
+    <p><strong>The light is in world space and does not rotate with the model.</strong> Move the azimuth/elevation sliders with auto-rotate on to confirm: the lit side of the sphere tracks the light, not the model orientation.</p>
+    <p>Specular highlights (Blinn-Phong) and physically based rendering (PBR) build on this same diffuse foundation by adding reflected-light terms.</p>
+  </div>
+
+  <hr />
+
+  <!-- ── Section 2: Interactive Demo ── -->
+  <h2 class="section">2. Interactive Demo</h2>
+  <p>
+    Enable <em>Show normals</em> to visualise normals as RGB colour (X&rarr;red, Y&rarr;green, Z&rarr;blue): the sphere shows a smooth gradient; the cube shows 6 flat colours, one per face.
+  </p>
+
+  <div id="errorSlot"></div>
+
+  <div class="demo-card">
+    <h3>Lit Model</h3>
+
+    <div class="canvas-wrap">
+      <canvas id="glcanvas" class="gl-canvas" role="img"
+        aria-label="A lit 3D model rendered with WebGL 2 Lambert shading."></canvas>
+    </div>
+    <p class="drag-hint">Drag to rotate the model</p>
+
+    <!-- Model select -->
+    <div class="control-row">
+      <label for="model">Model</label>
+      <select id="model">
+        <option value="cube" selected>Cube (flat normals)</option>
+        <option value="sphere">Sphere (smooth normals)</option>
+      </select>
+    </div>
+
+    <!-- Light azimuth -->
+    <div class="control-row">
+      <label for="azimuth">Azimuth</label>
+      <input type="range" id="azimuth" min="0" max="360" step="1" value="45" />
+      <span class="value-badge" id="azimuthVal">45°</span>
+    </div>
+
+    <!-- Light elevation -->
+    <div class="control-row">
+      <label for="elevation">Elevation</label>
+      <input type="range" id="elevation" min="-90" max="90" step="1" value="35" />
+      <span class="value-badge" id="elevationVal">35°</span>
+    </div>
+
+    <!-- Ambient -->
+    <div class="control-row">
+      <label for="ambient">Ambient</label>
+      <input type="range" id="ambient" min="0" max="1" step="0.01" value="0.15" />
+      <span class="value-badge" id="ambientVal">0.15</span>
+    </div>
+
+    <!-- Base color -->
+    <div class="control-row">
+      <label for="color">Base colour</label>
+      <input type="color" id="color" value="#e8a21a" />
+    </div>
+
+    <!-- Show normals -->
+    <div class="control-row">
+      <label for="showNormals">Show normals</label>
+      <input type="checkbox" id="showNormals" />
+    </div>
+
+    <!-- Auto-rotate -->
+    <div class="control-row">
+      <label for="autoRotate">Auto-rotate</label>
+      <input type="checkbox" id="autoRotate" checked />
+    </div>
+
+    <div class="stats" id="stats" aria-live="off"></div>
+  </div>
+
+  <hr />
+
+  <!-- ── Section 3: How It Works ── -->
+  <h2 class="section">3. How It Works</h2>
+  <p>
+    This demo extends Demo 4 (Rotating Cube) with normals, a second model, and a lighting calculation in the fragment shader. The key additions:
+  </p>
+  <ol>
+    <li><strong>Normal attribute.</strong> Each vertex gets an <code>a_normal</code> vec3. For the cube, all four vertices on a face share the same outward-pointing normal (flat shading). For the sphere, each vertex's normal is <code>normalize(position)</code> — on a unit sphere, the position vector already points outward (smooth shading).</li>
+    <li><strong>Normal matrix.</strong> The vertex shader transforms normals by <code>transpose(inverse(mat3(u_model)))</code>. This is the correct transform that keeps normals perpendicular to the surface even if the model has non-uniform scaling. For a rotation-only model it equals the upper-left 3×3 of the model matrix.</li>
+    <li><strong>World-space light.</strong> The light direction uniform <code>u_lightDirection</code> is in world space and does not change when the model rotates — only the model matrix changes. The fragment shader normalises both <strong>N</strong> (needed because interpolation shortens vectors) and <strong>L</strong> before the dot product.</li>
+    <li><strong>Two VAOs, one program.</strong> The cube and sphere each have their own VAO recording their vertex data layout. Switching models is just a <code>gl.bindVertexArray</code> call — no re-uploading data.</li>
+    <li><strong>Light direction from spherical coordinates.</strong> Azimuth and elevation angles are converted to a Cartesian unit vector: <code>L = (cos(el)·sin(az), sin(el), cos(el)·cos(az))</code>. This gives intuitive sliders for the light position.</li>
+  </ol>
+
+  <div class="info-box">
+    <p><strong>Why normalise in the fragment shader?</strong> The vertex shader outputs <code>v_normal</code> as a unit vector, but the GPU <em>linearly interpolates</em> varyings across the triangle. A linear blend of two unit vectors is generally shorter than 1 (e.g., the midpoint of (1,0,0) and (0,1,0) has length ≈ 0.707). Calling <code>normalize(v_normal)</code> in the fragment shader corrects this, giving proper lighting across the surface.</p>
+  </div>
+
+  <details class="shader-source">
+    <summary>Show the shader source that runs on your GPU</summary>
+    <h4>Vertex shader</h4>
+    <pre id="vsSource"></pre>
+    <h4>Fragment shader</h4>
+    <pre id="fsSource"></pre>
+  </details>
+
+  <div class="pills">
+    <a class="pill" href="https://webgl2fundamentals.org/webgl/lessons/webgl-3d-lighting-directional.html" target="_blank">Directional lighting &mdash; webgl2fundamentals &#8599;</a>
+    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/WebGL_API/Tutorial/Lighting_in_WebGL" target="_blank">Lighting &mdash; MDN &#8599;</a>
+  </div>
+
+  <!-- ── Footer ── -->
+  <footer class="nb-footer">
+    <p><strong>Multimediaprogrammierung</strong> &middot; Chapter 02: WebGL 2 &middot; Demo: Lighting<br>
+      Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+    <p>Demo created by <strong>Renato Fera P.</strong> &middot;
+      <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank">LinkedIn</a>
+    </p>
+  </footer>
+
+  <!-- ── JavaScript ── -->
+  <script type="module">
+    /**
+     * ═══════════════════════════════════════════════════════════════════
+     * Chapter 02: WebGL 2 · Demo 7: Lighting
+     *
+     * Teaches:  Surface normals, Lambert (diffuse) shading, the normal
+     *           matrix (transpose-inverse), world-space directional light,
+     *           flat vs smooth normals (cube vs sphere), two VAOs sharing
+     *           one program, spherical-to-Cartesian light direction.
+     * Notebook: section 11 (Lighting).
+     *
+     * Steps in this file:
+     *   STEP 0  Collect DOM references once
+     *   STEP 1  Get the WebGL 2 context
+     *   STEP 2  Shader sources (GLSL ES 3.00)
+     *   STEP 3  Helper functions (shared WebGL + mat4 math)
+     *   STEP 4  Compile + link; cache attribute/uniform locations
+     *   STEP 5  Build cube geometry (flat normals, 24 verts, 36 indices)
+     *   STEP 6  Build sphere geometry (smooth normals, procedural)
+     *   STEP 7  Wire UI events and pointer drag to state
+     *   STEP 8  Render function (per frame)
+     *   STEP 9  Start the animation loop
+     * ═══════════════════════════════════════════════════════════════════
+     */
+
+    // ══════════════════════════════════════════════════════════════════
+    // STEP 0 — Collect DOM references once
+    // ══════════════════════════════════════════════════════════════════
+    const ui = {
+      canvas:       document.querySelector('#glcanvas'),
+      model:        document.querySelector('#model'),
+      azimuth:      document.querySelector('#azimuth'),
+      azimuthVal:   document.querySelector('#azimuthVal'),
+      elevation:    document.querySelector('#elevation'),
+      elevationVal: document.querySelector('#elevationVal'),
+      ambient:      document.querySelector('#ambient'),
+      ambientVal:   document.querySelector('#ambientVal'),
+      color:        document.querySelector('#color'),
+      showNormals:  document.querySelector('#showNormals'),
+      autoRotate:   document.querySelector('#autoRotate'),
+      stats:        document.querySelector('#stats'),
+      errorSlot:    document.querySelector('#errorSlot'),
+      vsSource:     document.querySelector('#vsSource'),
+      fsSource:     document.querySelector('#fsSource'),
+    };
+
+    // Rendering constants
+    const DEG_TO_RAD       = Math.PI / 180;
+    const NEAR             = 0.1;
+    const FAR              = 100.0;
+    const FOV_DEG          = 45;
+    const DISTANCE         = 4.0;   // fixed camera distance for this demo
+    const ROT_X_CLAMP      = 90;
+    const CLEAR_COLOR      = [0.118, 0.118, 0.18, 1.0];
+
+    // ══════════════════════════════════════════════════════════════════
+    // STEP 2 — Shader sources (GLSL ES 3.00)
+    // ══════════════════════════════════════════════════════════════════
+
+    // NEW in this demo: a_normal attribute + normal matrix transform.
+    // The vertex shader passes v_normal (in world space) to the fragment
+    // shader for the lighting calculation.
+    const vertexShaderSource = `#version 300 es
+in vec3 a_position;
+// NEW in this demo: per-vertex surface normal (unit vector, object space).
+in vec3 a_normal;
+
+uniform mat4 u_model;
+uniform mat4 u_view;
+uniform mat4 u_projection;
+
+// NEW: interpolated world-space normal, passed to the fragment shader.
+out vec3 v_normal;
+
+void main() {
+  // Transform the normal to world space using the normal matrix.
+  // The normal matrix is the inverse transpose of the model matrix's
+  // upper-left 3x3. It keeps normals perpendicular to the surface
+  // even when the model has non-uniform scaling.
+  // GLSL ES 3.00 has built-in mat3(), transpose(), and inverse().
+  v_normal = transpose(inverse(mat3(u_model))) * a_normal;
+
+  gl_Position = u_projection * u_view * u_model * vec4(a_position, 1.0);
+}`;
+
+    // NEW in this demo: Lambert diffuse lighting + normal visualisation.
+    const fragmentShaderSource = `#version 300 es
+precision highp float;
+
+// World-space normal, interpolated from the two vertex normals.
+// Linear interpolation of unit vectors produces a vector shorter than 1,
+// so we MUST normalize() again here before computing the dot product.
+in vec3 v_normal;
+
+// Light direction pointing TOWARD the light (world space).
+// It stays fixed while the model rotates — see the info box.
+uniform vec3  u_lightDirection;
+uniform vec3  u_baseColor;    // hex colour from the colour picker, 0..1
+uniform float u_ambient;      // minimum brightness when facing away from light
+uniform bool  u_showNormals;  // visualise normals as RGB instead of shading
+
+out vec4 outColor;
+
+void main() {
+  // Re-normalise: interpolation can shorten the normal vector.
+  vec3 N = normalize(v_normal);
+  vec3 L = normalize(u_lightDirection);
+
+  // Lambert diffuse: how much this surface patch faces the light.
+  // dot(N, L) = cos(angle). Clamped to 0 so back-facing surfaces get 0.
+  float diffuse = max(dot(N, L), 0.0);
+
+  // Map normal to RGB for visualisation: range -1..1 → 0..1.
+  // N pointing right (+X) → red; up (+Y) → green; toward camera (+Z) → blue.
+  vec3 color = u_showNormals
+    ? N * 0.5 + 0.5
+    : u_baseColor * (u_ambient + diffuse);
+
+  outColor = vec4(color, 1.0);
+}`;
+
+    // ══════════════════════════════════════════════════════════════════
+    // STEP 3 — Helper functions
+    // (Same as in 02_webgl_triangle.html and earlier demos)
+    // ══════════════════════════════════════════════════════════════════
+
+    /** Compile one shader stage; throw with the driver's info log on failure.
+     * @param {WebGL2RenderingContext} gl
+     * @param {number} type
+     * @param {string} source
+     * @returns {WebGLShader}
+     */
+    function createShader(gl, type, source) {
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+        const log = gl.getShaderInfoLog(shader);
+        gl.deleteShader(shader);
+        throw new Error(`Shader compile error:\n${log}`);
+      }
+      return shader;
+    }
+
+    /** Link a vertex + fragment shader into a program; throw on failure.
+     * @param {WebGL2RenderingContext} gl
+     * @param {string} vs
+     * @param {string} fs
+     * @returns {WebGLProgram}
+     */
+    function createProgram(gl, vs, fs) {
+      const v = createShader(gl, gl.VERTEX_SHADER, vs);
+      const f = createShader(gl, gl.FRAGMENT_SHADER, fs);
+      const program = gl.createProgram();
+      gl.attachShader(program, v);
+      gl.attachShader(program, f);
+      gl.linkProgram(program);
+      if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        const log = gl.getProgramInfoLog(program);
+        gl.deleteProgram(program);
+        throw new Error(`Program link error:\n${log}`);
+      }
+      return program;
+    }
+
+    /** Match the drawing buffer to the CSS display size × devicePixelRatio.
+     * @param {HTMLCanvasElement} canvas
+     * @returns {boolean} true if the size changed
+     */
+    function resizeCanvasToDisplaySize(canvas) {
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.round(canvas.clientWidth  * dpr);
+      const h = Math.round(canvas.clientHeight * dpr);
+      const changed = canvas.width !== w || canvas.height !== h;
+      if (changed) { canvas.width = w; canvas.height = h; }
+      return changed;
+    }
+
+    /** Show an error banner and disable all controls.
+     * @param {string} message
+     */
+    function showError(message) {
+      const banner = document.createElement('div');
+      banner.className = 'error-banner';
+      const title = document.createElement('strong');
+      title.textContent = 'This demo could not start.';
+      const pre = document.createElement('pre');
+      pre.textContent = message;
+      banner.append(title, pre);
+      ui.errorSlot.replaceChildren(banner);
+      document.querySelectorAll('.demo-card input, .demo-card select')
+        .forEach(el => { el.disabled = true; });
+    }
+
+    // NEW in this demo: mat4 helpers.
+    // Same helper as in 02_webgl_cube.html and subsequent demos.
+    // (In a real project you would use gl-matrix or a shared module.)
+    const mat4 = {
+      identity: () => new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1]),
+      translation: (x,y,z) => new Float32Array([1,0,0,0, 0,1,0,0, 0,0,1,0, x,y,z,1]),
+      rotationX: (a) => {
+        const c=Math.cos(a), s=Math.sin(a);
+        return new Float32Array([1,0,0,0, 0,c,s,0, 0,-s,c,0, 0,0,0,1]);
+      },
+      rotationY: (a) => {
+        const c=Math.cos(a), s=Math.sin(a);
+        return new Float32Array([c,0,-s,0, 0,1,0,0, s,0,c,0, 0,0,0,1]);
+      },
+      perspective: (fovY, aspect, near, far) => {
+        const f = 1 / Math.tan(fovY / 2), nf = 1 / (near - far);
+        return new Float32Array([f/aspect,0,0,0, 0,f,0,0, 0,0,(far+near)*nf,-1, 0,0,2*far*near*nf,0]);
+      },
+      /** Returns a × b (apply b first, then a). Column-major. */
+      multiply: (a, b) => {
+        const out = new Float32Array(16);
+        for (let c=0; c<4; c++) for (let r=0; r<4; r++) {
+          let s=0; for (let k=0; k<4; k++) s += a[k*4+r] * b[c*4+k];
+          out[c*4+r] = s;
+        }
+        return out;
+      },
+    };
+
+    /**
+     * Convert a hex colour string (e.g. "#e8a21a") to a [r,g,b] array in 0..1.
+     * @param {string} hex
+     * @returns {[number,number,number]}
+     */
+    function hexToRgb01(hex) {
+      const n = parseInt(hex.slice(1), 16);
+      return [(n >> 16 & 255) / 255, (n >> 8 & 255) / 255, (n & 255) / 255];
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // Entry point
+    // ══════════════════════════════════════════════════════════════════
+    function main() {
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 1 — Get the WebGL 2 context
+      // ════════════════════════════════════════════════════════════════
+      const gl = ui.canvas.getContext('webgl2');
+      if (!gl) {
+        throw new Error(
+          'WebGL 2 is not available in this browser.\n' +
+          'Use a current version of Chrome, Edge, Firefox or Safari and ' +
+          'enable hardware acceleration.'
+        );
+      }
+
+      // Fill the collapsible shader source viewer.
+      ui.vsSource.textContent = vertexShaderSource;
+      ui.fsSource.textContent = fragmentShaderSource;
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 4 — Compile + link; cache attribute/uniform locations
+      // ════════════════════════════════════════════════════════════════
+      const program = createProgram(gl, vertexShaderSource, fragmentShaderSource);
+
+      // Attribute locations — cached once, used in VAO setup below.
+      const aPosition = gl.getAttribLocation(program, 'a_position');
+      const aNormal   = gl.getAttribLocation(program, 'a_normal');
+
+      // Uniform locations — cached once, set every frame.
+      const uModel      = gl.getUniformLocation(program, 'u_model');
+      const uView       = gl.getUniformLocation(program, 'u_view');
+      const uProjection = gl.getUniformLocation(program, 'u_projection');
+      const uLightDir   = gl.getUniformLocation(program, 'u_lightDirection');
+      const uBaseColor  = gl.getUniformLocation(program, 'u_baseColor');
+      const uAmbient    = gl.getUniformLocation(program, 'u_ambient');
+      const uShowNorms  = gl.getUniformLocation(program, 'u_showNormals');
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 5 — Build cube geometry (flat normals)
+      // ════════════════════════════════════════════════════════════════
+      // 24 vertices (4 per face), 36 indices, same winding as Demo 4.
+      // NEW: each vertex now carries a_normal pointing outward from its face.
+      // All four vertices on a face share the same flat normal, which is why
+      // the cube shades as 6 distinct colours in "show normals" mode.
+      //
+      // Vertex layout per face (seen from outside): BL, BR, TL, TR.
+      // Index split: [0,1,3] + [0,3,2] → CCW from outside.
+
+      const CUBE_FACES = [
+        // [face normal, BL, BR, TL, TR]
+        { n:[+1,0,0], v:[[ .5,-.5, .5],[ .5,-.5,-.5],[ .5, .5, .5],[ .5, .5,-.5]] },
+        { n:[-1,0,0], v:[[-.5,-.5,-.5],[-.5,-.5, .5],[-.5, .5,-.5],[-.5, .5, .5]] },
+        { n:[0,+1,0], v:[[-.5, .5, .5],[ .5, .5, .5],[-.5, .5,-.5],[ .5, .5,-.5]] },
+        { n:[0,-1,0], v:[[-.5,-.5,-.5],[ .5,-.5,-.5],[-.5,-.5, .5],[ .5,-.5, .5]] },
+        { n:[0,0,+1], v:[[-.5,-.5, .5],[ .5,-.5, .5],[-.5, .5, .5],[ .5, .5, .5]] },
+        { n:[0,0,-1], v:[[ .5,-.5,-.5],[-.5,-.5,-.5],[ .5, .5,-.5],[-.5, .5,-.5]] },
+      ];
+
+      const cubePosData = [], cubeNrmData = [], cubeIdxData = [];
+      for (let f = 0; f < CUBE_FACES.length; f++) {
+        const { n, v } = CUBE_FACES[f];
+        const base = f * 4;
+        for (let i = 0; i < 4; i++) {
+          cubePosData.push(...v[i]);
+          cubeNrmData.push(...n); // same flat normal for all 4 vertices on this face
+        }
+        cubeIdxData.push(base,base+1,base+3, base,base+3,base+2);
+      }
+
+      /** Upload a position + normal geometry pair into a new VAO.
+       * @param {Float32Array} posArr  xyz positions
+       * @param {Float32Array} nrmArr  xyz normals (same count)
+       * @param {Uint16Array}  idxArr  triangle indices
+       * @returns {{ vao: WebGLVertexArrayObject, count: number }}
+       */
+      function buildVAO(posArr, nrmArr, idxArr) {
+        const vao = gl.createVertexArray();
+        gl.bindVertexArray(vao);
+
+        // Position buffer — bindBuffer sets the current ARRAY_BUFFER target;
+        // vertexAttribPointer reads from it.
+        const posBuf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, posBuf);
+        gl.bufferData(gl.ARRAY_BUFFER, posArr, gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(aPosition);
+        gl.vertexAttribPointer(aPosition, 3, gl.FLOAT, false, 0, 0);
+
+        // Normal buffer — NEW in this demo.
+        const nrmBuf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, nrmBuf);
+        gl.bufferData(gl.ARRAY_BUFFER, nrmArr, gl.STATIC_DRAW);
+        gl.enableVertexAttribArray(aNormal);
+        gl.vertexAttribPointer(aNormal, 3, gl.FLOAT, false, 0, 0);
+
+        // Index buffer — its binding is part of the VAO state.
+        const idxBuf = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, idxBuf);
+        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idxArr, gl.STATIC_DRAW);
+
+        gl.bindVertexArray(null);
+        return { vao, count: idxArr.length };
+      }
+
+      const cubeGeo = buildVAO(
+        new Float32Array(cubePosData),
+        new Float32Array(cubeNrmData),
+        new Uint16Array(cubeIdxData)
+      );
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 6 — Build sphere geometry (smooth normals)
+      // ════════════════════════════════════════════════════════════════
+      // UV sphere: rings of latitude × segments of longitude.
+      // For a unit sphere, the outward normal at any point is exactly
+      // the position vector — so normal = normalize(position) = position.
+      //
+      // Winding: the quad (ring, seg) → (ring+1, seg) → (ring, seg+1) → …
+      // is split as [a,b,d]+[a,d,c] which winds CCW from outside (verified
+      // by geometry unit tests before writing this file).
+
+      /** Generate a UV sphere.
+       * @param {number} segments  longitude subdivisions (e.g. 32)
+       * @param {number} rings     latitude  subdivisions (e.g. 24)
+       * @returns {{ vao: WebGLVertexArrayObject, count: number }}
+       */
+      function buildSphere(segments, rings) {
+        const posArr = [], nrmArr = [];
+        const stride = segments + 1;
+
+        // Generate vertices ring by ring from top (phi=0) to bottom (phi=π).
+        // phi = polar angle from the north pole; theta = azimuthal angle.
+        for (let ring = 0; ring <= rings; ring++) {
+          const phi    = (ring / rings) * Math.PI;
+          const sinPhi = Math.sin(phi);
+          const cosPhi = Math.cos(phi);
+          for (let seg = 0; seg <= segments; seg++) {
+            const theta = (seg / segments) * 2 * Math.PI;
+            // Cartesian position on the unit sphere.
+            const x = sinPhi * Math.cos(theta);
+            const y = cosPhi;              // +Y is up (north pole)
+            const z = sinPhi * Math.sin(theta);
+            posArr.push(x, y, z);
+            // For a unit sphere, the outward normal equals the position.
+            // This is exactly what gives smooth (Gouraud) shading:
+            // each vertex has a unique normal, and the GPU interpolates
+            // them across the triangle to produce a smooth gradient.
+            nrmArr.push(x, y, z);
+          }
+        }
+
+        // Generate triangle indices for each quad (ring, seg) → (ring+1, seg).
+        const idxArr = [];
+        for (let ring = 0; ring < rings; ring++) {
+          for (let seg = 0; seg < segments; seg++) {
+            const a = ring * stride + seg;   // top-left of the quad
+            const b = a + 1;                  // top-right
+            const c = a + stride;             // bottom-left
+            const d = c + 1;                  // bottom-right
+            // Two triangles per quad, CCW from outside:
+            idxArr.push(a, b, d,   // upper-right triangle
+                        a, d, c);  // lower-left triangle
+          }
+        }
+
+        return buildVAO(
+          new Float32Array(posArr),
+          new Float32Array(nrmArr),
+          new Uint16Array(idxArr)
+        );
+      }
+
+      // 32 segments × 24 rings = 825 vertices, 4608 indices.
+      const SPHERE_SEGMENTS = 32;
+      const SPHERE_RINGS    = 24;
+      const sphereGeo = buildSphere(SPHERE_SEGMENTS, SPHERE_RINGS);
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 7 — Wire UI events and pointer drag to state
+      // ════════════════════════════════════════════════════════════════
+
+      const state = {
+        model:       'cube',
+        azimuth:     45,      // degrees, 0–360
+        elevation:   35,      // degrees, -90..90
+        ambient:     0.15,
+        color:       [0.910, 0.635, 0.102],  // #e8a21a
+        showNormals: false,
+        autoRotate:  true,
+        rotX:        -20,     // drag-accumulated rotation (degrees)
+        rotY:         30,
+        animAngle:    0,      // radians, accumulated for auto-rotate
+      };
+
+      ui.model.addEventListener('change', () => {
+        state.model = ui.model.value;
+      });
+
+      ui.azimuth.addEventListener('input', () => {
+        state.azimuth = parseInt(ui.azimuth.value, 10);
+        ui.azimuthVal.textContent = `${state.azimuth}°`;
+      });
+
+      ui.elevation.addEventListener('input', () => {
+        state.elevation = parseInt(ui.elevation.value, 10);
+        ui.elevationVal.textContent = `${state.elevation}°`;
+      });
+
+      ui.ambient.addEventListener('input', () => {
+        state.ambient = parseFloat(ui.ambient.value);
+        ui.ambientVal.textContent = state.ambient.toFixed(2);
+      });
+
+      ui.color.addEventListener('input', () => {
+        state.color = hexToRgb01(ui.color.value);
+      });
+
+      ui.showNormals.addEventListener('change', () => {
+        state.showNormals = ui.showNormals.checked;
+      });
+
+      ui.autoRotate.addEventListener('change', () => {
+        state.autoRotate = ui.autoRotate.checked;
+      });
+
+      // Pointer drag — same implementation as Demo 4 and Demo 5.
+      let isDragging = false, lastPX = 0, lastPY = 0;
+      const DRAG_SENS = 0.5;
+      ui.canvas.addEventListener('pointerdown', (e) => {
+        isDragging = true; lastPX = e.clientX; lastPY = e.clientY;
+        ui.canvas.setPointerCapture(e.pointerId);
+      });
+      ui.canvas.addEventListener('pointermove', (e) => {
+        if (!isDragging) return;
+        state.rotY += (e.clientX - lastPX) * DRAG_SENS;
+        state.rotX += (e.clientY - lastPY) * DRAG_SENS;
+        state.rotX  = Math.max(-ROT_X_CLAMP, Math.min(ROT_X_CLAMP, state.rotX));
+        lastPX = e.clientX; lastPY = e.clientY;
+      });
+      const stopDrag = () => { isDragging = false; };
+      ui.canvas.addEventListener('pointerup',     stopDrag);
+      ui.canvas.addEventListener('pointercancel', stopDrag);
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 8 — Render function
+      // ════════════════════════════════════════════════════════════════
+
+      let fpsSmooth = 0, lastFpsTime = 0, frameCount = 0;
+
+      /** @param {number} timestamp  DOMHighResTimeStamp from rAF */
+      function render(timestamp) {
+        resizeCanvasToDisplaySize(ui.canvas);
+        gl.viewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);
+
+        // Depth test and face culling are always on for this demo.
+        gl.enable(gl.DEPTH_TEST);
+        gl.enable(gl.CULL_FACE);
+
+        gl.clearColor(...CLEAR_COLOR);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        // ── Light direction from spherical angles ───────────────────
+        // azimuth (az) and elevation (el) → Cartesian unit vector.
+        // Convention: az=0 points toward +Z; increases counterclockwise.
+        //             el=90 points straight up (+Y); el=-90 down.
+        // L is the direction TOWARD the light (dot(N,L) > 0 means lit).
+        const az = state.azimuth  * DEG_TO_RAD;
+        const el = state.elevation * DEG_TO_RAD;
+        const Lx = Math.cos(el) * Math.sin(az);
+        const Ly = Math.sin(el);
+        const Lz = Math.cos(el) * Math.cos(az);
+
+        // ── Build MVP matrices ──────────────────────────────────────
+        // model = rotationY(total y) × rotationX(drag x)
+        // The model rotates; the light direction is a fixed world-space
+        // uniform and does NOT change with the model matrix.
+        const totalRotY = (state.rotY + state.animAngle * (180 / Math.PI)) * DEG_TO_RAD;
+        const totalRotX = state.rotX * DEG_TO_RAD;
+        const model = mat4.multiply(mat4.rotationY(totalRotY), mat4.rotationX(totalRotX));
+
+        // Camera sits at distance DISTANCE on +Z looking at the origin.
+        // Same convention as Demo 4 and Demo 5.
+        const view = mat4.translation(0, 0, -DISTANCE);
+        const proj = mat4.perspective(
+          FOV_DEG * DEG_TO_RAD,
+          gl.drawingBufferWidth / gl.drawingBufferHeight,
+          NEAR, FAR
+        );
+
+        // ── Draw ───────────────────────────────────────────────────
+        gl.useProgram(program);
+
+        gl.uniformMatrix4fv(uModel,      false, model);
+        gl.uniformMatrix4fv(uView,       false, view);
+        gl.uniformMatrix4fv(uProjection, false, proj);
+
+        // Light direction: world space, constant regardless of model rotation.
+        gl.uniform3f(uLightDir,  Lx, Ly, Lz);
+        gl.uniform3fv(uBaseColor, state.color);
+        gl.uniform1f(uAmbient,   state.ambient);
+        // uniform1i for bool: 1 = true, 0 = false.
+        gl.uniform1i(uShowNorms, state.showNormals ? 1 : 0);
+
+        // Select the active VAO based on the model dropdown.
+        // Switching VAOs is all that is needed to change geometry —
+        // the program and uniforms stay the same.
+        const geo = state.model === 'cube' ? cubeGeo : sphereGeo;
+        gl.bindVertexArray(geo.vao);
+        gl.drawElements(gl.TRIANGLES, geo.count, gl.UNSIGNED_SHORT, 0);
+
+        // ── Stats ──────────────────────────────────────────────────
+        frameCount++;
+        if (timestamp - lastFpsTime >= 500) {
+          fpsSmooth   = Math.round(frameCount / ((timestamp - lastFpsTime) / 1000));
+          frameCount  = 0;
+          lastFpsTime = timestamp;
+        }
+        ui.stats.textContent =
+          `model: ${state.model} · ` +
+          `rotX: ${state.rotX.toFixed(0)}° · rotY: ${(state.rotY + state.animAngle * (180/Math.PI)).toFixed(0) % 360}° · ` +
+          `az: ${state.azimuth}° el: ${state.elevation}° · FPS: ${fpsSmooth}`;
+      }
+
+      // ════════════════════════════════════════════════════════════════
+      // STEP 9 — Start the animation loop
+      // ════════════════════════════════════════════════════════════════
+      // Accumulate time for auto-rotate (same pattern as Demo 2 and Demo 4).
+      // Performance-independent: derive the angle from elapsed time, not frame count.
+      const AUTO_ROTATE_SPEED = 0.6; // radians per second
+      let lastTime = null;
+
+      /** @param {number} timestamp */
+      function loop(timestamp) {
+        const dt = lastTime === null ? 0 : (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
+        if (state.autoRotate) state.animAngle += dt * AUTO_ROTATE_SPEED;
+        render(timestamp);
+        requestAnimationFrame(loop);
+      }
+
+      requestAnimationFrame(loop);
+
+    } // end main()
+
+    try {
+      main();
+    } catch (error) {
+      console.error(error);
+      const banner = document.createElement('div');
+      banner.className = 'error-banner';
+      const title = document.createElement('strong');
+      title.textContent = 'This demo could not start.';
+      const pre = document.createElement('pre');
+      pre.textContent = error.message;
+      banner.append(title, pre);
+      document.querySelector('#errorSlot').replaceChildren(banner);
+    }
+  </script>
+</body>
+</html>
