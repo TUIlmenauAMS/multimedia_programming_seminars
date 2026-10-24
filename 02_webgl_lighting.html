@@ -925,6 +925,7 @@ void main() {
         ctx.scale(dpr, dpr);
 
         const samples = state.model === 'cube' ? CUBE_SAMPLES : SPHERE_SAMPLES;
+        let drawn = 0;
         const cam = [0, 0, DISTANCE];  // camera position in world space (view = translate(0,0,-DISTANCE))
 
         for (const { pos, nrm, len } of samples) {
@@ -946,12 +947,15 @@ void main() {
           const screenLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
           if (screenLen < 9) drawTowardViewer(ctx, p0.x, p0.y);   // pointing at you
           else               drawArrow(ctx, p0.x, p0.y, p1.x, p1.y);
+          drawn++;
         }
 
         ctx.restore();
+        return drawn;
       }
 
       let fpsSmooth = 0, lastFpsTime = 0, frameCount = 0;
+      let arrowStatus = '';
 
       /** @param {number} timestamp  DOMHighResTimeStamp from rAF */
       function render(timestamp) {
@@ -1015,8 +1019,14 @@ void main() {
         gl.drawElements(gl.TRIANGLES, geo.count, gl.UNSIGNED_SHORT, 0);
 
         // ── Normal arrows overlay ──────────────────────────────────
+        arrowStatus = '';
         if (state.showNormals) {
-          drawNormalArrows(model, view, proj);
+          try {
+            arrowStatus = ` · arrows drawn: ${drawNormalArrows(model, view, proj)}` +
+                          ` (overlay ${ui.arrowCanvas.width}x${ui.arrowCanvas.height})`;
+          } catch (err) {
+            arrowStatus = ` · ARROW ERROR: ${err.message}`;
+          }
         } else {
           // Ensure overlay is cleared when normals turned off mid-frame
           const ac = ui.arrowCanvas;
@@ -1034,7 +1044,7 @@ void main() {
         ui.stats.textContent =
           `model: ${state.model} · ` +
           `rotX: ${state.rotX.toFixed(0)}° · rotY: ${(state.rotY + state.animAngle * (180/Math.PI)).toFixed(0) % 360}° · ` +
-          `az: ${state.azimuth}° el: ${state.elevation}° · FPS: ${fpsSmooth}`;
+          `az: ${state.azimuth}° el: ${state.elevation}° · FPS: ${fpsSmooth}` + arrowStatus;
       }
 
       // ════════════════════════════════════════════════════════════════
