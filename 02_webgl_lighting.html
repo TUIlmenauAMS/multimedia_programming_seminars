@@ -65,8 +65,36 @@
     canvas { display: block; width: 100%; height: 120px; border-radius: 8px; background: var(--canvas-bg); margin-top: 20px; }
     canvas.gl-canvas { height: auto; aspect-ratio: 16 / 10; margin-top: 0; touch-action: none; cursor: grab; }
     canvas.gl-canvas:active { cursor: grabbing; }
-    .canvas-wrap { margin-bottom: 8px; }
+    .canvas-wrap { margin-bottom: 8px; position: relative; }
     .drag-hint { font-size: 0.85rem; color: #777; text-align: center; margin-bottom: 16px; }
+
+    /* Overlay canvas for normal arrows — must override base canvas { height:120px } */
+    #arrowCanvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100% !important;
+      height: 100% !important;
+      margin: 0 !important;
+      background: transparent !important;
+      pointer-events: none;
+      border-radius: 8px;
+    }
+
+    /* Normal legend */
+    .normals-legend {
+      display: none;
+      margin: 10px 0 22px;
+      padding: 10px 14px;
+      background: #1e1e2e;
+      border-radius: 8px;
+      gap: 10px 20px;
+      flex-wrap: wrap;
+    }
+    .normals-legend.visible { display: flex; }
+    .legend-item { display: flex; align-items: center; gap: 7px; font-size: 0.82rem; color: #ccc; font-family: "SFMono-Regular", Consolas, monospace; }
+    .legend-swatch { width: 14px; height: 14px; border-radius: 3px; flex-shrink: 0; }
+    .legend-arrow  { display: inline-flex; align-items: center; gap: 4px; }
+    .legend-arrow svg { flex-shrink: 0; }
 
     /* ── Stats ── */
     .stats { font-family: "SFMono-Regular", Consolas, monospace; font-size: 0.82rem; color: #555; margin-top: 10px; line-height: 1.6; }
@@ -143,7 +171,10 @@
   <!-- ── Section 2: Interactive Demo ── -->
   <h2 class="section">2. Interactive Demo</h2>
   <p>
-    Enable <em>Show normals</em> to visualise normals as RGB colour (X&rarr;red, Y&rarr;green, Z&rarr;blue): the sphere shows a smooth gradient; the cube shows 6 flat colours, one per face.
+    Enable <em>Show normals</em> to visualise surface normals in two ways simultaneously:
+    <strong>colour encoding</strong> (X&rarr;red, Y&rarr;green, Z&rarr;blue) painted per-pixel by the fragment shader,
+    and <strong>white arrows</strong> drawn at a grid of sample points showing the actual direction each normal vector points. An arrow pointing straight at you is foreshortened to a <strong>&#8857;</strong> symbol &mdash; rotate the model and it grows into an arrow.
+    The sphere shows a smooth colour gradient with arrows fanning outward; the cube shows 6 flat colours — one per face — with all arrows on each face pointing the same way.
   </p>
 
   <div id="errorSlot"></div>
@@ -154,8 +185,27 @@
     <div class="canvas-wrap">
       <canvas id="glcanvas" class="gl-canvas" role="img"
         aria-label="A lit 3D model rendered with WebGL 2 Lambert shading."></canvas>
+      <canvas id="arrowCanvas" aria-hidden="true"></canvas>
     </div>
     <p class="drag-hint">Drag to rotate the model</p>
+
+    <!-- Legend shown only when Show normals is active -->
+    <div class="normals-legend" id="normalsLegend">
+      <span class="legend-item"><span class="legend-swatch" style="background:#ff5555"></span>+X → Red</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:#55cc55"></span>+Y → Green</span>
+      <span class="legend-item"><span class="legend-swatch" style="background:#5599ff"></span>+Z → Blue</span>
+      <span class="legend-item">
+        <svg width="28" height="14" viewBox="0 0 28 14">
+          <line x1="2" y1="7" x2="20" y2="7" stroke="white" stroke-width="1.5"/>
+          <polygon points="20,3 28,7 20,11" fill="white"/>
+        </svg>
+        arrows = normals
+      </span>
+      <span class="legend-item">
+        <svg width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5" fill="none" stroke="white" stroke-width="1.5"/><circle cx="8" cy="8" r="1.8" fill="white"/></svg>
+        = pointing at you
+      </span>
+    </div>
 
     <!-- Model select -->
     <div class="control-row">
@@ -288,12 +338,14 @@
       ambient:      document.querySelector('#ambient'),
       ambientVal:   document.querySelector('#ambientVal'),
       color:        document.querySelector('#color'),
-      showNormals:  document.querySelector('#showNormals'),
-      autoRotate:   document.querySelector('#autoRotate'),
-      stats:        document.querySelector('#stats'),
-      errorSlot:    document.querySelector('#errorSlot'),
-      vsSource:     document.querySelector('#vsSource'),
-      fsSource:     document.querySelector('#fsSource'),
+      showNormals:   document.querySelector('#showNormals'),
+      autoRotate:    document.querySelector('#autoRotate'),
+      stats:         document.querySelector('#stats'),
+      errorSlot:     document.querySelector('#errorSlot'),
+      vsSource:      document.querySelector('#vsSource'),
+      fsSource:      document.querySelector('#fsSource'),
+      arrowCanvas:   document.querySelector('#arrowCanvas'),
+      normalsLegend: document.querySelector('#normalsLegend'),
     };
 
     // Rendering constants
@@ -703,6 +755,12 @@ void main() {
 
       ui.showNormals.addEventListener('change', () => {
         state.showNormals = ui.showNormals.checked;
+        ui.normalsLegend.classList.toggle('visible', state.showNormals);
+        if (!state.showNormals) {
+          // Clear arrow overlay when disabled
+          const ctx = ui.arrowCanvas.getContext('2d');
+          ctx.clearRect(0, 0, ui.arrowCanvas.width, ui.arrowCanvas.height);
+        }
       });
 
       ui.autoRotate.addEventListener('change', () => {
@@ -730,6 +788,168 @@ void main() {
       // ════════════════════════════════════════════════════════════════
       // STEP 8 — Render function
       // ════════════════════════════════════════════════════════════════
+
+      // ════════════════════════════════════════════════════════════════
+      // ARROW OVERLAY — sample points & projection helpers
+      // ════════════════════════════════════════════════════════════════
+
+      /**
+       * Pre-compute a set of (position, normal) sample points for each model.
+       * These are object-space positions & normals; we re-project every frame.
+       */
+
+      // Cube: a 3x3 grid of samples on every face. All 9 samples on a face share
+      // the same flat normal, which is exactly what the arrows should show.
+      const CUBE_SAMPLES = [];
+      for (const f of CUBE_FACES) {
+        const [bl, br, tl] = [f.v[0], f.v[1], f.v[2]];
+        for (const t of [1/6, 3/6, 5/6]) {
+          for (const sx of [1/6, 3/6, 5/6]) {
+            CUBE_SAMPLES.push({
+              pos: [0,1,2].map(k => bl[k] + sx*(br[k]-bl[k]) + t*(tl[k]-bl[k])),
+              nrm: f.n,
+              len: 0.32,
+            });
+          }
+        }
+      }
+
+      // Sphere: a grid of (phi, theta) directions. The normal equals the position.
+      function buildSphereSamples(nPhi, nTheta) {
+        const pts = [];
+        for (let pi = 0; pi < nPhi; pi++) {
+          const phi = ((pi + 0.5) / nPhi) * Math.PI;         // 0..PI
+          for (let ti = 0; ti < nTheta; ti++) {
+            const theta = (ti / nTheta) * 2 * Math.PI;       // 0..2PI
+            const x = Math.sin(phi) * Math.cos(theta);
+            const y = Math.cos(phi);
+            const z = Math.sin(phi) * Math.sin(theta);
+            pts.push({ pos: [x, y, z], nrm: [x, y, z], len: 0.4 });
+          }
+        }
+        return pts;
+      }
+      const SPHERE_SAMPLES = buildSphereSamples(6, 10);
+
+      /**
+       * Multiply a 4-element homogeneous vector by a column-major mat4.
+       * @param {Float32Array} m  4×4 column-major matrix
+       * @param {number[]} v      [x, y, z, w]
+       * @returns {number[]}      [x, y, z, w]
+       */
+      function mat4MulVec4(m, v) {
+        const [x, y, z, w] = v;
+        return [
+          m[0]*x + m[4]*y + m[8]*z  + m[12]*w,
+          m[1]*x + m[5]*y + m[9]*z  + m[13]*w,
+          m[2]*x + m[6]*y + m[10]*z + m[14]*w,
+          m[3]*x + m[7]*y + m[11]*z + m[15]*w,
+        ];
+      }
+
+      /**
+       * Project a world-space vec3 to 2D canvas pixel coords.
+       * Returns null if the point is behind the camera.
+       */
+      function projectToCanvas(wx, wy, wz, view, proj, canvasW, canvasH) {
+        const clip = mat4MulVec4(proj, mat4MulVec4(view, [wx, wy, wz, 1]));
+        if (clip[3] <= 0) return null;
+        const ndcX =  clip[0] / clip[3];
+        const ndcY =  clip[1] / clip[3];
+        const ndcZ =  clip[2] / clip[3];
+        if (ndcZ > 1) return null; // past far plane
+        return {
+          x: (ndcX * 0.5 + 0.5) * canvasW,
+          y: (1 - (ndcY * 0.5 + 0.5)) * canvasH,
+          depth: ndcZ,
+        };
+      }
+
+      /**
+       * Draw one white arrow with a dark outline so it stays readable on top of
+       * any surface colour (the surface itself is painted with the normal colour).
+       */
+      function drawArrow(ctx, x0, y0, x1, y1) {
+        const dx = x1 - x0, dy = y1 - y0;
+        const len = Math.hypot(dx, dy);
+        const ux = dx / len, uy = dy / len;
+        const head = Math.min(8, len * 0.45);
+        const hx = x1 - ux * head, hy = y1 - uy * head;   // base of arrowhead
+        const nx = -uy * head * 0.5, ny = ux * head * 0.5; // half-width offset
+
+        ctx.lineJoin = 'round';
+        ctx.lineCap  = 'round';
+
+        // Dark halo
+        ctx.strokeStyle = 'rgba(10,10,20,0.85)';
+        ctx.lineWidth = 4.5;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(hx, hy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(hx+nx, hy+ny); ctx.lineTo(hx-nx, hy-ny); ctx.closePath(); ctx.stroke();
+
+        // White arrow
+        ctx.strokeStyle = '#fff';
+        ctx.fillStyle   = '#fff';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(hx, hy); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(hx+nx, hy+ny); ctx.lineTo(hx-nx, hy-ny); ctx.closePath(); ctx.fill();
+      }
+
+      /** Normal pointing almost straight at the camera: foreshortened to a ring + dot. */
+      function drawTowardViewer(ctx, x, y) {
+        ctx.lineWidth = 4.5; ctx.strokeStyle = 'rgba(10,10,20,0.85)';
+        ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI*2); ctx.stroke();
+        ctx.lineWidth = 2; ctx.strokeStyle = '#fff';
+        ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI*2); ctx.stroke();
+        ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(x, y, 1.8, 0, Math.PI*2); ctx.fill();
+      }
+
+      /**
+       * Draw all normal arrows onto the 2D overlay canvas (every frame while
+       * "Show normals" is on). Each arrow is the REAL 3D normal, projected with
+       * the same view/projection matrices as the model, so it foreshortens
+       * correctly as the model rotates.
+       */
+      function drawNormalArrows(modelMat, viewMat, projMat) {
+        const ac = ui.arrowCanvas;
+        const dpr = window.devicePixelRatio || 1;
+        const displayW = ui.canvas.clientWidth;
+        const displayH = ui.canvas.clientHeight;
+
+        ac.width  = Math.round(displayW * dpr);
+        ac.height = Math.round(displayH * dpr);
+
+        const ctx = ac.getContext('2d');
+        ctx.clearRect(0, 0, ac.width, ac.height);
+        ctx.save();
+        ctx.scale(dpr, dpr);
+
+        const samples = state.model === 'cube' ? CUBE_SAMPLES : SPHERE_SAMPLES;
+        const cam = [0, 0, DISTANCE];  // camera position in world space (view = translate(0,0,-DISTANCE))
+
+        for (const { pos, nrm, len } of samples) {
+          // Object space -> world space (position with w=1, normal with w=0).
+          const wp = mat4MulVec4(modelMat, [pos[0], pos[1], pos[2], 1]);
+          const wn = mat4MulVec4(modelMat, [nrm[0], nrm[1], nrm[2], 0]).slice(0, 3);
+          const nl = Math.hypot(wn[0], wn[1], wn[2]) || 1;
+          wn[0] /= nl; wn[1] /= nl; wn[2] /= nl;
+
+          // Visible only if the surface faces the camera: dot(N, cameraPos - P) > 0.
+          const facing = wn[0]*(cam[0]-wp[0]) + wn[1]*(cam[1]-wp[1]) + wn[2]*(cam[2]-wp[2]);
+          if (facing <= 0.05) continue;
+
+          const p0 = projectToCanvas(wp[0], wp[1], wp[2], viewMat, projMat, displayW, displayH);
+          const p1 = projectToCanvas(wp[0]+wn[0]*len, wp[1]+wn[1]*len, wp[2]+wn[2]*len,
+                                     viewMat, projMat, displayW, displayH);
+          if (!p0 || !p1) continue;
+
+          const screenLen = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+          if (screenLen < 9) drawTowardViewer(ctx, p0.x, p0.y);   // pointing at you
+          else               drawArrow(ctx, p0.x, p0.y, p1.x, p1.y);
+        }
+
+        ctx.restore();
+      }
 
       let fpsSmooth = 0, lastFpsTime = 0, frameCount = 0;
 
@@ -793,6 +1013,16 @@ void main() {
         const geo = state.model === 'cube' ? cubeGeo : sphereGeo;
         gl.bindVertexArray(geo.vao);
         gl.drawElements(gl.TRIANGLES, geo.count, gl.UNSIGNED_SHORT, 0);
+
+        // ── Normal arrows overlay ──────────────────────────────────
+        if (state.showNormals) {
+          drawNormalArrows(model, view, proj);
+        } else {
+          // Ensure overlay is cleared when normals turned off mid-frame
+          const ac = ui.arrowCanvas;
+          const ctx2 = ac.getContext('2d');
+          ctx2.clearRect(0, 0, ac.width, ac.height);
+        }
 
         // ── Stats ──────────────────────────────────────────────────
         frameCount++;
