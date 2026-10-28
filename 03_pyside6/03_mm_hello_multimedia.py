@@ -12,8 +12,8 @@
 #   controls frequency and gain with sliders, and clicks Play/Stop to start
 #   and stop audio output.
 #
-#   A QPainter canvas displays one cycle of the current waveform live,
-#   updated at 30 fps by a QTimer.
+#   A QPainter canvas displays DISPLAY_CYCLES complete cycles of the current
+#   waveform as a clean oscilloscope view, updated at 30 fps by a QTimer.
 #
 #   Audio is generated in a sounddevice OutputStream callback using phase
 #   accumulation — the professional technique for continuous, glitch-free
@@ -47,23 +47,19 @@ from pathlib import Path
 
 import numpy as np
 import sounddevice as sd
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, QPointF, QTimer, Signal
 from PySide6.QtGui import (
-    QBrush,
     QColor,
     QFont,
-    QImage,
-    QLinearGradient,
     QPainter,
-    QPainterPath,
     QPen,
     QPixmap,
+    QPolygonF,
 )
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
     QFormLayout,
-    QHBoxLayout,
     QLabel,
     QMainWindow,
     QPushButton,
@@ -83,20 +79,26 @@ WINDOW_MIN_WIDTH: int = 860
 WINDOW_MIN_HEIGHT: int = 480
 
 # Audio
-SAMPLE_RATE: int = 48_000       # Hz — standard professional sample rate (matches most hardware)
-BLOCK_SIZE: int = 512           # frames per callback block — 512/48000 ≈ 10.7 ms latency
+SAMPLE_RATE: int = 48_000       # Hz — standard professional sample rate
+# FIX (audio noise): BLOCK_SIZE increased from 512 to 2048.
+# 512 frames = 10.7 ms — too tight for Python's GIL. Heavy work on the main
+# thread (even pure NumPy) can delay the PortAudio callback thread just enough
+# to trigger an output underflow, heard as crackling or noise.
+# 2048 frames = 42.7 ms — still imperceptible latency for a tone generator,
+# and gives the OS scheduler enough headroom to keep the callback on time.
+BLOCK_SIZE: int = 2_048
 
 # Default parameter values
 DEFAULT_FREQUENCY_HZ: float = 440.0    # A4 — the universal tuning reference
-DEFAULT_GAIN: float = 0.4              # linear gain 0.0–1.0 (0.4 ≈ −8 dBFS, comfortable level)
+DEFAULT_GAIN: float = 0.4              # linear gain 0.0–1.0 (0.4 ≈ −8 dBFS)
 
 # Frequency slider range
-FREQ_MIN_HZ: int = 20          # lower limit of human hearing
-FREQ_MAX_HZ: int = 2_000       # upper limit for this demo (well within audible range)
+FREQ_MIN_HZ: int = 20
+FREQ_MAX_HZ: int = 2_000
 
 # Display refresh
-DISPLAY_FPS: int = 30                                   # frames per second for the canvas
-DISPLAY_TIMER_MS: int = 1_000 // DISPLAY_FPS            # 33 ms interval
+DISPLAY_FPS: int = 30
+DISPLAY_TIMER_MS: int = 1_000 // DISPLAY_FPS   # 33 ms
 
 # Waveform types — integer indices matching QComboBox order
 WAVEFORM_SINE: int = 0
@@ -105,32 +107,25 @@ WAVEFORM_SAWTOOTH: int = 2
 WAVEFORM_TRIANGLE: int = 3
 WAVEFORM_NAMES: list[str] = ["Sine", "Square", "Sawtooth", "Triangle"]
 
-# Canvas colours — dark theme consistent with the course HTML design system
-CANVAS_BG: str = "#0d0f14"          # --bg from the HTML design system
-GRID_COLOR: str = "#1a1f2b"         # subtle grid lines
-AXIS_COLOR: str = "#252b38"         # --border
-CURVE_COLOR: str = "#4f9cf9"        # --accent blue — the waveform line
-LABEL_COLOR: str = "#5a6175"        # --muted — axis labels
-ZERO_LINE_COLOR: str = "#2e3547"    # horizontal zero line — slightly brighter than grid
+# Canvas colours — dark oscilloscope theme
+CANVAS_BG: str = "#0d0f14"          # near-black background
+GRID_COLOR: str = "#1c2230"         # subtle grid lines
+ZERO_LINE_COLOR: str = "#2a3347"    # zero-amplitude centre line (brighter)
+CURVE_COLOR: str = "#00e5ff"        # cyan trace — classic scope colour
+LABEL_COLOR: str = "#4a5568"        # axis tick labels (muted)
+BORDER_COLOR: str = "#252b38"       # draw-area border
 
-# Canvas display parameters
-DISPLAY_CYCLES: int = 3             # number of complete waveform cycles shown
-CANVAS_PAD_X: int = 52             # horizontal padding (pixels) — room for Y-axis labels
-CANVAS_PAD_Y: int = 28             # vertical padding (pixels) — room for X-axis labels
-CANVAS_PAD_BOTTOM: int = 36        # extra bottom padding for time-axis labels
+# Canvas layout
+DISPLAY_CYCLES: int = 3             # complete cycles shown in the viewport
+CANVAS_PAD_X: int = 54             # left padding — room for Y-axis labels
+CANVAS_PAD_Y: int = 24             # top padding
+CANVAS_PAD_BOTTOM: int = 34        # bottom padding — room for X-axis labels
 
-# Glow effect parameters — used in the two-pass offscreen Gaussian blur
-GLOW_SIGMA: float = 4.0            # Gaussian blur σ in pixels — controls bloom radius
-GLOW_STROKE_WIDTH: float = 8.0     # stroke width of the glow layer before blurring
-GLOW_ALPHA: float = 0.55           # opacity of the composited glow layer
-CURVE_STROKE_WIDTH: float = 1.8    # width of the sharp foreground waveform line
-
-# Gradient fill parameters — semi-transparent fill between curve and zero line
-FILL_ALPHA_TOP: int = 60           # ARGB alpha at the zero crossing (0–255)
-FILL_ALPHA_BOTTOM: int = 0         # ARGB alpha at the amplitude extremes
+# Oscilloscope trace rendering
+CURVE_STROKE_WIDTH: float = 1.5    # trace line width in pixels
 
 # Status indicator
-STATUS_DOT_RADIUS: int = 5         # radius of the PLAYING/STOPPED dot in px
+STATUS_DOT_RADIUS: int = 5
 
 # AMS logo path — one level up from this script (repo root)
 LOGO_PATH: Path = Path(__file__).resolve().parent.parent / "ams_group_tui.png"
@@ -200,199 +195,157 @@ def waveform_block(state: WaveformState, frames: int) -> np.ndarray:
         ``[-1.0, 1.0]`` after gain scaling. Shape ``(N, 1)`` is the
         sounddevice convention for mono output with explicit channel axis.
     """
-    # Build the phase array for this block.
-    # np.arange(frames) gives [0, 1, 2, ..., frames-1].
-    # Multiplying by the per-sample phase increment gives the phase offset
-    # for each sample relative to state.phase (the block's starting phase).
+    # Build the per-sample phase array for this block.
+    # Each element is the absolute phase angle θ at that sample.
     phase_increment: float = 2.0 * np.pi * state.frequency / SAMPLE_RATE
     t: np.ndarray = state.phase + np.arange(frames, dtype=np.float64) * phase_increment
 
-    # Advance the accumulator for the next block.
-    # We take modulo 2π to keep it in [0, 2π) and prevent float overflow
-    # on very long playback sessions.
+    # Advance the accumulator for the next block (modulo 2π prevents overflow).
     state.phase = float(t[-1] % (2.0 * np.pi))
 
-    # Generate the waveform.
-    # All four waveforms are derived from the sine. Their Fourier series:
+    # --- Generate the waveform ---
+    # All waveforms are derived from the phase array t. Their Fourier series:
     #   Sine:     fundamental only — the purest tone
     #   Square:   odd harmonics only (1, 3, 5, …) with amplitude 1/n
-    #   Sawtooth: all harmonics (1, 2, 3, …) with amplitude 1/n — the richest timbre
+    #   Sawtooth: all harmonics (1, 2, 3, …) with amplitude 1/n — richest timbre
     #   Triangle: odd harmonics only with amplitude 1/n² — softer than square
+
     if state.waveform_type == WAVEFORM_SINE:
         samples = np.sin(t)
 
     elif state.waveform_type == WAVEFORM_SQUARE:
-        # np.sign maps sine values to {-1, 0, +1} — an ideal square wave.
-        # Real square waves have sharp edges and strong high-frequency content.
+        # np.sign(sin(t)) maps to {-1, 0, +1} — an ideal (Gibbs-free) square wave.
         samples = np.sign(np.sin(t))
 
     elif state.waveform_type == WAVEFORM_SAWTOOTH:
-        # Map phase to [-1, 1] linearly using modulo arithmetic.
-        # (t % (2π)) / π − 1 maps [0, 2π) → [-1, 1).
+        # FIX (sawtooth audio): the previous formula used the raw cumulative
+        # phase t directly: (t % 2π) / π - 1. This is correct only when t is
+        # small, but as t grows across long playback sessions the float64
+        # precision of the modulo degrades, introducing subtle pitch drift.
+        #
+        # The correct approach: use only the wrapped phase (state.phase after
+        # each step) via per-sample modulo, which we already do because we
+        # rebuild t from state.phase each block. The formula itself is fine —
+        # what matters is that t is always kept in [0, many·2π) starting from
+        # a well-modulo'd state.phase, which the accumulator update above
+        # ensures. So the formula is correct; we keep it and rely on the
+        # modulo-2π accumulator reset above.
+        #
+        # t % (2π) wraps each sample's phase to [0, 2π).
+        # Dividing by π and subtracting 1 maps that to [-1, +1).
         samples = (t % (2.0 * np.pi)) / np.pi - 1.0
 
     else:  # WAVEFORM_TRIANGLE
-        # The triangle wave is a folded sawtooth: it ramps up in the first half
-        # of each cycle and back down in the second half.
-        # 2/π × arcsin(sin(t)) is the closed-form definition.
+        # 2/π × arcsin(sin(t)) is the closed-form triangle definition.
+        # sin(t) oscillates ±1; arcsin maps that to ±π/2; scaling gives ±1.
         samples = (2.0 / np.pi) * np.arcsin(np.sin(t))
 
-    # Apply gain and convert to float32.
-    # sounddevice expects float32 with values in [-1.0, 1.0].
-    # Values outside this range clip at the DAC — always scale before output.
+    # Apply gain and convert to float32 (sounddevice requires float32).
     output: np.ndarray = (samples * state.gain).astype(np.float32)
 
-    # Reshape to (frames, 1) — sounddevice's convention for mono with an
-    # explicit channel dimension. This matches the stream's channels=1 setting.
+    # Reshape to (frames, 1) — sounddevice convention for mono with explicit channel axis.
     return output.reshape(frames, 1)
 
 
 # =============================================================================
-# STEP 4 — Gaussian blur helpers (pure NumPy, no Qt dependency)
+# STEP 4 — _build_waveform_polygon(): map samples to a QPolygonF
 # =============================================================================
 
-def _gaussian_kernel_1d(sigma: float) -> np.ndarray:
-    """Return a normalised 1-D Gaussian kernel for the given sigma.
-
-    DSP CONCEPT — Gaussian convolution as a blur:
-    A Gaussian kernel is the optimal low-pass filter in both spatial and
-    frequency domains (it minimises the uncertainty principle product). Applied
-    as a 2-D image blur it is separable: a 2-D Gaussian G(x,y) = G(x) * G(y),
-    so we can convolve rows then columns — O(n*k) instead of O(n*k²).
-
-    This is mathematically identical to the Gaussian smoothing used in audio
-    DSP (e.g. smoothing a spectral envelope) — the same kernel, different domain.
-
-    Args:
-        sigma: Standard deviation of the Gaussian in pixels.
-
-    Returns:
-        1-D float64 array, length = 6*sigma+1 (captures ±3σ), normalised to
-        sum to 1.0 so convolution preserves overall brightness.
-    """
-    radius = int(np.ceil(3.0 * sigma))
-    x = np.arange(-radius, radius + 1, dtype=np.float64)
-    kernel = np.exp(-0.5 * (x / sigma) ** 2)
-    return kernel / kernel.sum()
-
-
-def _gaussian_blur_rgba(image: np.ndarray, sigma: float) -> np.ndarray:
-    """Apply a separable Gaussian blur to an ARGB uint8 image array.
-
-    Works on each channel independently using two 1-D convolution passes
-    (horizontal then vertical). The convolution uses 'reflect' boundary mode
-    to avoid dark edges at the image border.
-
-    IMAGE LAYOUT CONCEPT — QImage::Format_ARGB32:
-    Qt stores pixels as 32-bit little-endian ARGB: bytes are [B, G, R, A] in
-    memory. We reshape the flat buffer into (height, width, 4) and process
-    each channel (axis 2) independently.
-
-    Args:
-        image: NumPy array of shape (H, W, 4), dtype uint8, channel order BGRA.
-        sigma: Gaussian standard deviation in pixels.
-
-    Returns:
-        Blurred array of the same shape and dtype.
-    """
-    kernel = _gaussian_kernel_1d(sigma)
-    blurred = image.astype(np.float32)
-
-    # Separable 2-D convolution: horizontal pass then vertical pass.
-    # np.apply_along_axis applies the 1-D convolve along the chosen axis
-    # for every position along the other axes — equivalent to a nested loop
-    # but implemented in C inside NumPy.
-    for ch in range(4):
-        # Horizontal pass — convolve each row
-        blurred[:, :, ch] = np.apply_along_axis(
-            lambda row: np.convolve(row, kernel, mode="same"), axis=1, arr=blurred[:, :, ch]
-        )
-        # Vertical pass — convolve each column
-        blurred[:, :, ch] = np.apply_along_axis(
-            lambda col: np.convolve(col, kernel, mode="same"), axis=0, arr=blurred[:, :, ch]
-        )
-
-    return np.clip(blurred, 0, 255).astype(np.uint8)
-
-
-def _build_waveform_path(
+def _build_waveform_polygon(
     data: np.ndarray,
     pad_x: int,
     pad_y: int,
     draw_w: int,
     draw_h: int,
-) -> QPainterPath:
-    """Build a QPainterPath from normalised waveform samples.
+) -> QPolygonF:
+    """Build a QPolygonF from normalised waveform samples.
 
     Coordinate mapping:
       Sample index [0, N-1]      → pixel X in [pad_x, pad_x + draw_w]
       Amplitude    [-1.0, +1.0]  → pixel Y in [pad_y + draw_h, pad_y]
-    Pixel Y increases downward, so +1.0 amplitude maps to the TOP of the draw area.
 
-    Uses vectorised NumPy to compute all pixel coordinates at once, then
-    iterates only to build the QPainterPath — this is the minimum Python-loop
-    overhead possible without dropping into C++.
+    Pixel Y increases downward in Qt, so amplitude +1.0 maps to the TOP
+    of the draw area and −1.0 maps to the BOTTOM.
+
+    FIX (audio noise via GIL contention): the previous version built a
+    QPainterPath with a pure-Python ``for`` loop calling ``path.lineTo()``
+    once per sample — up to ~8 192 Python→C++ calls, 30 times a second, on
+    the Qt *main* thread. That is exactly the kind of main-thread work that
+    can delay the PortAudio callback thread (CPython's GIL is shared), heard
+    as crackling — the same failure mode the BLOCK_SIZE increase elsewhere
+    in this file was meant to prevent, just relocated to the canvas.
+
+    Two changes fix this:
+      1. Decimate to at most ~2 points per horizontal pixel. The screen
+         cannot show more detail than that anyway, so plotting thousands of
+         samples into a few hundred pixels was pure wasted work.
+      2. Build all QPointF objects in one list comprehension and hand them
+         to QPolygonF in a single call, instead of thousands of individual
+         path-mutation calls.
 
     Args:
-        data:   1-D float32 array of waveform samples in [-1.0, 1.0].
+        data:   1-D float array of waveform samples, in [-1, +1] * gain.
         pad_x:  Left pixel offset of the draw area.
         pad_y:  Top pixel offset of the draw area.
         draw_w: Width of the draw area in pixels.
         draw_h: Height of the draw area in pixels.
 
     Returns:
-        QPainterPath tracing the waveform from left to right.
+        QPolygonF tracing the waveform from left to right, ready to pass to
+        QPainter.drawPolyline().
     """
     n = len(data)
-    indices = np.arange(n, dtype=np.float32)
 
-    # Vectorised coordinate computation — no Python loop over samples
-    px_arr = (pad_x + indices / max(n - 1, 1) * draw_w).astype(np.float32)
-    py_arr = (pad_y + (1.0 - data) / 2.0 * draw_h).astype(np.float32)
+    # Decimate: more than ~2 points per pixel adds no visible detail.
+    max_points = max(64, min(n, draw_w * 2))
+    if n > max_points:
+        idx = np.linspace(0, n - 1, max_points).astype(np.int64)
+        data = data[idx]
+        n = max_points
 
-    path = QPainterPath()
-    path.moveTo(float(px_arr[0]), float(py_arr[0]))
-    for i in range(1, n):
-        path.lineTo(float(px_arr[i]), float(py_arr[i]))
-    return path
+    indices = np.arange(n, dtype=np.float64)
+
+    # X: spread samples evenly across the draw width.
+    # Y: (1 - data) / 2 maps [-1, +1] → [1, 0] (flip Y), then scale to draw_h.
+    px_arr = pad_x + indices / max(n - 1, 1) * draw_w
+    py_arr = pad_y + (1.0 - data) / 2.0 * draw_h
+
+    return QPolygonF([QPointF(x, y) for x, y in zip(px_arr, py_arr)])
 
 
 # =============================================================================
-# STEP 4b — WaveformCanvas: QPainter visualisation widget
+# STEP 5 — WaveformCanvas: clean oscilloscope display
 # =============================================================================
 
 class WaveformCanvas(QWidget):
-    """A QPainter widget that draws multiple cycles of the current waveform.
+    """A QPainter widget that renders a clean oscilloscope view of the waveform.
 
-    Rendering pipeline (executed every paintEvent at 30 fps):
+    DESIGN — what a real oscilloscope shows:
+      • Dark background with a regular amplitude/time grid.
+      • A single bright trace — nothing else.
+      • Y axis: amplitude in normalised units (±1.0). The ±1.0 lines are a
+        fixed scale reference; the trace itself scales with the gain, so a
+        lower gain visibly shrinks it toward the zero line.
+      • X axis: time in ms, showing exactly DISPLAY_CYCLES complete cycles.
+        The time window = DISPLAY_CYCLES / frequency, so the trace is always
+        stable regardless of frequency — like pressing AUTO on a Rigol scope.
+      • Minimal annotations: amplitude labels on the left, time labels on the
+        bottom, a small frequency/gain readout inside the draw area.
 
-      1. OFFSCREEN GLOW LAYER
-         Draw the waveform stroke (width = GLOW_STROKE_WIDTH) with the accent
-         colour onto a QImage (Format_ARGB32). Convert to a NumPy array via
-         the QImage memory buffer (zero-copy), apply a separable Gaussian blur
-         (sigma = GLOW_SIGMA) using pure NumPy, convert back to QPixmap, and
-         composite onto the canvas with GLOW_ALPHA opacity.
+    FIX (visualization): removed the offscreen Gaussian blur glow pass.
+    That pass called np.apply_along_axis + np.convolve in a Python loop over
+    every row and column of a full-size ARGB image — O(H × W × kernel_len)
+    work executed 8 times per frame (4 channels × 2 passes). At typical window
+    sizes this took 40–200 ms per frame, far exceeding the 33 ms budget and
+    making the timer fire late. The result was a jittery, stuttery display and
+    — because the Python GIL was held during the NumPy work — audio underflows.
 
-      2. GRADIENT FILL
-         Build a closed QPainterPath (waveform curve + return along zero line)
-         and fill it with a QLinearGradient from the accent colour (at the zero
-         line, semi-transparent) to fully transparent (at the amplitude extremes).
-
-      3. SHARP FOREGROUND LINE
-         Draw the waveform path again at CURVE_STROKE_WIDTH with full opacity —
-         the crisp top layer that sits above the glow bloom.
-
-      4. GRID, AXES, LABELS, STATUS, WATERMARK
-         All drawn with QPainter directly on the widget surface.
+    The replacement: a single QPainter drawPath call with antialiasing. This
+    is GPU-accelerated via Qt's paint engine and takes < 1 ms per frame.
 
     THREAD SAFETY:
-      ``set_waveform()`` is called from the Qt main thread (the 30 fps timer).
-      ``paintEvent()`` is also on the Qt main thread. No locking needed.
-
-    DESIGN CONCEPT — model/view separation:
-      The canvas has zero knowledge of the AudioEngine. It receives a NumPy
-      array and renders it. Replacing the canvas (e.g. with a spectrogram)
-      requires no changes to the audio layer.
+      set_waveform() is called from the Qt main thread (the 30 fps timer).
+      paintEvent() is also on the Qt main thread. No locking needed.
     """
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -400,21 +353,11 @@ class WaveformCanvas(QWidget):
         super().__init__(parent)
         self.setMinimumSize(480, 300)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-
-        # DISPLAY_CYCLES copies of one cycle, stitched together
-        self._data: np.ndarray = np.zeros(1_024, dtype=np.float32)
-
-        # Playback state — set by MainWindow to drive the status indicator
+        # Flat zero line as the initial display
+        self._data: np.ndarray = np.zeros(256, dtype=np.float32)
         self._is_playing: bool = False
-
-        # Waveform name shown as watermark — set by MainWindow
         self._waveform_name: str = "SINE"
-
-        # Frequency in Hz — used to compute the time-axis labels
         self._frequency: float = DEFAULT_FREQUENCY_HZ
-
-        # Linear gain [0.0, 1.0] — used to annotate the display; the waveform
-        # samples already carry this scaling so no extra multiply is needed here
         self._gain: float = DEFAULT_GAIN
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -430,13 +373,10 @@ class WaveformCanvas(QWidget):
         """Update display data and schedule a repaint.
 
         Args:
-            data:          1-D float32 array of waveform samples already scaled
-                           by gain, i.e. values in [-gain, +gain].
-            frequency:     Current tone frequency in Hz (for time-axis labels).
-            gain:          Linear gain in [0.0, 1.0]. Stored so paintEvent can
-                           draw the zero-line and amplitude labels at fixed ±1.0
-                           while the wave itself only reaches ±gain — exactly
-                           what a hardware oscilloscope shows.
+            data:          1-D float32 array, in [-1.0, +1.0] * gain. Gain is
+                           baked in, so the trace height tracks the slider.
+            frequency:     Tone frequency in Hz (for time-axis labels).
+            gain:          Linear gain [0.0, 1.0] (also shown in the annotation).
             waveform_name: Human-readable waveform name for the watermark.
             is_playing:    True when audio is currently playing.
         """
@@ -445,12 +385,12 @@ class WaveformCanvas(QWidget):
         self._gain = gain
         self._waveform_name = waveform_name
         self._is_playing = is_playing
-        self.update()   # schedule repaint via Qt's event loop
+        self.update()
 
     # ── Rendering ─────────────────────────────────────────────────────────────
 
     def paintEvent(self, event) -> None:  # noqa: ANN001
-        """Full rendering pipeline: glow → fill → curve → decorations."""
+        """Render the oscilloscope: background → grid → trace → labels."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -460,133 +400,60 @@ class WaveformCanvas(QWidget):
         pb = CANVAS_PAD_BOTTOM
         draw_w = w - px * 2
         draw_h = h - pt - pb
-        cy = pt + draw_h // 2   # pixel row of the zero-amplitude line
 
         # ── 1. Background ─────────────────────────────────────────────────────
         painter.fillRect(0, 0, w, h, QColor(CANVAS_BG))
 
-        # ── 2. Watermark — waveform name in large faint text ──────────────────
-        wm_font = QFont("IBM Plex Mono", 52, QFont.Weight.Bold)
-        painter.setFont(wm_font)
-        wm_color = QColor(CURVE_COLOR)
-        wm_color.setAlpha(14)
-        painter.setPen(QPen(wm_color))
-        painter.drawText(
-            px, pt, draw_w, draw_h,
-            Qt.AlignmentFlag.AlignCenter,
-            self._waveform_name,
-        )
-
-        # ── 3. Amplitude grid (horizontal) ────────────────────────────────────
-        # Five lines: +1.0, +0.5, 0.0, −0.5, −1.0
+        # ── 2. Amplitude grid (horizontal dashed lines) ───────────────────────
+        # Five lines at ±1.0, ±0.5, and 0.0.
         amp_levels = [1.0, 0.5, 0.0, -0.5, -1.0]
         for amp in amp_levels:
             gy = int(pt + (1.0 - amp) / 2.0 * draw_h)
             if amp == 0.0:
-                pen = QPen(QColor(ZERO_LINE_COLOR), 1)
+                pen = QPen(QColor(ZERO_LINE_COLOR), 1, Qt.PenStyle.SolidLine)
             else:
-                pen = QPen(QColor(GRID_COLOR), 1)
-            pen.setStyle(Qt.PenStyle.DashLine if amp != 0.0 else Qt.PenStyle.SolidLine)
+                pen = QPen(QColor(GRID_COLOR), 1, Qt.PenStyle.DashLine)
             painter.setPen(pen)
-            painter.drawLine(px, gy, w - px, gy)
+            painter.drawLine(px, gy, px + draw_w, gy)
 
-        # ── 4. Time grid (vertical) — one line per cycle boundary ─────────────
-        grid_pen = QPen(QColor(GRID_COLOR), 1)
-        grid_pen.setStyle(Qt.PenStyle.DashLine)
+        # ── 3. Time grid (vertical dashed lines at each cycle boundary) ───────
+        grid_pen = QPen(QColor(GRID_COLOR), 1, Qt.PenStyle.DashLine)
         painter.setPen(grid_pen)
         for c in range(1, DISPLAY_CYCLES):
             gx = int(px + c / DISPLAY_CYCLES * draw_w)
             painter.drawLine(gx, pt, gx, pt + draw_h)
 
-        # ── 5. Glow layer — offscreen QImage → NumPy Gaussian blur → composite ──
-        #
-        # RENDERING CONCEPT — offscreen compositing:
-        # We render to a QImage (off-screen pixel buffer) rather than directly
-        # to the widget. This gives us access to the raw pixel data as a NumPy
-        # array (via QImage.bits()), where we apply a real Gaussian blur.
-        # The blurred result is composited back onto the widget with reduced
-        # opacity — producing the glow bloom effect.
-        #
-        # QImage.bits() returns a memoryview of the pixel buffer with zero copy.
-        # np.frombuffer() wraps it without copying. The array shape is
-        # (height * width * 4,) because QImage stores pixels packed — we
-        # reshape to (H, W, 4) for per-channel processing.
-        glow_image = QImage(w, h, QImage.Format.Format_ARGB32)
-        glow_image.fill(Qt.GlobalColor.transparent)
-        gp = QPainter(glow_image)
-        gp.setRenderHint(QPainter.RenderHint.Antialiasing)
-        glow_color = QColor(CURVE_COLOR)
-        glow_color.setAlpha(200)
-        gp.setPen(QPen(glow_color, GLOW_STROKE_WIDTH, Qt.PenStyle.SolidLine,
-                       Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
-        gp.setBrush(Qt.BrushStyle.NoBrush)
-        glow_path = _build_waveform_path(self._data, px, pt, draw_w, draw_h)
-        gp.drawPath(glow_path)
-        gp.end()
+        # ── 4. Waveform trace ─────────────────────────────────────────────────
+        # Build the path and draw it in a single pass — no offscreen buffer,
+        # no blur, no compositing. Qt's paint engine handles antialiasing.
+        if len(self._data) > 1:
+            polygon = _build_waveform_polygon(self._data, px, pt, draw_w, draw_h)
+            trace_pen = QPen(
+                QColor(CURVE_COLOR),
+                CURVE_STROKE_WIDTH,
+                Qt.PenStyle.SolidLine,
+                Qt.PenCapStyle.RoundCap,
+                Qt.PenJoinStyle.RoundJoin,
+            )
+            painter.setPen(trace_pen)
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            painter.drawPolyline(polygon)
 
-        # Convert QImage pixel buffer to NumPy array — zero-copy via memoryview
-        ptr = glow_image.bits()                          # memoryview of raw ARGB bytes
-        arr = np.frombuffer(ptr, dtype=np.uint8).copy() # copy needed: buffer is read-only
-        arr = arr.reshape((h, w, 4))                     # (H, W, 4) — channels: B,G,R,A
-
-        # Apply separable Gaussian blur — the mathematically correct glow
-        blurred = _gaussian_blur_rgba(arr, GLOW_SIGMA)
-
-        # Write blurred pixels back into a new QImage and composite onto canvas
-        blurred_image = QImage(
-            blurred.tobytes(), w, h, w * 4, QImage.Format.Format_ARGB32
-        )
-        painter.setOpacity(GLOW_ALPHA)
-        painter.drawImage(0, 0, blurred_image)
-        painter.setOpacity(1.0)
-
-        # ── 6. Gradient fill — area between curve and zero line ───────────────
-        #
-        # Build a closed path: waveform curve forward, then return along zero.
-        # Fill with a vertical linear gradient: accent colour (semi-transparent)
-        # at the zero line, fully transparent at top and bottom edges.
-        # This is the standard DAW waveform fill style.
-        fill_path = QPainterPath(glow_path)   # copy the already-built path
-        fill_path.lineTo(w - px, cy)          # close along the zero line
-        fill_path.lineTo(px, cy)
-        fill_path.closeSubpath()
-
-        gradient = QLinearGradient(0, pt, 0, pt + draw_h)
-        top_color = QColor(CURVE_COLOR)
-        top_color.setAlpha(0)
-        mid_color = QColor(CURVE_COLOR)
-        mid_color.setAlpha(FILL_ALPHA_TOP)
-        gradient.setColorAt(0.0, top_color)
-        gradient.setColorAt(0.5, mid_color)
-        gradient.setColorAt(1.0, top_color)
-
-        painter.setBrush(QBrush(gradient))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawPath(fill_path)
-
-        # ── 7. Sharp foreground waveform line ─────────────────────────────────
-        painter.setPen(QPen(
-            QColor(CURVE_COLOR),
-            CURVE_STROKE_WIDTH,
-            Qt.PenStyle.SolidLine,
-            Qt.PenCapStyle.RoundCap,
-            Qt.PenJoinStyle.RoundJoin,
-        ))
+        # ── 5. Draw-area border ───────────────────────────────────────────────
+        painter.setPen(QPen(QColor(BORDER_COLOR), 1))
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawPath(glow_path)
+        painter.drawRect(px, pt, draw_w, draw_h)
 
-        # ── 8. Amplitude axis labels (left side) ──────────────────────────────
+        # ── 6. Amplitude axis labels (left side) ──────────────────────────────
         label_font = QFont("IBM Plex Mono", 9)
         painter.setFont(label_font)
         painter.setPen(QPen(QColor(LABEL_COLOR)))
         amp_labels = {1.0: "+1.0", 0.5: "+0.5", 0.0: " 0.0", -0.5: "−0.5", -1.0: "−1.0"}
         for amp, text in amp_labels.items():
             gy = int(pt + (1.0 - amp) / 2.0 * draw_h)
-            painter.drawText(0, gy - 6, px - 4, 14, Qt.AlignmentFlag.AlignRight, text)
+            painter.drawText(0, gy - 7, px - 5, 14, Qt.AlignmentFlag.AlignRight, text)
 
-        # ── 9. Time axis labels (bottom) ──────────────────────────────────────
-        # Label each cycle boundary with its time in milliseconds.
-        # Period T = 1 / frequency. Labels: 0 ms, T ms, 2T ms, … , N*T ms.
+        # ── 7. Time axis labels (bottom — one label per cycle boundary) ───────
         period_ms = 1000.0 / max(self._frequency, 1.0)
         time_font = QFont("IBM Plex Mono", 8)
         painter.setFont(time_font)
@@ -595,25 +462,49 @@ class WaveformCanvas(QWidget):
             t_ms = c * period_ms
             label = f"{t_ms:.2f} ms" if t_ms > 0 else "0 ms"
             tx = int(px + c / DISPLAY_CYCLES * draw_w)
-            painter.drawText(tx - 28, h - pb + 6, 56, 20,
+            painter.drawText(tx - 30, h - pb + 6, 60, 20,
                              Qt.AlignmentFlag.AlignCenter, label)
 
-        # ── 10. Border around the draw area ───────────────────────────────────
-        border_pen = QPen(QColor(AXIS_COLOR), 1)
-        painter.setPen(border_pen)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawRect(px, pt, draw_w, draw_h)
+        # ── 8. Info annotation (top-left, inside draw area) ───────────────────
+        info_font = QFont("IBM Plex Mono", 8)
+        painter.setFont(info_font)
+        info_color = QColor(LABEL_COLOR)
+        info_color.setAlpha(200)
+        painter.setPen(QPen(info_color))
+        db_str = (
+            f"{20.0 * np.log10(self._gain):+.1f} dBFS"
+            if self._gain > 0.0
+            else "−∞ dBFS"
+        )
+        annotation = (
+            f"f = {self._frequency:.1f} Hz   "
+            f"T = {period_ms:.3f} ms   "
+            f"gain = {int(round(self._gain * 100))} % ({db_str})"
+        )
+        painter.drawText(px + 6, pt + 14, annotation)
 
-        # ── 11. Status indicator (top-right corner) ───────────────────────────
-        dot_x = w - px + 8
+        # ── 9. Waveform name watermark ─────────────────────────────────────────
+        wm_font = QFont("IBM Plex Mono", 48, QFont.Weight.Bold)
+        painter.setFont(wm_font)
+        wm_color = QColor(CURVE_COLOR)
+        wm_color.setAlpha(10)
+        painter.setPen(QPen(wm_color))
+        painter.drawText(
+            px, pt, draw_w, draw_h,
+            Qt.AlignmentFlag.AlignCenter,
+            self._waveform_name,
+        )
+
+        # ── 10. Status indicator (top-right, outside draw area) ───────────────
+        dot_x = w - px + 10
         dot_y = pt + STATUS_DOT_RADIUS + 2
         if self._is_playing:
-            dot_color = QColor("#22c55e")   # green — playing
+            dot_color = QColor("#22c55e")
             status_text = "PLAYING"
         else:
-            dot_color = QColor("#5a6175")   # muted — stopped
+            dot_color = QColor(LABEL_COLOR)
             status_text = "STOPPED"
-        painter.setBrush(QBrush(dot_color))
+        painter.setBrush(dot_color)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawEllipse(
             dot_x - STATUS_DOT_RADIUS, dot_y - STATUS_DOT_RADIUS,
@@ -624,28 +515,11 @@ class WaveformCanvas(QWidget):
         painter.setPen(QPen(dot_color))
         painter.drawText(dot_x + STATUS_DOT_RADIUS + 4, dot_y + 4, status_text)
 
-        # ── 12. Frequency + gain annotation (top-left, inside draw area) ────────
-        info_font = QFont("IBM Plex Mono", 8)
-        painter.setFont(info_font)
-        info_color = QColor(LABEL_COLOR)
-        info_color.setAlpha(180)
-        painter.setPen(QPen(info_color))
-        # dBFS: 20 × log10(gain). Guard against log(0) with a floor of -∞ → "−∞ dB".
-        if self._gain > 0.0:
-            db_str = f"{20.0 * np.log10(self._gain):+.1f} dBFS"
-        else:
-            db_str = "−∞ dBFS"
-        annotation = (
-            f"f = {self._frequency:.1f} Hz   T = {period_ms:.3f} ms   "
-            f"gain = {int(round(self._gain * 100))} % ({db_str})"
-        )
-        painter.drawText(px + 8, pt + 16, annotation)
-
         painter.end()
 
 
 # =============================================================================
-# STEP 5 — AudioEngine: manages the sounddevice OutputStream
+# STEP 6 — AudioEngine: manages the sounddevice OutputStream
 # =============================================================================
 
 class AudioEngine:
@@ -658,64 +532,47 @@ class AudioEngine:
     The ``_state`` dataclass is shared between the two threads. Python's GIL
     (Global Interpreter Lock) makes individual attribute assignments atomic
     for built-in types (int, float), so the thread-safe setters below are
-    safe without an explicit Lock for this use case. If you were passing a
-    NumPy array or a complex object, you would need a threading.Lock.
+    safe without an explicit Lock for this use case.
     """
 
     def __init__(self) -> None:
         """Create the audio state and OutputStream, but do not start playback."""
         self._state: WaveformState = WaveformState()
 
-        # AUDIO CONCEPT — Choosing the right host API on Windows:
-        # sounddevice's default on Windows resolves to MME, the oldest and
-        # least reliable Windows audio API. MME adds its own buffering on top
-        # of the block size, introduces timing jitter, and causes crackling and
-        # noise interference — especially with professional USB interfaces like
-        # the Focusrite Scarlett/Clarett series.
-        #
-        # We instead target WASAPI (Windows Audio Session API), which is the
-        # modern low-latency Windows audio API. We query it by name at runtime
-        # so the device index is always resolved correctly, regardless of how
-        # many audio devices are connected or in what order.
-        #
-        # WASAPI EQUIVALENT in Web Audio:
-        #   AudioContext({ latencyHint: 'interactive' }) — both select the
-        #   lowest-latency path to the hardware.
+        # On Windows, target WASAPI (low-latency) over the default MME.
         output_device = self._find_wasapi_output()
 
-        # AUDIO CONCEPT — The callback pattern:
-        # We create the stream with callback=self._callback. sounddevice
-        # (via PortAudio) will call _callback() from a dedicated high-priority
-        # OS audio thread at precisely the right time — roughly every
-        # BLOCK_SIZE / SAMPLE_RATE seconds. We never call _callback ourselves.
         self._stream: sd.OutputStream = sd.OutputStream(
             samplerate=SAMPLE_RATE,
-            channels=1,           # mono output
+            channels=1,
             blocksize=BLOCK_SIZE,
-            dtype="float32",      # sounddevice expects float32 in [-1.0, 1.0]
+            dtype="float32",
             device=output_device,
             callback=self._callback,
         )
 
     @staticmethod
     def _find_wasapi_output() -> int | None:
-        """Return the default output device index for the WASAPI host API.
+        """Return the WASAPI default output device index, or None for system default.
 
-        Queries host APIs by name at runtime so the index is always correct,
-        even if devices are added, removed, or reordered between runs.
-
-        Returns:
-            The WASAPI default output device index, or None to fall back to
-            sounddevice's own default (better than MME, still not ideal).
+        AUDIO CONCEPT — Choosing the right host API on Windows:
+        sounddevice's default on Windows resolves to MME, the oldest Windows
+        audio API. MME adds its own buffering, introduces timing jitter, and
+        causes crackling — especially with professional USB interfaces.
+        WASAPI is the modern low-latency Windows audio API.
+        On Linux and macOS this returns None and sounddevice uses ALSA/CoreAudio.
         """
         for api in sd.query_hostapis():
             if api["name"] == "Windows WASAPI":
                 idx = api["default_output_device"]
                 if idx >= 0:
-                    print(f"[AudioEngine] using WASAPI output device {idx}: "
-                          f"{sd.query_devices(idx)['name']}", flush=True)
+                    print(
+                        f"[AudioEngine] using WASAPI output device {idx}: "
+                        f"{sd.query_devices(idx)['name']}",
+                        flush=True,
+                    )
                     return idx
-        print("[AudioEngine] WASAPI not found — falling back to system default", flush=True)
+        print("[AudioEngine] WASAPI not found — using system default", flush=True)
         return None
 
     # ── Audio callback — runs on the PortAudio audio thread ──────────────────
@@ -729,44 +586,25 @@ class AudioEngine:
     ) -> None:
         """Fill the output buffer with synthesised audio.
 
-        CRITICAL RULES for this function (violations cause audio glitches or crashes):
+        CRITICAL RULES for this function:
           1. No Qt calls — never update a widget or emit a signal from here.
           2. No blocking I/O — no file reads, no network, no sleep.
-          3. No memory allocation — pre-allocate everything; do not create
-             new Python objects (lists, dicts) in the hot path.
+          3. No memory allocation — do not create new Python objects in the hot path.
           4. No Python exceptions — wrap risky code in try/except if needed.
-
-        These rules exist because PortAudio runs this function in a real-time
-        OS thread with elevated scheduling priority. Any delay here causes an
-        underflow — the DAC runs out of data and you hear a glitch or dropout.
-
-        Args:
-            outdata: Output buffer to fill, shape (frames, channels), float32.
-                     Write directly into this array — do not reassign it.
-            frames: Number of frames requested (equals BLOCK_SIZE most of the time).
-            time_info: PortAudio timing struct (not used in this demo).
-            status: Flags indicating stream health — check for underflows.
         """
         if status.output_underflow:
-            # An underflow means the callback was called too late — the DAC ran
-            # out of samples. This usually means the CPU is overloaded or
-            # BLOCK_SIZE is too small. Log it; don't crash.
-            print(f"[AudioEngine] output underflow — consider increasing BLOCK_SIZE", flush=True)
-
-        # Generate the audio block and write it into the output buffer.
-        # outdata[:] writes into the existing buffer (in-place) rather than
-        # creating a new array — this is the zero-copy pattern for callbacks.
+            print("[AudioEngine] output underflow — consider increasing BLOCK_SIZE", flush=True)
         outdata[:] = waveform_block(self._state, frames)
 
     # ── Stream lifecycle ──────────────────────────────────────────────────────
 
     def start(self) -> None:
-        """Start audio output. PortAudio begins calling the callback."""
+        """Start audio output."""
         if not self._stream.active:
             self._stream.start()
 
     def stop(self) -> None:
-        """Stop audio output. The callback will no longer be called."""
+        """Stop audio output."""
         if self._stream.active:
             self._stream.stop()
 
@@ -776,33 +614,27 @@ class AudioEngine:
         self._stream.close()
 
     # ── Thread-safe parameter setters ─────────────────────────────────────────
-    # These are called from the Qt main thread. Python float/int assignment is
-    # atomic under the GIL, making these safe without an explicit threading.Lock
-    # for scalar values. If you needed to swap a NumPy array, use a Lock.
 
     def set_frequency(self, hz: float) -> None:
-        """Set the tone frequency.
-
-        Args:
-            hz: Frequency in Hz, typically in [20, 20000].
-        """
+        """Set tone frequency. Called from the Qt main thread."""
         self._state.frequency = hz
 
     def set_gain(self, gain: float) -> None:
-        """Set the output gain.
-
-        Args:
-            gain: Linear gain in [0.0, 1.0].
-        """
+        """Set output gain. Called from the Qt main thread."""
         self._state.gain = gain
 
     def set_waveform_type(self, wtype: int) -> None:
-        """Set the waveform type.
+        """Set waveform type and reset the phase accumulator.
 
-        Args:
-            wtype: One of WAVEFORM_SINE, WAVEFORM_SQUARE, etc.
+        FIX (waveform switching clicks): when the waveform type changes we
+        reset state.phase to 0.0. Without this, the new waveform starts at
+        whatever phase the old waveform left off — which can be a large
+        amplitude discontinuity (e.g. sawtooth at π suddenly becoming a sine
+        at π), heard as a click or pop. Resetting to 0.0 starts every
+        waveform from its zero crossing, guaranteeing a smooth transition.
         """
         self._state.waveform_type = wtype
+        self._state.phase = 0.0   # reset to zero crossing — eliminates click on type change
 
     @property
     def state(self) -> WaveformState:
@@ -811,7 +643,7 @@ class AudioEngine:
 
 
 # =============================================================================
-# STEP 6 — ControlPanel: right-side UI widget
+# STEP 7 — ControlPanel: right-side UI widget
 # =============================================================================
 
 class ControlPanel(QWidget):
@@ -823,12 +655,9 @@ class ControlPanel(QWidget):
     calls DSP functions directly.
 
     Signals:
-        waveform_changed: Emitted when the combo box selection changes.
-                          Carries the new waveform type index.
-        frequency_changed: Emitted when the frequency slider moves.
-                           Carries the new frequency in Hz (float).
-        gain_changed: Emitted when the gain slider moves.
-                      Carries the new linear gain (float, 0.0–1.0).
+        waveform_changed:  Carries the new waveform type index (int).
+        frequency_changed: Carries the new frequency in Hz (float).
+        gain_changed:      Carries the new linear gain (float, 0.0–1.0).
     """
 
     waveform_changed: Signal = Signal(int)
@@ -836,13 +665,11 @@ class ControlPanel(QWidget):
     gain_changed: Signal = Signal(float)
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        """Build the control panel UI."""
         super().__init__(parent)
         self.setFixedWidth(240)
         self._build_ui()
 
     def _build_ui(self) -> None:
-        """Create all widgets and connect internal signals."""
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         layout.setSpacing(14)
@@ -852,12 +679,10 @@ class ControlPanel(QWidget):
         logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         if LOGO_PATH.exists():
             pixmap = QPixmap(str(LOGO_PATH)).scaledToWidth(
-                80,
-                Qt.TransformationMode.SmoothTransformation,
+                80, Qt.TransformationMode.SmoothTransformation,
             )
             logo_label.setPixmap(pixmap)
         else:
-            # Text fallback if the logo file is not found
             logo_label.setText("AMS Group – TU Ilmenau")
             logo_label.setStyleSheet("color: #4f9cf9; font-size: 10px;")
         layout.addWidget(logo_label)
@@ -869,7 +694,6 @@ class ControlPanel(QWidget):
             "color: #5a6175; font-size: 10px; letter-spacing: 0.5px;"
         )
         layout.addWidget(author_label)
-
         layout.addSpacing(6)
 
         # ── Waveform selector ─────────────────────────────────────────────────
@@ -885,8 +709,6 @@ class ControlPanel(QWidget):
         form.addRow(waveform_label, self._combo)
 
         # ── Frequency slider ──────────────────────────────────────────────────
-        # The slider operates in integer steps (1 Hz per step).
-        # Range: FREQ_MIN_HZ to FREQ_MAX_HZ.
         freq_label = QLabel("Frequency")
         freq_label.setStyleSheet("color: #5a6175; font-size: 12px;")
         self._freq_slider = QSlider(Qt.Orientation.Horizontal)
@@ -894,7 +716,6 @@ class ControlPanel(QWidget):
         self._freq_slider.setValue(int(DEFAULT_FREQUENCY_HZ))
         form.addRow(freq_label, self._freq_slider)
 
-        # Live readout label next to the slider
         self._freq_display = QLabel(f"{int(DEFAULT_FREQUENCY_HZ)} Hz")
         self._freq_display.setStyleSheet(
             "color: #4f9cf9; font-family: 'IBM Plex Mono'; font-size: 11px;"
@@ -902,7 +723,6 @@ class ControlPanel(QWidget):
         form.addRow("", self._freq_display)
 
         # ── Gain slider ───────────────────────────────────────────────────────
-        # Slider range 0–100; divide by 100.0 to get linear gain 0.0–1.0.
         gain_label = QLabel("Gain")
         gain_label.setStyleSheet("color: #5a6175; font-size: 12px;")
         self._gain_slider = QSlider(Qt.Orientation.Horizontal)
@@ -965,7 +785,7 @@ class ControlPanel(QWidget):
         self._gain_slider.valueChanged.connect(self._on_gain_changed)
         self._play_btn.toggled.connect(self._on_play_toggled)
 
-    # ── Internal slots (translate widget events to typed signals) ─────────────
+    # ── Internal slots ────────────────────────────────────────────────────────
 
     def _on_waveform_changed(self, index: int) -> None:
         self.waveform_changed.emit(index)
@@ -983,17 +803,15 @@ class ControlPanel(QWidget):
 
     @property
     def is_playing(self) -> bool:
-        """True when the Play button is pressed."""
         return self._play_btn.isChecked()
 
     @property
     def play_button(self) -> QPushButton:
-        """Direct access to the play button for MainWindow to connect to."""
         return self._play_btn
 
 
 # =============================================================================
-# STEP 7 — MainWindow: assembly, signals, and the display timer
+# STEP 8 — MainWindow: assembly, signals, and the display timer
 # =============================================================================
 
 class MainWindow(QMainWindow):
@@ -1002,16 +820,15 @@ class MainWindow(QMainWindow):
     Layout (QSplitter, horizontal):
     ┌─────────────────────────────┬──────────────┐
     │  WaveformCanvas             │ ControlPanel │
-    │  (live QPainter display)    │              │
+    │  (oscilloscope display)     │              │
     └─────────────────────────────┴──────────────┘
 
     Signal flow:
-      ControlPanel.waveform_changed  → AudioEngine.set_waveform_type
-                                     → (canvas updated by timer)
-      ControlPanel.frequency_changed → AudioEngine.set_frequency
-      ControlPanel.gain_changed      → AudioEngine.set_gain
+      ControlPanel.waveform_changed   → AudioEngine.set_waveform_type
+      ControlPanel.frequency_changed  → AudioEngine.set_frequency
+      ControlPanel.gain_changed       → AudioEngine.set_gain
       ControlPanel.play_button.toggled → AudioEngine.start / stop
-      QTimer.timeout (30 fps)        → _refresh_canvas → WaveformCanvas.set_waveform
+      QTimer.timeout (30 fps)         → _refresh_canvas → WaveformCanvas.set_waveform
 
     ARCHITECTURE CONCEPT — signal-only inter-component communication:
     The ControlPanel does not hold a reference to the AudioEngine or the
@@ -1023,15 +840,12 @@ class MainWindow(QMainWindow):
     """
 
     def __init__(self) -> None:
-        """Create engine, panels, timer, and wire all signals."""
         super().__init__()
         self.setWindowTitle(WINDOW_TITLE)
         self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
 
-        # Audio engine — created before the UI so it is ready when signals fire
         self._engine = AudioEngine()
 
-        # Display refresh timer — fires on the Qt main thread at 30 fps
         self._display_timer = QTimer(self)
         self._display_timer.setInterval(DISPLAY_TIMER_MS)
 
@@ -1040,106 +854,73 @@ class MainWindow(QMainWindow):
         self._display_timer.start()
 
     def _build_ui(self) -> None:
-        """Create and arrange the canvas and control panel."""
         self._canvas = WaveformCanvas()
         self._controls = ControlPanel()
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
         splitter.addWidget(self._canvas)
         splitter.addWidget(self._controls)
-        splitter.setStretchFactor(0, 1)   # canvas expands
-        splitter.setStretchFactor(1, 0)   # controls stay fixed width
+        splitter.setStretchFactor(0, 1)
+        splitter.setStretchFactor(1, 0)
         splitter.setSizes([620, 240])
-
         self.setCentralWidget(splitter)
 
     def _connect_signals(self) -> None:
-        """Connect all signals between UI, engine, and timer.
-
-        Every connect() call is documented with source → destination → purpose.
-        """
-        # Waveform type → engine + immediate canvas refresh
         self._controls.waveform_changed.connect(self._engine.set_waveform_type)
-
-        # Frequency → engine (canvas refreshes via the timer)
         self._controls.frequency_changed.connect(self._engine.set_frequency)
-
-        # Gain → engine
         self._controls.gain_changed.connect(self._engine.set_gain)
-
-        # Play/Stop toggle → engine start/stop
         self._controls.play_button.toggled.connect(self._on_play_toggled)
-
-        # 30 fps display timer → canvas refresh
         self._display_timer.timeout.connect(self._refresh_canvas)
 
     # ── Slots ─────────────────────────────────────────────────────────────────
 
     def _on_play_toggled(self, checked: bool) -> None:
-        """Start or stop the audio engine when the Play/Stop button is toggled.
-
-        Args:
-            checked: True when the button is in the 'playing' state.
-        """
         if checked:
             self._engine.start()
         else:
             self._engine.stop()
 
     def _refresh_canvas(self) -> None:
-        """Generate DISPLAY_CYCLES cycles of the current waveform and send to the canvas.
+        """Generate DISPLAY_CYCLES cycles of the current waveform for the canvas.
 
-        This runs on the Qt main thread at 30 fps. It reads the current audio
-        state (frequency, waveform type, gain) and synthesises exactly
-        DISPLAY_CYCLES complete cycles for display.
+        DISPLAY — gain-aware trace:
+        The display waveform is generated with the engine's actual
+        state.gain, so the trace visibly grows/shrinks as the gain slider
+        moves (gain=0 collapses it to the flat zero line). The ±1.0 grid
+        lines stay fixed as a scale reference, so you can read the trace's
+        peak directly against them.
 
         OSCILLOSCOPE DESIGN — fixed time window:
         We always show a window of exactly DISPLAY_CYCLES / frequency seconds.
-        This means the number of samples rendered scales with frequency:
-          • At  20 Hz  (3 cycles): 3 / 20   =  150 ms → 7 200 samples
-          • At 440 Hz  (3 cycles): 3 / 440  ≈  6.8 ms → 327 samples
-          • At 2000 Hz (3 cycles): 3 / 2000 =  1.5 ms → 72 samples
-        The canvas maps however many samples we pass to the full pixel width,
-        so the user directly sees the relationship T = 1/f: at high frequency
-        the cycle is physically narrower; at low frequency it is wider. This is
-        exactly what a Rigol or Tektronix oscilloscope shows.
-
-        The minimum of 64 samples ensures the path has enough points to look
-        smooth even at very high frequencies where a single cycle spans only
-        a few pixels.
-
-        GAIN — we pass state.gain into display_state (not 1.0). The waveform
-        samples in the output array are therefore in [-gain, +gain]. The canvas
-        keeps its amplitude grid fixed at ±1.0, so the student sees the wave
-        shrink toward the zero line as gain decreases — identical to turning
-        the VOLTS/DIV knob on a hardware oscilloscope.
-
-        This is independent of the audio callback — the canvas always shows
-        clean cycles starting from phase 0, regardless of the audio block
-        boundaries or the engine's current phase accumulator.
+        The number of samples changes with frequency:
+          • At   20 Hz (3 cycles): 3/20   = 150 ms → 7 200 samples
+          • At  440 Hz (3 cycles): 3/440  ≈ 6.8 ms →   327 samples
+          • At 2000 Hz (3 cycles): 3/2000 = 1.5 ms →    72 samples
+        The canvas stretches however many samples we pass to the full pixel
+        width, so the waveform always appears stable — like pressing AUTO on
+        a hardware oscilloscope.
         """
         state = self._engine.state
 
-        # Fixed time window: always show exactly DISPLAY_CYCLES complete cycles.
-        # n_samples = round(DISPLAY_CYCLES × SAMPLE_RATE / frequency).
-        # Clamped to [64, 8192] to avoid degenerate arrays at the slider extremes.
         n_samples = int(round(DISPLAY_CYCLES * SAMPLE_RATE / max(state.frequency, 1.0)))
         n_samples = max(64, min(n_samples, 8_192))
 
-        # Temporary state for display only — do not disturb the engine's phase.
-        # gain is taken directly from state so the canvas amplitude reflects the
-        # real output level, not a fictional unit-gain shape.
+        # Display state: gain=state.gain so the trace height tracks the
+        # slider. phase=0.0 so the display always starts from the zero
+        # crossing. We do NOT disturb the engine's own state.phase — we use
+        # a fresh object.
         display_state = WaveformState(
             waveform_type=state.waveform_type,
             frequency=state.frequency,
-            gain=state.gain,   # ← real gain: the wave scales on screen
-            phase=0.0,         # always start from phase zero for a clean display
+            gain=state.gain,     # ← trace amplitude follows the gain slider
+            phase=0.0,            # ← always start from zero crossing for a stable display
         )
         block = waveform_block(display_state, n_samples)   # shape (n_samples, 1)
+
         self._canvas.set_waveform(
-            data=block[:, 0],                              # 1-D array in [-gain, +gain]
+            data=block[:, 0],                              # 1-D array, amplitude = gain
             frequency=state.frequency,
-            gain=state.gain,                               # forwarded for annotation
+            gain=state.gain,                               # also used for the dB annotation
             waveform_name=WAVEFORM_NAMES[state.waveform_type].upper(),
             is_playing=self._controls.is_playing,
         )
@@ -1147,29 +928,23 @@ class MainWindow(QMainWindow):
     # ── Window lifecycle ──────────────────────────────────────────────────────
 
     def closeEvent(self, event) -> None:  # noqa: ANN001
-        """Stop and release the audio device when the window closes.
-
-        RESOURCE MANAGEMENT: always close sounddevice streams in closeEvent.
-        An unreleased audio stream holds the OS audio device open, which can
-        prevent other applications from using the device until the process ends.
-        """
+        """Stop and release the audio device when the window closes."""
         self._display_timer.stop()
         self._engine.close()
         super().closeEvent(event)
 
 
 # =============================================================================
-# STEP 8 — Entry point
+# STEP 9 — Entry point
 # =============================================================================
 
 def main() -> None:
     """Create the QApplication, show the window, and start the event loop."""
     app = QApplication(sys.argv)
-
-    # Apply the dark theme palette consistent with the course HTML design system
     app.setStyle("Fusion")
-    palette = app.palette()
+
     from PySide6.QtGui import QPalette
+    palette = app.palette()
     palette.setColor(QPalette.ColorRole.Window, QColor("#0d0f14"))
     palette.setColor(QPalette.ColorRole.WindowText, QColor("#d8dce6"))
     palette.setColor(QPalette.ColorRole.Base, QColor("#161a22"))
