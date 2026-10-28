@@ -344,6 +344,23 @@ class AudioEngine:
         """Create the audio state and OutputStream, but do not start playback."""
         self._state: WaveformState = WaveformState()
 
+        # AUDIO CONCEPT — Choosing the right host API on Windows:
+        # sounddevice's default on Windows resolves to MME, the oldest and
+        # least reliable Windows audio API. MME adds its own buffering on top
+        # of the block size, introduces timing jitter, and causes crackling and
+        # noise interference — especially with professional USB interfaces like
+        # the Focusrite Scarlett/Clarett series.
+        #
+        # We instead target WASAPI (Windows Audio Session API), which is the
+        # modern low-latency Windows audio API. We query it by name at runtime
+        # so the device index is always resolved correctly, regardless of how
+        # many audio devices are connected or in what order.
+        #
+        # WASAPI EQUIVALENT in Web Audio:
+        #   AudioContext({ latencyHint: 'interactive' }) — both select the
+        #   lowest-latency path to the hardware.
+        output_device = self._find_wasapi_output()
+
         # AUDIO CONCEPT — The callback pattern:
         # We create the stream with callback=self._callback. sounddevice
         # (via PortAudio) will call _callback() from a dedicated high-priority
@@ -354,8 +371,30 @@ class AudioEngine:
             channels=1,           # mono output
             blocksize=BLOCK_SIZE,
             dtype="float32",      # sounddevice expects float32 in [-1.0, 1.0]
+            device=output_device,
             callback=self._callback,
         )
+
+    @staticmethod
+    def _find_wasapi_output() -> int | None:
+        """Return the default output device index for the WASAPI host API.
+
+        Queries host APIs by name at runtime so the index is always correct,
+        even if devices are added, removed, or reordered between runs.
+
+        Returns:
+            The WASAPI default output device index, or None to fall back to
+            sounddevice's own default (better than MME, still not ideal).
+        """
+        for api in sd.query_hostapis():
+            if api["name"] == "Windows WASAPI":
+                idx = api["default_output_device"]
+                if idx >= 0:
+                    print(f"[AudioEngine] using WASAPI output device {idx}: "
+                          f"{sd.query_devices(idx)['name']}", flush=True)
+                    return idx
+        print("[AudioEngine] WASAPI not found — falling back to system default", flush=True)
+        return None
 
     # ── Audio callback — runs on the PortAudio audio thread ──────────────────
 
