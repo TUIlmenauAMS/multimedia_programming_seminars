@@ -1,0 +1,1496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 03: PySide6 for Multimedia — Multimediaprogrammierung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0d0f14;
+    --surface: #161a22;
+    --border:  #252b38;
+    --text:    #d8dce6;
+    --muted:   #5a6175;
+    --accent:  #4f9cf9;
+    --accent2: #a78bfa;
+    --green:   #34d399;
+    --orange:  #fb923c;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* ── header ── */
+  header {
+    border-bottom: 2px solid var(--border);
+    padding: 24px 0 20px;
+  }
+  .header-inner {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .header-logo img { width: 100px; border-radius: 10px; display: block; }
+  .header-info h1 { font-size: clamp(18px,3vw,26px); font-weight: 500; color: #f0f2f7; line-height: 1.2; margin-bottom: 4px; }
+  .header-info h2 { font-size: 14px; font-weight: 400; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; }
+  .header-meta { font-size: 13px; color: var(--text); line-height: 1.6; }
+  .header-meta a { color: var(--accent); text-decoration: none; }
+  .header-meta a:hover { text-decoration: underline; }
+
+  /* ── breadcrumb ── */
+  .breadcrumb {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 14px 32px 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .breadcrumb a { color: var(--accent); text-decoration: none; }
+  .breadcrumb a:hover { text-decoration: underline; }
+  .breadcrumb span { margin: 0 6px; }
+
+  /* ── main ── */
+  main {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 40px 32px 80px;
+  }
+
+  /* ── notebook content ── */
+  .nb-content { display: flex; flex-direction: column; gap: 0; }
+  .nb-cell { padding: 0; }
+
+  /* ── prose ── */
+  .nb-cell h1 {
+    font-size: clamp(22px, 3.5vw, 32px);
+    font-weight: 500;
+    color: #f0f2f7;
+    line-height: 1.25;
+    margin: 40px 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .nb-cell h2 {
+    font-size: 20px;
+    font-weight: 500;
+    color: #e8eaf2;
+    margin: 48px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .nb-cell h3 {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--accent2);
+    margin: 28px 0 10px;
+    font-family: var(--mono);
+    letter-spacing: 0.02em;
+  }
+  .nb-cell p { margin-bottom: 14px; color: var(--text); }
+  .nb-cell ul, .nb-cell ol { margin: 0 0 14px 22px; }
+  .nb-cell li { margin-bottom: 6px; }
+  .nb-cell strong { color: #eef0f6; font-weight: 500; }
+  .nb-cell em { color: var(--text); }
+  .nb-cell a { color: var(--accent); text-decoration: none; }
+  .nb-cell a:hover { text-decoration: underline; }
+  .nb-cell hr { border: none; border-top: 1px solid var(--border); margin: 8px 0 0; }
+
+  /* tables */
+  .nb-cell table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 20px;
+    font-size: 13.5px;
+  }
+  .nb-cell th {
+    text-align: left;
+    padding: 8px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .nb-cell td {
+    padding: 9px 12px;
+    border-bottom: 1px solid rgba(37,43,56,0.6);
+    vertical-align: top;
+    color: var(--text);
+  }
+  .nb-cell tr:last-child td { border-bottom: none; }
+  .nb-cell tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* inline code */
+  .nb-cell code {
+    background: rgba(79,156,249,0.08);
+    color: #93c5fd;
+    font-family: var(--mono);
+    font-size: 0.88em;
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  /* code blocks */
+  .nb-cell pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin: 14px 0 20px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.65;
+    color: #c9d1e0;
+  }
+  .nb-cell pre code {
+    background: none;
+    color: inherit;
+    font-size: inherit;
+    padding: 0;
+    border-radius: 0;
+  }
+
+  /* pill links */
+  .nb-cell a[style*="border:1px solid #1a73e8"],
+  .nb-cell a[style*="border: 1px solid #1a73e8"] {
+    display: inline-flex !important;
+    align-items: center;
+    padding: 5px 14px !important;
+    margin: 4px 6px 4px 0 !important;
+    border: 1px solid rgba(79,156,249,0.4) !important;
+    border-radius: 20px !important;
+    text-decoration: none !important;
+    font-weight: 500 !important;
+    font-size: 12px !important;
+    color: var(--accent) !important;
+    background: rgba(79,156,249,0.07) !important;
+    font-family: var(--mono);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .nb-cell a[style*="border:1px solid #1a73e8"]:hover,
+  .nb-cell a[style*="border: 1px solid #1a73e8"]:hover {
+    background: rgba(79,156,249,0.14) !important;
+    border-color: rgba(79,156,249,0.7) !important;
+  }
+
+  /* callout / info boxes */
+  .nb-cell div[style*="border-left:5px solid #1a73e8"],
+  .nb-cell div[style*="border-left: 5px solid #1a73e8"] {
+    border-left: 4px solid var(--accent) !important;
+    background: rgba(79,156,249,0.06) !important;
+    border-radius: 6px;
+    padding: 16px 20px !important;
+    margin: 20px 0 !important;
+    color: var(--text);
+  }
+
+  /* demo boxes */
+  .demo-box {
+    border: 1px solid rgba(167,139,250,0.35);
+    background: rgba(167,139,250,0.05);
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin: 28px 0;
+  }
+  .demo-box .demo-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--accent2);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .demo-box .demo-title {
+    font-size: 15px;
+    font-weight: 500;
+    color: #eef0f6;
+    margin-bottom: 6px;
+  }
+  .demo-box .demo-file {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent2);
+    margin-bottom: 8px;
+  }
+  .demo-box p {
+    font-size: 13.5px;
+    color: var(--muted);
+    margin-bottom: 0;
+  }
+
+  /* images */
+  .nb-cell img {
+    max-width: 100%;
+    border-radius: 10px;
+    display: block;
+  }
+
+  /* footer cell */
+  .nb-footer-cell {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 2px solid var(--border);
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .nb-footer-cell b { color: var(--text); }
+  .nb-footer-cell a { color: var(--accent); text-decoration: none; }
+  .nb-footer-cell a:hover { text-decoration: underline; }
+
+  /* ── prev / next navigation ── */
+  .chapter-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-top: 56px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .chapter-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    text-decoration: none;
+    padding: 8px 14px;
+    border: 1px solid rgba(79,156,249,0.3);
+    border-radius: 6px;
+    background: rgba(79,156,249,0.05);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .chapter-nav a:hover {
+    background: rgba(79,156,249,0.12);
+    border-color: rgba(79,156,249,0.6);
+  }
+  .chapter-nav .nav-label {
+    font-size: 11px;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 1px;
+  }
+  .chapter-nav .nav-title { color: var(--accent); }
+
+  /* ── page footer ── */
+  footer {
+    border-top: 2px solid var(--border);
+    padding: 18px 32px 24px;
+    max-width: 860px;
+    margin: 0 auto;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.7;
+  }
+  footer p + p { margin-top: 4px; font-size: 12px; color: var(--muted); }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 600px) {
+    .header-inner, main, footer, .breadcrumb { padding-left: 20px; padding-right: 20px; }
+    .header-inner { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .chapter-nav { flex-direction: column; align-items: stretch; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="header-logo">
+      <img src="ams_group_tui.png" alt="AMS Group – TU Ilmenau">
+    </div>
+    <div class="header-info">
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 03: PySide6 for Multimedia</h2>
+      <p class="header-meta">
+        <strong>Institut für Medientechnik –
+          <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme"
+             target="_blank" rel="noopener">AMS Group</a>
+          – Technische Universität Ilmenau</strong><br>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller &nbsp;·&nbsp;
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+      </p>
+    </div>
+  </div>
+</header>
+
+<nav class="breadcrumb">
+  <a href="index.html">Seminar Materials</a>
+  <span>›</span>
+  Chapter 03: PySide6 for Multimedia
+</nav>
+
+<main>
+<div class="nb-content">
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     CHAPTER INTRO
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<h1>Chapter 03: PySide6 for Multimedia</h1>
+<p>This chapter teaches you to build <strong>professional multimedia applications in Python</strong> using PySide6 as the desktop GUI framework. You will write real programs that capture and play audio, process audio signals in real time, display and process video frames, and synchronise audio and video streams — all at the level of quality expected in the industry.</p>
+<p>The tools you will learn — <strong>PySide6</strong>, <strong>sounddevice</strong>, <strong>soundfile</strong>, <strong>NumPy</strong>, <strong>SciPy</strong>, and <strong>OpenCV</strong> — are used in professional broadcast pipelines, digital audio workstations, video production tools, and research systems worldwide. There is no simplification here: the demos in this chapter are professional-grade code that you will study, run, and build on.</p>
+<p>By the end of this chapter you will have the architectural knowledge and the practical code patterns to build your own multimedia software application — which is exactly what the course project requires.</p>
+
+<h3>What this chapter covers</h3>
+<table>
+  <thead><tr><th>#</th><th>Section</th><th>What you will learn</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Why PySide6 for Multimedia</td><td>The professional Python multimedia stack and where it is used</td></tr>
+    <tr><td>2</td><td>Project Setup with uv</td><td>pyproject.toml, uv sync, reproducible environments</td></tr>
+    <tr><td>3</td><td>PySide6 Architecture</td><td>QApplication, layouts, signals and slots for multimedia UIs</td></tr>
+    <tr><td>4</td><td>Audio I/O with sounddevice</td><td>PortAudio, callback mode, real-time audio, thread safety</td></tr>
+    <tr><td>5</td><td>Audio File I/O with soundfile</td><td>Reading and writing WAV, FLAC, OGG; resampling</td></tr>
+    <tr><td>6</td><td>DSP with NumPy and SciPy</td><td>FFT, windowing, IIR filtering, waveform synthesis</td></tr>
+    <tr><td>7</td><td>Audio Visualisation with QPainter</td><td>Waveforms, spectrum displays, peak reduction, log-frequency axis</td></tr>
+    <tr><td>8</td><td>Video Processing with OpenCV</td><td>VideoCapture, frame DSP, BGR→RGB→Qt pipeline</td></tr>
+    <tr><td>9</td><td>Audio/Video Synchronisation</td><td>The master clock, outputBufferDacTime, atomic seeking</td></tr>
+    <tr><td>10</td><td>Building a Complete Multimedia Application</td><td>Architecture, threading model, QSettings, menus, resource management</td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 1 — WHY PYSIDE6
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>1. Why PySide6 for Multimedia Applications</h2>
+
+<p>In Chapter 01 you built audio tools in the browser using the Web Audio API, and in Chapter 02 you rendered graphics in the browser using WebGL 2. The browser is a powerful platform for educational tools and lightweight interactive applications. But it has hard limits that rule it out for professional multimedia software:</p>
+
+<ul>
+  <li><strong>Latency:</strong> the browser audio stack has latency measured in tens of milliseconds. Professional audio tools require latency under 10 ms, often under 5 ms. PortAudio — the library behind <code>sounddevice</code> — can achieve 1–3 ms round-trip latency on a properly configured system.</li>
+  <li><strong>File system access:</strong> browsers cannot open arbitrary files or write to disk. Professional tools work with large media files that may be gigabytes in size.</li>
+  <li><strong>OS audio APIs:</strong> professional applications need direct access to ASIO (Windows), ALSA (Linux), and CoreAudio (macOS) drivers. The browser exposes none of these.</li>
+  <li><strong>Hardware integration:</strong> MIDI controllers, audio interfaces, video capture cards, and broadcast hardware are not accessible from a browser.</li>
+  <li><strong>Processing power:</strong> real-time DSP on long audio files, multi-channel processing, and high-resolution video all require the full CPU without JavaScript's single-threaded constraint.</li>
+</ul>
+
+<p>This is the gap that Python + Qt fills. Qt is a C++ framework used as the UI layer in <strong>Avid Pro Tools</strong>, <strong>Adobe Audition</strong>, <strong>DaVinci Resolve</strong>, <strong>VLC</strong>, and many other professional multimedia applications. PySide6 gives you Python bindings to the same framework under an LGPL licence — meaning you can use it in commercial products without paying a licence fee.</p>
+
+<h3>The professional Python multimedia stack</h3>
+<table>
+  <thead><tr><th>Library</th><th>Role</th><th>Industry use</th></tr></thead>
+  <tbody>
+    <tr><td><code>PySide6</code></td><td>Desktop GUI framework</td><td>Internal tools at broadcasters, DAW plugins, production pipelines at studios</td></tr>
+    <tr><td><code>sounddevice</code></td><td>Real-time audio I/O via PortAudio</td><td>Audio research, broadcast monitoring, custom DAW tooling</td></tr>
+    <tr><td><code>soundfile</code></td><td>Audio file read/write via libsndfile</td><td>Every professional audio application that touches WAV/FLAC/AIFF files</td></tr>
+    <tr><td><code>numpy</code></td><td>Array math — the universal audio/video data format</td><td>Signal processing, ML pipelines, broadcast automation</td></tr>
+    <tr><td><code>scipy</code></td><td>Scientific DSP — filters, FFT utilities, resampling</td><td>Audio analysis, broadcast loudness measurement, research tools</td></tr>
+    <tr><td><code>opencv-python</code></td><td>Frame-level video processing</td><td>VFX pipelines, broadcast QC, ML preprocessing, surveillance, medical imaging</td></tr>
+  </tbody>
+</table>
+
+<h3>PySide6 vs PyQt6</h3>
+<p>PySide6 and PyQt6 expose identical APIs — they are both Python bindings to the same Qt 6 C++ library. The difference is licensing. PyQt6 is released under the GPL, which means any software you distribute using it must also be open source under the GPL. PySide6 is released under the LGPL, which means you can link it into a closed-source commercial application without releasing your source code. <strong>Studios and broadcast companies use PySide6.</strong> Use PySide6 for any project that might be commercialised.</p>
+
+<div style="border-left:5px solid #1a73e8; padding:14px 18px; margin:20px 0;">
+<strong>The tools you learn here are production tools.</strong> sounddevice wraps PortAudio, the cross-platform audio I/O library that underpins Audacity, PortMidi, and dozens of DAW plugins. soundfile wraps libsndfile, used in virtually every professional audio application on Linux. OpenCV is used by every major film studio's VFX pipeline and by every major technology company's computer vision team. You are not learning toy libraries — you are learning the stack that professionals use.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://doc.qt.io/qtforpython-6/" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">PySide6 Docs &#8599;</a>
+  <a href="https://python-sounddevice.readthedocs.io/" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">sounddevice Docs &#8599;</a>
+  <a href="https://pysoundfile.readthedocs.io/" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">soundfile Docs &#8599;</a>
+  <a href="https://docs.opencv.org/4.x/d6/d00/tutorial_py_root.html" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">OpenCV Python Docs &#8599;</a>
+</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 2 — PROJECT SETUP
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>2. Project Setup with uv</h2>
+
+<p><strong>uv</strong> is a modern Python package manager written in Rust. It is 10–100× faster than pip, produces a deterministic lockfile, and has become the standard tool for managing Python projects in professional and research environments. All demos in this chapter are managed with uv.</p>
+
+<h3>Installing uv and running the demos</h3>
+<pre><code># 1. Install uv (Linux / WSL on Windows)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# Windows (PowerShell, no WSL needed)
+winget install --id=astral-sh.uv -e
+
+# 2. Clone the course repository and enter the seminar folder
+git clone https://github.com/TUIlmenauAMS/multimedia_programming_seminars
+cd multimedia_programming_seminars/seminar_03
+
+# 3. Create the virtual environment and install every dependency
+uv sync
+
+# 4. Run any demo
+uv run python 03_mm_hello_multimedia.py
+
+# 5. Lint and format your own code
+uv run ruff check .
+uv run ruff format .</code></pre>
+
+<h3>Ubuntu system dependencies</h3>
+<p>Before running <code>uv sync</code> on Ubuntu, install the native system libraries that the Python packages wrap:</p>
+<pre><code>sudo apt install libgl1 libegl1 libxcb-cursor0 libxcb-xinerama0 \
+                 libportaudio2 libsndfile1</code></pre>
+<table>
+  <thead><tr><th>Package</th><th>Why it is needed</th></tr></thead>
+  <tbody>
+    <tr><td><code>libgl1</code></td><td>Mesa OpenGL implementation — required by PySide6's rendering backend</td></tr>
+    <tr><td><code>libegl1</code></td><td>EGL interface — required by PySide6's Qt platform plugin</td></tr>
+    <tr><td><code>libxcb-cursor0</code></td><td>XCB cursor library — required by Qt's xcb platform plugin on Ubuntu 22.04+</td></tr>
+    <tr><td><code>libxcb-xinerama0</code></td><td>Multi-monitor support for Qt</td></tr>
+    <tr><td><code>libportaudio2</code></td><td>PortAudio runtime — required by sounddevice</td></tr>
+    <tr><td><code>libsndfile1</code></td><td>libsndfile runtime — required by soundfile</td></tr>
+  </tbody>
+</table>
+<p>On Windows, no system dependencies are needed — the Python wheels bundle everything.</p>
+
+<h3>The <code>pyproject.toml</code></h3>
+<p>Every seminar project has a single <code>pyproject.toml</code> that declares the project name, Python version, all dependencies, and tool configuration. This file is the modern replacement for <code>setup.py</code>, <code>requirements.txt</code>, and <code>setup.cfg</code> combined — it is the standard format defined by PEP 517/518/621 and used by every serious Python project today.</p>
+<pre><code>[project]
+name = "multimediaprogrammierung-seminar03"
+version = "0.1.0"
+description = "Multimediaprogrammierung Seminar 03 — PySide6 for Multimedia"
+authors = [
+    { name = "Renato Fera P.", email = "renato.profeta@tu-ilmenau.de" }
+]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "PySide6>=6.7.0",       # Qt 6 Python bindings — GUI framework
+    "sounddevice>=0.4.6",   # Real-time audio I/O via PortAudio
+    "soundfile>=0.12.1",    # Audio file read/write via libsndfile
+    "numpy>=1.26.0",        # Array math — universal audio/video data format
+    "scipy>=1.13.0",        # Scientific DSP — filters, FFT utilities, resampling
+    "opencv-python>=4.9.0", # Frame-level video processing
+]
+
+[dependency-groups]
+dev = ["ruff>=0.4.0"]      # Linter and formatter — industry standard
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+# E/W = pycodestyle   F = Pyflakes   I = isort   UP = pyupgrade</code></pre>
+
+<h3>What uv creates</h3>
+<table>
+  <thead><tr><th>File / folder</th><th>What it is</th><th>Commit to git?</th></tr></thead>
+  <tbody>
+    <tr><td><code>pyproject.toml</code></td><td>Project manifest — dependencies, metadata, tool config</td><td>Yes</td></tr>
+    <tr><td><code>uv.lock</code></td><td>Lockfile — every dependency pinned to an exact version and hash</td><td>Yes</td></tr>
+    <tr><td><code>.venv/</code></td><td>Virtual environment — reproducible from <code>uv.lock</code> in seconds</td><td>No — add to .gitignore</td></tr>
+    <tr><td><code>.python-version</code></td><td>Specifies the Python version for uv and other tools</td><td>Yes</td></tr>
+  </tbody>
+</table>
+
+<div style="border-left:5px solid #1a73e8; padding:14px 18px; margin:20px 0;">
+<strong><code>uv.lock</code> is the single source of truth for your environment.</strong> Anyone who clones this repository and runs <code>uv sync</code> gets an identical environment — same package versions, same hashes, same binary wheels. This is called <em>reproducibility</em>. It is the same guarantee that <code>package-lock.json</code> gives you in Node.js and <code>Cargo.lock</code> gives you in Rust. Always commit <code>uv.lock</code>. Never commit <code>.venv/</code>.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://docs.astral.sh/uv/" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">uv Docs &#8599;</a>
+  <a href="https://peps.python.org/pep-0621/" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">PEP 621 &#8599;</a>
+</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 3 — PYSIDE6 ARCHITECTURE
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>3. PySide6 Architecture for Multimedia</h2>
+
+<p>Every PySide6 application shares the same fundamental structure: a <code>QApplication</code> that owns the event loop, a hierarchy of widgets that make up the UI, a layout system that manages their geometry, and a signals-and-slots mechanism that wires them together. This section covers these concepts in the context of multimedia applications.</p>
+
+<h3>QApplication and the event loop</h3>
+<p><code>QApplication</code> must be created before any widget and exactly once per process. It initialises Qt's platform plugin (the bridge to the OS window manager), processes command-line arguments, and owns the event loop. <code>app.exec()</code> starts the event loop, which blocks until the last window is closed. The exit code it returns should always be forwarded to the OS:</p>
+<pre><code>import sys
+from PySide6.QtWidgets import QApplication
+
+app = QApplication(sys.argv)  # must come before any QWidget
+window = MainWindow()
+window.show()
+sys.exit(app.exec())           # app.exec() returns 0 on clean exit</code></pre>
+<p>The event loop is the same concept as the browser's event loop that drove <code>requestAnimationFrame</code> in Chapter 01 and Chapter 02. It waits for events — user input, timer expiry, repaint requests — and dispatches them to the correct handlers. Your code does not run continuously; it runs in response to events.</p>
+
+<h3>QMainWindow and QWidget</h3>
+<table>
+  <thead><tr><th>Class</th><th>Use when</th><th>Extras you get</th></tr></thead>
+  <tbody>
+    <tr><td><code>QMainWindow</code></td><td>The top-level application window</td><td>Menu bar, status bar, dock widgets, toolbar</td></tr>
+    <tr><td><code>QWidget</code></td><td>Any panel, canvas, or embedded component</td><td>Full painting, input events, layout management</td></tr>
+  </tbody>
+</table>
+
+<h3>Layouts</h3>
+<p>Never hardcode pixel positions. Qt layouts compute widget geometry automatically and adapt to window resizing, DPI changes, and different screen sizes. The layouts you will use most in multimedia applications:</p>
+<table>
+  <thead><tr><th>Layout</th><th>Behaviour</th><th>Typical use in a multimedia app</th></tr></thead>
+  <tbody>
+    <tr><td><code>QVBoxLayout</code></td><td>Stacks widgets top-to-bottom</td><td>Control panel with labelled sliders</td></tr>
+    <tr><td><code>QHBoxLayout</code></td><td>Stacks widgets left-to-right</td><td>Transport button row (Play, Stop, Step)</td></tr>
+    <tr><td><code>QFormLayout</code></td><td>Two-column label + widget pairs</td><td>Parameter panels with named controls</td></tr>
+    <tr><td><code>QSplitter</code></td><td>Resizable panels separated by a drag handle</td><td>Video viewport beside a waveform display</td></tr>
+  </tbody>
+</table>
+<pre><code>from PySide6.QtWidgets import QSplitter, QVBoxLayout
+from PySide6.QtCore import Qt
+
+# A resizable horizontal split between a video panel and a control panel
+splitter = QSplitter(Qt.Orientation.Horizontal)
+splitter.addWidget(video_panel)
+splitter.addWidget(control_panel)
+splitter.setStretchFactor(0, 1)   # video panel grows when window resizes
+splitter.setStretchFactor(1, 0)   # control panel stays fixed width
+splitter.setSizes([640, 280])      # initial pixel sizes</code></pre>
+
+<h3>Signals and slots in a multimedia context</h3>
+<p>The signals-and-slots mechanism is Qt's implementation of the observer pattern. An object <em>emits</em> a signal when something happens; any number of other objects can <em>connect</em> slots (callback functions) to that signal and be notified automatically. The emitter does not know who is listening.</p>
+<p>In a multimedia application this decoupling is essential. A frequency slider does not know that an audio engine exists. It emits <code>valueChanged(int)</code>. The audio engine is a slot that receives the value and updates its DSP parameter. If you later replace the audio engine, the slider needs no changes:</p>
+<pre><code>from PySide6.QtCore import Signal, QObject
+
+class AudioEngine(QObject):
+    # Custom signal — emitted when the playhead moves (from the audio thread
+    # via a queue, dispatched to Qt in the main thread)
+    frame_changed = Signal(int)
+
+# Connect the slider to the engine's parameter setter
+freq_slider.valueChanged.connect(audio_engine.set_frequency)
+
+# Connect the engine's signal to the waveform display
+audio_engine.frame_changed.connect(waveform_view.set_playhead)</code></pre>
+
+<p>You can also define custom signals that carry data across threads. The key rule: <strong>always emit signals in the Qt main thread</strong>. Data produced in the audio thread must be placed in a <code>queue.Queue</code> and consumed by the main thread via a <code>QTimer</code>.</p>
+
+<div style="border-left:5px solid #1a73e8; padding:14px 18px; margin:20px 0;">
+<strong>In a professional multimedia tool, the UI never calls DSP functions directly.</strong> A slider emits a signal carrying its value; the DSP component is a slot that receives it. This decoupling means you can replace the UI or the DSP engine independently, test each component in isolation, and connect them together in any combination. It is the same architectural principle that makes Maya's node graph and Houdini's operator network so powerful.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://doc.qt.io/qtforpython-6/overviews/signalsandslots.html" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">Signals and Slots &#8599;</a>
+  <a href="https://doc.qt.io/qtforpython-6/overviews/layout.html" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">Qt Layouts &#8599;</a>
+</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 4 — AUDIO I/O WITH SOUNDDEVICE
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>4. Audio I/O with sounddevice</h2>
+
+<p><strong>PortAudio</strong> is the cross-platform audio I/O library that powers Audacity, dozens of DAW plugins, and professional broadcast tools. <code>sounddevice</code> is the authoritative Python interface to PortAudio. It gives you direct access to your system's audio hardware with latencies that the browser can never achieve.</p>
+
+<h3>Device enumeration</h3>
+<p>Before opening an audio stream, list the available devices and select the right one. In a professional application, the selected device is stored in user preferences and restored at startup:</p>
+<pre><code>import sounddevice as sd
+
+# List all audio devices on the system
+print(sd.query_devices())
+
+# Get the default input and output devices
+default_in  = sd.query_devices(kind='input')
+default_out = sd.query_devices(kind='output')
+
+print(f"Default input:  {default_in['name']}  @ {default_in['default_samplerate']} Hz")
+print(f"Default output: {default_out['name']} @ {default_out['default_samplerate']} Hz")</code></pre>
+
+<h3>Two modes of operation</h3>
+<table>
+  <thead><tr><th>Mode</th><th>API</th><th>When to use</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Blocking</strong></td><td><code>sd.play()</code>, <code>sd.rec()</code>, <code>sd.wait()</code></td><td>Simple one-shot playback or recording from a script. Not suitable for interactive applications.</td></tr>
+    <tr><td><strong>Callback</strong></td><td><code>sd.OutputStream</code>, <code>sd.InputStream</code>, <code>sd.Stream</code></td><td>All interactive and real-time applications. The professional pattern.</td></tr>
+  </tbody>
+</table>
+
+<h3>The audio callback — the professional pattern</h3>
+<p>In callback mode, you provide a function that PortAudio calls from its own high-priority audio thread at exactly the right time to fill or drain a hardware buffer. This is the pattern used in every real-time audio application:</p>
+<pre><code>import sounddevice as sd
+import numpy as np
+
+SAMPLE_RATE = 48000   # Hz — standard for professional audio
+BLOCK_SIZE  = 512     # frames per callback block — lower = less latency, higher CPU
+
+def audio_callback(outdata: np.ndarray,
+                   frames: int,
+                   time_info,
+                   status: sd.CallbackFlags) -> None:
+    """Called by PortAudio every BLOCK_SIZE / SAMPLE_RATE seconds.
+
+    CRITICAL RULES for this function:
+    1. Never allocate memory (no list(), no np.zeros(), no new objects).
+    2. Never call Qt functions — this is not the main thread.
+    3. Never perform blocking I/O (no file reads, no network calls).
+    4. Never hold a lock for more than a few microseconds.
+    5. Always fill outdata completely — leaving it uninitialised causes noise.
+    """
+    if status.output_underflow:
+        # Underflow means Qt or the OS blocked the audio thread too long.
+        # The buffer was not filled in time — the user hears a glitch.
+        print("Output underflow — consider increasing BLOCK_SIZE", flush=True)
+
+    # Write audio data to the output buffer.
+    # outdata shape: (frames, channels), dtype: float32, range: [-1.0, 1.0]
+    outdata[:] = generate_audio(frames)
+
+stream = sd.OutputStream(
+    samplerate=SAMPLE_RATE,
+    blocksize=BLOCK_SIZE,
+    channels=1,
+    dtype='float32',
+    callback=audio_callback,
+)
+stream.start()
+# ... Qt event loop runs here ...
+stream.stop()
+stream.close()</code></pre>
+
+<h3>Audio data format</h3>
+<p>All audio data in sounddevice is a NumPy array with shape <code>(frames, channels)</code>, dtype <code>float32</code>, and values in the range <code>[-1.0, 1.0]</code>. This is the universal format across the entire Python multimedia stack — the same array flows from sounddevice through NumPy DSP through SciPy filters and back out through sounddevice without any format conversion:</p>
+<pre><code># Mono audio block: shape (512,) or (512, 1)
+# Stereo audio block: shape (512, 2)
+# Left channel: data[:, 0]
+# Right channel: data[:, 1]
+
+# NEVER pass an integer array to sounddevice — always float32
+data = np.zeros((BLOCK_SIZE, 2), dtype=np.float32)  # correct
+data = np.zeros((BLOCK_SIZE, 2), dtype=np.int16)     # WRONG — will produce noise</code></pre>
+
+<h3>Thread safety</h3>
+<p>The audio callback runs in PortAudio's thread, not Qt's main thread. You must never call any Qt function from the callback. To send data from the audio thread to the UI, use a <code>queue.Queue</code> (which is thread-safe) and drain it in the main thread using a <code>QTimer</code>:</p>
+<pre><code>import queue
+from PySide6.QtCore import QTimer
+
+audio_queue: queue.Queue = queue.Queue(maxsize=50)
+
+def audio_callback(indata, frames, time_info, status):
+    # Put audio data in the queue — thread-safe, non-blocking with put_nowait
+    try:
+        audio_queue.put_nowait(indata.copy())  # always copy — indata is overwritten
+    except queue.Full:
+        pass  # UI is not keeping up — drop the block
+
+# In the Qt main thread, a QTimer drains the queue at 30 fps
+def on_timer():
+    while not audio_queue.empty():
+        block = audio_queue.get_nowait()
+        waveform_canvas.set_data(block)  # safe — we are in the main thread
+
+timer = QTimer()
+timer.setInterval(33)   # ~30 fps
+timer.timeout.connect(on_timer)
+timer.start()</code></pre>
+
+<div style="border-left:5px solid #1a73e8; padding:14px 18px; margin:20px 0;">
+<strong>The audio callback is sacred ground.</strong> PortAudio calls it from a high-priority OS thread with tight timing constraints. Any delay — a memory allocation, a lock wait, a file read — can cause an underflow, which the user hears as a click or glitch. The callback should do exactly one thing: fill or drain the audio buffer. Everything else — UI updates, file I/O, heavy computation — belongs in the main thread, with a queue bridging the two.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://python-sounddevice.readthedocs.io/en/latest/api/streams.html" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">sounddevice Streams API &#8599;</a>
+  <a href="https://python-sounddevice.readthedocs.io/en/latest/api/index.html#sounddevice.CallbackFlags" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">CallbackFlags &#8599;</a>
+  <a href="http://www.portaudio.com/docs/v19-doxydocs/writing_a_callback.html" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">PortAudio Callback Guide &#8599;</a>
+</p>
+
+<div class="demo-box">
+  <div class="demo-label">Demo</div>
+  <div class="demo-title">Hello Multimedia — Sine Tone Generator</div>
+  <div class="demo-file">03_mm_hello_multimedia.py</div>
+  <p>A professional waveform synthesiser: select sine, square, sawtooth, or triangle, control frequency and gain with sliders, and click Play/Stop. Audio is generated in a sounddevice OutputStream callback using <strong>phase accumulation</strong> — the professional technique for glitch-free continuous tone generation. A QPainter canvas displays the current waveform cycle live at 30 fps.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 5 — AUDIO FILE I/O
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>5. Audio File I/O with soundfile</h2>
+
+<p><strong>libsndfile</strong> is the professional C library for reading and writing audio files. It is used in Ardour, Audacity, ffmpeg, and countless broadcast and studio tools. <code>soundfile</code> is its Python interface. It supports WAV, FLAC, OGG Vorbis, AIFF, and CAF, and returns audio data as NumPy arrays in the same <code>float32</code> format that sounddevice expects.</p>
+
+<h3>Reading audio files</h3>
+<pre><code>import soundfile as sf
+import numpy as np
+
+# Read the entire file into memory
+data, samplerate = sf.read('audio.wav', dtype='float32', always_2d=True)
+# data shape: (frames, channels), dtype: float32, range: [-1.0, 1.0]
+# always_2d=True ensures mono files also return shape (frames, 1)
+
+# Get file metadata without reading the audio
+info = sf.info('audio.wav')
+print(f"Duration:   {info.duration:.3f} s")
+print(f"Frames:     {info.frames}")
+print(f"Channels:   {info.channels}")
+print(f"Samplerate: {info.samplerate} Hz")
+print(f"Format:     {info.format} / {info.subtype}")</code></pre>
+
+<h3>Streaming large files</h3>
+<p>Loading a 2-hour film soundtrack into memory is not feasible. Use the <code>SoundFile</code> context manager to read in blocks:</p>
+<pre><code>BLOCK_FRAMES = 48000  # read 1 second at a time
+
+with sf.SoundFile('long_audio.flac') as f:
+    print(f"Total frames: {len(f)}, Sample rate: {f.samplerate} Hz")
+    while True:
+        block = f.read(BLOCK_FRAMES, dtype='float32', always_2d=True)
+        if len(block) == 0:
+            break
+        process_block(block)   # your DSP function</code></pre>
+
+<h3>Writing audio files</h3>
+<pre><code># Write a processed audio buffer to a FLAC file
+# Format is inferred from the file extension
+sf.write('output.flac', processed_data, samplerate=48000)</code></pre>
+
+<h3>Audio file formats</h3>
+<table>
+  <thead><tr><th>Format</th><th>Compression</th><th>Quality</th><th>Professional use case</th></tr></thead>
+  <tbody>
+    <tr><td>WAV (PCM)</td><td>None — lossless</td><td>Perfect</td><td>Recording, editing, interchange between DAWs. The universal format.</td></tr>
+    <tr><td>FLAC</td><td>Lossless</td><td>Perfect</td><td>Archiving, music distribution. 40–60% smaller than WAV.</td></tr>
+    <tr><td>OGG Vorbis</td><td>Lossy</td><td>High (configurable)</td><td>Streaming, game audio, web delivery.</td></tr>
+    <tr><td>AIFF</td><td>None — lossless</td><td>Perfect</td><td>macOS / Pro Tools interchange. Equivalent to WAV.</td></tr>
+  </tbody>
+</table>
+
+<h3>Resampling</h3>
+<p>soundfile does not resample. If a file's sample rate does not match your audio device's sample rate (for example, a 44100 Hz file playing through a 48000 Hz device), you must resample it before playback. A pitch and speed error is the result if you do not. Use <code>scipy.signal.resample_poly</code> for high-quality rational resampling:</p>
+<pre><code>from scipy.signal import resample_poly
+import math
+
+def resample_audio(data: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
+    """Resample audio to a new sample rate using polyphase filtering.
+
+    resample_poly uses a polyphase filter bank — the same algorithm used
+    in professional sample rate converters. It is far superior to naive
+    linear interpolation.
+
+    Args:
+        data:      Audio array, shape (frames, channels), float32.
+        orig_sr:   Source sample rate in Hz.
+        target_sr: Target sample rate in Hz.
+
+    Returns:
+        Resampled audio array, same dtype and channel count.
+    """
+    if orig_sr == target_sr:
+        return data
+    gcd = math.gcd(orig_sr, target_sr)
+    up   = target_sr // gcd   # upsample factor
+    down = orig_sr   // gcd   # downsample factor
+    return resample_poly(data, up, down, axis=0).astype(np.float32)</code></pre>
+
+<div style="border-left:5px solid #1a73e8; padding:14px 18px; margin:20px 0;">
+<strong>Always check the sample rate before playback.</strong> A 44100 Hz file played through a 48000 Hz device will sound flat and slow — it will play at 44100/48000 = 91.875% of its correct speed, a pitch drop of about a semitone. This is one of the most common bugs when integrating audio file playback into a desktop application. Always compare <code>sf.info(path).samplerate</code> to <code>sd.query_devices(device)['default_samplerate']</code> and resample if they differ.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://pysoundfile.readthedocs.io/" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">soundfile Docs &#8599;</a>
+  <a href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.resample_poly.html" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">scipy resample_poly &#8599;</a>
+</p>
+
+<div class="demo-box">
+  <div class="demo-label">Demo</div>
+  <div class="demo-title">Waveform Viewer and DSP Player</div>
+  <div class="demo-file">03_mm_waveform_player.py</div>
+  <p>Open any WAV, FLAC, or OGG file. The waveform is rendered with QPainter using peak-reduction for accuracy at screen resolution. A transport bar (Play, Pause, Stop, scrubber) drives a sounddevice OutputStream callback that reads from the decoded buffer. An offline DSP chain — gain, fade in/out, DC-removal highpass filter, and normalisation — is applied to the buffer and the result is overlaid on the original waveform.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 6 — DSP WITH NUMPY AND SCIPY
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>6. Digital Signal Processing with NumPy and SciPy</h2>
+
+<p>Audio is just numbers. Once you have loaded or captured audio data as a NumPy float32 array, every classical DSP operation — filtering, spectral analysis, synthesis, envelope shaping — is a mathematical operation on that array. This section covers the core DSP operations used in the demos.</p>
+
+<h3>Fourier analysis — FFT</h3>
+<p>The Discrete Fourier Transform (DFT) decomposes a time-domain signal into its frequency components. It answers the question: <em>what frequencies are present in this audio, and at what amplitudes?</em> This is the foundation of every spectrum analyser, equaliser, and codec.</p>
+<p>For real-valued audio signals, always use <code>numpy.fft.rfft</code> (the real FFT). It is twice as efficient as the general <code>fft</code> because a real signal's spectrum is symmetric — you only need the positive frequencies:</p>
+<pre><code>import numpy as np
+
+SAMPLE_RATE = 48000
+NFFT = 2048            # FFT size — must be a power of two for efficiency
+
+# Apply a Hann window before the FFT (explained below)
+window = np.hanning(NFFT).astype(np.float32)
+block  = audio_block[:NFFT] * window          # shape: (NFFT,)
+
+# Compute the real FFT
+spectrum = np.fft.rfft(block)                 # shape: (NFFT//2 + 1,) complex
+
+# Convert complex spectrum to magnitude in dBFS
+# +1e-9 epsilon prevents log10(0) = -inf
+magnitude_db = 20.0 * np.log10(np.abs(spectrum) / NFFT + 1e-9)
+
+# Compute the frequency axis (positive frequencies only)
+freqs = np.fft.rfftfreq(NFFT, d=1.0 / SAMPLE_RATE)  # shape: (NFFT//2 + 1,)
+# freqs[0] = 0 Hz (DC), freqs[-1] = SAMPLE_RATE / 2 (Nyquist)</code></pre>
+
+<h3>Window functions and spectral leakage</h3>
+<p>The FFT assumes that the signal block repeats periodically. If the block contains a sine wave that does not complete an exact integer number of cycles within the block, there is a discontinuity at the boundary when the block is conceptually repeated. This discontinuity spreads the energy of that frequency across neighbouring bins — a phenomenon called <strong>spectral leakage</strong>.</p>
+<p>Window functions solve this by tapering the block to zero at both ends, eliminating the discontinuity. The Hann window is the standard choice for audio spectrum analysis:</p>
+<pre><code># Without windowing: spectral leakage spreads a 1 kHz sine across many bins
+# With Hann window:  the energy is correctly concentrated in a few bins
+
+from scipy.signal.windows import hann, hamming, blackman
+
+hann_window     = hann(NFFT, sym=False).astype(np.float32)   # general purpose
+hamming_window  = hamming(NFFT, sym=False).astype(np.float32) # slightly narrower main lobe
+blackman_window = blackman(NFFT, sym=False).astype(np.float32) # very low sidelobes</code></pre>
+
+<h3>IIR filtering with SciPy — the professional pattern</h3>
+<p>Infinite Impulse Response (IIR) filters are the workhorses of professional audio DSP. They achieve steep filter slopes with far fewer coefficients than FIR filters, making them efficient for real-time processing. The Butterworth filter provides a maximally flat passband with no ripple — the standard starting point for most audio applications.</p>
+<p>The critical rule in professional code: <strong>always use second-order sections (SOS) form</strong>. Never use <code>b, a</code> transfer function form for filters above order 2. High-order <code>b, a</code> filters are numerically unstable at professional audio sample rates and will overflow or produce NaN with no warning:</p>
+<pre><code>from scipy.signal import butter, sosfilt, sosfilt_zi
+
+SAMPLE_RATE = 48000
+
+# CORRECT: design in SOS form
+sos = butter(
+    N=4,                    # filter order — higher = steeper rolloff
+    Wn=1000,                # cutoff frequency in Hz
+    btype='lowpass',        # lowpass, highpass, bandpass, bandstop
+    fs=SAMPLE_RATE,         # sample rate — avoids manual normalisation
+    output='sos',           # ALWAYS use 'sos' — not 'ba'
+)
+# sos shape: (N_sections, 6) — a cascade of second-order biquad sections
+
+# WRONG: this will overflow for order > 2 at 48000 Hz
+b, a = butter(4, 1000 / (SAMPLE_RATE / 2), btype='lowpass')   # DO NOT DO THIS</code></pre>
+
+<h3>Offline filtering — applying a filter to a complete buffer</h3>
+<pre><code># Apply the filter to an entire audio buffer (offline DSP)
+filtered = sosfilt(sos, audio_data, axis=0)
+# axis=0 filters along the time axis — correct for (frames, channels) arrays</code></pre>
+
+<h3>Real-time filtering — carrying filter state between blocks</h3>
+<p>When filtering block-by-block in a real-time callback, the filter must remember its internal state from one block to the next. Without this, each block is filtered as if it started from silence, producing a transient at every block boundary:</p>
+<pre><code># Initialise filter state — zi has shape (N_sections, channels, 2)
+# sosfilt_zi gives the correct initial conditions for a unit step response
+zi = sosfilt_zi(sos)                   # shape: (N_sections, 2)
+zi = zi[:, np.newaxis, :] * np.zeros((1, channels, 1))  # expand for multi-channel
+
+# In the audio callback — filter the block and carry the state forward
+filtered_block, zi = sosfilt(sos, input_block, axis=0, zi=zi)
+# zi now holds the filter memory for the next callback call
+# Without zi, each block starts fresh — you hear a click every BLOCK_SIZE samples</code></pre>
+
+<h3>Filter types and audio applications</h3>
+<table>
+  <thead><tr><th>Filter type</th><th><code>btype</code></th><th>Audio application</th></tr></thead>
+  <tbody>
+    <tr><td>Low-pass</td><td><code>'lowpass'</code></td><td>Remove high-frequency noise, anti-aliasing, "warm" EQ curve</td></tr>
+    <tr><td>High-pass</td><td><code>'highpass'</code></td><td>Remove DC offset (at ~20 Hz), remove rumble, microphone wind noise</td></tr>
+    <tr><td>Band-pass</td><td><code>'bandpass'</code></td><td>Isolate a frequency range, telephone effect, formant filtering</td></tr>
+    <tr><td>Band-stop (notch)</td><td><code>'bandstop'</code></td><td>Remove mains hum (50/60 Hz), remove a specific interference frequency</td></tr>
+  </tbody>
+</table>
+
+<h3>Waveform synthesis with phase accumulation</h3>
+<p>Generating a continuous tone in a block-based audio callback requires carrying the phase between blocks. If you reset phase to zero at the start of each block, the waveform restarts and you hear a click at every block boundary. Phase accumulation avoids this:</p>
+<pre><code>phase = 0.0   # carries between callback calls — store as instance variable
+
+def generate_sine(frames: int, frequency: float, sample_rate: int) -> np.ndarray:
+    """Generate one block of a sine wave using phase accumulation."""
+    global phase
+    # Time array: phases for each sample in this block
+    t = phase + np.arange(frames, dtype=np.float32) * (2.0 * np.pi * frequency / sample_rate)
+    # Advance the phase accumulator for the next block — wrap to [0, 2π]
+    phase = float(t[-1]) % (2.0 * np.pi)
+    return np.sin(t)</code></pre>
+
+<div style="border-left:5px solid #1a73e8; padding:14px 18px; margin:20px 0;">
+<strong>SOS form is not optional for professional code.</strong> A 4th-order Butterworth filter at a 20 Hz cutoff and 48000 Hz sample rate will silently overflow in <code>b, a</code> form — the transfer function coefficients span many orders of magnitude, exceeding float64 precision. The SOS cascade factorises the same filter into numerically stable 2nd-order sections. Every professional DSP library (MATLAB's Signal Processing Toolbox, LabVIEW, Simulink) outputs SOS by default. Always use <code>output='sos'</code>.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.butter.html" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">scipy.signal.butter &#8599;</a>
+  <a href="https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.sosfilt.html" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">scipy.signal.sosfilt &#8599;</a>
+  <a href="https://numpy.org/doc/stable/reference/routines.fft.html" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">numpy.fft &#8599;</a>
+</p>
+
+<div class="demo-box">
+  <div class="demo-label">Demo</div>
+  <div class="demo-title">Real-Time Spectrum Analyser and Filter</div>
+  <div class="demo-file">03_mm_spectrum_analyzer.py</div>
+  <p>Captures live microphone input via a sounddevice InputStream callback. Each block is windowed with a Hann window, transformed with <code>numpy.fft.rfft</code>, and converted to dBFS. A configurable Butterworth filter (lowpass, highpass, bandpass, bandstop) implemented with <code>scipy.signal.sosfilt</code> and carried <code>zi</code> state processes the audio in real time — you hear the filter and see both the raw and filtered spectra overlaid on a log-frequency QPainter canvas updated at 30 fps.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 7 — QPAINTER FOR AUDIO VISUALISATION
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>7. Audio Visualisation with QPainter</h2>
+
+<p>QPainter is Qt's 2D drawing API. You override <code>paintEvent</code> in a <code>QWidget</code> subclass and use QPainter to draw everything from scratch on every frame. This is the correct pattern for all audio visualisations — waveform displays, spectrum analysers, VU meters, and spectrograms.</p>
+
+<h3>The paintEvent cycle</h3>
+<pre><code>from PySide6.QtWidgets import QWidget
+from PySide6.QtGui import QPainter, QColor, QPen, QBrush, QPainterPath
+from PySide6.QtCore import Qt
+
+class WaveformCanvas(QWidget):
+    """Custom QPainter widget for waveform display."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._data: np.ndarray | None = None
+
+    def set_data(self, data: np.ndarray) -> None:
+        """Receive new audio data and schedule a repaint.
+
+        Never call paintEvent directly. Always call update() — Qt batches
+        multiple update() calls in one event loop iteration into a single
+        repaint, which avoids redundant drawing.
+        """
+        self._data = data
+        self.update()   # schedule repaint — Qt calls paintEvent when ready
+
+    def paintEvent(self, event) -> None:
+        """Qt calls this to (re)draw the widget. Never call it directly."""
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        w, h = self.width(), self.height()
+        cy = h // 2   # centre Y — maps to audio value 0.0
+
+        # Background
+        painter.fillRect(0, 0, w, h, QColor("#0d0f14"))
+
+        # Centre line
+        painter.setPen(QPen(QColor("#252b38"), 1))
+        painter.drawLine(0, cy, w, cy)
+
+        if self._data is None:
+            return
+
+        # Draw waveform as a QPainterPath
+        painter.setPen(QPen(QColor("#4f9cf9"), 1.5))
+        path = QPainterPath()
+        n = len(self._data)
+        for i, sample in enumerate(self._data):
+            px = int(i / n * w)
+            py = int(cy - sample * cy * 0.9)   # scale to 90% of half-height
+            if i == 0:
+                path.moveTo(px, py)
+            else:
+                path.lineTo(px, py)
+        painter.drawPath(path)
+        painter.end()</code></pre>
+
+<h3>Peak reduction for waveform display</h3>
+<p>A 3-minute stereo recording at 48000 Hz contains 8,640,000 samples per channel. Your display is perhaps 800 pixels wide. Drawing every sample would be 10,800× overdraw — impossible and unnecessary. The professional solution is peak reduction: for each pixel column, find the minimum and maximum sample value in the range of samples it covers, and draw a vertical line between them. This is visually identical to drawing every sample but 10,000× faster:</p>
+<pre><code>def peak_reduce(data: np.ndarray, width: int) -> tuple[np.ndarray, np.ndarray]:
+    """Reduce audio data to per-pixel (min, max) pairs for waveform display.
+
+    Args:
+        data:  1D float32 array of audio samples.
+        width: Target display width in pixels.
+
+    Returns:
+        Tuple of (peaks_min, peaks_max), each shape (width,).
+    """
+    n = len(data)
+    samples_per_pixel = max(1, n // width)
+    # Trim to an exact multiple of samples_per_pixel
+    trimmed = data[:width * samples_per_pixel]
+    reshaped = trimmed.reshape(width, samples_per_pixel)
+    return reshaped.min(axis=1), reshaped.max(axis=1)</code></pre>
+
+<h3>Logarithmic frequency axis for spectrum display</h3>
+<p>Human hearing is approximately logarithmic. The musical interval of an octave is always a doubling of frequency. On a linear frequency axis, all frequencies below 1 kHz — which contain most musical content — are compressed into 2% of the display width at a 48000 Hz sample rate. A logarithmic axis allocates equal visual space to every octave:</p>
+<pre><code>import numpy as np
+
+F_MIN = 20.0      # lowest audible frequency, Hz
+F_MAX = 20000.0   # highest audible frequency, Hz
+
+def freq_to_pixel(f: float, width: int) -> int:
+    """Map a frequency in Hz to a pixel x-position on a log-frequency axis.
+
+    Formula: px = width * log10(f / F_MIN) / log10(F_MAX / F_MIN)
+    This maps [F_MIN, F_MAX] → [0, width] on a log scale.
+    Musical octaves appear equally spaced.
+    """
+    if f <= 0:
+        return 0
+    return int(width * np.log10(f / F_MIN) / np.log10(F_MAX / F_MIN))</code></pre>
+
+<h3>Performance guidelines for audio visualisation</h3>
+<table>
+  <thead><tr><th>Guideline</th><th>Reason</th></tr></thead>
+  <tbody>
+    <tr><td>Run QPainter at 30 fps, not 60</td><td>The human eye cannot perceive the difference for a spectrum display. 30 fps halves GPU/CPU load.</td></tr>
+    <tr><td>Pre-allocate <code>QPainterPath</code></td><td>Creating a new path object every frame allocates memory. Reuse with <code>path.clear()</code>.</td></tr>
+    <tr><td>Peak-reduce before drawing waveforms</td><td>Never draw more samples than there are pixels. See above.</td></tr>
+    <tr><td>Disable antialiasing for spectrum bars</td><td>Rectangles do not benefit from antialiasing. Save the GPU time for waveform curves.</td></tr>
+    <tr><td>Use <code>update()</code>, never <code>repaint()</code></td><td><code>repaint()</code> forces an immediate synchronous repaint. <code>update()</code> is batched and coalesced by Qt.</td></tr>
+  </tbody>
+</table>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://doc.qt.io/qtforpython-6/PySide6/QtGui/QPainter.html" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">QPainter Docs &#8599;</a>
+  <a href="https://doc.qt.io/qtforpython-6/PySide6/QtGui/QPainterPath.html" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">QPainterPath Docs &#8599;</a>
+</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 8 — VIDEO PROCESSING WITH OPENCV
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>8. Video Processing with OpenCV</h2>
+
+<p>OpenCV (Open Source Computer Vision Library) is the undisputed standard for frame-level video processing in Python. It is used in broadcast QC pipelines, VFX preprocessing, ML training data preparation, scientific imaging, and surveillance systems. In this chapter it provides the video decoding and frame processing layer of the multimedia application.</p>
+
+<h3>Reading video files</h3>
+<pre><code>import cv2
+
+cap = cv2.VideoCapture('video.mp4')
+
+if not cap.isOpened():
+    raise RuntimeError(f"Cannot open video file: video.mp4")
+
+# Read essential properties before entering the decode loop
+fps         = cap.get(cv2.CAP_PROP_FPS)
+frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+width       = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+height      = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+duration_s  = frame_count / fps
+
+print(f"{width}×{height} @ {fps:.3f} fps — {duration_s:.1f} s ({frame_count} frames)")
+
+# Decode frames one by one
+ret, frame = cap.read()
+# ret:   True if a frame was decoded, False at end-of-file or on error
+# frame: NumPy array, shape (height, width, 3), dtype uint8, colour order BGR
+
+cap.release()   # always release when done</code></pre>
+
+<h3>The BGR colour order — the most common OpenCV bug</h3>
+<p>OpenCV uses BGR (Blue-Green-Red) channel order everywhere, not RGB. This is a legacy from its early interface with Windows BITMAPINFOHEADER structures. Every frame you read from OpenCV is BGR. Qt expects RGB. If you display a BGR frame as RGB, red and blue channels are swapped — faces appear blue. Always convert:</p>
+<pre><code># ALWAYS do this before passing a frame to Qt
+frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+# Displaying on a QLabel via QImage and QPixmap
+from PySide6.QtGui import QImage, QPixmap
+from PySide6.QtCore import Qt
+
+h, w, ch = frame_rgb.shape
+bytes_per_line = ch * w   # CRITICAL: always pass this — see note below
+qimg = QImage(frame_rgb.data, w, h, bytes_per_line, QImage.Format.Format_RGB888)
+pixmap = QPixmap.fromImage(qimg)
+label.setPixmap(
+    pixmap.scaled(label.size(), Qt.AspectRatioMode.KeepAspectRatio,
+                  Qt.TransformationMode.SmoothTransformation)
+)</code></pre>
+
+<div style="border-left:5px solid #1a73e8; padding:14px 18px; margin:20px 0;">
+<strong>Always pass <code>bytes_per_line</code> to <code>QImage</code>.</strong> The fourth argument to the <code>QImage</code> constructor is the number of bytes per row. If you omit it, Qt uses a default that may assume 4-byte row alignment. For a frame with width not divisible by 4, this misalignment causes the display to appear diagonally shifted — a very confusing visual artefact. Always compute <code>bytes_per_line = channels * width</code> and pass it explicitly.
+</div>
+
+<h3>Frame-level DSP operations</h3>
+<p>Every frame is a NumPy array of shape <code>(height, width, channels)</code>, dtype <code>uint8</code>. All OpenCV DSP functions operate in-place on these arrays, making them directly composable with NumPy operations:</p>
+<pre><code># Grayscale conversion — reduces 3-channel to 1-channel
+gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)   # shape: (H, W)
+
+# Gaussian blur — noise reduction and pre-processing
+blurred = cv2.GaussianBlur(frame, (15, 15), sigmaX=0)
+# kernel size must be odd; larger = stronger blur
+
+# Canny edge detection — the standard first-pass edge detector
+# Operates on grayscale; the two thresholds define the hysteresis window
+edges = cv2.Canny(gray, threshold1=50, threshold2=150)
+
+# Histogram equalisation — contrast enhancement for poor exposure
+equalized = cv2.equalizeHist(gray)
+
+# Frame differencing — motion detection
+diff = cv2.absdiff(prev_frame_gray, gray)
+_, motion_mask = cv2.threshold(diff, thresh=25, maxval=255, type=cv2.THRESH_BINARY)</code></pre>
+
+<h3>Seeking in a video file</h3>
+<pre><code># Seek to a specific frame — used for scrubbing
+cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame_index)
+
+# Seek to a specific time in milliseconds
+cap.set(cv2.CAP_PROP_POS_MSEC, time_ms)
+
+# Note: seek accuracy depends on the codec and container.
+# For MP4 with H.264, seeking to a non-keyframe will snap to the nearest
+# keyframe. For frame-accurate seeking, decode from the nearest keyframe.</code></pre>
+
+<h3>Frame DSP operations and their professional use cases</h3>
+<table>
+  <thead><tr><th>Operation</th><th>OpenCV call</th><th>Broadcast / production use</th></tr></thead>
+  <tbody>
+    <tr><td>Grayscale</td><td><code>cvtColor(BGR2GRAY)</code></td><td>Luminance-only analysis, pre-processing for detection algorithms</td></tr>
+    <tr><td>Gaussian blur</td><td><code>GaussianBlur</code></td><td>Noise reduction, depth-of-field simulation, pre-processing</td></tr>
+    <tr><td>Canny edges</td><td><code>Canny</code></td><td>Object boundary detection, QC for focus measurement</td></tr>
+    <tr><td>Histogram EQ</td><td><code>equalizeHist</code></td><td>Contrast correction for underexposed footage</td></tr>
+    <tr><td>Frame diff</td><td><code>absdiff</code></td><td>Motion detection, cut detection in broadcast automation</td></tr>
+    <tr><td>Threshold</td><td><code>threshold</code></td><td>Foreground/background separation, chroma key pre-processing</td></tr>
+  </tbody>
+</table>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://docs.opencv.org/4.x/dd/d43/tutorial_py_video_display.html" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">OpenCV VideoCapture &#8599;</a>
+  <a href="https://docs.opencv.org/4.x/da/d22/tutorial_py_canny.html" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">Canny Edge Detection &#8599;</a>
+  <a href="https://docs.opencv.org/4.x/d1/db7/tutorial_py_histogram_begins.html" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">Histogram Equalisation &#8599;</a>
+</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 9 — A/V SYNCHRONISATION
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>9. Audio/Video Synchronisation</h2>
+
+<p>Synchronising audio and video is one of the hardest problems in multimedia software. It is hard because audio and video are produced and consumed by different hardware clocks that run at slightly different rates. Professional A/V sync is an active, ongoing process — not a one-time alignment at startup.</p>
+
+<h3>Why sync is hard</h3>
+<p>Consider what happens when you start playback: you start the audio stream and the video decode loop. The audio stream runs on PortAudio's high-priority thread, driven by the audio hardware's crystal oscillator — extremely accurate. The video frame timer runs on a <code>QTimer</code> in Qt's main thread, which fires when the OS event loop gets to it — subject to OS scheduling jitter, GC pauses, and other delays. After a few minutes, these two clocks will have drifted relative to each other, and the lip sync you had at the start is gone.</p>
+
+<h3>Audio as the master clock</h3>
+<p>The professional solution is to make audio the master clock. The audio hardware DAC runs on a crystal oscillator with parts-per-million accuracy. PortAudio exposes this clock through the <code>time_info</code> argument of the audio callback. The <code>outputBufferDacTime</code> field gives you the exact time — in PortAudio's high-accuracy clock — when the first sample of the current buffer will reach the DAC.</p>
+<p>Video frames are then displayed <em>when their presentation timestamp matches the audio clock</em> — not on a fixed timer:</p>
+<pre><code>import queue, time
+
+dac_time_queue: queue.Queue = queue.Queue(maxsize=4)
+
+def audio_callback(outdata, frames, time_info, status):
+    # ... fill outdata with audio ...
+
+    # Push the DAC timestamp to the main thread
+    # outputBufferDacTime: seconds since PortAudio epoch when first sample hits DAC
+    try:
+        dac_time_queue.put_nowait(time_info.outputBufferDacTime)
+    except queue.Full:
+        pass   # main thread is behind — drop this timestamp
+
+# PortAudio epoch offset — computed once at stream start
+stream_start_dac: float = 0.0
+stream_start_wall: float = 0.0
+
+def on_display_timer():
+    """Called by QTimer at ~60 Hz in the Qt main thread."""
+    try:
+        dac_time = dac_time_queue.get_nowait()
+    except queue.Empty:
+        return
+
+    # Convert DAC time to a playback position in seconds
+    playback_seconds = dac_time - stream_start_dac
+
+    # Compute the video frame index
+    target_frame = int(playback_seconds * video_fps)
+
+    # Seek OpenCV to that frame and decode it
+    cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+    ret, frame = cap.read()
+    if ret:
+        display_frame(frame)</code></pre>
+
+<h3>Audio extraction from video containers</h3>
+<p>OpenCV decodes video frames but does not decode audio. The standard professional approach is to use <strong>ffmpeg</strong> to extract the audio track to a WAV file before playback. ffmpeg handles every container and codec in professional use — MP4, MKV, AVI, MOV, H.264, H.265, VP9, AV1:</p>
+<pre><code>import subprocess, tempfile, pathlib
+
+def extract_audio(video_path: pathlib.Path, target_sr: int = 48000) -> pathlib.Path:
+    """Extract the audio track of a video file to a temporary WAV file.
+
+    Uses ffmpeg, which handles every container and codec. This is the
+    correct approach for a production application — do not attempt to
+    decode audio with OpenCV.
+
+    Args:
+        video_path: Path to the input video file.
+        target_sr:  Output sample rate in Hz.
+
+    Returns:
+        Path to the temporary WAV file. Caller is responsible for deletion.
+    """
+    tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+    tmp.close()
+
+    cmd = [
+        'ffmpeg', '-y',              # overwrite output without asking
+        '-i', str(video_path),       # input file
+        '-vn',                       # no video output
+        '-acodec', 'pcm_s16le',      # uncompressed 16-bit PCM — always readable
+        '-ar', str(target_sr),       # resample to target sample rate
+        '-ac', '2',                  # stereo output
+        str(tmp.name),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffmpeg failed:\n{result.stderr}")
+
+    return pathlib.Path(tmp.name)</code></pre>
+
+<h3>Atomic seeking</h3>
+<p>When the user drags the playback scrubber, both the audio and video streams must be seeked atomically — if audio restarts before the video seek completes, the streams immediately diverge. The correct sequence:</p>
+<pre><code>def seek_to_frame(target_frame: int) -> None:
+    """Seek both audio and video to target_frame atomically."""
+    # 1. Pause the audio stream — stops the audio callback
+    audio_stream.stop()
+
+    # 2. Seek the audio buffer pointer (protected by a Lock)
+    with audio_lock:
+        audio_frame_pos = int(target_frame * audio_sr / video_fps)
+
+    # 3. Seek the video capture
+    cap.set(cv2.CAP_PROP_POS_FRAMES, target_frame)
+
+    # 4. Decode and display the target frame immediately (user sees it right away)
+    ret, frame = cap.read()
+    if ret:
+        display_frame(frame)
+
+    # 5. Restart the audio stream — audio and video are now aligned
+    audio_stream.start()</code></pre>
+
+<h3>Common A/V sync problems</h3>
+<table>
+  <thead><tr><th>Problem</th><th>Symptom</th><th>Cause</th></tr></thead>
+  <tbody>
+    <tr><td>Clock drift</td><td>Sync is good at the start, worsens over time</td><td>Using <code>time.perf_counter()</code> instead of <code>outputBufferDacTime</code> as the reference</td></tr>
+    <tr><td>Constant offset</td><td>Audio and video always offset by a fixed amount</td><td>Startup timing not aligned — start audio before computing the time reference</td></tr>
+    <tr><td>Seek glitch</td><td>Brief desync after every scrub</td><td>Non-atomic seek — audio restarts before video seek completes</td></tr>
+    <tr><td>Audio underflow</td><td>Click or dropout in audio during heavy video processing</td><td>Frame DSP taking too long in the main thread, starving the audio callback</td></tr>
+  </tbody>
+</table>
+
+<div style="border-left:5px solid #1a73e8; padding:14px 18px; margin:20px 0;">
+<strong>Audio is always the master clock.</strong> This is not a convention — it reflects hardware reality. The audio DAC runs on a crystal oscillator with parts-per-million accuracy. Your system's <code>time.time()</code> does not. If you use the system clock as the A/V reference, you will drift. This is why VLC, ffplay, mpv, and every professional media player use audio-driven video presentation — the video renderer waits for the audio clock, not the other way around.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://python-sounddevice.readthedocs.io/en/latest/api/streams.html#sounddevice.CallbackTimeInfo" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">CallbackTimeInfo (outputBufferDacTime) &#8599;</a>
+  <a href="https://ffmpeg.org/ffmpeg.html" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">ffmpeg Documentation &#8599;</a>
+</p>
+
+<div class="demo-box">
+  <div class="demo-label">Demo</div>
+  <div class="demo-title">Video Player with Audio Sync and Frame DSP</div>
+  <div class="demo-file">03_mm_video_player.py</div>
+  <p>A complete video player: ffmpeg extracts the audio track to WAV at load time, sounddevice provides the master clock via <code>outputBufferDacTime</code>, and OpenCV decodes and displays frames when their timestamp matches the audio clock. A <code>QComboBox</code> selects the active frame DSP mode: passthrough, grayscale, Canny edge detection, Gaussian blur, histogram equalisation, or motion detection. A timeline scrubber seeks both streams atomically.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 10 — BUILDING A COMPLETE MULTIMEDIA APPLICATION
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>10. Building a Complete Multimedia Application</h2>
+
+<p>The final demo combines all components from demos 1–4 into a single multi-panel application. Before building it, it is worth understanding the architectural principles that separate a professional application from a collection of scripts stitched together.</p>
+
+<h3>The three thread boundaries</h3>
+<p>Every multimedia application in this chapter has three thread contexts, and you must know which operations belong in which context:</p>
+<table>
+  <thead><tr><th>Thread</th><th>Owner</th><th>What runs here</th><th>What must NOT run here</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Main thread</strong></td><td>Qt event loop</td><td>All widget creation, all QPainter drawing, all signal emissions, all file dialogs</td><td>Blocking I/O, long computations, audio callback code</td></tr>
+    <tr><td><strong>Audio thread</strong></td><td>PortAudio</td><td>The sounddevice callback — fill/drain audio buffers, apply real-time DSP</td><td>Any Qt call, memory allocation, blocking I/O, anything that can block</td></tr>
+    <tr><td><strong>Decode thread</strong> (optional)</td><td>Python <code>threading.Thread</code></td><td>Reading and decoding video frames ahead of time into a ring buffer</td><td>Qt widget access, audio buffer access without a lock</td></tr>
+  </tbody>
+</table>
+<p>The bridge between these threads is always a <code>queue.Queue</code>. The audio thread pushes data into a queue; a <code>QTimer</code> in the main thread drains it at 30–60 fps and updates the UI.</p>
+
+<h3>Model / View separation</h3>
+<p>The most important architectural principle in multimedia tooling: the model (the data and logic) must have no knowledge of the view (the UI). In practice this means your audio engine, DSP chain, and video decoder are plain Python classes with no PySide6 imports. They accept NumPy arrays and return NumPy arrays. The Qt widgets are the view — they receive data through signals and display it. This separation makes every component independently testable and reusable.</p>
+
+<h3>Resource management</h3>
+<p>A multimedia application holds OS-level resources: audio device locks, video file handles, and temporary files. These must be released in a defined order when the application closes. Always implement <code>closeEvent</code>:</p>
+<pre><code>def closeEvent(self, event) -> None:
+    """Release all resources before the window closes.
+
+    Qt calls this when the user closes the window or calls app.quit().
+    Failure to release resources here can lock the audio device for
+    other applications until the OS recycles the process.
+    """
+    # 1. Stop the audio stream first — it holds a PortAudio device lock
+    if self._audio_stream is not None:
+        self._audio_stream.stop()
+        self._audio_stream.close()
+
+    # 2. Stop the display timer
+    self._display_timer.stop()
+
+    # 3. Release the video capture
+    if self._cap is not None:
+        self._cap.release()
+
+    # 4. Delete temporary files (e.g. extracted audio WAV)
+    if self._tmp_audio_path is not None and self._tmp_audio_path.exists():
+        self._tmp_audio_path.unlink()
+
+    # 5. Save user preferences
+    self._save_settings()
+
+    event.accept()</code></pre>
+
+<h3>Persisting user preferences with QSettings</h3>
+<p>Professional applications remember the user's window size, last opened file, and selected audio device between sessions. <code>QSettings</code> handles this automatically on all platforms (the Windows registry, macOS plist, Linux INI file):</p>
+<pre><code>from PySide6.QtCore import QSettings
+
+# Save on close
+def _save_settings(self) -> None:
+    s = QSettings("TU Ilmenau AMS", "MM Seminar 03")
+    s.setValue("geometry",         self.saveGeometry())
+    s.setValue("splitter/main",    self._splitter.saveState())
+    s.setValue("device/input",     self._input_device_name)
+    s.setValue("files/recent",     self._recent_files[:5])
+
+# Restore on startup
+def _restore_settings(self) -> None:
+    s = QSettings("TU Ilmenau AMS", "MM Seminar 03")
+    if geom := s.value("geometry"):
+        self.restoreGeometry(geom)
+    if state := s.value("splitter/main"):
+        self._splitter.restoreState(state)
+    self._recent_files = s.value("files/recent", defaultValue=[]) or []</code></pre>
+
+<h3>Error handling in multimedia applications</h3>
+<p>A multimedia application that crashes on a missing codec, a busy audio device, or a corrupt file is not professional. Every resource acquisition must be guarded, and every failure must produce a clear message:</p>
+<pre><code>from PySide6.QtWidgets import QMessageBox
+
+def open_file(self, path: str) -> None:
+    try:
+        self._session.open(path)
+    except RuntimeError as e:
+        QMessageBox.critical(
+            self,
+            "Cannot Open File",
+            f"The file could not be opened:\n\n{e}\n\n"
+            f"Check that the file exists and that ffmpeg is installed.",
+        )
+        return</code></pre>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://doc.qt.io/qtforpython-6/PySide6/QtCore/QSettings.html" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">QSettings Docs &#8599;</a>
+  <a href="https://doc.qt.io/qtforpython-6/PySide6/QtWidgets/QSplitter.html" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">QSplitter Docs &#8599;</a>
+  <a href="https://doc.qt.io/qtforpython-6/PySide6/QtWidgets/QFileDialog.html" target="_blank" style="border:1px solid #1a73e8; padding:5px 14px; border-radius:20px; text-decoration:none; font-weight:500; font-size:12px;">QFileDialog Docs &#8599;</a>
+</p>
+
+<div class="demo-box">
+  <div class="demo-label">Demo</div>
+  <div class="demo-title">Multimedia Workbench</div>
+  <div class="demo-file">03_mm_multimedia_workbench.py</div>
+  <p>A complete multi-panel multimedia analysis workbench: video frame display with DSP selector, audio waveform with live playhead, real-time spectrum analyser of the playback stream, and a transport bar — all in one window. All panels communicate exclusively through signals. QSettings persists window geometry, splitter sizes, and the recent files list between sessions. A menu bar provides File &gt; Open / Recent Files / Quit and Help &gt; About. The status bar shows playback time, frame index, and A/V sync offset in milliseconds.</p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     DEMO INDEX TABLE
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>Demo Index</h2>
+<p>All demos are in the <code>seminar_03/</code> folder of the repository. Run any demo with <code>uv run python &lt;filename&gt;</code> after <code>uv sync</code>.</p>
+<table>
+  <thead><tr><th>#</th><th>File</th><th>Key concepts demonstrated</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td><code>03_mm_hello_multimedia.py</code></td>
+      <td>QApplication, signals/slots, sounddevice OutputStream callback, phase accumulation, waveform synthesis (sine, square, sawtooth, triangle), QPainter canvas</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td><code>03_mm_waveform_player.py</code></td>
+      <td>soundfile read, peak-reduction waveform display, audio transport (Play/Pause/Stop/Scrub), offline DSP chain (gain, fade, DC-removal highpass, normalisation), scipy sosfilt</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td><code>03_mm_spectrum_analyzer.py</code></td>
+      <td>sounddevice InputStream, real-time FFT, Hann windowing, dBFS, log-frequency axis, scipy Butterworth SOS filter with carried zi state, live QPainter spectrum, queue.Queue A/UI bridge</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td><code>03_mm_video_player.py</code></td>
+      <td>OpenCV VideoCapture, BGR→RGB→QImage→QPixmap, ffmpeg audio extraction, outputBufferDacTime master clock, frame DSP (grayscale/Canny/blur/equalisation/motion), atomic seeking</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td><code>03_mm_multimedia_workbench.py</code></td>
+      <td>Full A/V pipeline, QSplitter multi-panel layout, QSettings persistence, recent files menu, status bar with sync offset, signal-only inter-component communication, model/view separation, closeEvent resource management</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<!-- prev / next navigation -->
+<nav class="chapter-nav">
+  <a href="02_multimediaprogrammierung_webgl.html">
+    <span class="nav-label">← Previous</span>
+    <span class="nav-title">Chapter 02: WebGL 2</span>
+  </a>
+  <a href="04_multimediaprogrammierung.html">
+    <span class="nav-label">Next →</span>
+    <span class="nav-title">Chapter 04</span>
+  </a>
+</nav>
+
+<!-- Footer cell -->
+<div class="nb-footer-cell">
+  <p><b>Multimediaprogrammierung</b> &middot; Chapter 03: PySide6 for Multimedia<br>
+  Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+  <p>Created by <b>Renato Fera P.</b> &middot;
+  <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a></p>
+</div>
+
+</div>
+</main>
+
+<footer>
+  <p><strong>Multimediaprogrammierung</strong> &middot; Seminar Materials<br>
+  Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+  <p>
+    Page maintained by <strong>Renato Fera P.</strong> &middot;
+    <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+    &nbsp;&middot;&nbsp;
+    <a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars" target="_blank" rel="noopener">github.com/TUIlmenauAMS/multimedia_programming_seminars</a>
+  </p>
+</footer>
+
+</body>
+</html>
