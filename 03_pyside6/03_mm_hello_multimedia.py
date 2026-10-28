@@ -52,6 +52,8 @@ from PySide6.QtGui import (
     QBrush,
     QColor,
     QFont,
+    QImage,
+    QLinearGradient,
     QPainter,
     QPainterPath,
     QPen,
@@ -109,7 +111,26 @@ GRID_COLOR: str = "#1a1f2b"         # subtle grid lines
 AXIS_COLOR: str = "#252b38"         # --border
 CURVE_COLOR: str = "#4f9cf9"        # --accent blue — the waveform line
 LABEL_COLOR: str = "#5a6175"        # --muted — axis labels
-ZERO_LINE_COLOR: str = "#252b38"    # horizontal zero line
+ZERO_LINE_COLOR: str = "#2e3547"    # horizontal zero line — slightly brighter than grid
+
+# Canvas display parameters
+DISPLAY_CYCLES: int = 3             # number of complete waveform cycles shown
+CANVAS_PAD_X: int = 52             # horizontal padding (pixels) — room for Y-axis labels
+CANVAS_PAD_Y: int = 28             # vertical padding (pixels) — room for X-axis labels
+CANVAS_PAD_BOTTOM: int = 36        # extra bottom padding for time-axis labels
+
+# Glow effect parameters — used in the two-pass offscreen Gaussian blur
+GLOW_SIGMA: float = 4.0            # Gaussian blur σ in pixels — controls bloom radius
+GLOW_STROKE_WIDTH: float = 8.0     # stroke width of the glow layer before blurring
+GLOW_ALPHA: float = 0.55           # opacity of the composited glow layer
+CURVE_STROKE_WIDTH: float = 1.8    # width of the sharp foreground waveform line
+
+# Gradient fill parameters — semi-transparent fill between curve and zero line
+FILL_ALPHA_TOP: int = 60           # ARGB alpha at the zero crossing (0–255)
+FILL_ALPHA_BOTTOM: int = 0         # ARGB alpha at the amplitude extremes
+
+# Status indicator
+STATUS_DOT_RADIUS: int = 5         # radius of the PLAYING/STOPPED dot in px
 
 # AMS logo path — one level up from this script (repo root)
 LOGO_PATH: Path = Path(__file__).resolve().parent.parent / "ams_group_tui.png"
@@ -227,97 +248,398 @@ def waveform_block(state: WaveformState, frames: int) -> np.ndarray:
 
 
 # =============================================================================
-# STEP 4 — WaveformCanvas: QPainter visualisation widget
+# STEP 4 — Gaussian blur helpers (pure NumPy, no Qt dependency)
+# =============================================================================
+
+def _gaussian_kernel_1d(sigma: float) -> np.ndarray:
+    """Return a normalised 1-D Gaussian kernel for the given sigma.
+
+    DSP CONCEPT — Gaussian convolution as a blur:
+    A Gaussian kernel is the optimal low-pass filter in both spatial and
+    frequency domains (it minimises the uncertainty principle product). Applied
+    as a 2-D image blur it is separable: a 2-D Gaussian G(x,y) = G(x) * G(y),
+    so we can convolve rows then columns — O(n*k) instead of O(n*k²).
+
+    This is mathematically identical to the Gaussian smoothing used in audio
+    DSP (e.g. smoothing a spectral envelope) — the same kernel, different domain.
+
+    Args:
+        sigma: Standard deviation of the Gaussian in pixels.
+
+    Returns:
+        1-D float64 array, length = 6*sigma+1 (captures ±3σ), normalised to
+        sum to 1.0 so convolution preserves overall brightness.
+    """
+    radius = int(np.ceil(3.0 * sigma))
+    x = np.arange(-radius, radius + 1, dtype=np.float64)
+    kernel = np.exp(-0.5 * (x / sigma) ** 2)
+    return kernel / kernel.sum()
+
+
+def _gaussian_blur_rgba(image: np.ndarray, sigma: float) -> np.ndarray:
+    """Apply a separable Gaussian blur to an ARGB uint8 image array.
+
+    Works on each channel independently using two 1-D convolution passes
+    (horizontal then vertical). The convolution uses 'reflect' boundary mode
+    to avoid dark edges at the image border.
+
+    IMAGE LAYOUT CONCEPT — QImage::Format_ARGB32:
+    Qt stores pixels as 32-bit little-endian ARGB: bytes are [B, G, R, A] in
+    memory. We reshape the flat buffer into (height, width, 4) and process
+    each channel (axis 2) independently.
+
+    Args:
+        image: NumPy array of shape (H, W, 4), dtype uint8, channel order BGRA.
+        sigma: Gaussian standard deviation in pixels.
+
+    Returns:
+        Blurred array of the same shape and dtype.
+    """
+    kernel = _gaussian_kernel_1d(sigma)
+    blurred = image.astype(np.float32)
+
+    # Separable 2-D convolution: horizontal pass then vertical pass.
+    # np.apply_along_axis applies the 1-D convolve along the chosen axis
+    # for every position along the other axes — equivalent to a nested loop
+    # but implemented in C inside NumPy.
+    for ch in range(4):
+        # Horizontal pass — convolve each row
+        blurred[:, :, ch] = np.apply_along_axis(
+            lambda row: np.convolve(row, kernel, mode="same"), axis=1, arr=blurred[:, :, ch]
+        )
+        # Vertical pass — convolve each column
+        blurred[:, :, ch] = np.apply_along_axis(
+            lambda col: np.convolve(col, kernel, mode="same"), axis=0, arr=blurred[:, :, ch]
+        )
+
+    return np.clip(blurred, 0, 255).astype(np.uint8)
+
+
+def _build_waveform_path(
+    data: np.ndarray,
+    pad_x: int,
+    pad_y: int,
+    draw_w: int,
+    draw_h: int,
+) -> QPainterPath:
+    """Build a QPainterPath from normalised waveform samples.
+
+    Coordinate mapping:
+      Sample index [0, N-1]      → pixel X in [pad_x, pad_x + draw_w]
+      Amplitude    [-1.0, +1.0]  → pixel Y in [pad_y + draw_h, pad_y]
+    Pixel Y increases downward, so +1.0 amplitude maps to the TOP of the draw area.
+
+    Uses vectorised NumPy to compute all pixel coordinates at once, then
+    iterates only to build the QPainterPath — this is the minimum Python-loop
+    overhead possible without dropping into C++.
+
+    Args:
+        data:   1-D float32 array of waveform samples in [-1.0, 1.0].
+        pad_x:  Left pixel offset of the draw area.
+        pad_y:  Top pixel offset of the draw area.
+        draw_w: Width of the draw area in pixels.
+        draw_h: Height of the draw area in pixels.
+
+    Returns:
+        QPainterPath tracing the waveform from left to right.
+    """
+    n = len(data)
+    indices = np.arange(n, dtype=np.float32)
+
+    # Vectorised coordinate computation — no Python loop over samples
+    px_arr = (pad_x + indices / max(n - 1, 1) * draw_w).astype(np.float32)
+    py_arr = (pad_y + (1.0 - data) / 2.0 * draw_h).astype(np.float32)
+
+    path = QPainterPath()
+    path.moveTo(float(px_arr[0]), float(py_arr[0]))
+    for i in range(1, n):
+        path.lineTo(float(px_arr[i]), float(py_arr[i]))
+    return path
+
+
+# =============================================================================
+# STEP 4b — WaveformCanvas: QPainter visualisation widget
 # =============================================================================
 
 class WaveformCanvas(QWidget):
-    """A QPainter widget that draws one cycle of the current waveform.
+    """A QPainter widget that draws multiple cycles of the current waveform.
 
-    Receives new waveform data via ``set_waveform()`` and redraws on the next
-    Qt paint event. Drawing is triggered by calling ``self.update()``, which
-    schedules a repaint through Qt's event loop — never call ``paintEvent``
-    directly.
+    Rendering pipeline (executed every paintEvent at 30 fps):
 
-    The canvas has no knowledge of the audio engine. It is a pure view:
-    it receives a NumPy array and draws it. This is the model/view pattern.
+      1. OFFSCREEN GLOW LAYER
+         Draw the waveform stroke (width = GLOW_STROKE_WIDTH) with the accent
+         colour onto a QImage (Format_ARGB32). Convert to a NumPy array via
+         the QImage memory buffer (zero-copy), apply a separable Gaussian blur
+         (sigma = GLOW_SIGMA) using pure NumPy, convert back to QPixmap, and
+         composite onto the canvas with GLOW_ALPHA opacity.
+
+      2. GRADIENT FILL
+         Build a closed QPainterPath (waveform curve + return along zero line)
+         and fill it with a QLinearGradient from the accent colour (at the zero
+         line, semi-transparent) to fully transparent (at the amplitude extremes).
+
+      3. SHARP FOREGROUND LINE
+         Draw the waveform path again at CURVE_STROKE_WIDTH with full opacity —
+         the crisp top layer that sits above the glow bloom.
+
+      4. GRID, AXES, LABELS, STATUS, WATERMARK
+         All drawn with QPainter directly on the widget surface.
+
+    THREAD SAFETY:
+      ``set_waveform()`` is called from the Qt main thread (the 30 fps timer).
+      ``paintEvent()`` is also on the Qt main thread. No locking needed.
+
+    DESIGN CONCEPT — model/view separation:
+      The canvas has zero knowledge of the AudioEngine. It receives a NumPy
+      array and renders it. Replacing the canvas (e.g. with a spectrogram)
+      requires no changes to the audio layer.
     """
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        """Initialise with a flat zero waveform."""
+        """Initialise with a flat zero waveform and default state."""
         super().__init__(parent)
-        self.setMinimumSize(360, 280)
+        self.setMinimumSize(480, 300)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        # Store one cycle of samples for display (1024 points is enough for any waveform)
+
+        # DISPLAY_CYCLES copies of one cycle, stitched together
         self._data: np.ndarray = np.zeros(1_024, dtype=np.float32)
 
-    def set_waveform(self, data: np.ndarray) -> None:
-        """Update the waveform data and schedule a repaint.
+        # Playback state — set by MainWindow to drive the status indicator
+        self._is_playing: bool = False
+
+        # Waveform name shown as watermark — set by MainWindow
+        self._waveform_name: str = "SINE"
+
+        # Frequency in Hz — used to compute the time-axis labels
+        self._frequency: float = DEFAULT_FREQUENCY_HZ
+
+        # Linear gain [0.0, 1.0] — used to annotate the display; the waveform
+        # samples already carry this scaling so no extra multiply is needed here
+        self._gain: float = DEFAULT_GAIN
+
+    # ── Public API ────────────────────────────────────────────────────────────
+
+    def set_waveform(
+        self,
+        data: np.ndarray,
+        frequency: float,
+        gain: float,
+        waveform_name: str,
+        is_playing: bool,
+    ) -> None:
+        """Update display data and schedule a repaint.
 
         Args:
-            data: 1-D float32 array of waveform samples, values in [-1, 1].
+            data:          1-D float32 array of waveform samples already scaled
+                           by gain, i.e. values in [-gain, +gain].
+            frequency:     Current tone frequency in Hz (for time-axis labels).
+            gain:          Linear gain in [0.0, 1.0]. Stored so paintEvent can
+                           draw the zero-line and amplitude labels at fixed ±1.0
+                           while the wave itself only reaches ±gain — exactly
+                           what a hardware oscilloscope shows.
+            waveform_name: Human-readable waveform name for the watermark.
+            is_playing:    True when audio is currently playing.
         """
         self._data = data
-        self.update()   # schedules paintEvent via Qt's event loop — never call paintEvent() directly
+        self._frequency = frequency
+        self._gain = gain
+        self._waveform_name = waveform_name
+        self._is_playing = is_playing
+        self.update()   # schedule repaint via Qt's event loop
+
+    # ── Rendering ─────────────────────────────────────────────────────────────
 
     def paintEvent(self, event) -> None:  # noqa: ANN001
-        """Draw background, grid, zero line, and the waveform path."""
+        """Full rendering pipeline: glow → fill → curve → decorations."""
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         w, h = self.width(), self.height()
-        pad_x, pad_y = 36, 20   # pixels of padding on each side
+        px = CANVAS_PAD_X
+        pt = CANVAS_PAD_Y
+        pb = CANVAS_PAD_BOTTOM
+        draw_w = w - px * 2
+        draw_h = h - pt - pb
+        cy = pt + draw_h // 2   # pixel row of the zero-amplitude line
 
-        # ── Background ────────────────────────────────────────────────────────
+        # ── 1. Background ─────────────────────────────────────────────────────
         painter.fillRect(0, 0, w, h, QColor(CANVAS_BG))
 
-        # ── Grid lines ────────────────────────────────────────────────────────
-        grid_pen = QPen(QColor(GRID_COLOR), 1)
-        painter.setPen(grid_pen)
-        for i in range(1, 4):
-            # Vertical grid at t = 0.25, 0.50, 0.75
-            gx = int(pad_x + (i / 4.0) * (w - pad_x * 2))
-            painter.drawLine(gx, pad_y, gx, h - pad_y)
-        for i in range(1, 4):
-            # Horizontal grid at amplitude = −0.5, 0.0, +0.5 (0.0 drawn separately)
-            gy = int(pad_y + (i / 4.0) * (h - pad_y * 2))
-            painter.drawLine(pad_x, gy, w - pad_x, gy)
+        # ── 2. Watermark — waveform name in large faint text ──────────────────
+        wm_font = QFont("IBM Plex Mono", 52, QFont.Weight.Bold)
+        painter.setFont(wm_font)
+        wm_color = QColor(CURVE_COLOR)
+        wm_color.setAlpha(14)
+        painter.setPen(QPen(wm_color))
+        painter.drawText(
+            px, pt, draw_w, draw_h,
+            Qt.AlignmentFlag.AlignCenter,
+            self._waveform_name,
+        )
 
-        # ── Zero (centre) line ────────────────────────────────────────────────
-        zero_pen = QPen(QColor(ZERO_LINE_COLOR), 1)
-        painter.setPen(zero_pen)
-        cy = h // 2   # pixel row of the zero-amplitude line
-        painter.drawLine(pad_x, cy, w - pad_x, cy)
-
-        # ── Axis labels ───────────────────────────────────────────────────────
-        painter.setPen(QPen(QColor(LABEL_COLOR)))
-        painter.setFont(QFont("IBM Plex Mono", 9))
-        painter.drawText(pad_x - 32, cy + 4, " 0.0")
-        painter.drawText(pad_x - 32, pad_y + 10, "+1.0")
-        painter.drawText(pad_x - 32, h - pad_y - 2, "−1.0")
-
-        # ── Waveform path ─────────────────────────────────────────────────────
-        # Coordinate mapping from normalised audio space to pixel space:
-        #   Audio X: sample index in [0, N-1]  → pixel X in [pad_x, w - pad_x]
-        #   Audio Y: amplitude in [-1.0, +1.0] → pixel Y in [h-pad_y, pad_y]
-        # Note: pixel Y increases downward, so +1.0 maps to the TOP of the canvas.
-        data = self._data
-        n = len(data)
-        draw_w = w - pad_x * 2   # usable pixel width for the waveform
-        draw_h = h - pad_y * 2   # usable pixel height for the waveform
-
-        path = QPainterPath()
-        for i, sample in enumerate(data):
-            px = int(pad_x + (i / max(n - 1, 1)) * draw_w)
-            # Map amplitude [-1, 1] to pixel Y: centre at cy, +1 → top, -1 → bottom
-            py = int(pad_y + (1.0 - float(sample)) / 2.0 * draw_h)
-            if i == 0:
-                path.moveTo(px, py)
+        # ── 3. Amplitude grid (horizontal) ────────────────────────────────────
+        # Five lines: +1.0, +0.5, 0.0, −0.5, −1.0
+        amp_levels = [1.0, 0.5, 0.0, -0.5, -1.0]
+        for amp in amp_levels:
+            gy = int(pt + (1.0 - amp) / 2.0 * draw_h)
+            if amp == 0.0:
+                pen = QPen(QColor(ZERO_LINE_COLOR), 1)
             else:
-                path.lineTo(px, py)
+                pen = QPen(QColor(GRID_COLOR), 1)
+            pen.setStyle(Qt.PenStyle.DashLine if amp != 0.0 else Qt.PenStyle.SolidLine)
+            painter.setPen(pen)
+            painter.drawLine(px, gy, w - px, gy)
 
-        painter.setPen(QPen(QColor(CURVE_COLOR), 2.0))
+        # ── 4. Time grid (vertical) — one line per cycle boundary ─────────────
+        grid_pen = QPen(QColor(GRID_COLOR), 1)
+        grid_pen.setStyle(Qt.PenStyle.DashLine)
+        painter.setPen(grid_pen)
+        for c in range(1, DISPLAY_CYCLES):
+            gx = int(px + c / DISPLAY_CYCLES * draw_w)
+            painter.drawLine(gx, pt, gx, pt + draw_h)
+
+        # ── 5. Glow layer — offscreen QImage → NumPy Gaussian blur → composite ──
+        #
+        # RENDERING CONCEPT — offscreen compositing:
+        # We render to a QImage (off-screen pixel buffer) rather than directly
+        # to the widget. This gives us access to the raw pixel data as a NumPy
+        # array (via QImage.bits()), where we apply a real Gaussian blur.
+        # The blurred result is composited back onto the widget with reduced
+        # opacity — producing the glow bloom effect.
+        #
+        # QImage.bits() returns a memoryview of the pixel buffer with zero copy.
+        # np.frombuffer() wraps it without copying. The array shape is
+        # (height * width * 4,) because QImage stores pixels packed — we
+        # reshape to (H, W, 4) for per-channel processing.
+        glow_image = QImage(w, h, QImage.Format.Format_ARGB32)
+        glow_image.fill(Qt.GlobalColor.transparent)
+        gp = QPainter(glow_image)
+        gp.setRenderHint(QPainter.RenderHint.Antialiasing)
+        glow_color = QColor(CURVE_COLOR)
+        glow_color.setAlpha(200)
+        gp.setPen(QPen(glow_color, GLOW_STROKE_WIDTH, Qt.PenStyle.SolidLine,
+                       Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+        gp.setBrush(Qt.BrushStyle.NoBrush)
+        glow_path = _build_waveform_path(self._data, px, pt, draw_w, draw_h)
+        gp.drawPath(glow_path)
+        gp.end()
+
+        # Convert QImage pixel buffer to NumPy array — zero-copy via memoryview
+        ptr = glow_image.bits()                          # memoryview of raw ARGB bytes
+        arr = np.frombuffer(ptr, dtype=np.uint8).copy() # copy needed: buffer is read-only
+        arr = arr.reshape((h, w, 4))                     # (H, W, 4) — channels: B,G,R,A
+
+        # Apply separable Gaussian blur — the mathematically correct glow
+        blurred = _gaussian_blur_rgba(arr, GLOW_SIGMA)
+
+        # Write blurred pixels back into a new QImage and composite onto canvas
+        blurred_image = QImage(
+            blurred.tobytes(), w, h, w * 4, QImage.Format.Format_ARGB32
+        )
+        painter.setOpacity(GLOW_ALPHA)
+        painter.drawImage(0, 0, blurred_image)
+        painter.setOpacity(1.0)
+
+        # ── 6. Gradient fill — area between curve and zero line ───────────────
+        #
+        # Build a closed path: waveform curve forward, then return along zero.
+        # Fill with a vertical linear gradient: accent colour (semi-transparent)
+        # at the zero line, fully transparent at top and bottom edges.
+        # This is the standard DAW waveform fill style.
+        fill_path = QPainterPath(glow_path)   # copy the already-built path
+        fill_path.lineTo(w - px, cy)          # close along the zero line
+        fill_path.lineTo(px, cy)
+        fill_path.closeSubpath()
+
+        gradient = QLinearGradient(0, pt, 0, pt + draw_h)
+        top_color = QColor(CURVE_COLOR)
+        top_color.setAlpha(0)
+        mid_color = QColor(CURVE_COLOR)
+        mid_color.setAlpha(FILL_ALPHA_TOP)
+        gradient.setColorAt(0.0, top_color)
+        gradient.setColorAt(0.5, mid_color)
+        gradient.setColorAt(1.0, top_color)
+
+        painter.setBrush(QBrush(gradient))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawPath(fill_path)
+
+        # ── 7. Sharp foreground waveform line ─────────────────────────────────
+        painter.setPen(QPen(
+            QColor(CURVE_COLOR),
+            CURVE_STROKE_WIDTH,
+            Qt.PenStyle.SolidLine,
+            Qt.PenCapStyle.RoundCap,
+            Qt.PenJoinStyle.RoundJoin,
+        ))
         painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawPath(path)
+        painter.drawPath(glow_path)
+
+        # ── 8. Amplitude axis labels (left side) ──────────────────────────────
+        label_font = QFont("IBM Plex Mono", 9)
+        painter.setFont(label_font)
+        painter.setPen(QPen(QColor(LABEL_COLOR)))
+        amp_labels = {1.0: "+1.0", 0.5: "+0.5", 0.0: " 0.0", -0.5: "−0.5", -1.0: "−1.0"}
+        for amp, text in amp_labels.items():
+            gy = int(pt + (1.0 - amp) / 2.0 * draw_h)
+            painter.drawText(0, gy - 6, px - 4, 14, Qt.AlignmentFlag.AlignRight, text)
+
+        # ── 9. Time axis labels (bottom) ──────────────────────────────────────
+        # Label each cycle boundary with its time in milliseconds.
+        # Period T = 1 / frequency. Labels: 0 ms, T ms, 2T ms, … , N*T ms.
+        period_ms = 1000.0 / max(self._frequency, 1.0)
+        time_font = QFont("IBM Plex Mono", 8)
+        painter.setFont(time_font)
+        painter.setPen(QPen(QColor(LABEL_COLOR)))
+        for c in range(DISPLAY_CYCLES + 1):
+            t_ms = c * period_ms
+            label = f"{t_ms:.2f} ms" if t_ms > 0 else "0 ms"
+            tx = int(px + c / DISPLAY_CYCLES * draw_w)
+            painter.drawText(tx - 28, h - pb + 6, 56, 20,
+                             Qt.AlignmentFlag.AlignCenter, label)
+
+        # ── 10. Border around the draw area ───────────────────────────────────
+        border_pen = QPen(QColor(AXIS_COLOR), 1)
+        painter.setPen(border_pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRect(px, pt, draw_w, draw_h)
+
+        # ── 11. Status indicator (top-right corner) ───────────────────────────
+        dot_x = w - px + 8
+        dot_y = pt + STATUS_DOT_RADIUS + 2
+        if self._is_playing:
+            dot_color = QColor("#22c55e")   # green — playing
+            status_text = "PLAYING"
+        else:
+            dot_color = QColor("#5a6175")   # muted — stopped
+            status_text = "STOPPED"
+        painter.setBrush(QBrush(dot_color))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawEllipse(
+            dot_x - STATUS_DOT_RADIUS, dot_y - STATUS_DOT_RADIUS,
+            STATUS_DOT_RADIUS * 2, STATUS_DOT_RADIUS * 2,
+        )
+        status_font = QFont("IBM Plex Mono", 7)
+        painter.setFont(status_font)
+        painter.setPen(QPen(dot_color))
+        painter.drawText(dot_x + STATUS_DOT_RADIUS + 4, dot_y + 4, status_text)
+
+        # ── 12. Frequency + gain annotation (top-left, inside draw area) ────────
+        info_font = QFont("IBM Plex Mono", 8)
+        painter.setFont(info_font)
+        info_color = QColor(LABEL_COLOR)
+        info_color.setAlpha(180)
+        painter.setPen(QPen(info_color))
+        # dBFS: 20 × log10(gain). Guard against log(0) with a floor of -∞ → "−∞ dB".
+        if self._gain > 0.0:
+            db_str = f"{20.0 * np.log10(self._gain):+.1f} dBFS"
+        else:
+            db_str = "−∞ dBFS"
+        annotation = (
+            f"f = {self._frequency:.1f} Hz   T = {period_ms:.3f} ms   "
+            f"gain = {int(round(self._gain * 100))} % ({db_str})"
+        )
+        painter.drawText(px + 8, pt + 16, annotation)
 
         painter.end()
 
@@ -765,29 +1087,62 @@ class MainWindow(QMainWindow):
             self._engine.stop()
 
     def _refresh_canvas(self) -> None:
-        """Generate one cycle of the current waveform and send it to the canvas.
+        """Generate DISPLAY_CYCLES cycles of the current waveform and send to the canvas.
 
         This runs on the Qt main thread at 30 fps. It reads the current audio
-        state (frequency, waveform type, gain) and synthesises exactly one
-        cycle of samples for display. This is independent of the audio callback
-        — the canvas always shows a clean single cycle regardless of the actual
-        audio block boundaries.
+        state (frequency, waveform type, gain) and synthesises exactly
+        DISPLAY_CYCLES complete cycles for display.
+
+        OSCILLOSCOPE DESIGN — fixed time window:
+        We always show a window of exactly DISPLAY_CYCLES / frequency seconds.
+        This means the number of samples rendered scales with frequency:
+          • At  20 Hz  (3 cycles): 3 / 20   =  150 ms → 7 200 samples
+          • At 440 Hz  (3 cycles): 3 / 440  ≈  6.8 ms → 327 samples
+          • At 2000 Hz (3 cycles): 3 / 2000 =  1.5 ms → 72 samples
+        The canvas maps however many samples we pass to the full pixel width,
+        so the user directly sees the relationship T = 1/f: at high frequency
+        the cycle is physically narrower; at low frequency it is wider. This is
+        exactly what a Rigol or Tektronix oscilloscope shows.
+
+        The minimum of 64 samples ensures the path has enough points to look
+        smooth even at very high frequencies where a single cycle spans only
+        a few pixels.
+
+        GAIN — we pass state.gain into display_state (not 1.0). The waveform
+        samples in the output array are therefore in [-gain, +gain]. The canvas
+        keeps its amplitude grid fixed at ±1.0, so the student sees the wave
+        shrink toward the zero line as gain decreases — identical to turning
+        the VOLTS/DIV knob on a hardware oscilloscope.
+
+        This is independent of the audio callback — the canvas always shows
+        clean cycles starting from phase 0, regardless of the audio block
+        boundaries or the engine's current phase accumulator.
         """
         state = self._engine.state
-        n_samples = int(SAMPLE_RATE / max(state.frequency, 1.0))   # samples in one cycle
-        # Cap to a reasonable display size — very low frequencies would generate
-        # too many samples. 4096 is well above what any screen can display.
-        n_samples = min(n_samples, 4_096)
 
-        # Create a temporary state for display only (do not disturb the engine's phase)
+        # Fixed time window: always show exactly DISPLAY_CYCLES complete cycles.
+        # n_samples = round(DISPLAY_CYCLES × SAMPLE_RATE / frequency).
+        # Clamped to [64, 8192] to avoid degenerate arrays at the slider extremes.
+        n_samples = int(round(DISPLAY_CYCLES * SAMPLE_RATE / max(state.frequency, 1.0)))
+        n_samples = max(64, min(n_samples, 8_192))
+
+        # Temporary state for display only — do not disturb the engine's phase.
+        # gain is taken directly from state so the canvas amplitude reflects the
+        # real output level, not a fictional unit-gain shape.
         display_state = WaveformState(
             waveform_type=state.waveform_type,
             frequency=state.frequency,
-            gain=1.0,   # always show the full waveform shape at unit gain
-            phase=0.0,  # always start from zero for a clean single-cycle display
+            gain=state.gain,   # ← real gain: the wave scales on screen
+            phase=0.0,         # always start from phase zero for a clean display
         )
-        block = waveform_block(display_state, n_samples)  # shape (n_samples, 1)
-        self._canvas.set_waveform(block[:, 0])            # pass as 1-D array
+        block = waveform_block(display_state, n_samples)   # shape (n_samples, 1)
+        self._canvas.set_waveform(
+            data=block[:, 0],                              # 1-D array in [-gain, +gain]
+            frequency=state.frequency,
+            gain=state.gain,                               # forwarded for annotation
+            waveform_name=WAVEFORM_NAMES[state.waveform_type].upper(),
+            is_playing=self._controls.is_playing,
+        )
 
     # ── Window lifecycle ──────────────────────────────────────────────────────
 

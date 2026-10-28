@@ -56,10 +56,8 @@ from pathlib import Path
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
-from scipy.signal import butter, resample_poly, sosfilt
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import (
-    QBrush,
     QColor,
     QFont,
     QPainter,
@@ -84,6 +82,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from scipy.signal import butter, resample_poly, sosfilt
 
 # =============================================================================
 # STEP 1 — Constants
@@ -94,30 +93,32 @@ WINDOW_MIN_WIDTH: int = 960
 WINDOW_MIN_HEIGHT: int = 560
 
 # Audio I/O
-DEVICE_SAMPLE_RATE: int = 48_000    # Hz — target playback rate; files are resampled to this
-BLOCK_SIZE: int = 512               # frames per callback block
+DEVICE_SAMPLE_RATE: int = (
+    48_000  # Hz — target playback rate; files are resampled to this
+)
+BLOCK_SIZE: int = 512  # frames per callback block
 
 # Supported audio file formats (soundfile / libsndfile)
 SUPPORTED_FORMATS: tuple[str, ...] = ("*.wav", "*.flac", "*.ogg", "*.aiff", "*.aif")
 SUPPORTED_FILTER: str = "Audio Files (*.wav *.flac *.ogg *.aiff *.aif)"
 
 # DC-removal filter cutoff
-DC_HIGHPASS_HZ: float = 20.0       # Hz — anything below 20 Hz is inaudible; treat as DC
+DC_HIGHPASS_HZ: float = 20.0  # Hz — anything below 20 Hz is inaudible; treat as DC
 
 # Normalisation target
 NORMALISE_TARGET_DBFS: float = -0.1  # dBFS — peak level after normalisation
 
 # Display
 DISPLAY_FPS: int = 30
-DISPLAY_TIMER_MS: int = 1_000 // DISPLAY_FPS    # 33 ms
+DISPLAY_TIMER_MS: int = 1_000 // DISPLAY_FPS  # 33 ms
 
 # Canvas colours — dark theme, consistent with the course HTML design system
 CANVAS_BG: str = "#0d0f14"
 ZERO_LINE_COLOR: str = "#252b38"
-ORIGINAL_COLOR: str = "#4f9cf9"     # --accent blue  — original waveform
-PROCESSED_COLOR: str = "#a78bfa"    # --accent2 purple — processed waveform
-PLAYHEAD_COLOR: str = "#fb923c"     # --orange — playhead line
-LABEL_COLOR: str = "#5a6175"        # --muted
+ORIGINAL_COLOR: str = "#4f9cf9"  # --accent blue  — original waveform
+PROCESSED_COLOR: str = "#a78bfa"  # --accent2 purple — processed waveform
+PLAYHEAD_COLOR: str = "#fb923c"  # --orange — playhead line
+LABEL_COLOR: str = "#5a6175"  # --muted
 
 # AMS logo — one directory above this script (repo root)
 LOGO_PATH: Path = Path(__file__).resolve().parent.parent / "ams_group_tui.png"
@@ -126,6 +127,7 @@ LOGO_PATH: Path = Path(__file__).resolve().parent.parent / "ams_group_tui.png"
 # =============================================================================
 # STEP 2 — AudioBuffer: decoded audio held in memory
 # =============================================================================
+
 
 @dataclass
 class AudioBuffer:
@@ -142,8 +144,8 @@ class AudioBuffer:
         duration_seconds: Total duration in seconds.
     """
 
-    data: np.ndarray                        # shape (frames, channels), float32
-    samplerate: int                         # Hz
+    data: np.ndarray  # shape (frames, channels), float32
+    samplerate: int  # Hz
     path: Path
     duration_seconds: float = field(init=False)
 
@@ -151,7 +153,7 @@ class AudioBuffer:
         self.duration_seconds = self.data.shape[0] / self.samplerate
 
     @classmethod
-    def load(cls, path: Path) -> "AudioBuffer":
+    def load(cls, path: Path) -> AudioBuffer:
         """Read an audio file and return an AudioBuffer at DEVICE_SAMPLE_RATE.
 
         Uses soundfile (libsndfile) for decoding — the professional standard
@@ -191,6 +193,7 @@ class AudioBuffer:
             # resample_poly requires integer numerator/denominator.
             # We use the GCD to reduce the ratio to its simplest form.
             from math import gcd
+
             g = gcd(DEVICE_SAMPLE_RATE, file_sr)
             up, down = DEVICE_SAMPLE_RATE // g, file_sr // g
             resampled_channels = [
@@ -225,6 +228,7 @@ class AudioBuffer:
 # =============================================================================
 # STEP 3 — DspChain: offline DSP processing functions
 # =============================================================================
+
 
 class DspChain:
     """A collection of offline DSP functions applied to an AudioBuffer copy.
@@ -372,7 +376,7 @@ class DspChain:
         """
         peak = np.max(np.abs(data))
         if peak < 1e-9:
-            return data.copy()   # silence — do not divide by zero
+            return data.copy()  # silence — do not divide by zero
         target_linear: float = 10.0 ** (NORMALISE_TARGET_DBFS / 20.0)
         return (data * (target_linear / peak)).astype(np.float32)
 
@@ -424,6 +428,7 @@ class DspChain:
 # STEP 4 — WaveformView: QPainter waveform canvas with playhead
 # =============================================================================
 
+
 class WaveformView(QWidget):
     """QPainter waveform canvas with peak-reduction rendering and a playhead.
 
@@ -458,8 +463,8 @@ class WaveformView(QWidget):
         self._proc_min: np.ndarray = np.array([])
         self._proc_max: np.ndarray = np.array([])
 
-        self._n_frames: int = 0          # total audio frames (for playhead mapping)
-        self._playhead_frame: int = 0    # current playhead position in frames
+        self._n_frames: int = 0  # total audio frames (for playhead mapping)
+        self._playhead_frame: int = 0  # current playhead position in frames
         self._has_processed: bool = False
 
     # ── Public interface ───────────────────────────────────────────────────────
@@ -625,7 +630,7 @@ class WaveformView(QWidget):
         # ── Original waveform (blue, on top) ──────────────────────────────
         if len(self._orig_min) == w:
             orig_pen = QPen(QColor(ORIGINAL_COLOR), 1)
-            orig_pen.setColor(QColor(79, 156, 249, 200))   # accent with alpha
+            orig_pen.setColor(QColor(79, 156, 249, 200))  # accent with alpha
             painter.setPen(orig_pen)
             for px in range(w):
                 py_min = self._amp_to_py(float(self._orig_min[px]), h)
@@ -653,6 +658,7 @@ class WaveformView(QWidget):
 # =============================================================================
 # STEP 5 — PlaybackEngine: sounddevice OutputStream with Lock-protected seek
 # =============================================================================
+
 
 class PlaybackEngine:
     """Manages a sounddevice OutputStream for playing back an AudioBuffer.
@@ -760,7 +766,7 @@ class PlaybackEngine:
                 self._frame_pos = n_frames
             elif remaining < frames:
                 # Final partial block — copy what remains, zero-pad the rest
-                outdata[:remaining, :n_channels] = buf[pos:pos + remaining]
+                outdata[:remaining, :n_channels] = buf[pos : pos + remaining]
                 if n_channels < outdata.shape[1]:
                     outdata[:remaining, n_channels:] = 0.0
                 outdata[remaining:] = 0.0
@@ -772,7 +778,7 @@ class PlaybackEngine:
                     pass
             else:
                 # Normal block
-                chunk = buf[pos:pos + frames]
+                chunk = buf[pos : pos + frames]
                 if chunk.shape[1] == outdata.shape[1]:
                     outdata[:] = chunk
                 elif chunk.shape[1] == 1:
@@ -780,14 +786,14 @@ class PlaybackEngine:
                     outdata[:] = np.repeat(chunk, outdata.shape[1], axis=1)
                 else:
                     # More source channels than output — take first N
-                    outdata[:] = chunk[:, :outdata.shape[1]]
+                    outdata[:] = chunk[:, : outdata.shape[1]]
                 self._frame_pos += frames
 
             # Push frame position to the UI queue (non-blocking)
             try:
                 self._frame_queue.put_nowait(self._frame_pos)
             except queue.Full:
-                pass   # UI is not keeping up — drop the update, do not block
+                pass  # UI is not keeping up — drop the update, do not block
 
     # ── Playback control ───────────────────────────────────────────────────────
 
@@ -796,7 +802,7 @@ class PlaybackEngine:
         if self._stream is None:
             self._stream = sd.OutputStream(
                 samplerate=DEVICE_SAMPLE_RATE,
-                channels=2,           # always output stereo (mono files are duplicated)
+                channels=2,  # always output stereo (mono files are duplicated)
                 blocksize=BLOCK_SIZE,
                 dtype="float32",
                 callback=self._callback,
@@ -856,6 +862,7 @@ class PlaybackEngine:
 # =============================================================================
 # STEP 6 — DspPanel: DSP controls QGroupBox
 # =============================================================================
+
 
 class DspPanel(QWidget):
     """Right-side panel: DSP controls and Apply button.
@@ -1002,6 +1009,7 @@ class DspPanel(QWidget):
 # =============================================================================
 # STEP 7 — TransportBar: play/pause/stop controls and time display
 # =============================================================================
+
 
 class TransportBar(QWidget):
     """Horizontal bar with playback controls, time display, and scrubber.
@@ -1155,6 +1163,7 @@ class TransportBar(QWidget):
 # STEP 8 — MainWindow: assembly, File menu, signals, QTimer polling
 # =============================================================================
 
+
 class MainWindow(QMainWindow):
     """Application main window.
 
@@ -1257,7 +1266,7 @@ class MainWindow(QMainWindow):
             SUPPORTED_FILTER,
         )
         if not path_str:
-            return   # user cancelled
+            return  # user cancelled
 
         try:
             buf = AudioBuffer.load(Path(path_str))
@@ -1375,12 +1384,14 @@ class MainWindow(QMainWindow):
 # Entry point
 # =============================================================================
 
+
 def main() -> None:
     """Create the QApplication, show the window, and start the event loop."""
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
 
     from PySide6.QtGui import QPalette
+
     palette = app.palette()
     palette.setColor(QPalette.ColorRole.Window, QColor("#0d0f14"))
     palette.setColor(QPalette.ColorRole.WindowText, QColor("#d8dce6"))
