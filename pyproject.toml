@@ -1,22 +1,74 @@
+# =============================================================================
+# pyproject.toml — Multimediaprogrammierung Seminars
+# =============================================================================
+# Author   : Renato Fera P.
+# LinkedIn : https://www.linkedin.com/in/renato-profeta/
+# Course   : Multimediaprogrammierung
+# Institute: Institut für Medientechnik, Technische Universität Ilmenau
+# -----------------------------------------------------------------------------
+# Package manager: uv  (https://docs.astral.sh/uv/)
+#
+# Quick start:
+#   curl -LsSf https://astral.sh/uv/install.sh | sh   # install uv (Linux/WSL)
+#   winget install --id=astral-sh.uv -e               # install uv (Windows)
+#
+#   git clone https://github.com/TUIlmenauAMS/multimedia_programming_seminars
+#   cd multimedia_programming_seminars
+#
+#   uv sync                                           # create .venv and install all deps
+#   uv run python 03_pyside6/03_mm_hello_multimedia.py  # run any demo
+#
+# Ubuntu system dependencies (install once, system-wide):
+#   sudo apt install libgl1 libegl1 libxcb-cursor0 libxcb-xinerama0 \
+#                    libportaudio2 libsndfile1 libopencv-dev
+#
+#   libgl1            — Mesa OpenGL (required by PySide6 rendering backend)
+#   libegl1           — EGL interface (required by Qt platform plugin)
+#   libxcb-cursor0    — XCB cursor lib (required by Qt xcb plugin, Ubuntu 22+)
+#   libxcb-xinerama0  — multi-monitor support for Qt
+#   libportaudio2     — PortAudio runtime (required by sounddevice)
+#   libsndfile1       — libsndfile runtime (required by soundfile)
+#   libopencv-dev     — OpenCV development libraries (required by opencv-python)
+#
+# Windows: no system dependencies needed — Python packages bundle everything.
+# =============================================================================
+
 [project]
-name = "seminars"
+name = "multimedia-programming-seminars"
 version = "0.1.0"
-description = "Add your description here"
+description = "Multimediaprogrammierung Seminars — TU Ilmenau"
 readme = "README.md"
 authors = [
-    { name = "Guitars.AI", email = "guitars.ai@rptecnologias.com" }
+    { name = "Renato Fera P.", email = "renato.profeta@tu-ilmenau.de" }
 ]
 requires-python = ">=3.12"
-dependencies = []
-
-[project.scripts]
-seminars = "seminars:main"
-
-[build-system]
-requires = ["uv_build>=0.13.0,<0.14.0"]
-build-backend = "uv_build"
+dependencies = [
+    "PySide6>=6.7.0",          # Qt 6 Python bindings — LGPL, safe for commercial use
+    "sounddevice>=0.4.6",      # real-time audio I/O via PortAudio
+    "soundfile>=0.12.1",       # audio file read/write via libsndfile (WAV, FLAC, OGG, AIFF)
+    "numpy>=1.26.0",           # array math — the universal audio/video data format
+    "scipy>=1.13.0",           # scientific DSP: filters, FFT utilities, resampling
+    "opencv-python>=4.9.0",    # frame-level video processing
+]
 
 [dependency-groups]
 dev = [
-    "ipykernel>=7.4.0",
+    "ipykernel>=7.4.0",        # Jupyter kernel for .ipynb notebooks
+    "ruff>=0.4.0",             # linter + formatter (replaces flake8+black+isort)
 ]
+
+# ── Ruff linter configuration ─────────────────────────────────────────────────
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+# E/W = pycodestyle errors and warnings
+# F   = Pyflakes (undefined names, unused imports)
+# I   = isort (import ordering — keeps imports grouped and sorted)
+# UP  = pyupgrade (enforces modern Python 3.12 syntax)
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
