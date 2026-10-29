@@ -81,13 +81,17 @@ from pathlib import Path
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
-from PySide6.QtCore import Qt, QTimer, Signal
+from PySide6.QtCore import Qt, QTimer, Signal, QRect
 from PySide6.QtGui import (
     QColor,
     QFont,
     QPainter,
+    QPainterPath,
     QPen,
     QPixmap,
+    QLinearGradient,
+    QBrush,
+    QWheelEvent,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -101,6 +105,7 @@ from PySide6.QtWidgets import (
     QMainWindow,
     QMessageBox,
     QPushButton,
+    QScrollBar,
     QSizePolicy,
     QSlider,
     QSplitter,
@@ -188,6 +193,15 @@ ORIGINAL_COLOR: str = "#4f9cf9"  # --accent blue  — original waveform
 PROCESSED_COLOR: str = "#a78bfa"  # --accent2 purple — processed waveform
 PLAYHEAD_COLOR: str = "#fb923c"  # --orange — playhead line
 LABEL_COLOR: str = "#5a6175"  # --muted
+
+SELECTION_COLOR: str = "#4f9cf9"   # selection highlight (blue, semi-transparent)
+LOOP_MARKER_COLOR: str = "#fb923c" # loop boundary markers (orange)
+
+# EQ band centre / corner frequencies (Hz)
+EQ_LOW_FREQ:  float = 80.0    # low shelf corner
+EQ_MID_FREQ:  float = 1_000.0 # mid peak centre
+EQ_HIGH_FREQ: float = 8_000.0 # high shelf corner
+EQ_MID_Q:     float = 0.707   # mid band Q (Butterworth, ~1 octave)
 
 # AMS logo — one directory above this script (repo root)
 LOGO_PATH: Path = Path(__file__).resolve().parent.parent / "ams_group_tui.png"
@@ -699,6 +713,64 @@ class DspChain:
         target_linear: float = 10.0 ** (NORMALISE_TARGET_DBFS / 20.0)
         return (data * (target_linear / peak)).astype(np.float32)
 
+    @staticmethod
+    def apply_eq_band(
+        data: np.ndarray,
+        samplerate: int,
+        freq: float,
+        gain_db: float,
+        btype: str,
+        q: float = 0.707,
+    ) -> np.ndarray:
+        """Apply a single EQ band (low shelf, peaking, or high shelf).
+
+        DSP CONCEPT — Parametric EQ bands:
+        A shelving filter boosts/cuts all frequencies above (high shelf) or
+        below (low shelf) a corner frequency. A peaking (bell) filter boosts
+        or cuts a band of frequencies centred on freq with width set by Q.
+        We implement all three using a 2nd-order Butterworth IIR filter
+        designed with scipy.signal.butter (output='sos' for numerical
+        stability).
+
+        For gain_db == 0 the function returns the input unchanged to avoid
+        applying a unity-gain filter (wastes CPU, adds noise at float32
+        precision boundaries).
+
+        Args:
+            data: Audio array (frames, channels), float32.
+            samplerate: Sample rate in Hz.
+            freq: Corner / centre frequency in Hz.
+            gain_db: Boost (positive) or cut (negative) in dB.
+            btype: 'lowpass' for low shelf, 'highpass' for high shelf,
+                   'bandpass' for mid peak.
+            q: Bandwidth Q for bandpass only (ignored for shelves).
+
+        Returns:
+            Filtered audio, same shape and dtype.
+        """
+        if abs(gain_db) < 0.01:
+            return data  # nothing to do
+
+        nyq = samplerate / 2.0
+        wn = freq / nyq
+
+        if btype == "bandpass":
+            bw = freq / q
+            low = max((freq - bw / 2) / nyq, 0.001)
+            high = min((freq + bw / 2) / nyq, 0.999)
+            sos = butter(N=2, Wn=[low, high], btype="bandpass", output="sos")
+        else:
+            wn = min(max(wn, 0.001), 0.999)
+            sos = butter(N=2, Wn=wn, btype=btype, output="sos")
+
+        linear_gain = 10.0 ** (gain_db / 20.0)
+        result = np.empty_like(data)
+        for ch in range(data.shape[1]):
+            filtered = sosfilt(sos, data[:, ch]).astype(np.float32)
+            # Blend original + (filtered − original) * gain: shelf/peak behaviour
+            result[:, ch] = (data[:, ch] + (filtered - data[:, ch]) * (linear_gain - 1.0)).astype(np.float32)
+        return result
+
     @classmethod
     def apply_chain(
         cls,
@@ -708,39 +780,76 @@ class DspChain:
         fade_out_ms: float,
         remove_dc: bool,
         do_normalise: bool,
+        eq_low_db: float = 0.0,
+        eq_mid_db: float = 0.0,
+        eq_high_db: float = 0.0,
+        sel_start: int | None = None,
+        sel_end: int | None = None,
     ) -> AudioBuffer:
         """Apply the full DSP chain to a copy of the buffer.
 
-        The processing order matters:
-          1. Gain — scale the amplitude first
-          2. DC removal — filter on the gained signal
-          3. Fade — apply envelope after filtering (avoids filter transients at edges)
-          4. Normalise — always last, scales the final result
+        When sel_start / sel_end are provided the chain operates only on that
+        region; the rest of the file is left untouched.  Fades are applied to
+        the selection boundaries so the loop edges are click-free.  When no
+        selection is given the chain runs on the entire file.
+
+        Processing order:
+          1. EQ  (low shelf → mid peak → high shelf)
+          2. Gain
+          3. DC removal
+          4. Fade in / fade out  (at region boundaries)
+          5. Normalise
 
         Args:
-            buffer: The source AudioBuffer. Never modified.
-            gain_db: Gain in dB (−12 to +12).
-            fade_in_ms: Fade-in duration in ms.
-            fade_out_ms: Fade-out duration in ms.
-            remove_dc: If True, apply the 20 Hz high-pass DC removal filter.
-            do_normalise: If True, peak-normalise the result to −0.1 dBFS.
+            buffer: Source AudioBuffer — never modified.
+            gain_db: Gain in dB.
+            fade_in_ms / fade_out_ms: Fade durations in ms.
+            remove_dc: Apply 20 Hz high-pass DC removal.
+            do_normalise: Peak-normalise to −0.1 dBFS.
+            eq_low_db: Low-shelf gain (±12 dB, corner EQ_LOW_FREQ Hz).
+            eq_mid_db: Mid-peak gain (±12 dB, centre EQ_MID_FREQ Hz).
+            eq_high_db: High-shelf gain (±12 dB, corner EQ_HIGH_FREQ Hz).
+            sel_start: First frame of the selection (None → whole file).
+            sel_end: First frame after the selection (None → whole file).
 
         Returns:
             A new AudioBuffer with the processed audio.
         """
-        data = buffer.data.copy()
+        full_data = buffer.data.copy()
 
-        data = cls.apply_gain(data, gain_db)
+        # Determine the region to process
+        total = buffer.n_frames
+        if sel_start is not None and sel_end is not None:
+            r0 = max(0, min(sel_start, total))
+            r1 = max(0, min(sel_end, total))
+            if r0 >= r1:
+                r0, r1 = 0, total  # degenerate selection → whole file
+        else:
+            r0, r1 = 0, total
 
+        region = full_data[r0:r1].copy()
+
+        # 1 — EQ
+        region = cls.apply_eq_band(region, buffer.samplerate, EQ_LOW_FREQ,  eq_low_db,  "lowpass")
+        region = cls.apply_eq_band(region, buffer.samplerate, EQ_MID_FREQ,  eq_mid_db,  "bandpass", EQ_MID_Q)
+        region = cls.apply_eq_band(region, buffer.samplerate, EQ_HIGH_FREQ, eq_high_db, "highpass")
+
+        # 2 — Gain
+        region = cls.apply_gain(region, gain_db)
+
+        # 3 — DC removal
         if remove_dc:
-            data = cls.remove_dc(data, buffer.samplerate)
+            region = cls.remove_dc(region, buffer.samplerate)
 
-        data = cls.apply_fade(data, fade_in_ms, fade_out_ms, buffer.samplerate)
+        # 4 — Fades (always applied at region boundaries for click-free looping)
+        region = cls.apply_fade(region, fade_in_ms, fade_out_ms, buffer.samplerate)
 
+        # 5 — Normalise
         if do_normalise:
-            data = cls.normalise(data)
+            region = cls.normalise(region)
 
-        return AudioBuffer(data=data, samplerate=buffer.samplerate, path=buffer.path)
+        full_data[r0:r1] = region
+        return AudioBuffer(data=full_data, samplerate=buffer.samplerate, path=buffer.path)
 
 
 # =============================================================================
@@ -749,228 +858,466 @@ class DspChain:
 
 
 class WaveformView(QWidget):
-    """QPainter waveform canvas with peak-reduction rendering and a playhead.
+    """Professional QPainter waveform canvas.
 
-    Displays two waveforms overlaid:
-      - Original buffer: blue (--accent)
-      - Processed buffer: purple (--accent2)
-
-    The waveform is rendered with peak-reduction: for each pixel column,
-    the minimum and maximum amplitudes of all audio samples it covers are
-    found and drawn as a vertical line. This is the correct approach for
-    all professional audio editors (Pro Tools, Logic, Reaper, Audacity).
-
-    Clicking or dragging on the canvas emits ``seek_requested(int)`` with
-    the target frame index, enabling scrubbing.
+    Features:
+      • Gradient-filled waveform shape (filled path from centre outward),
+        anti-aliased, with a bright stroke edge — matches the visual quality
+        of Logic Pro / Reaper / Audacity.
+      • Zoom: mouse-wheel zooms in/out (1× – 64×); horizontal QScrollBar pans.
+      • Selection: left-click-drag draws a selection region (blue highlight).
+        Shift-click extends the selection. Right-click clears the selection.
+      • Time ruler at the bottom with second / sub-second tick marks.
+      • Subtle amplitude grid lines at ±0.5 and ±1.0.
+      • Playhead (orange vertical line).
 
     Signals:
-        seek_requested: Emitted on click or drag. Carries the target frame.
+        seek_requested:      Emitted on left click (no drag). Carries frame.
+        selection_changed:   Emitted when the selection region changes.
+                             Carries (sel_start_frame, sel_end_frame) or
+                             (-1, -1) when cleared.
     """
 
-    seek_requested: Signal = Signal(int)
+    seek_requested:    Signal = Signal(int)
+    selection_changed: Signal = Signal(int, int)
+
+    # Height of the time ruler strip at the bottom of the canvas (px)
+    _RULER_H: int = 22
 
     def __init__(self, parent: QWidget | None = None) -> None:
-        """Initialise with empty buffers."""
         super().__init__(parent)
-        self.setMinimumHeight(160)
+        self.setMinimumHeight(180)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setCursor(Qt.CursorShape.CrossCursor)
+        self.setMouseTracking(True)
 
-        # Peak-reduced display arrays — recomputed in set_buffer()
-        self._orig_min: np.ndarray = np.array([])
-        self._orig_max: np.ndarray = np.array([])
-        self._proc_min: np.ndarray = np.array([])
-        self._proc_max: np.ndarray = np.array([])
-
-        self._n_frames: int = 0  # total audio frames (for playhead mapping)
-        self._playhead_frame: int = 0  # current playhead position in frames
+        # Audio data
+        self._orig_audio:  np.ndarray | None = None   # mono float32, full file
+        self._proc_audio:  np.ndarray | None = None
+        self._n_frames:    int = 0
+        self._samplerate:  int = DEVICE_SAMPLE_RATE
         self._has_processed: bool = False
+
+        # Zoom / pan  (view_start / view_end are frame indices)
+        self._zoom:       float = 1.0
+        self._view_start: int   = 0   # first visible frame
+        self._view_end:   int   = 0   # last visible frame (exclusive)
+
+        # Cached peak arrays for the current view window (size = canvas width)
+        self._cache_orig_min: np.ndarray = np.array([])
+        self._cache_orig_max: np.ndarray = np.array([])
+        self._cache_proc_min: np.ndarray = np.array([])
+        self._cache_proc_max: np.ndarray = np.array([])
+        self._cache_view: tuple[int, int, int] = (-1, -1, -1)  # (start,end,width)
+
+        # Playhead
+        self._playhead_frame: int = 0
+
+        # Selection
+        self._sel_start:  int = -1
+        self._sel_end:    int = -1
+        self._drag_anchor: int | None = None   # frame where drag started
 
     # ── Public interface ───────────────────────────────────────────────────────
 
     def set_buffer(
         self,
-        original: AudioBuffer | None,
-        processed: AudioBuffer | None = None,
+        original: "AudioBuffer | None",
+        processed: "AudioBuffer | None" = None,
     ) -> None:
-        """Compute peak-reduced display data and repaint.
-
-        DSP CONCEPT — Peak reduction:
-        A 10-second stereo file at 48 000 Hz contains 480 000 frames.
-        The canvas is perhaps 800 px wide. Drawing every sample would require
-        drawing 600 points per pixel column — most of which are invisible
-        because they overwrite each other. Worse, striding (taking every Nth
-        sample) misses transients: a brief loud click between two quiet samples
-        would be invisible if the stride skips it.
-
-        Peak-reduction solves both problems: for each pixel column, find the
-        minimum and maximum sample values across all frames it covers, then
-        draw a vertical line between those two extremes. This is O(N) in the
-        number of samples (one pass) and preserves every transient — no sample
-        is ever skipped.
-
-        This is how every professional DAW renders waveforms.
-
-        Args:
-            original: The source AudioBuffer (always provided when a file is open).
-            processed: The DSP-processed AudioBuffer, or None if no DSP has been applied.
-        """
+        """Load new buffers, reset view, invalidate cache."""
         if original is None:
-            self._orig_min = np.array([])
-            self._orig_max = np.array([])
-            self._proc_min = np.array([])
-            self._proc_max = np.array([])
-            self._n_frames = 0
+            self._orig_audio = None
+            self._proc_audio = None
+            self._n_frames   = 0
+            self._zoom       = 1.0
+            self._view_start = 0
+            self._view_end   = 0
             self._has_processed = False
+            self._invalidate_cache()
             self.update()
             return
 
-        self._n_frames = original.n_frames
-        self._orig_min, self._orig_max = self._peak_reduce(original.mono())
+        self._n_frames   = original.n_frames
+        self._samplerate = original.samplerate
+        self._orig_audio = original.mono()
+        self._zoom       = 1.0
+        self._view_start = 0
+        self._view_end   = self._n_frames
 
         if processed is not None:
-            self._proc_min, self._proc_max = self._peak_reduce(processed.mono())
+            self._proc_audio    = processed.mono()
             self._has_processed = True
         else:
-            self._proc_min = np.array([])
-            self._proc_max = np.array([])
+            self._proc_audio    = None
             self._has_processed = False
 
+        self._invalidate_cache()
         self.update()
 
     def set_playhead(self, frame: int) -> None:
-        """Update the playhead position and repaint.
-
-        Args:
-            frame: Current playback position in audio frames.
-        """
         self._playhead_frame = frame
         self.update()
 
+    def clear_selection(self) -> None:
+        self._sel_start = -1
+        self._sel_end   = -1
+        self.selection_changed.emit(-1, -1)
+        self.update()
+
+    @property
+    def selection(self) -> tuple[int, int]:
+        """Return (sel_start, sel_end) frames, or (-1, -1) if none."""
+        if self._sel_start < 0 or self._sel_end < 0:
+            return -1, -1
+        a, b = sorted([self._sel_start, self._sel_end])
+        return a, b
+
+    # ── Zoom helpers ───────────────────────────────────────────────────────────
+
+    def _apply_zoom(self, new_zoom: float, anchor_px: int) -> None:
+        """Set zoom level keeping the pixel column anchor_px on the same frame."""
+        new_zoom = max(1.0, min(64.0, new_zoom))
+        if self._n_frames == 0:
+            return
+        # Frame under the cursor before zoom
+        anchor_frame = self._px_to_frame(anchor_px)
+        self._zoom = new_zoom
+        visible = int(self._n_frames / self._zoom)
+        # Recentre so anchor_frame stays at anchor_px
+        w = max(self.width(), 1)
+        frac = anchor_px / w
+        self._view_start = int(anchor_frame - frac * visible)
+        self._view_start = max(0, min(self._view_start, self._n_frames - visible))
+        self._view_end   = self._view_start + visible
+        self._invalidate_cache()
+        self.update()
+
+    def set_scroll(self, value: int) -> None:
+        """Called by the external QScrollBar (value = view_start frame)."""
+        if self._n_frames == 0:
+            return
+        visible = int(self._n_frames / self._zoom)
+        self._view_start = max(0, min(value, self._n_frames - visible))
+        self._view_end   = self._view_start + visible
+        self._invalidate_cache()
+        self.update()
+
+    def scroll_range(self) -> tuple[int, int, int]:
+        """Return (min, max, page_step) for the scroll bar."""
+        if self._n_frames == 0:
+            return 0, 0, 0
+        visible = int(self._n_frames / self._zoom)
+        return 0, max(0, self._n_frames - visible), visible
+
     # ── Internal helpers ───────────────────────────────────────────────────────
 
-    def _peak_reduce(self, mono: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        """Compute per-pixel-column min and max from a mono audio array.
+    def _invalidate_cache(self) -> None:
+        self._cache_view = (-1, -1, -1)
 
-        Args:
-            mono: 1-D float32 array of audio samples.
+    def _ensure_cache(self) -> None:
+        """Recompute peak arrays for the current view window if stale."""
+        w = max(self.width(), 1)
+        key = (self._view_start, self._view_end, w)
+        if key == self._cache_view:
+            return
+        self._cache_view = key
 
-        Returns:
-            Tuple of (peaks_min, peaks_max), each of length self.width().
-        """
-        n = len(mono)
-        width = max(self.width(), 1)
-        # Number of audio frames each pixel column covers
-        frames_per_px = n / width
+        if self._orig_audio is None or self._view_end <= self._view_start:
+            self._cache_orig_min = np.zeros(w, dtype=np.float32)
+            self._cache_orig_max = np.zeros(w, dtype=np.float32)
+            self._cache_proc_min = np.zeros(w, dtype=np.float32)
+            self._cache_proc_max = np.zeros(w, dtype=np.float32)
+            return
 
-        peaks_min = np.empty(width, dtype=np.float32)
-        peaks_max = np.empty(width, dtype=np.float32)
+        self._cache_orig_min, self._cache_orig_max = self._peak_reduce(
+            self._orig_audio, self._view_start, self._view_end, w
+        )
+        if self._has_processed and self._proc_audio is not None:
+            self._cache_proc_min, self._cache_proc_max = self._peak_reduce(
+                self._proc_audio, self._view_start, self._view_end, w
+            )
+        else:
+            self._cache_proc_min = np.zeros(w, dtype=np.float32)
+            self._cache_proc_max = np.zeros(w, dtype=np.float32)
 
-        for px in range(width):
-            start = int(px * frames_per_px)
-            end = int((px + 1) * frames_per_px)
-            end = min(end, n)
-            if start >= end:
-                peaks_min[px] = 0.0
-                peaks_max[px] = 0.0
-            else:
-                chunk = mono[start:end]
-                peaks_min[px] = float(chunk.min())
-                peaks_max[px] = float(chunk.max())
+    @staticmethod
+    def _peak_reduce(
+        mono: np.ndarray, start: int, end: int, width: int
+    ) -> tuple[np.ndarray, np.ndarray]:
+        """Peak-reduce mono[start:end] into `width` columns (vectorised)."""
+        region = mono[start:end]
+        n = len(region)
+        if n == 0:
+            return np.zeros(width, np.float32), np.zeros(width, np.float32)
 
+        # Pad so n is divisible by width — avoids a Python loop
+        remainder = (-n) % width
+        if remainder:
+            region = np.concatenate([region, np.full(remainder, np.nan, dtype=np.float32)])
+        region = region.reshape(width, -1)
+
+        with np.errstate(all="ignore"):
+            peaks_max = np.nanmax(region, axis=1).astype(np.float32)
+            peaks_min = np.nanmin(region, axis=1).astype(np.float32)
+
+        np.nan_to_num(peaks_max, nan=0.0, copy=False)
+        np.nan_to_num(peaks_min, nan=0.0, copy=False)
         return peaks_min, peaks_max
 
     def _frame_to_px(self, frame: int) -> int:
-        """Convert a frame index to a pixel X position."""
-        if self._n_frames == 0:
+        """Map a frame index to pixel X within the current view."""
+        if self._view_end <= self._view_start:
             return 0
-        return int(frame / self._n_frames * self.width())
+        w = max(self.width(), 1)
+        ratio = (frame - self._view_start) / (self._view_end - self._view_start)
+        return int(ratio * w)
 
     def _px_to_frame(self, px: int) -> int:
-        """Convert a pixel X position to a frame index."""
-        if self._n_frames == 0:
+        """Map pixel X to a frame index within the current view."""
+        if self._n_frames == 0 or self._view_end <= self._view_start:
             return 0
-        frac = max(0.0, min(1.0, px / max(self.width(), 1)))
-        return int(frac * self._n_frames)
+        w = max(self.width(), 1)
+        frac = max(0.0, min(1.0, px / w))
+        return int(self._view_start + frac * (self._view_end - self._view_start))
+
+    def _wave_h(self) -> int:
+        """Height of the waveform area (canvas minus ruler strip)."""
+        return max(self.height() - self._RULER_H, 1)
 
     def _amp_to_py(self, amp: float, h: int) -> int:
-        """Map amplitude [-1, 1] to pixel Y. Centre at h//2; +1 → top."""
-        return int(h / 2.0 * (1.0 - amp))
+        """Amplitude → pixel Y in the waveform area."""
+        return int(h / 2.0 * (1.0 - float(amp)))
 
     # ── Mouse interaction ──────────────────────────────────────────────────────
 
     def mousePressEvent(self, event) -> None:  # noqa: ANN001
-        """Seek to the clicked position."""
-        if self._n_frames > 0:
-            self.seek_requested.emit(self._px_to_frame(event.pos().x()))
+        if self._n_frames == 0:
+            return
+        if event.button() == Qt.MouseButton.RightButton:
+            self.clear_selection()
+            return
+        frame = self._px_to_frame(event.pos().x())
+        if event.modifiers() & Qt.KeyboardModifier.ShiftModifier and self._sel_start >= 0:
+            # Extend existing selection
+            self._sel_end = frame
+        else:
+            # Start new selection / seek
+            self._drag_anchor = frame
+            self._sel_start   = frame
+            self._sel_end     = frame
+        self.update()
 
     def mouseMoveEvent(self, event) -> None:  # noqa: ANN001
-        """Seek while dragging (scrubbing)."""
-        if self._n_frames > 0 and event.buttons() & Qt.MouseButton.LeftButton:
-            self.seek_requested.emit(self._px_to_frame(event.pos().x()))
+        if self._n_frames == 0:
+            return
+        if event.buttons() & Qt.MouseButton.LeftButton and self._drag_anchor is not None:
+            frame = self._px_to_frame(event.pos().x())
+            self._sel_start = self._drag_anchor
+            self._sel_end   = frame
+            self.update()
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: ANN001
+        if self._n_frames == 0:
+            return
+        if event.button() == Qt.MouseButton.LeftButton and self._drag_anchor is not None:
+            frame = self._px_to_frame(event.pos().x())
+            if abs(frame - self._drag_anchor) < 64:
+                # Tiny drag treated as a click → seek, clear selection
+                self.seek_requested.emit(frame)
+                self._sel_start = -1
+                self._sel_end   = -1
+                self.selection_changed.emit(-1, -1)
+            else:
+                a, b = sorted([self._drag_anchor, frame])
+                self._sel_start = a
+                self._sel_end   = b
+                self.selection_changed.emit(a, b)
+            self._drag_anchor = None
+            self.update()
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        if self._n_frames == 0:
+            return
+        delta = event.angleDelta().y()
+        factor = 1.25 if delta > 0 else 0.8
+        self._apply_zoom(self._zoom * factor, event.position().x())
+        self.zoom_changed.emit(self._zoom, self._view_start)
+
+    zoom_changed: Signal = Signal(float, int)   # (zoom, view_start) → scrollbar
 
     # ── QPainter rendering ─────────────────────────────────────────────────────
 
     def paintEvent(self, event) -> None:  # noqa: ANN001
-        """Draw background, zero line, waveforms, and the playhead."""
+        self._ensure_cache()
         painter = QPainter(self)
-        w, h = self.width(), self.height()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        w    = self.width()
+        wh   = self._wave_h()   # waveform area height
+        h    = self.height()
 
         # ── Background ────────────────────────────────────────────────────────
         painter.fillRect(0, 0, w, h, QColor(CANVAS_BG))
 
-        if len(self._orig_min) == 0:
-            # No file loaded — draw a placeholder message
+        if self._orig_audio is None:
             painter.setPen(QPen(QColor(LABEL_COLOR)))
             painter.setFont(QFont("IBM Plex Mono", 11))
             painter.drawText(
-                self.rect(),
+                QRect(0, 0, w, wh),
                 Qt.AlignmentFlag.AlignCenter,
                 "Open an audio file to display the waveform",
             )
+            self._draw_ruler(painter, w, wh, h)
             painter.end()
             return
 
-        # ── Zero (centre) line ────────────────────────────────────────────────
-        cy = h // 2
-        painter.setPen(QPen(QColor(ZERO_LINE_COLOR), 1))
-        painter.drawLine(0, cy, w, cy)
+        # ── Amplitude grid lines ──────────────────────────────────────────────
+        grid_pen = QPen(QColor(ZERO_LINE_COLOR), 1, Qt.PenStyle.DotLine)
+        painter.setPen(grid_pen)
+        for amp in (1.0, 0.5, 0.0, -0.5, -1.0):
+            py = self._amp_to_py(amp, wh)
+            painter.drawLine(0, py, w, py)
 
-        # ── Processed waveform (purple, behind original) ───────────────────
-        if self._has_processed and len(self._proc_min) == w:
-            proc_pen = QPen(QColor(PROCESSED_COLOR), 1)
-            proc_pen.setColor(QColor(167, 139, 250, 140))  # accent2 with alpha
-            painter.setPen(proc_pen)
-            for px in range(w):
-                py_min = self._amp_to_py(float(self._proc_min[px]), h)
-                py_max = self._amp_to_py(float(self._proc_max[px]), h)
-                painter.drawLine(px, py_min, px, py_max)
+        # ── Selection highlight ───────────────────────────────────────────────
+        s0, s1 = self.selection
+        if s0 >= 0 and s1 > s0:
+            px0 = self._frame_to_px(s0)
+            px1 = self._frame_to_px(s1)
+            sel_color = QColor(79, 156, 249, 40)
+            painter.fillRect(px0, 0, px1 - px0, wh, sel_color)
+            # Boundary markers
+            marker_pen = QPen(QColor(79, 156, 249, 160), 1, Qt.PenStyle.DashLine)
+            painter.setPen(marker_pen)
+            painter.drawLine(px0, 0, px0, wh)
+            painter.drawLine(px1, 0, px1, wh)
 
-        # ── Original waveform (blue, on top) ──────────────────────────────
-        if len(self._orig_min) == w:
-            orig_pen = QPen(QColor(ORIGINAL_COLOR), 1)
-            orig_pen.setColor(QColor(79, 156, 249, 200))  # accent with alpha
-            painter.setPen(orig_pen)
-            for px in range(w):
-                py_min = self._amp_to_py(float(self._orig_min[px]), h)
-                py_max = self._amp_to_py(float(self._orig_max[px]), h)
-                painter.drawLine(px, py_min, px, py_max)
+        # ── Processed waveform (purple, filled, behind) ───────────────────────
+        if self._has_processed and len(self._cache_proc_max) == w:
+            self._draw_waveform(
+                painter, w, wh,
+                self._cache_proc_min, self._cache_proc_max,
+                QColor(167, 139, 250, 60),   # fill
+                QColor(167, 139, 250, 160),  # stroke
+            )
+
+        # ── Original waveform (blue, filled, on top) ──────────────────────────
+        if len(self._cache_orig_max) == w:
+            self._draw_waveform(
+                painter, w, wh,
+                self._cache_orig_min, self._cache_orig_max,
+                QColor(79, 156, 249, 70),    # fill
+                QColor(79, 156, 249, 220),   # stroke
+            )
 
         # ── Playhead ──────────────────────────────────────────────────────────
         ph_px = self._frame_to_px(self._playhead_frame)
-        painter.setPen(QPen(QColor(PLAYHEAD_COLOR), 2))
-        painter.drawLine(ph_px, 0, ph_px, h)
+        ph_pen = QPen(QColor(PLAYHEAD_COLOR), 2)
+        painter.setPen(ph_pen)
+        painter.drawLine(ph_px, 0, ph_px, wh)
+
+        # ── Ruler ─────────────────────────────────────────────────────────────
+        self._draw_ruler(painter, w, wh, h)
 
         painter.end()
 
+    def _draw_waveform(
+        self,
+        painter: QPainter,
+        w: int,
+        wh: int,
+        peaks_min: np.ndarray,
+        peaks_max: np.ndarray,
+        fill_color: QColor,
+        stroke_color: QColor,
+    ) -> None:
+        """Draw a gradient-filled waveform shape for one buffer."""
+        cy = wh / 2.0
+
+        # Build a closed QPainterPath: top edge (max) left→right,
+        # bottom edge (min) right→left, closed at both ends.
+        path = QPainterPath()
+        path.moveTo(0, cy)
+        for px in range(w):
+            py_max = self._amp_to_py(float(peaks_max[px]), wh)
+            path.lineTo(px, py_max)
+        path.lineTo(w - 1, cy)
+        for px in range(w - 1, -1, -1):
+            py_min = self._amp_to_py(float(peaks_min[px]), wh)
+            path.lineTo(px, py_min)
+        path.closeSubpath()
+
+        # Vertical gradient: brightest at centre (zero line), transparent at edges
+        grad = QLinearGradient(0, 0, 0, wh)
+        top_color    = QColor(fill_color)
+        top_color.setAlpha(20)
+        centre_color = QColor(fill_color)
+        centre_color.setAlpha(fill_color.alpha())
+        grad.setColorAt(0.0,  top_color)
+        grad.setColorAt(0.5,  centre_color)
+        grad.setColorAt(1.0,  top_color)
+
+        painter.fillPath(path, QBrush(grad))
+
+        # Stroke — draw only the top-edge and bottom-edge paths separately
+        # so the closed ends don't get a stroke
+        stroke_pen = QPen(stroke_color, 1)
+        painter.setPen(stroke_pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPath(path)
+
+    def _draw_ruler(self, painter: QPainter, w: int, wh: int, h: int) -> None:
+        """Draw the time ruler strip at the bottom of the canvas."""
+        # Background strip
+        ruler_bg = QColor("#0a0c10")
+        painter.fillRect(0, wh, w, h - wh, ruler_bg)
+        border_pen = QPen(QColor(ZERO_LINE_COLOR), 1)
+        painter.setPen(border_pen)
+        painter.drawLine(0, wh, w, wh)
+
+        if self._n_frames == 0 or self._samplerate == 0:
+            return
+
+        view_dur = (self._view_end - self._view_start) / self._samplerate
+
+        # Choose tick interval: aim for ~80 px between ticks
+        raw_interval = view_dur * 80 / max(w, 1)
+        nice = [0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 30, 60, 120, 300]
+        interval = nice[-1]
+        for n in nice:
+            if n >= raw_interval:
+                interval = n
+                break
+
+        painter.setFont(QFont("IBM Plex Mono", 8))
+        tick_pen  = QPen(QColor("#3a4155"), 1)
+        label_pen = QPen(QColor(LABEL_COLOR))
+
+        # First tick at or after view_start
+        view_start_s = self._view_start / self._samplerate
+        first_tick = int(view_start_s / interval) * interval
+
+        t = first_tick
+        while True:
+            frame = int(t * self._samplerate)
+            px = self._frame_to_px(frame)
+            if px > w:
+                break
+            # Tick mark
+            painter.setPen(tick_pen)
+            painter.drawLine(px, wh + 1, px, wh + 5)
+            # Label
+            if t >= 60:
+                m = int(t // 60)
+                s = t - m * 60
+                label = f"{m}:{s:05.2f}"
+            else:
+                label = f"{t:.2f}s" if t < 10 else f"{t:.1f}s"
+            painter.setPen(label_pen)
+            painter.drawText(px + 3, h - 4, label)
+            t += interval
+
     def resizeEvent(self, event) -> None:  # noqa: ANN001
-        """Recompute peak data at the new width after a resize."""
-        # The peak arrays are width-dependent. After a resize, the previous
-        # arrays have the wrong length. Trigger a recompute by re-calling
-        # set_buffer — but we don't store the original AudioBuffer here.
-        # Instead, we just call update() and let the paint use whatever we have.
-        # A full recompute would require storing a reference to the AudioBuffer,
-        # which Demo 5 does. For Demo 2 the simple approach is sufficient.
+        self._invalidate_cache()
         self.update()
 
 
@@ -1015,6 +1362,11 @@ class PlaybackEngine:
         self._frame_pos: int = 0
         self._lock: threading.Lock = threading.Lock()
         self._stream: sd.OutputStream | None = None
+
+        # Loop region (-1 = disabled)
+        self._loop_start: int = -1
+        self._loop_end:   int = -1
+        self._loop_active: bool = False
 
         # Queue for passing frame positions from the audio thread to the UI thread.
         # The callback pushes; MainWindow's QTimer drains.
