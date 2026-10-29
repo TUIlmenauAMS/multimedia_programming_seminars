@@ -81,7 +81,7 @@ from pathlib import Path
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
-from PySide6.QtCore import Qt, QTimer, Signal, QRect
+from PySide6.QtCore import Qt, QTimer, Signal, QRect, QPointF
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -89,6 +89,7 @@ from PySide6.QtGui import (
     QPainterPath,
     QPen,
     QPixmap,
+    QPolygonF,
     QLinearGradient,
     QBrush,
     QWheelEvent,
@@ -126,7 +127,14 @@ WINDOW_MIN_HEIGHT: int = 560
 DEVICE_SAMPLE_RATE: int = (
     48_000  # Hz — target playback rate; files are resampled to this
 )
-BLOCK_SIZE: int = 512  # frames per callback block
+# Frames per callback block. 512 frames (10.7 ms) is too tight for a Python
+# callback: any GIL contention from the UI thread causes an underflow (audible
+# glitch). 2048 frames (~43 ms) gives the callback comfortable headroom, and a
+# 43 ms seek latency is imperceptible in a file player.
+BLOCK_SIZE: int = 2048
+# PortAudio latency hint. "high" asks the host API for larger internal buffers,
+# which is the right trade-off for file playback (no live monitoring).
+STREAM_LATENCY: str = "high"
 
 # ---------------------------------------------------------------------------
 # Decoder availability
@@ -910,6 +918,12 @@ class WaveformView(QWidget):
         self._cache_proc_max: np.ndarray = np.array([])
         self._cache_view: tuple[int, int, int] = (-1, -1, -1)  # (start,end,width)
 
+        # Pre-rendered waveform + grid + ruler. Rebuilt only when the view,
+        # size or data changes -- NOT on every playhead update. Re-drawing the
+        # waveform path every 33 ms in pure Python held the GIL long enough to
+        # starve the audio callback (the source of the "output underflow").
+        self._pixmap: QPixmap | None = None
+
         # Playhead
         self._playhead_frame: int = 0
 
@@ -958,6 +972,22 @@ class WaveformView(QWidget):
     def set_playhead(self, frame: int) -> None:
         self._playhead_frame = frame
         self.update()
+
+    def follow_playhead(self, frame: int) -> bool:
+        """When zoomed in, page the view so the playhead stays visible.
+
+        Returns True if the view moved (caller should sync the scroll bar).
+        """
+        if self._n_frames == 0 or self._zoom <= 1.0:
+            return False
+        if self._view_start <= frame < self._view_end:
+            return False
+        visible = self._view_end - self._view_start
+        self._view_start = max(0, min(frame, self._n_frames - visible))
+        self._view_end = self._view_start + visible
+        self._invalidate_cache()
+        self.update()
+        return True
 
     def clear_selection(self) -> None:
         self._sel_start = -1
@@ -1022,6 +1052,7 @@ class WaveformView(QWidget):
         if key == self._cache_view:
             return
         self._cache_view = key
+        self._pixmap = None  # peaks changed -> pre-rendered image is stale
 
         if self._orig_audio is None or self._view_end <= self._view_start:
             self._cache_orig_min = np.zeros(w, dtype=np.float32)
@@ -1151,15 +1182,13 @@ class WaveformView(QWidget):
     def paintEvent(self, event) -> None:  # noqa: ANN001
         self._ensure_cache()
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        w    = self.width()
-        wh   = self._wave_h()   # waveform area height
-        h    = self.height()
+        w  = self.width()
+        wh = self._wave_h()   # waveform area height
+        h  = self.height()
 
-        # ── Background ────────────────────────────────────────────────────────
-        painter.fillRect(0, 0, w, h, QColor(CANVAS_BG))
-
+        # ── Empty state ───────────────────────────────────────────────────────
         if self._orig_audio is None:
+            painter.fillRect(0, 0, w, h, QColor(CANVAS_BG))
             painter.setPen(QPen(QColor(LABEL_COLOR)))
             painter.setFont(QFont("IBM Plex Mono", 11))
             painter.drawText(
@@ -1171,54 +1200,65 @@ class WaveformView(QWidget):
             painter.end()
             return
 
-        # ── Amplitude grid lines ──────────────────────────────────────────────
-        grid_pen = QPen(QColor(ZERO_LINE_COLOR), 1, Qt.PenStyle.DotLine)
-        painter.setPen(grid_pen)
-        for amp in (1.0, 0.5, 0.0, -0.5, -1.0):
-            py = self._amp_to_py(amp, wh)
-            painter.drawLine(0, py, w, py)
+        # ── Static layer: background, grid, waveforms, ruler (cached) ─────────
+        if self._pixmap is None:
+            self._pixmap = self._render_static_layer(w, wh, h)
+        painter.drawPixmap(0, 0, self._pixmap)
 
-        # ── Selection highlight ───────────────────────────────────────────────
+        # ── Selection highlight (cheap, drawn live) ───────────────────────────
         s0, s1 = self.selection
         if s0 >= 0 and s1 > s0:
             px0 = self._frame_to_px(s0)
             px1 = self._frame_to_px(s1)
-            sel_color = QColor(79, 156, 249, 40)
-            painter.fillRect(px0, 0, px1 - px0, wh, sel_color)
-            # Boundary markers
-            marker_pen = QPen(QColor(79, 156, 249, 160), 1, Qt.PenStyle.DashLine)
-            painter.setPen(marker_pen)
+            painter.fillRect(px0, 0, px1 - px0, wh, QColor(79, 156, 249, 40))
+            painter.setPen(QPen(QColor(79, 156, 249, 160), 1, Qt.PenStyle.DashLine))
             painter.drawLine(px0, 0, px0, wh)
             painter.drawLine(px1, 0, px1, wh)
 
-        # ── Processed waveform (purple, filled, behind) ───────────────────────
+        # ── Playhead (cheap, drawn live) ──────────────────────────────────────
+        ph_px = self._frame_to_px(self._playhead_frame)
+        painter.setPen(QPen(QColor(PLAYHEAD_COLOR), 2))
+        painter.drawLine(ph_px, 0, ph_px, wh)
+
+        painter.end()
+
+    def _render_static_layer(self, w: int, wh: int, h: int) -> QPixmap:
+        """Render everything that does not change while the playhead moves."""
+        dpr = self.devicePixelRatioF()
+        pm = QPixmap(max(int(w * dpr), 1), max(int(h * dpr), 1))
+        pm.setDevicePixelRatio(dpr)
+        pm.fill(QColor(CANVAS_BG))
+
+        painter = QPainter(pm)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        # Amplitude grid lines
+        painter.setPen(QPen(QColor(ZERO_LINE_COLOR), 1, Qt.PenStyle.DotLine))
+        for amp in (1.0, 0.5, 0.0, -0.5, -1.0):
+            py = self._amp_to_py(amp, wh)
+            painter.drawLine(0, py, w, py)
+
+        # Processed waveform (purple, behind)
         if self._has_processed and len(self._cache_proc_max) == w:
             self._draw_waveform(
                 painter, w, wh,
                 self._cache_proc_min, self._cache_proc_max,
-                QColor(167, 139, 250, 60),   # fill
-                QColor(167, 139, 250, 160),  # stroke
+                QColor(167, 139, 250, 60),
+                QColor(167, 139, 250, 160),
             )
 
-        # ── Original waveform (blue, filled, on top) ──────────────────────────
+        # Original waveform (blue, on top)
         if len(self._cache_orig_max) == w:
             self._draw_waveform(
                 painter, w, wh,
                 self._cache_orig_min, self._cache_orig_max,
-                QColor(79, 156, 249, 70),    # fill
-                QColor(79, 156, 249, 220),   # stroke
+                QColor(79, 156, 249, 70),
+                QColor(79, 156, 249, 220),
             )
 
-        # ── Playhead ──────────────────────────────────────────────────────────
-        ph_px = self._frame_to_px(self._playhead_frame)
-        ph_pen = QPen(QColor(PLAYHEAD_COLOR), 2)
-        painter.setPen(ph_pen)
-        painter.drawLine(ph_px, 0, ph_px, wh)
-
-        # ── Ruler ─────────────────────────────────────────────────────────────
         self._draw_ruler(painter, w, wh, h)
-
         painter.end()
+        return pm
 
     def _draw_waveform(
         self,
@@ -1231,37 +1271,33 @@ class WaveformView(QWidget):
         stroke_color: QColor,
     ) -> None:
         """Draw a gradient-filled waveform shape for one buffer."""
-        cy = wh / 2.0
+        # Vectorised amplitude -> pixel-Y conversion (no per-pixel Python calls)
+        half = wh / 2.0
+        ys_top = half * (1.0 - peaks_max.astype(np.float64))
+        ys_bot = half * (1.0 - peaks_min.astype(np.float64))
 
-        # Build a closed QPainterPath: top edge (max) left→right,
-        # bottom edge (min) right→left, closed at both ends.
-        path = QPainterPath()
-        path.moveTo(0, cy)
+        # Closed shape: top edge left->right, bottom edge right->left
+        poly = QPolygonF()
         for px in range(w):
-            py_max = self._amp_to_py(float(peaks_max[px]), wh)
-            path.lineTo(px, py_max)
-        path.lineTo(w - 1, cy)
+            poly.append(QPointF(px, ys_top[px]))
         for px in range(w - 1, -1, -1):
-            py_min = self._amp_to_py(float(peaks_min[px]), wh)
-            path.lineTo(px, py_min)
+            poly.append(QPointF(px, ys_bot[px]))
+
+        path = QPainterPath()
+        path.addPolygon(poly)
         path.closeSubpath()
 
-        # Vertical gradient: brightest at centre (zero line), transparent at edges
+        # Vertical gradient: brightest at centre (zero line), faint at edges
         grad = QLinearGradient(0, 0, 0, wh)
-        top_color    = QColor(fill_color)
+        top_color = QColor(fill_color)
         top_color.setAlpha(20)
         centre_color = QColor(fill_color)
-        centre_color.setAlpha(fill_color.alpha())
-        grad.setColorAt(0.0,  top_color)
-        grad.setColorAt(0.5,  centre_color)
-        grad.setColorAt(1.0,  top_color)
+        grad.setColorAt(0.0, top_color)
+        grad.setColorAt(0.5, centre_color)
+        grad.setColorAt(1.0, top_color)
 
         painter.fillPath(path, QBrush(grad))
-
-        # Stroke — draw only the top-edge and bottom-edge paths separately
-        # so the closed ends don't get a stroke
-        stroke_pen = QPen(stroke_color, 1)
-        painter.setPen(stroke_pen)
+        painter.setPen(QPen(stroke_color, 1))
         painter.setBrush(Qt.BrushStyle.NoBrush)
         painter.drawPath(path)
 
@@ -1377,6 +1413,11 @@ class PlaybackEngine:
         # MainWindow polls this via the same QTimer.
         self._finished_queue: queue.Queue[bool] = queue.Queue(maxsize=2)
 
+        # Underflow counter. The callback must NOT print(): console I/O on the
+        # audio thread is slow, takes the GIL, and makes underflows worse.
+        # The UI timer reads this counter and reports it instead.
+        self.underflow_count: int = 0
+
     # ── Buffer management ──────────────────────────────────────────────────────
 
     def load(self, buffer: AudioBuffer) -> None:
@@ -1417,59 +1458,52 @@ class PlaybackEngine:
             status: Stream health flags.
         """
         if status.output_underflow:
-            print("[PlaybackEngine] output underflow", flush=True)
+            self.underflow_count += 1  # reported by the UI thread, never printed here
 
+        finished = False
         with self._lock:
             if self._buffer is None:
-                outdata[:] = 0.0
+                outdata.fill(0.0)
                 return
 
             buf = self._buffer.data
-            n_frames = buf.shape[0]
-            n_channels = buf.shape[1]
+            n_frames, n_channels = buf.shape
             out_channels = outdata.shape[1]
 
-            # Determine effective playback region (loop region or whole file)
-            if self._loop_active and self._loop_start >= 0 and self._loop_end > self._loop_start:
+            # Effective playback region (loop region or whole file)
+            looping = (
+                self._loop_active
+                and self._loop_start >= 0
+                and self._loop_end > self._loop_start
+            )
+            if looping:
                 region_start = self._loop_start
-                region_end   = min(self._loop_end, n_frames)
+                region_end = min(self._loop_end, n_frames)
             else:
                 region_start = 0
-                region_end   = n_frames
+                region_end = n_frames
 
-            # Clamp current position into the region
-            if self._frame_pos < region_start or self._frame_pos >= region_end:
-                self._frame_pos = region_start
-
-            region_len = region_end - region_start
-            if region_len <= 0:
-                outdata[:] = 0.0
+            if region_end <= region_start:
+                outdata.fill(0.0)
                 return
 
-            # Fill outdata frame-by-frame, looping within the region
+            pos = self._frame_pos
+            # Only a loop may pull the position back into the region. Without
+            # a loop, pos == region_end means "finished" and must stay there --
+            # otherwise the file silently restarts from 0 after the end.
+            if looping and (pos < region_start or pos >= region_end):
+                pos = region_start
+
             filled = 0
-            eof_signalled = False
             while filled < frames:
-                pos = self._frame_pos
-                remaining_in_region = region_end - pos
-                need = frames - filled
-
-                if remaining_in_region <= 0:
-                    # Should not normally happen, but guard anyway
-                    if self._loop_active:
-                        self._frame_pos = region_start
+                if pos >= region_end:
+                    if looping:
+                        pos = region_start
                         continue
-                    else:
-                        outdata[filled:] = 0.0
-                        if not eof_signalled:
-                            eof_signalled = True
-                            try:
-                                self._finished_queue.put_nowait(True)
-                            except queue.Full:
-                                pass
-                        break
+                    finished = True
+                    break
 
-                take = min(need, remaining_in_region)
+                take = min(frames - filled, region_end - pos)
                 chunk = buf[pos : pos + take]
 
                 if n_channels == out_channels:
@@ -1479,31 +1513,24 @@ class PlaybackEngine:
                 else:
                     outdata[filled : filled + take] = chunk[:, :out_channels]
 
-                self._frame_pos += take
+                pos += take
                 filled += take
 
-                # Reached end of region
-                if self._frame_pos >= region_end:
-                    if self._loop_active:
-                        # Wrap back to loop start
-                        self._frame_pos = region_start
-                    else:
-                        # End of file — zero-pad remainder
-                        if filled < frames:
-                            outdata[filled:] = 0.0
-                        if not eof_signalled:
-                            eof_signalled = True
-                            try:
-                                self._finished_queue.put_nowait(True)
-                            except queue.Full:
-                                pass
-                        break
+            if filled < frames:
+                outdata[filled:] = 0.0  # zero-pad the tail after end-of-file
 
-            # Push frame position to the UI queue (non-blocking)
+            self._frame_pos = pos
+
+        # Queue traffic happens outside the lock (non-blocking either way).
+        if finished:
             try:
-                self._frame_queue.put_nowait(self._frame_pos)
+                self._finished_queue.put_nowait(True)
             except queue.Full:
-                pass  # UI is not keeping up — drop the update, do not block
+                pass
+        try:
+            self._frame_queue.put_nowait(pos)
+        except queue.Full:
+            pass  # UI is not keeping up -- drop the update, never block
 
     # ── Playback control ───────────────────────────────────────────────────────
 
@@ -1514,6 +1541,7 @@ class PlaybackEngine:
                 samplerate=DEVICE_SAMPLE_RATE,
                 channels=2,  # always output stereo (mono files are duplicated)
                 blocksize=BLOCK_SIZE,
+                latency=STREAM_LATENCY,
                 dtype="float32",
                 callback=self._callback,
             )
@@ -1521,6 +1549,12 @@ class PlaybackEngine:
     def play(self) -> None:
         """Start or resume playback."""
         self._ensure_stream()
+        # Discard stale end-of-file notifications from a previous run
+        try:
+            while True:
+                self._finished_queue.get_nowait()
+        except queue.Empty:
+            pass
         if not self._stream.active:
             self._stream.start()
 
@@ -1810,6 +1844,10 @@ class ZoomBar(QWidget):
 
         self._scrollbar = QScrollBar(Qt.Orientation.Horizontal)
         self._scrollbar.setEnabled(False)
+        self._scrollbar.setToolTip(
+            "Pan the waveform. Active once you zoom in "
+            "(mouse wheel over the waveform, or the Zoom buttons)."
+        )
         layout.addWidget(self._scrollbar, stretch=1)
 
         # Internal wiring
@@ -1845,6 +1883,9 @@ class ZoomBar(QWidget):
         self._scrollbar.setPageStep(page_step)
         self._scrollbar.setValue(view_start)
         self._scrollbar.blockSignals(False)
+        # At 1x there is nothing to pan: show it as disabled instead of a bar
+        # that looks live but cannot move.
+        self._scrollbar.setEnabled(scroll_max > scroll_min)
 
     def set_selection_zoomable(self, has_selection: bool) -> None:
         """Enable/disable the Zoom-to-Selection button."""
@@ -1926,6 +1967,7 @@ class TransportBar(QWidget):
         # Scrubber (timeline slider)
         self._scrubber = QSlider(Qt.Orientation.Horizontal)
         self._scrubber.setRange(0, 1000)
+        self._scrubber.setPageStep(50)  # click on the groove jumps 5 %
         self._scrubber.setValue(0)
         self._scrubber.setEnabled(False)
 
@@ -1964,7 +2006,7 @@ class TransportBar(QWidget):
         # Internal connections
         self._play_btn.toggled.connect(self._on_play_toggled)
         self._stop_btn.clicked.connect(self.stop_requested)
-        self._scrubber.sliderMoved.connect(self._on_scrubber_moved)
+        self._scrubber.valueChanged.connect(self._on_scrubber_moved)
         self._loop_btn.toggled.connect(self._on_loop_toggled)
 
     # ── Internal slots ─────────────────────────────────────────────────────────
@@ -2076,6 +2118,12 @@ class MainWindow(QMainWindow):
     never touches Qt — all communication goes through queue.Queue.
     """
 
+    # Emitted from the DSP worker thread; Qt delivers them on the main thread.
+    # (QTimer.singleShot from a plain Python thread has no event loop to run
+    # on, so the result was never delivered and Apply stayed disabled.)
+    _dsp_done:   Signal = Signal(object)
+    _dsp_failed: Signal = Signal(str)
+
     def __init__(self) -> None:
         """Initialise engine, panels, timer, and file menu."""
         super().__init__()
@@ -2089,6 +2137,7 @@ class MainWindow(QMainWindow):
         # QTimer drives all UI updates from the audio thread's queues
         self._poll_timer = QTimer(self)
         self._poll_timer.setInterval(DISPLAY_TIMER_MS)
+        self._last_underflows: int = 0
 
         self._build_ui()
         self._build_menu()
@@ -2165,6 +2214,8 @@ class MainWindow(QMainWindow):
 
         # DSP panel → apply chain
         self._dsp.dsp_requested.connect(self._on_apply_dsp)
+        self._dsp_done.connect(self._finish_dsp)
+        self._dsp_failed.connect(self._on_dsp_failed)
 
         # 30 fps poll timer → drain audio queues
         self._poll_timer.timeout.connect(self._poll_engine)
@@ -2212,8 +2263,22 @@ class MainWindow(QMainWindow):
         self._engine.clear_loop()
 
     def _on_play_requested(self) -> None:
-        """Toggle playback state."""
+        """Toggle playback state.
+
+        When starting playback (not resuming from pause) and a waveform
+        selection exists but loop is not active, seek to the selection start
+        so playback begins at the selected region rather than wherever the
+        playhead last stopped.
+        """
         if self._transport.is_playing:
+            # Transitioning from stopped/paused → playing
+            sel_start, sel_end = self._waveform.selection
+            if sel_start >= 0 and sel_end > sel_start and not self._transport.loop_active:
+                # Snap the playhead to the start of the selection
+                self._engine.seek(sel_start)
+                self._waveform.set_playhead(sel_start)
+                if self._original_buffer is not None:
+                    self._transport.update_position(sel_start)
             self._engine.play()
         else:
             self._engine.pause()
@@ -2252,6 +2317,20 @@ class MainWindow(QMainWindow):
         thread via a QTimer single-shot, which is the only Qt-safe way to
         touch the engine from a non-Qt thread.
 
+        ACCUMULATIVE BEHAVIOUR:
+        Each Apply call chains onto the *previously processed* buffer rather
+        than always starting from the original file.  This means you can
+        apply gain, then a fade, then DC removal in separate Apply clicks and
+        each step builds on the last result.  The original (blue) waveform
+        shown in the canvas always refers to the file as it was when first
+        loaded, so you can see the cumulative change grow over time.
+
+        SELECTION-ONLY BEHAVIOUR:
+        When a region is selected on the canvas the DSP chain (including
+        fades) is applied only to that region.  The frames outside the
+        selection are carried over unchanged from the current processed
+        buffer, or from the original if no DSP has been applied yet.
+
         Args:
             gain_db: Gain in dB.
             fade_in_ms: Fade-in duration in ms.
@@ -2265,20 +2344,36 @@ class MainWindow(QMainWindow):
         # Disable button while processing to prevent double-clicks.
         self._dsp.set_file_loaded(False)
 
-        # Snapshot the source buffer so the worker holds its own reference.
-        src = self._original_buffer
+        # ── Accumulative: use the latest processed result as the source.
+        # If no DSP has been applied yet, fall back to the original buffer so
+        # the very first Apply works identically to before.
+        src = self._processed_buffer if self._processed_buffer is not None \
+              else self._original_buffer
+
+        # Snapshot the waveform selection (read on the main thread). If there
+        # is a selection, the chain -- including the fades -- is applied to
+        # that region only; otherwise (None, None) processes the whole file.
+        sel_a, sel_b = self._waveform.selection
+        if sel_a >= 0 and sel_b > sel_a:
+            sel_start, sel_end = sel_a, sel_b
+        else:
+            sel_start = sel_end = None
 
         def _worker() -> None:
-            processed = DspChain.apply_chain(
-                src,
-                gain_db,
-                fade_in_ms,
-                fade_out_ms,
-                remove_dc,
-                do_normalise,
-            )
-            # Hand result back to the main thread via a zero-delay timer.
-            QTimer.singleShot(0, lambda: self._finish_dsp(processed))
+            try:
+                processed = DspChain.apply_chain(
+                    src,
+                    gain_db,
+                    fade_in_ms,
+                    fade_out_ms,
+                    remove_dc,
+                    do_normalise,
+                    sel_start=sel_start,
+                    sel_end=sel_end,
+                )
+                self._dsp_done.emit(processed)   # queued to the main thread
+            except Exception as exc:  # noqa: BLE001
+                self._dsp_failed.emit(str(exc))
 
         threading.Thread(target=_worker, daemon=True).start()
 
@@ -2382,6 +2477,11 @@ class MainWindow(QMainWindow):
         self._waveform.update()
         self._waveform.zoom_changed.emit(new_zoom, sel_start)
 
+    def _on_dsp_failed(self, message: str) -> None:
+        """Re-enable Apply and report a DSP error (main thread)."""
+        self._dsp.set_file_loaded(True)
+        QMessageBox.warning(self, "DSP failed", message)
+
     def _finish_dsp(self, processed: "AudioBuffer") -> None:
         """Swap in the processed buffer (called on the main thread).
 
@@ -2390,20 +2490,47 @@ class MainWindow(QMainWindow):
         """
         self._processed_buffer = processed
 
-        # Save position before load() resets it, then restore after.
+        # Read the current position before load() resets it to 0.
+        # load() handles stop/restart of the stream itself — do NOT call
+        # pause() here, as stopping the stream externally causes load() to
+        # see was_active=False and skip the restart, breaking playback.
         with self._engine._lock:
             saved_pos = self._engine._frame_pos
         was_playing = self._engine.is_playing
 
         self._engine.load(processed)
 
+        # Restore position immediately after load() returns.  load() already
+        # restarted the stream, so there is a brief window where the callback
+        # may read _frame_pos=0 — this is harmless (one or two silent blocks)
+        # and far safer than manipulating the stream externally.
         with self._engine._lock:
             self._engine._frame_pos = min(saved_pos, processed.n_frames)
 
-        if was_playing:
-            self._engine.play()
+        if not was_playing:
+            # load() restarted the stream; if we weren't playing, stop it again.
+            self._engine.pause()
 
+        # Re-arm the loop region if the loop button is active so the engine
+        # keeps looping after the buffer swap.
+        if self._transport.loop_active:
+            sel_start, sel_end = self._waveform.selection
+            if sel_start >= 0 and sel_end > sel_start:
+                self._engine.set_loop(sel_start, sel_end, active=True)
+            else:
+                self._engine.set_loop(0, processed.n_frames, active=True)
+
+        # Preserve zoom/pan state so the view doesn't snap back to full-file
+        saved_zoom       = self._waveform._zoom
+        saved_view_start = self._waveform._view_start
+        saved_view_end   = self._waveform._view_end
         self._waveform.set_buffer(self._original_buffer, processed)
+        # Restore zoom/pan (set_buffer resets them to 1× full-file)
+        self._waveform._zoom       = saved_zoom
+        self._waveform._view_start = saved_view_start
+        self._waveform._view_end   = saved_view_end
+        self._waveform._invalidate_cache()
+        self._waveform.update()
         self._dsp.set_file_loaded(True)
 
     def _poll_engine(self) -> None:
@@ -2424,14 +2551,33 @@ class MainWindow(QMainWindow):
         if latest_frame is not None:
             self._waveform.set_playhead(latest_frame)
             self._transport.update_position(latest_frame)
+            # Keep the playhead on screen when zoomed in
+            if self._engine.is_playing and self._waveform.follow_playhead(latest_frame):
+                mn, mx, ps = self._waveform.scroll_range()
+                self._zoom_bar.update_zoom(
+                    self._waveform._zoom, self._waveform._view_start, mn, mx, ps
+                )
 
         # Check for end-of-file
+        reached_end = False
         try:
-            self._engine.finished_queue.get_nowait()
-            # Playback reached end-of-file — reset the transport button
-            self._transport.set_stopped()
+            while True:
+                self._engine.finished_queue.get_nowait()
+                reached_end = True
         except queue.Empty:
             pass
+        if reached_end:
+            # Stop the stream and rewind so Play starts from the top again
+            self._engine.stop()
+            self._transport.set_stopped()
+            self._transport.update_position(0)
+            self._waveform.set_playhead(0)
+
+        # Report underflows from the UI thread (never from the audio thread)
+        n = self._engine.underflow_count
+        if n != self._last_underflows:
+            print(f"[PlaybackEngine] {n - self._last_underflows} output underflow(s)", flush=True)
+            self._last_underflows = n
 
     # ── Window lifecycle ───────────────────────────────────────────────────────
 
