@@ -1424,41 +1424,80 @@ class PlaybackEngine:
                 outdata[:] = 0.0
                 return
 
-            pos = self._frame_pos
             buf = self._buffer.data
             n_frames = buf.shape[0]
             n_channels = buf.shape[1]
+            out_channels = outdata.shape[1]
 
-            remaining = n_frames - pos
-
-            if remaining <= 0:
-                # Past end of file — output silence and signal completion
-                outdata[:] = 0.0
-                self._frame_pos = n_frames
-            elif remaining < frames:
-                # Final partial block — copy what remains, zero-pad the rest
-                outdata[:remaining, :n_channels] = buf[pos : pos + remaining]
-                if n_channels < outdata.shape[1]:
-                    outdata[:remaining, n_channels:] = 0.0
-                outdata[remaining:] = 0.0
-                self._frame_pos = n_frames
-                # Signal end-of-file to the main thread (non-blocking put)
-                try:
-                    self._finished_queue.put_nowait(True)
-                except queue.Full:
-                    pass
+            # Determine effective playback region (loop region or whole file)
+            if self._loop_active and self._loop_start >= 0 and self._loop_end > self._loop_start:
+                region_start = self._loop_start
+                region_end   = min(self._loop_end, n_frames)
             else:
-                # Normal block
-                chunk = buf[pos : pos + frames]
-                if chunk.shape[1] == outdata.shape[1]:
-                    outdata[:] = chunk
-                elif chunk.shape[1] == 1:
-                    # Mono file → duplicate to all output channels
-                    outdata[:] = np.repeat(chunk, outdata.shape[1], axis=1)
+                region_start = 0
+                region_end   = n_frames
+
+            # Clamp current position into the region
+            if self._frame_pos < region_start or self._frame_pos >= region_end:
+                self._frame_pos = region_start
+
+            region_len = region_end - region_start
+            if region_len <= 0:
+                outdata[:] = 0.0
+                return
+
+            # Fill outdata frame-by-frame, looping within the region
+            filled = 0
+            eof_signalled = False
+            while filled < frames:
+                pos = self._frame_pos
+                remaining_in_region = region_end - pos
+                need = frames - filled
+
+                if remaining_in_region <= 0:
+                    # Should not normally happen, but guard anyway
+                    if self._loop_active:
+                        self._frame_pos = region_start
+                        continue
+                    else:
+                        outdata[filled:] = 0.0
+                        if not eof_signalled:
+                            eof_signalled = True
+                            try:
+                                self._finished_queue.put_nowait(True)
+                            except queue.Full:
+                                pass
+                        break
+
+                take = min(need, remaining_in_region)
+                chunk = buf[pos : pos + take]
+
+                if n_channels == out_channels:
+                    outdata[filled : filled + take] = chunk
+                elif n_channels == 1:
+                    outdata[filled : filled + take] = np.repeat(chunk, out_channels, axis=1)
                 else:
-                    # More source channels than output — take first N
-                    outdata[:] = chunk[:, : outdata.shape[1]]
-                self._frame_pos += frames
+                    outdata[filled : filled + take] = chunk[:, :out_channels]
+
+                self._frame_pos += take
+                filled += take
+
+                # Reached end of region
+                if self._frame_pos >= region_end:
+                    if self._loop_active:
+                        # Wrap back to loop start
+                        self._frame_pos = region_start
+                    else:
+                        # End of file — zero-pad remainder
+                        if filled < frames:
+                            outdata[filled:] = 0.0
+                        if not eof_signalled:
+                            eof_signalled = True
+                            try:
+                                self._finished_queue.put_nowait(True)
+                            except queue.Full:
+                                pass
+                        break
 
             # Push frame position to the UI queue (non-blocking)
             try:
@@ -1506,6 +1545,30 @@ class PlaybackEngine:
         with self._lock:
             if self._buffer is not None:
                 self._frame_pos = max(0, min(frame, self._buffer.n_frames))
+
+    def set_loop(self, start: int, end: int, active: bool) -> None:
+        """Configure the loop region.
+
+        Args:
+            start: First frame of the loop region.
+            end: First frame after the loop region (exclusive).
+            active: True to enable looping, False to disable.
+        """
+        with self._lock:
+            self._loop_start  = start
+            self._loop_end    = end
+            self._loop_active = active
+            # When activating, snap position into the region if it's outside
+            if active and self._buffer is not None and start >= 0 and end > start:
+                if self._frame_pos < start or self._frame_pos >= end:
+                    self._frame_pos = start
+
+    def clear_loop(self) -> None:
+        """Disable looping and clear the loop region."""
+        with self._lock:
+            self._loop_start  = -1
+            self._loop_end    = -1
+            self._loop_active = False
 
     def close(self) -> None:
         """Stop and release the audio device. Call from closeEvent."""
@@ -1678,6 +1741,117 @@ class DspPanel(QWidget):
 
 
 # =============================================================================
+# STEP 6b — ZoomBar: zoom controls + horizontal scrollbar for WaveformView
+# =============================================================================
+
+
+class ZoomBar(QWidget):
+    """Thin bar placed between the WaveformView and the TransportBar.
+
+    Contains:
+      • Zoom In / Zoom Out buttons (×1.25 / ×0.8 per click).
+      • Zoom-to-selection button — zooms to show only the selected region.
+      • Reset Zoom button — returns to full-file view.
+      • Zoom level label  (e.g. "2.0×").
+      • A QScrollBar that pans the view when zoomed in.
+
+    Signals:
+        zoom_in_requested:        Zoom In button clicked.
+        zoom_out_requested:       Zoom Out button clicked.
+        zoom_reset_requested:     Reset Zoom button clicked.
+        zoom_selection_requested: Zoom-to-selection button clicked.
+        scroll_changed:           Scroll bar moved. Carries new value (frame).
+    """
+
+    zoom_in_requested:        Signal = Signal()
+    zoom_out_requested:       Signal = Signal()
+    zoom_reset_requested:     Signal = Signal()
+    zoom_selection_requested: Signal = Signal()
+    scroll_changed:           Signal = Signal(int)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setFixedHeight(32)
+        self._build_ui()
+
+    def _build_ui(self) -> None:
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(8, 2, 8, 2)
+        layout.setSpacing(6)
+
+        btn_style = (
+            "QPushButton {"
+            "  background: rgba(79,156,249,0.08); color: #4f9cf9;"
+            "  border: 1px solid rgba(79,156,249,0.3); border-radius: 4px;"
+            "  padding: 2px 8px; font-size: 11px; font-family: 'IBM Plex Mono';"
+            "}"
+            "QPushButton:hover { background: rgba(79,156,249,0.18); }"
+            "QPushButton:disabled { color: #3a3f50; border-color: #252b38; }"
+        )
+
+        self._zoom_in_btn  = QPushButton("＋ Zoom")
+        self._zoom_out_btn = QPushButton("－ Zoom")
+        self._zoom_sel_btn = QPushButton("⤢ Fit Sel")
+        self._zoom_rst_btn = QPushButton("⟲ Full")
+
+        for btn in (self._zoom_in_btn, self._zoom_out_btn,
+                    self._zoom_sel_btn, self._zoom_rst_btn):
+            btn.setStyleSheet(btn_style)
+            btn.setEnabled(False)
+            btn.setFixedHeight(24)
+            layout.addWidget(btn)
+
+        self._zoom_label = QLabel("1.0×")
+        self._zoom_label.setStyleSheet(
+            "color: #5a6175; font-size: 11px; font-family: 'IBM Plex Mono';"
+        )
+        self._zoom_label.setFixedWidth(48)
+        layout.addWidget(self._zoom_label)
+
+        self._scrollbar = QScrollBar(Qt.Orientation.Horizontal)
+        self._scrollbar.setEnabled(False)
+        layout.addWidget(self._scrollbar, stretch=1)
+
+        # Internal wiring
+        self._zoom_in_btn.clicked.connect(self.zoom_in_requested)
+        self._zoom_out_btn.clicked.connect(self.zoom_out_requested)
+        self._zoom_sel_btn.clicked.connect(self.zoom_selection_requested)
+        self._zoom_rst_btn.clicked.connect(self.zoom_reset_requested)
+        self._scrollbar.valueChanged.connect(self.scroll_changed)
+
+    # ── Public interface ───────────────────────────────────────────────────────
+
+    def set_file_loaded(self, loaded: bool) -> None:
+        """Enable or disable controls."""
+        for btn in (self._zoom_in_btn, self._zoom_out_btn,
+                    self._zoom_sel_btn, self._zoom_rst_btn):
+            btn.setEnabled(loaded)
+        self._scrollbar.setEnabled(loaded)
+
+    def update_zoom(self, zoom: float, view_start: int,
+                    scroll_min: int, scroll_max: int, page_step: int) -> None:
+        """Sync the zoom label and scrollbar to a new zoom/pan state.
+
+        Args:
+            zoom:       Current zoom factor.
+            view_start: Current first-visible frame (scrollbar value).
+            scroll_min: Scrollbar minimum (always 0).
+            scroll_max: Scrollbar maximum (n_frames − page_step).
+            page_step:  Scrollbar page step (visible frames).
+        """
+        self._zoom_label.setText(f"{zoom:.1f}×")
+        self._scrollbar.blockSignals(True)
+        self._scrollbar.setRange(scroll_min, scroll_max)
+        self._scrollbar.setPageStep(page_step)
+        self._scrollbar.setValue(view_start)
+        self._scrollbar.blockSignals(False)
+
+    def set_selection_zoomable(self, has_selection: bool) -> None:
+        """Enable/disable the Zoom-to-Selection button."""
+        self._zoom_sel_btn.setEnabled(has_selection)
+
+
+# =============================================================================
 # STEP 7 — TransportBar: play/pause/stop controls and time display
 # =============================================================================
 
@@ -1694,6 +1868,7 @@ class TransportBar(QWidget):
     play_requested: Signal = Signal()
     stop_requested: Signal = Signal()
     seek_requested: Signal = Signal(int)
+    loop_requested: Signal = Signal(bool)  # True = loop on, False = loop off
 
     def __init__(self, parent: QWidget | None = None) -> None:
         """Build the transport bar UI."""
@@ -1754,21 +1929,52 @@ class TransportBar(QWidget):
         self._scrubber.setValue(0)
         self._scrubber.setEnabled(False)
 
+        # Loop toggle button
+        self._loop_btn = QPushButton("⟳ Loop")
+        self._loop_btn.setCheckable(True)
+        self._loop_btn.setEnabled(False)
+        self._loop_btn.setFixedWidth(76)
+        self._loop_btn.setStyleSheet(
+            "QPushButton {"
+            "  background: rgba(251,146,60,0.08); color: #5a6175;"
+            "  border: 1px solid #252b38; border-radius: 6px;"
+            "  padding: 6px 8px; font-size: 12px; font-family: 'IBM Plex Mono';"
+            "}"
+            "QPushButton:checked {"
+            "  background: rgba(251,146,60,0.18); color: #fb923c;"
+            "  border-color: rgba(251,146,60,0.5);"
+            "}"
+            "QPushButton:disabled { color: #3a3f50; border-color: #252b38; }"
+        )
+
+        # Selection info label
+        self._sel_label = QLabel("")
+        self._sel_label.setStyleSheet(
+            "color: #5a6175; font-family: 'IBM Plex Mono'; font-size: 11px;"
+        )
+        self._sel_label.setFixedWidth(170)
+
         layout.addWidget(self._play_btn)
         layout.addWidget(self._stop_btn)
+        layout.addWidget(self._loop_btn)
         layout.addWidget(self._time_label)
+        layout.addWidget(self._sel_label)
         layout.addWidget(self._scrubber, stretch=1)
 
         # Internal connections
         self._play_btn.toggled.connect(self._on_play_toggled)
         self._stop_btn.clicked.connect(self.stop_requested)
         self._scrubber.sliderMoved.connect(self._on_scrubber_moved)
+        self._loop_btn.toggled.connect(self._on_loop_toggled)
 
     # ── Internal slots ─────────────────────────────────────────────────────────
 
     def _on_play_toggled(self, checked: bool) -> None:
         self._play_btn.setText("⏸  Pause" if checked else "▶  Play")
         self.play_requested.emit()
+
+    def _on_loop_toggled(self, checked: bool) -> None:
+        self.loop_requested.emit(checked)
 
     def _on_scrubber_moved(self, value: int) -> None:
         """Convert scrubber position (0–1000) to a frame index and emit."""
@@ -1789,6 +1995,7 @@ class TransportBar(QWidget):
         self._samplerate = samplerate
         self._play_btn.setEnabled(True)
         self._stop_btn.setEnabled(True)
+        self._loop_btn.setEnabled(True)
         self._scrubber.setEnabled(True)
         self._play_btn.setChecked(False)
         self._play_btn.setText("▶  Play")
@@ -1817,6 +2024,20 @@ class TransportBar(QWidget):
         self._scrubber.setValue(int(frame / self._n_frames * 1_000))
         self._scrubber.blockSignals(False)
 
+    def update_selection_info(self, sel_start: int, sel_end: int) -> None:
+        """Show selection start/end times next to the time display.
+
+        Args:
+            sel_start: First frame of selection, or -1 if none.
+            sel_end:   Last frame of selection (exclusive), or -1 if none.
+        """
+        if sel_start < 0 or sel_end <= sel_start or self._samplerate == 0:
+            self._sel_label.setText("")
+        else:
+            dur = (sel_end - sel_start) / self._samplerate
+            start_s = sel_start / self._samplerate
+            self._sel_label.setText(f"[{start_s:.2f}s  {dur:.2f}s sel]")
+
     def set_stopped(self) -> None:
         """Reset the play button to the stopped state."""
         self._play_btn.blockSignals(True)
@@ -1828,6 +2049,11 @@ class TransportBar(QWidget):
     def is_playing(self) -> bool:
         """True when the Play button is in the pressed (playing) state."""
         return self._play_btn.isChecked()
+
+    @property
+    def loop_active(self) -> bool:
+        """True when the loop button is pressed."""
+        return self._loop_btn.isChecked()
 
 
 # =============================================================================
@@ -1877,11 +2103,14 @@ class MainWindow(QMainWindow):
         self._transport = TransportBar()
         self._dsp = DspPanel()
 
+        self._zoom_bar = ZoomBar()
+
         left = QWidget()
         left_layout = QVBoxLayout(left)
         left_layout.setContentsMargins(0, 0, 0, 0)
         left_layout.setSpacing(0)
         left_layout.addWidget(self._waveform, stretch=1)
+        left_layout.addWidget(self._zoom_bar)
         left_layout.addWidget(self._transport)
 
         splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -1916,9 +2145,23 @@ class MainWindow(QMainWindow):
         self._transport.play_requested.connect(self._on_play_requested)
         self._transport.stop_requested.connect(self._on_stop)
         self._transport.seek_requested.connect(self._on_seek)
+        self._transport.loop_requested.connect(self._on_loop_requested)
 
         # Waveform canvas scrubbing → engine seek
         self._waveform.seek_requested.connect(self._on_seek)
+
+        # Waveform selection → loop / DSP feedback
+        self._waveform.selection_changed.connect(self._on_selection_changed)
+
+        # Waveform zoom changes → sync zoom bar
+        self._waveform.zoom_changed.connect(self._on_waveform_zoom_changed)
+
+        # Zoom bar buttons → waveform zoom actions
+        self._zoom_bar.zoom_in_requested.connect(self._on_zoom_in)
+        self._zoom_bar.zoom_out_requested.connect(self._on_zoom_out)
+        self._zoom_bar.zoom_reset_requested.connect(self._on_zoom_reset)
+        self._zoom_bar.zoom_selection_requested.connect(self._on_zoom_to_selection)
+        self._zoom_bar.scroll_changed.connect(self._waveform.set_scroll)
 
         # DSP panel → apply chain
         self._dsp.dsp_requested.connect(self._on_apply_dsp)
@@ -1958,7 +2201,15 @@ class MainWindow(QMainWindow):
         self._waveform.set_buffer(buf, None)
         self._transport.set_file_loaded(buf.n_frames, buf.samplerate)
         self._transport.update_position(0)
+        self._transport.update_selection_info(-1, -1)
         self._dsp.set_file_loaded(True)
+        self._zoom_bar.set_file_loaded(True)
+        # Sync zoom bar to initial (1×, full view) state
+        mn, mx, ps = self._waveform.scroll_range()
+        self._zoom_bar.update_zoom(1.0, 0, mn, mx, ps)
+        self._zoom_bar.set_selection_zoomable(False)
+        # Clear any previous loop
+        self._engine.clear_loop()
 
     def _on_play_requested(self) -> None:
         """Toggle playback state."""
@@ -2030,6 +2281,106 @@ class MainWindow(QMainWindow):
             QTimer.singleShot(0, lambda: self._finish_dsp(processed))
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def _on_loop_requested(self, checked: bool) -> None:
+        """Enable or disable looping over the current waveform selection.
+
+        Connected to TransportBar.loop_requested (emits True/False when the
+        Loop button is toggled).  When checked=True we read the current
+        selection from the WaveformView and pass it to PlaybackEngine.set_loop;
+        if there is no selection we loop the whole file.  When checked=False we
+        clear the loop so playback runs to the end of file as normal.
+
+        Args:
+            checked: True when the Loop button is pressed (loop on),
+                     False when released (loop off).
+        """
+        if not checked:
+            self._engine.clear_loop()
+            return
+
+        if self._original_buffer is None:
+            return
+
+        sel_start, sel_end = self._waveform.selection
+        if sel_start >= 0 and sel_end > sel_start:
+            # Loop the selected region
+            self._engine.set_loop(sel_start, sel_end, active=True)
+        else:
+            # No selection — loop the whole file
+            self._engine.set_loop(0, self._original_buffer.n_frames, active=True)
+
+    def _on_selection_changed(self, sel_start: int, sel_end: int) -> None:
+        """React to the waveform selection changing.
+
+        Updates the transport bar's selection info label and, if the Loop
+        button is already active, re-arms the loop region to match the new
+        selection so the user can drag-to-adjust a loop while it plays.
+
+        Args:
+            sel_start: First frame of the selection, or -1 if cleared.
+            sel_end:   Last frame of the selection (exclusive), or -1 if cleared.
+        """
+        self._transport.update_selection_info(sel_start, sel_end)
+        self._zoom_bar.set_selection_zoomable(sel_start >= 0 and sel_end > sel_start)
+
+        # If loop is active, update the loop region to match the new selection
+        if self._transport.loop_active and self._original_buffer is not None:
+            if sel_start >= 0 and sel_end > sel_start:
+                self._engine.set_loop(sel_start, sel_end, active=True)
+            else:
+                # Selection was cleared — fall back to looping the whole file
+                self._engine.set_loop(0, self._original_buffer.n_frames, active=True)
+
+    # ── Zoom slots ────────────────────────────────────────────────────────────
+
+    def _on_waveform_zoom_changed(self, zoom: float, view_start: int) -> None:
+        """Sync the ZoomBar after the waveform zoom changed (e.g. via scroll wheel).
+
+        Args:
+            zoom:       New zoom factor emitted by WaveformView.zoom_changed.
+            view_start: New first-visible frame.
+        """
+        mn, mx, ps = self._waveform.scroll_range()
+        self._zoom_bar.update_zoom(zoom, view_start, mn, mx, ps)
+
+    def _on_zoom_in(self) -> None:
+        """Zoom in by 1.25× centred on the visible midpoint."""
+        self._waveform._apply_zoom(self._waveform._zoom * 1.25,
+                                   self._waveform.width() // 2)
+        self._waveform.zoom_changed.emit(self._waveform._zoom,
+                                         self._waveform._view_start)
+
+    def _on_zoom_out(self) -> None:
+        """Zoom out by 0.8× centred on the visible midpoint."""
+        self._waveform._apply_zoom(self._waveform._zoom * 0.8,
+                                   self._waveform.width() // 2)
+        self._waveform.zoom_changed.emit(self._waveform._zoom,
+                                         self._waveform._view_start)
+
+    def _on_zoom_reset(self) -> None:
+        """Return to 1× zoom (full-file view)."""
+        self._waveform._apply_zoom(1.0, self._waveform.width() // 2)
+        self._waveform.zoom_changed.emit(self._waveform._zoom,
+                                         self._waveform._view_start)
+
+    def _on_zoom_to_selection(self) -> None:
+        """Zoom the waveform so the current selection fills the canvas.
+
+        Does nothing when there is no selection.
+        """
+        sel_start, sel_end = self._waveform.selection
+        if sel_start < 0 or sel_end <= sel_start or self._waveform._n_frames == 0:
+            return
+
+        sel_frames = sel_end - sel_start
+        new_zoom = max(1.0, self._waveform._n_frames / max(sel_frames, 1))
+        self._waveform._zoom = new_zoom
+        self._waveform._view_start = sel_start
+        self._waveform._view_end   = sel_end
+        self._waveform._invalidate_cache()
+        self._waveform.update()
+        self._waveform.zoom_changed.emit(new_zoom, sel_start)
 
     def _finish_dsp(self, processed: "AudioBuffer") -> None:
         """Swap in the processed buffer (called on the main thread).
