@@ -10,11 +10,28 @@
 #   A professional audio file player with a full-featured waveform display
 #   and an offline DSP effects chain.
 #
-#   Open a WAV, FLAC, or OGG file via File > Open. The entire file is decoded
-#   into a NumPy buffer with soundfile. The waveform is rendered in QPainter
-#   using peak-reduction: for each pixel column the min and max amplitude of
-#   all covered samples are drawn as a vertical line. This preserves visual
-#   accuracy at any zoom level without overdrawing.
+#   Open any audio file via File > Open. Two decoders are chained:
+#
+#     1. soundfile (libsndfile) — primary decoder.
+#        Handles: WAV, FLAC, OGG/Vorbis, AIFF, CAF, W64, and more.
+#        libsndfile is the professional standard for uncompressed and losslessly
+#        compressed audio. It does NOT support MP3, AAC, M4A, OPUS, or WMA —
+#        formats that carry patent/licence history and require dedicated codecs.
+#
+#     2. FFmpeg — universal fallback decoder.
+#        Handles: MP3, AAC/M4A, OPUS, WMA, AC3, FLAC (also), and virtually
+#        every container/codec combination in professional use.
+#        FFmpeg is invoked as a subprocess that decodes the file and pipes raw
+#        32-bit float PCM to stdout. This avoids temp files and gives us the
+#        same NumPy array shape we would get from soundfile, so the rest of the
+#        pipeline is format-agnostic.
+#        If FFmpeg is not installed, the app still runs — only libsndfile
+#        formats are available, and a clear error explains what to install.
+#
+#   The entire file is decoded into a NumPy buffer. The waveform is rendered
+#   in QPainter using peak-reduction: for each pixel column the min and max
+#   amplitude of all covered samples are drawn as a vertical line. This
+#   preserves visual accuracy at any zoom level without overdrawing.
 #
 #   A DSP effects chain (gain, fade in/out, DC removal, normalisation) can be
 #   applied offline. The original (blue) and processed (purple) waveforms are
@@ -26,6 +43,7 @@
 #
 #   WEBGL EQUIVALENT:
 #     soundfile.read()          ↔  AudioContext.decodeAudioData()
+#     FFmpeg subprocess pipe    ↔  MediaDecoder API / WebCodecs API
 #     PlaybackEngine._callback  ↔  ScriptProcessorNode / AudioWorkletProcessor
 #     DspChain functions        ↔  offline AudioBuffer processing in Web Audio
 #     WaveformView QPainter     ↔  AnalyserNode + Canvas 2D drawImage()
@@ -36,7 +54,11 @@
 #
 # Ubuntu system dependencies (install once):
 #   sudo apt install libgl1 libegl1 libxcb-cursor0 libxcb-xinerama0 \
-#                    libportaudio2 libsndfile1
+#                    libportaudio2 libsndfile1 ffmpeg
+#
+# Windows system dependencies:
+#   FFmpeg: https://www.gyan.dev/ffmpeg/builds/  (add ffmpeg/bin to PATH)
+#   All Python packages are bundled — no other system deps needed.
 #
 # Connections to other seminars:
 #   Demo 1 (hello_multimedia) — introduces the sounddevice callback pattern
@@ -48,6 +70,9 @@
 from __future__ import annotations
 
 import queue
+import shutil
+import struct
+import subprocess
 import sys
 import threading
 from dataclasses import dataclass, field
@@ -98,9 +123,53 @@ DEVICE_SAMPLE_RATE: int = (
 )
 BLOCK_SIZE: int = 512  # frames per callback block
 
-# Supported audio file formats (soundfile / libsndfile)
-SUPPORTED_FORMATS: tuple[str, ...] = ("*.wav", "*.flac", "*.ogg", "*.aiff", "*.aif")
-SUPPORTED_FILTER: str = "Audio Files (*.wav *.flac *.ogg *.aiff *.aif)"
+# ---------------------------------------------------------------------------
+# Decoder availability
+# ---------------------------------------------------------------------------
+# shutil.which() searches PATH for the ffmpeg executable — the same mechanism
+# the shell uses. Returns the full path string if found, None if not found.
+# Works identically on Ubuntu (looks for "ffmpeg") and Windows (looks for
+# "ffmpeg.exe", but shutil.which handles the .exe extension automatically).
+#
+# We resolve this once at import time so the rest of the code can branch on
+# FFMPEG_BIN without repeated PATH lookups. None means FFmpeg is absent and
+# only libsndfile formats will be available.
+FFMPEG_BIN: str | None = shutil.which("ffmpeg")
+
+# ---------------------------------------------------------------------------
+# Supported audio file formats
+# ---------------------------------------------------------------------------
+# The file-dialog filter presents two tiers:
+#
+#   "Common Audio Files" — a curated list of extensions every audio professional
+#     recognises. Shown first so the dialog defaults to it.
+#
+#   "All Files (*)" — lets the user select any file. If the extension is
+#     unknown, AudioBuffer.load() will still attempt both decoders. This is
+#     the correct professional behaviour: FFmpeg handles hundreds of containers
+#     and the user may legitimately have an unusual format.
+#
+# Note: the libsndfile-only filter is intentionally NOT separated from the
+# FFmpeg filter. Splitting them would confuse students and is unnecessary —
+# the decoders are chained transparently inside AudioBuffer.load().
+#
+# libsndfile formats (always available):
+_SF_EXTS = "*.wav *.flac *.ogg *.aiff *.aif *.caf *.w64"
+# FFmpeg-only formats (available when FFMPEG_BIN is set):
+_FF_EXTS = "*.mp3 *.m4a *.aac *.opus *.wma *.ac3 *.mp4 *.mkv *.webm"
+
+if FFMPEG_BIN:
+    SUPPORTED_FILTER: str = (
+        f"Common Audio Files ({_SF_EXTS} {_FF_EXTS});;"
+        f"All Files (*)"
+    )
+else:
+    # FFmpeg not found — only advertise libsndfile formats, but still allow
+    # "All Files" so advanced users can attempt any format via libsndfile.
+    SUPPORTED_FILTER: str = (
+        f"Audio Files — libsndfile only ({_SF_EXTS});;"
+        f"All Files (*)"
+    )
 
 # DC-removal filter cutoff
 DC_HIGHPASS_HZ: float = 20.0  # Hz — anything below 20 Hz is inaudible; treat as DC
@@ -125,7 +194,207 @@ LOGO_PATH: Path = Path(__file__).resolve().parent.parent / "ams_group_tui.png"
 
 
 # =============================================================================
-# STEP 2 — AudioBuffer: decoded audio held in memory
+# STEP 2 — FFmpeg fallback decoder
+# =============================================================================
+#
+# WHY A SUBPROCESS INSTEAD OF A PYTHON LIBRARY?
+# -----------------------------------------------
+# pydub, librosa, and audioread all wrap FFmpeg internally, but they add their
+# own abstractions, dependencies, and conversion steps. Calling FFmpeg directly
+# via subprocess gives us:
+#   • Zero additional Python dependencies (FFmpeg is already required by
+#     other demos in this course).
+#   • Full transparency — students can see and run the exact FFmpeg command
+#     themselves in a terminal to understand what it does.
+#   • Direct access to raw PCM bytes via stdout — no temp files, no extra
+#     copy, minimal latency.
+#
+# THE FFMPEG COMMAND EXPLAINED:
+#   ffmpeg
+#     -hide_banner -loglevel error   suppress version banner and info logs;
+#                                    only errors are printed to stderr
+#     -i <path>                      input file (any format FFmpeg understands)
+#     -vn                            discard video streams (e.g. in MP4/MKV)
+#     -acodec pcm_f32le              encode output as 32-bit float little-endian
+#                                    PCM — the native format of sounddevice and
+#                                    NumPy on all modern hardware (x86/ARM)
+#     -f f32le                       output container: raw byte stream, no header
+#     -ac <n>                        force output channel count (preserve original)
+#     -ar <rate>                     force output sample rate (we resample to
+#                                    DEVICE_SAMPLE_RATE here, saving a second
+#                                    resample_poly pass later)
+#     pipe:1                         write output to stdout (file descriptor 1)
+#                                    instead of a file; we read it in Python
+#
+# WHY pipe:1 INSTEAD OF A TEMP FILE?
+#   A temp file requires: disk write → disk read → delete. For a 50 MB MP3
+#   that's 50 MB of decoded PCM (~200 MB at float32) written to disk just to
+#   be read back immediately. Piping to stdout keeps everything in memory and
+#   is significantly faster, especially on SSDs with write throttling.
+#
+# WINDOWS NOTE:
+#   On Windows, a subprocess that opens a console window will briefly flash
+#   a black terminal behind the app. We suppress this with:
+#     creationflags=subprocess.CREATE_NO_WINDOW  (Windows-only flag)
+#   On Linux/macOS this flag is not available and must be omitted. We branch
+#   on sys.platform to handle both.
+
+
+def _decode_via_ffmpeg(path: Path) -> tuple[np.ndarray, int]:
+    """Decode any audio file to float32 PCM using FFmpeg as a subprocess.
+
+    This is the fallback decoder used when soundfile (libsndfile) cannot
+    read the file — most commonly for MP3, AAC/M4A, OPUS, and WMA files.
+
+    The function shells out to ``ffmpeg``, instructs it to decode the input
+    to raw 32-bit float little-endian PCM at ``DEVICE_SAMPLE_RATE``, and
+    reads the resulting bytes from stdout. The bytes are then interpreted as
+    a NumPy float32 array and reshaped to ``(frames, channels)``.
+
+    AUDIO CONCEPT — Why float32 little-endian PCM?
+    ------------------------------------------------
+    Float32 is the universal internal format for digital audio processing:
+      • Range is not hard-clipped at ±1.0 (unlike int16/int24), so intermediate
+        calculations can exceed full scale without wrapping — headroom for DSP.
+      • NumPy, sounddevice, and scipy all operate natively in float32 without
+        conversion overhead.
+      • Little-endian matches x86 and ARM byte order — zero byte-swap cost.
+
+    Args:
+        path: Path to any audio file supported by FFmpeg.
+
+    Returns:
+        Tuple of (data, samplerate) where data is float32, shape
+        (frames, channels), and samplerate is DEVICE_SAMPLE_RATE.
+
+    Raises:
+        RuntimeError: If FFmpeg is not installed or returns a non-zero exit code.
+        ValueError: If the decoded byte stream cannot be interpreted as audio
+                    (e.g. the file is corrupt or has zero channels).
+    """
+    if FFMPEG_BIN is None:
+        raise RuntimeError(
+            "FFmpeg is not installed or not found on PATH.\n"
+            "Ubuntu:  sudo apt install ffmpeg\n"
+            "Windows: https://www.gyan.dev/ffmpeg/builds/  (add ffmpeg/bin to PATH)\n"
+            f"File '{path.name}' requires FFmpeg to decode."
+        )
+
+    # ── Step 1: probe the file to get channel count ───────────────────────────
+    # We ask FFmpeg to tell us the channel count before decoding, so we can
+    # correctly reshape the raw byte stream. Without this we would have to
+    # assume mono or stereo and risk misinterpreting the data.
+    #
+    # ffprobe is FFmpeg's companion tool for metadata. We ask it for:
+    #   -select_streams a:0    first audio stream only
+    #   -show_entries ...      only the fields we need
+    #   -of csv=p=0            output as bare CSV (no key names, no headers)
+    ffprobe_bin = shutil.which("ffprobe") or FFMPEG_BIN.replace("ffmpeg", "ffprobe")
+
+    probe_cmd = [
+        ffprobe_bin,
+        "-v", "error",
+        "-select_streams", "a:0",
+        "-show_entries", "stream=channels,sample_rate",
+        "-of", "csv=p=0",
+        str(path),
+    ]
+
+    _kw: dict = {}
+    if sys.platform == "win32":
+        # Suppress the console window that Windows would open for the subprocess.
+        # CREATE_NO_WINDOW is a Windows-only process creation flag.
+        _kw["creationflags"] = subprocess.CREATE_NO_WINDOW
+
+    try:
+        probe_result = subprocess.run(
+            probe_cmd,
+            capture_output=True,
+            text=True,
+            check=True,
+            **_kw,
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+        # ffprobe unavailable or failed — fall back to assuming stereo.
+        # This is a safe default: if the file is actually mono, FFmpeg will
+        # upmix it to stereo via -ac 2 below.
+        n_channels_native = 2
+    else:
+        # Parse "channels,sample_rate\n" → e.g. "2,44100\n"
+        parts = probe_result.stdout.strip().split(",")
+        try:
+            n_channels_native = int(parts[0])
+        except (ValueError, IndexError):
+            n_channels_native = 2  # safe fallback
+
+    # Clamp to stereo maximum for the output device.
+    # Professional interfaces can have 8+ channels, but sounddevice opens a
+    # stereo stream. Mixing down to stereo here keeps the playback engine simple.
+    n_channels_out = min(n_channels_native, 2)
+
+    # ── Step 2: decode to raw float32 PCM via stdout pipe ────────────────────
+    decode_cmd = [
+        FFMPEG_BIN,
+        "-hide_banner",
+        "-loglevel", "error",   # suppress all non-error output
+        "-i", str(path),        # input: any format FFmpeg understands
+        "-vn",                  # discard video streams (MP4, MKV, WebM etc.)
+        "-acodec", "pcm_f32le", # output codec: raw 32-bit float, little-endian
+        "-f", "f32le",          # output format: headerless raw byte stream
+        "-ac", str(n_channels_out),          # output channel count
+        "-ar", str(DEVICE_SAMPLE_RATE),      # resample to device rate here
+        "pipe:1",               # write decoded bytes to stdout
+    ]
+
+    try:
+        proc = subprocess.run(
+            decode_cmd,
+            stdout=subprocess.PIPE,  # capture PCM bytes
+            stderr=subprocess.PIPE,  # capture error messages
+            check=True,              # raise CalledProcessError on non-zero exit
+            **_kw,
+        )
+    except subprocess.CalledProcessError as exc:
+        # FFmpeg writes human-readable errors to stderr.
+        stderr_msg = exc.stderr.decode(errors="replace").strip()
+        raise RuntimeError(
+            f"FFmpeg could not decode '{path.name}':\n{stderr_msg}"
+        ) from exc
+    except FileNotFoundError as exc:
+        raise RuntimeError(
+            f"FFmpeg executable not found at '{FFMPEG_BIN}'."
+        ) from exc
+
+    # ── Step 3: interpret the raw bytes as a NumPy float32 array ─────────────
+    # proc.stdout is a bytes object. Each 4 bytes is one float32 sample.
+    # np.frombuffer creates a NumPy array that shares the buffer — no copy.
+    # We then reshape from flat (samples,) to (frames, channels).
+    raw_bytes = proc.stdout
+    if len(raw_bytes) == 0:
+        raise ValueError(
+            f"FFmpeg produced no output for '{path.name}'. "
+            "The file may be corrupt, empty, or contain no audio stream."
+        )
+
+    # Validate byte alignment: float32 = 4 bytes per sample
+    if len(raw_bytes) % (4 * n_channels_out) != 0:
+        # Truncate to the nearest complete frame. This can happen if FFmpeg
+        # was interrupted or the file has a partial final frame.
+        n_complete = len(raw_bytes) // (4 * n_channels_out) * (4 * n_channels_out)
+        raw_bytes = raw_bytes[:n_complete]
+
+    data = np.frombuffer(raw_bytes, dtype="<f4")  # <f4 = little-endian float32
+    # Reshape flat sample stream to (frames, channels).
+    # C-order (row-major) means samples are interleaved: L R L R L R …
+    # which is exactly how sounddevice and soundfile store multichannel audio.
+    data = data.reshape(-1, n_channels_out)
+
+    # FFmpeg already resampled to DEVICE_SAMPLE_RATE via -ar above.
+    return data, DEVICE_SAMPLE_RATE
+
+
+# =============================================================================
+# STEP 3 — AudioBuffer: decoded audio held in memory
 # =============================================================================
 
 
@@ -154,53 +423,103 @@ class AudioBuffer:
 
     @classmethod
     def load(cls, path: Path) -> AudioBuffer:
-        """Read an audio file and return an AudioBuffer at DEVICE_SAMPLE_RATE.
+        """Read any audio file and return an AudioBuffer at DEVICE_SAMPLE_RATE.
 
-        Uses soundfile (libsndfile) for decoding — the professional standard
-        for WAV, FLAC, OGG, and AIFF in Python. If the file's native sample
-        rate differs from DEVICE_SAMPLE_RATE, resample_poly resamples it.
+        DECODER CHAIN:
+        --------------
+        This method implements a two-stage decoder chain, which is the
+        professional pattern used in cross-format audio applications:
+
+          Stage 1 — soundfile (libsndfile):
+            Attempted first. Fast, battle-tested, no subprocess overhead.
+            Covers: WAV, FLAC, OGG/Vorbis, AIFF, CAF, W64, RF64, and more.
+            Fails silently for MP3, AAC, OPUS, WMA — we catch the exception
+            and fall through to Stage 2.
+
+          Stage 2 — FFmpeg subprocess (fallback):
+            Used when libsndfile raises an exception. Handles virtually every
+            audio/video container and codec in professional use. See the
+            _decode_via_ffmpeg() function above for the full explanation of
+            how the subprocess pipe works.
+            If FFmpeg is also absent, a RuntimeError is raised with
+            installation instructions for both Ubuntu and Windows.
 
         AUDIO CONCEPT — Why resampling matters:
         sounddevice opens the audio device at DEVICE_SAMPLE_RATE (48 000 Hz).
-        If you play 44 100 Hz audio through a 48 000 Hz stream without
+        If you play a 44 100 Hz file through a 48 000 Hz stream without
         resampling, every sample is played at the wrong pitch and speed
-        (44100/48000 ≈ −1.5 semitones, 8.8 % too slow). Always resample to
-        the device rate before playback.
+        (44 100 / 48 000 ≈ −1.5 semitones, 8.8 % too slow). Always resample
+        to the device rate before playback.
 
+        When Stage 1 (soundfile) decodes the file, the native sample rate may
+        differ from DEVICE_SAMPLE_RATE, so we resample here using resample_poly.
+        When Stage 2 (FFmpeg) decodes, we pass -ar DEVICE_SAMPLE_RATE to FFmpeg
+        directly, so no Python-side resampling is needed — FFmpeg's built-in
+        resampler (libswresample, the same engine used in professional broadcast
+        tools) handles it.
+
+        RESAMPLING CONCEPT — resample_poly:
         resample_poly uses a polyphase filter bank — the same algorithm used
-        in professional audio editors and broadcast encoders. It is more
-        accurate than numpy.interp and faster than scipy.signal.resample for
-        rational frequency ratios.
+        in professional audio editors and broadcast encoders (Pro Tools, Reaper,
+        Nuendo). It is more accurate than numpy.interp (which is linear
+        interpolation, not suitable for audio) and faster than
+        scipy.signal.resample for rational frequency ratios. It requires integer
+        up/down factors, so we reduce the ratio to its simplest form using GCD.
 
         Args:
-            path: Path to a WAV, FLAC, OGG, or AIFF file.
+            path: Path to any audio file. soundfile is tried first; FFmpeg
+                  is used as a fallback if soundfile cannot decode the format.
 
         Returns:
             AudioBuffer at DEVICE_SAMPLE_RATE.
 
         Raises:
-            ValueError: If the file cannot be read or the format is unsupported.
+            ValueError: If neither decoder can read the file.
         """
+        from math import gcd
+
+        # ── Stage 1: soundfile (libsndfile) ──────────────────────────────────
+        sf_error: Exception | None = None
         try:
             data, file_sr = sf.read(str(path), dtype="float32", always_2d=True)
             # always_2d=True ensures shape is always (frames, channels),
             # even for mono files (which would otherwise be 1-D).
         except Exception as exc:
-            raise ValueError(f"Cannot read '{path.name}': {exc}") from exc
+            # libsndfile cannot handle this format (most likely MP3, AAC,
+            # OPUS, WMA). Record the error and fall through to Stage 2.
+            sf_error = exc
+            data = None
+            file_sr = None
 
-        if file_sr != DEVICE_SAMPLE_RATE:
-            # Resample each channel independently using integer ratio up/down.
-            # resample_poly requires integer numerator/denominator.
-            # We use the GCD to reduce the ratio to its simplest form.
-            from math import gcd
+        if data is not None:
+            # soundfile succeeded — resample in Python if needed.
+            if file_sr != DEVICE_SAMPLE_RATE:
+                g = gcd(DEVICE_SAMPLE_RATE, file_sr)
+                up, down = DEVICE_SAMPLE_RATE // g, file_sr // g
+                # Resample each channel independently.
+                # resample_poly operates on 1-D arrays; we loop over channels
+                # and reassemble with np.stack.
+                resampled_channels = [
+                    resample_poly(data[:, ch], up, down).astype(np.float32)
+                    for ch in range(data.shape[1])
+                ]
+                data = np.stack(resampled_channels, axis=1)
+            return cls(data=data, samplerate=DEVICE_SAMPLE_RATE, path=path)
 
-            g = gcd(DEVICE_SAMPLE_RATE, file_sr)
-            up, down = DEVICE_SAMPLE_RATE // g, file_sr // g
-            resampled_channels = [
-                resample_poly(data[:, ch], up, down).astype(np.float32)
-                for ch in range(data.shape[1])
-            ]
-            data = np.stack(resampled_channels, axis=1)
+        # ── Stage 2: FFmpeg subprocess fallback ───────────────────────────────
+        # soundfile failed (sf_error is set). Try FFmpeg.
+        # _decode_via_ffmpeg() already resamples to DEVICE_SAMPLE_RATE via
+        # the -ar flag, so no additional Python-side resampling is needed.
+        try:
+            data, file_sr = _decode_via_ffmpeg(path)
+        except (RuntimeError, ValueError) as ffmpeg_exc:
+            # Both decoders failed. Report both errors so the student
+            # understands exactly what was attempted and why each failed.
+            raise ValueError(
+                f"Cannot decode '{path.name}'.\n\n"
+                f"soundfile (libsndfile) error:\n  {sf_error}\n\n"
+                f"FFmpeg error:\n  {ffmpeg_exc}"
+            ) from ffmpeg_exc
 
         return cls(data=data, samplerate=DEVICE_SAMPLE_RATE, path=path)
 
@@ -226,7 +545,7 @@ class AudioBuffer:
 
 
 # =============================================================================
-# STEP 3 — DspChain: offline DSP processing functions
+# STEP 4 — DspChain: offline DSP processing functions
 # =============================================================================
 
 
@@ -425,7 +744,7 @@ class DspChain:
 
 
 # =============================================================================
-# STEP 4 — WaveformView: QPainter waveform canvas with playhead
+# STEP 5 — WaveformView: QPainter waveform canvas with playhead
 # =============================================================================
 
 
@@ -656,7 +975,7 @@ class WaveformView(QWidget):
 
 
 # =============================================================================
-# STEP 5 — PlaybackEngine: sounddevice OutputStream with Lock-protected seek
+# STEP 6 — PlaybackEngine: sounddevice OutputStream with Lock-protected seek
 # =============================================================================
 
 
