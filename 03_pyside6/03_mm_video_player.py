@@ -236,6 +236,8 @@ class MediaFile:
         # can avoid issuing a seek when the requested frame is sequential.
         # Initialised to an impossible value to force a seek on the first read.
         self._next_frame_idx: int = -999_999
+        # Path stored so reopen_video() can recreate a fresh VideoCapture after EOF.
+        self._video_path: Path | None = None
 
     # ── Video ─────────────────────────────────────────────────────────────────
 
@@ -276,6 +278,7 @@ class MediaFile:
             self._cap.release()
 
         self._cap = cap
+        self._video_path = path          # stored for reopen_video() after EOF
         self._meta = VideoMeta(
             fps=fps,
             frame_count=frame_count,
@@ -455,6 +458,41 @@ class MediaFile:
         """
         self._next_frame_idx = -999_999
 
+    def reopen_video(self) -> bool:
+        """Release and recreate the VideoCapture for the same file.
+
+        WHY THIS IS NEEDED — libavcodec async thread assertion:
+        After a video reaches end-of-file, libavcodec's internal async decode
+        thread pool enters an undefined state (fctx->async_lock is released
+        without a matching acquire when the EOF drain completes). Issuing a
+        CAP_PROP_POS_FRAMES seek against a VideoCapture that hit EOF triggers
+        the assertion 'fctx->async_lock failed at libavcodec/pthread_frame.c:178'
+        and aborts the process.
+
+        The only fully reliable workaround is to release the VideoCapture and
+        open a fresh one against the same file. This resets all internal codec
+        state without reloading the file from disk (the OS page cache keeps the
+        file resident). The cost is negligible compared to the seek that follows.
+
+        Returns:
+            True if the VideoCapture was successfully recreated, False otherwise.
+        """
+        if self._cap is None or self._meta is None:
+            return False
+
+        if self._video_path is None:
+            return False
+
+        self._cap.release()
+        cap = cv2.VideoCapture(str(self._video_path))
+        if not cap.isOpened():
+            self._cap = None
+            return False
+
+        self._cap = cap
+        self._next_frame_idx = -999_999
+        return True
+
     # ── Lifecycle ──────────────────────────────────────────────────────────────
 
     def close(self) -> None:
@@ -466,6 +504,7 @@ class MediaFile:
         if self._cap is not None:
             self._cap.release()
             self._cap = None
+        self._video_path = None
         if self._tmp_dir is not None:
             self._tmp_dir.cleanup()
             self._tmp_dir = None
@@ -1907,6 +1946,32 @@ class MainWindow(QMainWindow):
         if was_playing:
             self._audio_engine.pause()
 
+        # Step 1b: Drain the finished_queue so a stale EOF sentinel emitted at
+        # end-of-file cannot fire set_stopped() after we resume from the new
+        # seek position.  Without this drain, _poll_av_sync picks up the old
+        # sentinel on the next tick and silently kills the resumed playback.
+        try:
+            while True:
+                self._audio_engine.finished_queue.get_nowait()
+        except queue.Empty:
+            pass
+
+        # Step 1c: After EOF the libavcodec async decode thread pool leaves
+        # internal locks in an inconsistent state.  Any CAP_PROP_POS_FRAMES
+        # seek issued against that VideoCapture triggers:
+        #   Assertion fctx->async_lock failed at libavcodec/pthread_frame.c:178
+        # and aborts the process.  The only reliable fix is to release the
+        # VideoCapture and open a fresh one against the same file.  We detect
+        # the post-EOF condition by checking whether the audio engine's frame
+        # position has reached the end of the audio buffer.
+        audio_data = self._media.audio_data
+        at_eof = (
+            audio_data is not None
+            and self._audio_engine.frame_pos >= audio_data.shape[0] - 1
+        )
+        if at_eof:
+            self._media.reopen_video()
+
         # Step 2–3: Seek audio (lock acquired inside seek())
         target_audio_frame = int(video_frame / meta.fps * DEVICE_SAMPLE_RATE)
         self._audio_engine.seek(target_audio_frame)
@@ -2048,15 +2113,22 @@ class MainWindow(QMainWindow):
                 self._update_status_bar(target_video_frame)
 
         # ── Step 7: Check for end-of-file ──────────────────────────────────────
+        # Drain all pending EOF sentinels (the callback can enqueue more than one
+        # if the main thread was slow).  Only act on the first one found.
+        eof_detected = False
         try:
-            self._audio_engine.finished_queue.get_nowait()
+            while True:
+                self._audio_engine.finished_queue.get_nowait()
+                eof_detected = True
+        except queue.Empty:
+            pass
+
+        if eof_detected:
             self._decode_thread.set_playing(False)
             self._transport.set_stopped()
             self._dac_time_anchor = None
             self._audio_frame_anchor = 0
             self._status_bar.showMessage("Playback finished")
-        except queue.Empty:
-            pass
 
     # ── DSP dispatch ───────────────────────────────────────────────────────────
 
