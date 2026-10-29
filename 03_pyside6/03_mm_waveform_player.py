@@ -1628,7 +1628,7 @@ class DspPanel(QWidget):
         layout.addWidget(group)
 
         # ── Apply button ──────────────────────────────────────────────────────
-        self._apply_btn = QPushButton("Apply DSP")
+        self._apply_btn = QPushButton("Apply")
         self._apply_btn.setEnabled(False)
         self._apply_btn.setStyleSheet(
             "QPushButton {"
@@ -1993,7 +1993,13 @@ class MainWindow(QMainWindow):
         remove_dc: bool,
         do_normalise: bool,
     ) -> None:
-        """Run the DSP chain and update the processed waveform overlay.
+        """Run the DSP chain on a background thread and swap the buffer.
+
+        The heavy NumPy/SciPy computation runs on a worker thread so the
+        audio callback (which runs on the PortAudio thread) is never starved
+        by main-thread work.  The buffer swap itself is done back on the main
+        thread via a QTimer single-shot, which is the only Qt-safe way to
+        touch the engine from a non-Qt thread.
 
         Args:
             gain_db: Gain in dB.
@@ -2005,15 +2011,49 @@ class MainWindow(QMainWindow):
         if self._original_buffer is None:
             return
 
-        self._processed_buffer = DspChain.apply_chain(
-            self._original_buffer,
-            gain_db,
-            fade_in_ms,
-            fade_out_ms,
-            remove_dc,
-            do_normalise,
-        )
-        self._waveform.set_buffer(self._original_buffer, self._processed_buffer)
+        # Disable button while processing to prevent double-clicks.
+        self._dsp.set_file_loaded(False)
+
+        # Snapshot the source buffer so the worker holds its own reference.
+        src = self._original_buffer
+
+        def _worker() -> None:
+            processed = DspChain.apply_chain(
+                src,
+                gain_db,
+                fade_in_ms,
+                fade_out_ms,
+                remove_dc,
+                do_normalise,
+            )
+            # Hand result back to the main thread via a zero-delay timer.
+            QTimer.singleShot(0, lambda: self._finish_dsp(processed))
+
+        threading.Thread(target=_worker, daemon=True).start()
+
+    def _finish_dsp(self, processed: "AudioBuffer") -> None:
+        """Swap in the processed buffer (called on the main thread).
+
+        Args:
+            processed: The freshly computed AudioBuffer from the DSP worker.
+        """
+        self._processed_buffer = processed
+
+        # Save position before load() resets it, then restore after.
+        with self._engine._lock:
+            saved_pos = self._engine._frame_pos
+        was_playing = self._engine.is_playing
+
+        self._engine.load(processed)
+
+        with self._engine._lock:
+            self._engine._frame_pos = min(saved_pos, processed.n_frames)
+
+        if was_playing:
+            self._engine.play()
+
+        self._waveform.set_buffer(self._original_buffer, processed)
+        self._dsp.set_file_loaded(True)
 
     def _poll_engine(self) -> None:
         """Drain the engine's queues and update the UI.
