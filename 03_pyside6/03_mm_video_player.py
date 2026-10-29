@@ -232,6 +232,10 @@ class MediaFile:
         self._audio_data: np.ndarray | None = None   # float32, (frames, 2)
         self._tmp_dir: tempfile.TemporaryDirectory | None = None
         self._tmp_wav: Path | None = None
+        # Tracks the next frame index the codec is positioned at, so read_frame()
+        # can avoid issuing a seek when the requested frame is sequential.
+        # Initialised to an impossible value to force a seek on the first read.
+        self._next_frame_idx: int = -999_999
 
     # ── Video ─────────────────────────────────────────────────────────────────
 
@@ -397,12 +401,26 @@ class MediaFile:
     # ── Frame access ───────────────────────────────────────────────────────────
 
     def read_frame(self, frame_idx: int) -> np.ndarray | None:
-        """Seek to frame_idx and decode one frame.
+        """Decode one frame, seeking only when necessary.
 
-        Seeking with CAP_PROP_POS_FRAMES is not guaranteed to be exact for
-        all codecs — some (e.g. H.264) can only seek to the nearest keyframe.
-        For the purposes of this demo, keyframe-accurate seeking is acceptable.
-        Frame-accurate seeking would require reading forward from the keyframe.
+        KEY FIX — Sequential decode vs. random-access seek:
+        The original implementation called CAP_PROP_POS_FRAMES on every single
+        display tick. For compressed codecs (H.264, H.265, VP9) this is
+        catastrophically expensive: the codec must find the nearest keyframe,
+        then decode every delta frame in the GOP to reconstruct the target.
+        At 60 Hz polling that means potentially 50–150 wasted decodes per
+        displayed frame, causing the stutter described in the bug report.
+
+        The fix: track the next expected frame index (_next_frame_idx).
+        If the caller requests the next sequential frame, just call cap.read()
+        — the codec is already positioned correctly and this is O(1).
+        Only issue a seek when there is a genuine discontinuity (after a scrub,
+        after stop→play, or if audio sync drifts by more than SEEK_TOLERANCE
+        frames). This reduces seeks to near-zero during normal playback.
+
+        SEEK_TOLERANCE: allow a 2-frame window before corrective seek.
+        A/V drift within ±2 frames (~67 ms at 30 fps) is imperceptible.
+        Seeking for sub-2-frame drift costs more than it gains.
 
         Args:
             frame_idx: Zero-based frame index to decode.
@@ -412,11 +430,30 @@ class MediaFile:
         """
         if self._cap is None:
             return None
-        self._cap.set(cv2.CAP_PROP_POS_FRAMES, float(frame_idx))
+
+        SEEK_TOLERANCE = 2   # frames; within this window, read sequentially
+
+        if abs(self._next_frame_idx - frame_idx) > SEEK_TOLERANCE:
+            # Discontinuity — must seek (scrub, stop→play, large A/V drift)
+            self._cap.set(cv2.CAP_PROP_POS_FRAMES, float(frame_idx))
+            self._next_frame_idx = frame_idx
+
         ret, frame = self._cap.read()
         if not ret:
             return None
+
+        self._next_frame_idx += 1
         return frame
+
+    def reset_sequential_position(self) -> None:
+        """Force a seek on the next read_frame() call.
+
+        Call this after any operation that changes the VideoCapture position
+        externally (e.g. a seek triggered from the transport bar).
+        Sets _next_frame_idx to an impossible value so the tolerance check
+        in read_frame() always triggers a real seek.
+        """
+        self._next_frame_idx = -999_999
 
     # ── Lifecycle ──────────────────────────────────────────────────────────────
 
@@ -883,6 +920,191 @@ def process_motion(prev_frame: np.ndarray | None, frame: np.ndarray) -> np.ndarr
         type=cv2.THRESH_BINARY,
     )
     return cv2.merge([mask, mask, mask])
+
+
+# =============================================================================
+# STEP 4b — VideoDecodeThread: background frame decoder
+# =============================================================================
+
+class VideoDecodeThread(threading.Thread):
+    """Dedicated background thread that pre-decodes video frames.
+
+    ARCHITECTURE — Why a separate decode thread:
+    cv2.VideoCapture.read() blocks the calling thread for as long as it
+    takes the codec to decode one frame. For H.264/H.265 at high resolution
+    this can be 5–30 ms. When decode runs on the Qt main thread (inside the
+    QTimer callback) it blocks the event loop for that duration: the UI
+    freezes, the timer fires again before the previous frame is shown, and
+    the result is the stutter/frame-skipping the user reported.
+
+    Moving decode to a background thread decouples the codec latency from
+    the display cadence:
+      - The decode thread runs continuously, always 1–2 frames ahead of
+        where the audio clock currently is.
+      - The main thread merely picks up the already-decoded frame from
+        _frame_queue and displays it — a near-zero-cost operation.
+      - If the main thread is briefly late (e.g. during a DSP pass),
+        the pre-decoded frame waits in the queue; no frame is dropped.
+
+    FRAME QUEUE:
+    _frame_queue holds (frame_idx, bgr_ndarray) tuples.
+    maxsize=4: enough to absorb a single heavy DSP frame on the display
+    side without falling behind. Larger buffers waste memory and introduce
+    display latency.
+
+    SYNC PROTOCOL:
+    The decode thread reads the audio clock's target frame index from
+    _target_frame (written by the main thread under _lock) and decodes
+    forward from there. This ensures the buffer tracks the audio position
+    even after a seek.
+
+    STOP / FLUSH:
+    _stop_event: set by stop() to terminate the thread loop.
+    _flush_event: set by flush() to discard stale pre-decoded frames after
+    a seek and immediately re-anchor to the new position.
+    """
+
+    def __init__(self, media: "MediaFile") -> None:  # forward-ref; MediaFile defined above
+        super().__init__(name="VideoDecodeThread", daemon=True)
+        self._media = media
+        self._lock = threading.Lock()
+        self._stop_event = threading.Event()
+        self._flush_event = threading.Event()
+        self._wake_event = threading.Event()   # poke the thread when paused
+
+        # (frame_idx, bgr_frame) pairs ready for display
+        self._frame_queue: queue.Queue[tuple[int, np.ndarray]] = queue.Queue(maxsize=4)
+
+        # Current target: the audio clock tells us where to decode next.
+        # Written by set_target() from the main thread; read by run() loop.
+        self._target_frame: int = 0
+        self._playing: bool = False
+
+    # ── Control ───────────────────────────────────────────────────────────────
+
+    def set_playing(self, playing: bool, target_frame: int = 0) -> None:
+        """Signal the thread to start or pause decoding.
+
+        Args:
+            playing: True to decode, False to idle.
+            target_frame: Frame index to decode from when resuming.
+        """
+        with self._lock:
+            self._playing = playing
+            if playing:
+                self._target_frame = target_frame
+        self._wake_event.set()
+
+    def set_target(self, target_frame: int) -> None:
+        """Update the target frame index (called by main thread each tick).
+
+        The decode thread uses this to stay ahead of the audio clock.
+        No locking needed for a single integer write on CPython (GIL).
+        """
+        self._target_frame = target_frame
+
+    def flush(self, new_target: int) -> None:
+        """Discard all buffered frames and restart from new_target.
+
+        Call this after a seek so stale pre-decoded frames are not shown.
+        The flush is acknowledged by the decode thread resetting its
+        internal position and refilling the queue from new_target.
+
+        Args:
+            new_target: Frame index to restart decoding from.
+        """
+        with self._lock:
+            self._target_frame = new_target
+        self._flush_event.set()
+        # Drain the queue so the display thread does not consume stale frames
+        while not self._frame_queue.empty():
+            try:
+                self._frame_queue.get_nowait()
+            except queue.Empty:
+                break
+        self._wake_event.set()
+
+    def get_frame(self) -> tuple[int, np.ndarray] | None:
+        """Return the next pre-decoded frame, or None if the queue is empty.
+
+        Called from the main thread in the A/V sync loop.
+        Non-blocking: returns None immediately if no frame is ready.
+        """
+        try:
+            return self._frame_queue.get_nowait()
+        except queue.Empty:
+            return None
+
+    def stop(self) -> None:
+        """Signal the thread to exit and wait for it to finish."""
+        self._stop_event.set()
+        self._wake_event.set()
+        self.join(timeout=2.0)
+
+    # ── Thread body ───────────────────────────────────────────────────────────
+
+    def run(self) -> None:
+        """Decode loop — runs until stop() is called.
+
+        Decodes frames sequentially from the current target position,
+        placing them in _frame_queue. Blocks when the queue is full
+        (the display is keeping up or faster than decode, which is fine).
+        Idles when _playing is False.
+        """
+        decode_pos: int = 0   # frame index the codec is currently positioned at
+
+        while not self._stop_event.is_set():
+
+            # ── Idle when paused ──────────────────────────────────────────────
+            with self._lock:
+                playing = self._playing
+            if not playing:
+                self._wake_event.clear()
+                self._wake_event.wait(timeout=0.1)
+                continue
+
+            # ── Handle flush (seek) ───────────────────────────────────────────
+            if self._flush_event.is_set():
+                self._flush_event.clear()
+                with self._lock:
+                    decode_pos = self._target_frame
+                self._media.reset_sequential_position()
+
+            # ── Decode one frame ahead of the audio clock ─────────────────────
+            # Stay at most PREFETCH frames ahead so we do not waste memory or
+            # decode frames the user will never see (e.g. during a seek in
+            # progress). PREFETCH=4 matches the queue maxsize.
+            PREFETCH = 4
+            target = self._target_frame
+
+            if decode_pos > target + PREFETCH:
+                # We are far ahead — sleep briefly and let the clock catch up
+                self._stop_event.wait(timeout=0.005)
+                continue
+
+            meta = self._media.meta
+            if meta is None:
+                self._stop_event.wait(timeout=0.05)
+                continue
+
+            if decode_pos >= meta.frame_count:
+                # End of file — idle until a seek or stop
+                self._stop_event.wait(timeout=0.05)
+                continue
+
+            bgr_frame = self._media.read_frame(decode_pos)
+            if bgr_frame is not None:
+                try:
+                    # Blocking put: if the queue is full, wait until the display
+                    # thread consumes a frame. This naturally throttles the decoder
+                    # to the display rate without busy-waiting.
+                    self._frame_queue.put((decode_pos, bgr_frame), timeout=0.05)
+                    decode_pos += 1
+                except queue.Full:
+                    pass   # timeout — loop and retry
+            else:
+                # read_frame returned None — skip this index (corrupted frame)
+                decode_pos += 1
 
 
 # =============================================================================
@@ -1444,6 +1666,11 @@ class MainWindow(QMainWindow):
         self._media = MediaFile()
         self._audio_engine = AudioPlaybackEngine()
 
+        # Background video decode thread — pre-decodes frames off the main thread
+        # so codec latency never blocks the Qt event loop.
+        self._decode_thread = VideoDecodeThread(self._media)
+        self._decode_thread.start()
+
         # DAC time anchor: the DAC time at which the current playback segment started.
         # Reset on seek and on play-from-stop.
         self._dac_time_anchor: float | None = None
@@ -1548,6 +1775,8 @@ class MainWindow(QMainWindow):
 
         # Stop current playback and release resources before loading a new file
         self._audio_engine.stop()
+        self._decode_thread.set_playing(False)
+        self._decode_thread.flush(0)
         self._media.close()
         self._dac_time_anchor = None
         self._audio_frame_anchor = 0
@@ -1612,13 +1841,26 @@ class MainWindow(QMainWindow):
             # We will set _dac_time_anchor on the first DAC timestamp we receive.
             self._dac_time_anchor = None
             self._audio_frame_anchor = self._audio_engine.frame_pos
+
+            # Tell decode thread where we are and start it pre-buffering
+            meta = self._media.meta
+            if meta is not None:
+                start_frame = int(
+                    self._audio_frame_anchor / DEVICE_SAMPLE_RATE * meta.fps
+                )
+                self._decode_thread.flush(start_frame)
+                self._decode_thread.set_playing(True, start_frame)
+
             self._audio_engine.play()
         else:
             self._audio_engine.pause()
+            self._decode_thread.set_playing(False)
 
     def _on_stop(self) -> None:
         """Stop playback and reset to the beginning."""
         self._audio_engine.stop()
+        self._decode_thread.set_playing(False)
+        self._decode_thread.flush(0)
         self._dac_time_anchor = None
         self._audio_frame_anchor = 0
         self._prev_bgr_frame = None
@@ -1680,9 +1922,12 @@ class MainWindow(QMainWindow):
             self._video_display.show_frame(processed)
             self._prev_bgr_frame = bgr_frame.copy()
 
-        # Step 6: Reset DAC time anchor — the sync loop will re-anchor on next tick
+        # Step 6: Reset DAC time anchor — the sync loop will re-anchor on next tick.
+        # Flush the decode thread so stale pre-buffered frames are discarded and
+        # it restarts from the new position.
         self._dac_time_anchor = None
         self._audio_frame_anchor = target_audio_frame
+        self._decode_thread.flush(video_frame)
 
         # Update transport display
         self._transport.update_position(video_frame)
@@ -1690,6 +1935,7 @@ class MainWindow(QMainWindow):
 
         # Step 7: Resume if was playing
         if was_playing:
+            self._decode_thread.set_playing(True, video_frame)
             self._audio_engine.play()
 
     def _on_dsp_mode_changed(self, mode: str) -> None:
@@ -1699,20 +1945,37 @@ class MainWindow(QMainWindow):
     # ── A/V sync loop ──────────────────────────────────────────────────────────
 
     def _poll_av_sync(self) -> None:
-        """60 Hz A/V sync loop: drain DAC queue, decode frame, display.
+        """60 Hz A/V sync loop: audio-clock-driven frame display.
 
-        This is the heart of audio-driven video presentation. Called on the
-        Qt main thread by QTimer at DISPLAY_TIMER_MS intervals.
+        Called on the Qt main thread by QTimer at DISPLAY_TIMER_MS intervals.
 
-        Steps each tick:
-          1. Drain _dac_queue — take the latest DAC timestamp, discard older ones.
-          2. If we have a new DAC timestamp and audio is playing, compute the
-             target video frame from the audio clock.
-          3. Decode the frame with MediaFile.read_frame().
-          4. Apply DSP with _apply_dsp().
-          5. Display via VideoDisplay.show_frame().
-          6. Update transport position display and status bar.
-          7. Check finished_queue for end-of-file.
+        FIX vs original implementation:
+        The original called MediaFile.read_frame() (which issues a
+        CAP_PROP_POS_FRAMES seek and decodes inline) directly here on the
+        main thread. That blocked the event loop for 5–30 ms per tick on
+        H.264 content, causing the stutter. The fix splits the work:
+
+          VideoDecodeThread (background, always running):
+            Decodes frames sequentially from the video file into _frame_queue,
+            staying PREFETCH frames ahead of the audio clock at all times.
+
+          _poll_av_sync (main thread, 60 Hz):
+            1. Drain the DAC timestamp queue from the audio callback.
+            2. Compute target_video_frame from the audio clock.
+            3. Inform the decode thread of the new target (set_target()).
+            4. Pull the closest pre-decoded frame from _frame_queue.
+               This is now O(1) — no I/O, no codec call.
+            5. Apply DSP (still on main thread; fast for most modes).
+            6. Display via VideoDisplay.show_frame().
+            7. Check for end-of-file.
+
+        FRAME SELECTION from queue:
+        The queue may contain frames from slightly before or after the
+        audio-clock target. We drain it until we find the frame whose
+        index is closest to target_video_frame, then display that one.
+        Frames strictly older than target are discarded (skip ahead).
+        Frames strictly newer are kept for the next tick (hold back).
+        This achieves audio-driven presentation without ever seeking.
         """
         # ── Step 1: Drain DAC queue ────────────────────────────────────────────
         latest_dac: float | None = None
@@ -1726,38 +1989,68 @@ class MainWindow(QMainWindow):
         if meta is None:
             return   # no file loaded
 
-        # ── Steps 2–6: Compute and display video frame ─────────────────────────
+        # ── Steps 2–6: Compute target, consume pre-decoded frame, display ───────
         if latest_dac is not None and self._audio_engine.is_playing:
             # Anchor the DAC time on the first tick after play/seek.
-            # The anchor tells us what DAC time corresponds to _audio_frame_anchor.
             if self._dac_time_anchor is None:
                 self._dac_time_anchor = latest_dac
 
-            # Compute elapsed audio time since the anchor
+            # Compute elapsed audio time since anchor
             elapsed_seconds = latest_dac - self._dac_time_anchor
 
-            # Convert to absolute audio frame position
+            # Absolute audio frame position
             current_audio_frame = self._audio_frame_anchor + int(
                 elapsed_seconds * DEVICE_SAMPLE_RATE
             )
 
-            # Convert audio frame to video frame
+            # Target video frame from the audio clock
             target_video_frame = int(current_audio_frame / DEVICE_SAMPLE_RATE * meta.fps)
             target_video_frame = max(0, min(target_video_frame, meta.frame_count - 1))
 
-            # Decode the target frame
-            bgr_frame = self._media.read_frame(target_video_frame)
-            if bgr_frame is not None:
-                processed = self._apply_dsp(bgr_frame)
-                self._video_display.show_frame(processed)
-                self._prev_bgr_frame = bgr_frame.copy()
+            # Inform decode thread so it pre-buffers the right section
+            self._decode_thread.set_target(target_video_frame)
 
-            self._transport.update_position(target_video_frame)
-            self._update_status_bar(target_video_frame)
+            # Pull pre-decoded frames from queue, discarding any that are older
+            # than the audio clock target (we have already passed those frames).
+            # Stop as soon as we have the best available frame.
+            best_frame: np.ndarray | None = None
+            best_idx: int = -1
+
+            while True:
+                item = self._decode_thread.get_frame()
+                if item is None:
+                    break   # queue empty — use whatever we have
+                frame_idx, bgr_frame = item
+                if frame_idx <= target_video_frame:
+                    # This frame is at or before our target; keep it as best so far
+                    best_frame = bgr_frame
+                    best_idx = frame_idx
+                else:
+                    # This frame is ahead of our target — put it back and stop
+                    # Re-queue by inserting directly; if queue full, discard it
+                    # (the decode thread will re-produce it shortly).
+                    try:
+                        self._decode_thread._frame_queue.put_nowait((frame_idx, bgr_frame))
+                    except queue.Full:
+                        pass
+                    break
+
+            if best_frame is not None:
+                processed = self._apply_dsp(best_frame)
+                self._video_display.show_frame(processed)
+                self._prev_bgr_frame = best_frame.copy()
+                self._transport.update_position(best_idx)
+                self._update_status_bar(best_idx)
+            else:
+                # Queue was empty this tick (codec is catching up) — update
+                # transport with the audio-clock position so the UI stays live.
+                self._transport.update_position(target_video_frame)
+                self._update_status_bar(target_video_frame)
 
         # ── Step 7: Check for end-of-file ──────────────────────────────────────
         try:
             self._audio_engine.finished_queue.get_nowait()
+            self._decode_thread.set_playing(False)
             self._transport.set_stopped()
             self._dac_time_anchor = None
             self._audio_frame_anchor = 0
