@@ -284,8 +284,12 @@ class FilterState:
             wn = min(self.cutoff_hz, nyq - 1.0) / nyq
 
         self.sos = butter(N=self.order, Wn=wn, btype=self.filter_type, output="sos")
-        # sosfilt_zi gives step-response initial conditions; ×0 gives silence start.
-        self.zi = sosfilt_zi(self.sos) * 0.0
+        # sosfilt_zi returns shape (n_sections, 2) — the initial conditions for a
+        # 1-D signal. For stereo (2-channel) processing we need shape (n_sections, 2, 2):
+        # the third axis indexes the channel. Stack two zero-initialised copies.
+        # Multiplying by 0.0 gives a silence start (no DC step-response transient).
+        zi_1d = sosfilt_zi(self.sos) * 0.0          # (n_sections, 2)
+        self.zi = np.stack([zi_1d, zi_1d], axis=-1)  # (n_sections, 2, 2)
 
     @property
     def is_ready(self) -> bool:
@@ -495,16 +499,17 @@ class MediaSession:
     # ── Audio filter management ────────────────────────────────────────────────
 
     def set_filter(self, new_state: FilterState) -> None:
-        """Swap the audio filter state atomically.
+        """Store the current filter state so it survives engine swaps.
 
-        Rebuilds the new state's SOS/zi before acquiring the lock so the lock
-        hold time is minimal (just the pointer swap). Resetting zi on filter
-        change avoids a transient pop.
+        The session keeps a copy of the filter so that when a new file is
+        opened (and a new AudioPlaybackEngine is created), the current filter
+        is immediately applied to the new engine in _open_file via
+        _on_audio_filter_changed(). new_state has already been rebuilt by the
+        caller — do not call rebuild() here.
 
         Args:
-            new_state: A new FilterState (rebuild() will be called here).
+            new_state: A fully built FilterState (sos and zi already valid).
         """
-        new_state.rebuild(DEVICE_SAMPLE_RATE)
         with self._filter_lock:
             self._filter_state = new_state
 
@@ -719,19 +724,33 @@ class AudioPlaybackEngine:
                 except queue.Empty:
                     pass
 
-            # Compute spectrum data and push to spectrum queue for SpectrumCanvas.
-            # CRITICAL: copy indata-equivalent (outdata) before the lock releases.
-            # The spectrum shows what the user hears: apply the IIR filter to the
-            # mono mix of the current block, then push (raw, filtered).
-            raw_mono = outdata[:, 0].copy()   # mono mix from left channel
+            # Capture raw mono before filtering (for spectrum before/after comparison).
+            raw_mono = outdata[:, 0].copy()
 
-        # Apply IIR filter outside the main lock to minimise hold time.
-        # THREAD CONCEPT: we hold _filter_lock only for the filter application.
+        # ── Apply IIR filter to both channels in-place ─────────────────────────
+        # This is the actual audio filtering: the result goes to the speakers.
+        #
+        # THREAD CONCEPT: _filter_lock is separate from _lock so we never hold
+        # both simultaneously (deadlock risk). The lock scope here is minimal:
+        # just the sosfilt call + zi update.
+        #
+        # STEREO CONCEPT: sosfilt on a 2-D array (frames, 2) with zi of shape
+        # (n_sections, 2, 2) processes both channels independently in one call.
+        # The third axis of zi indexes the channel, so each channel's delay line
+        # is maintained separately across blocks.
+        #
+        # WHY in-place on outdata: outdata is the buffer PortAudio will send to
+        # the DAC. Writing filtered samples here is what the listener actually
+        # hears. The previous code only filtered a copy for spectrum display —
+        # the filter was never audible.
         with self._filter_lock:
             fs = self._filter_state
             if fs.is_ready:
-                filtered_mono, fs.zi = sosfilt(fs.sos, raw_mono, zi=fs.zi)
-                filtered_mono = filtered_mono.astype(np.float32)
+                # sosfilt(sos, x, zi=zi) where x is (frames, 2) and zi is
+                # (n_sections, 2, 2): processes each column independently.
+                filtered_stereo, fs.zi = sosfilt(fs.sos, outdata, zi=fs.zi, axis=0)
+                outdata[:] = filtered_stereo.astype(np.float32)
+                filtered_mono = outdata[:, 0].copy()
             else:
                 filtered_mono = raw_mono.copy()
 
@@ -745,14 +764,17 @@ class AudioPlaybackEngine:
     def set_filter(self, new_state: FilterState) -> None:
         """Swap the active IIR filter state atomically.
 
-        Rebuilds the new state before acquiring the lock (expensive design
-        step outside the lock, cheap pointer swap inside). Resetting zi on
-        filter change avoids a transient pop.
+        The caller (ParameterPanel via _on_audio_filter_changed) has already
+        called rebuild() on new_state, so the SOS coefficients and zeroed zi
+        are ready. We must NOT call rebuild() here: doing so would discard the
+        fresh zi and reset filter memory, causing a transient on every change.
+
+        The lock scope is minimal: just the pointer swap. The expensive butter()
+        and sosfilt_zi() calls happen outside this lock in the caller.
 
         Args:
-            new_state: The new FilterState. rebuild() is called here.
+            new_state: A fully built FilterState (sos and zi already valid).
         """
-        new_state.rebuild(DEVICE_SAMPLE_RATE)
         with self._filter_lock:
             self._filter_state = new_state
 
@@ -1918,8 +1940,8 @@ class MainWindow(QMainWindow):
             → statusBar update with sync offset
 
     ParameterPanel.audio_filter_changed(FilterState)
-        → MediaSession.set_filter(fs)           [filter hot-swap, thread-safe]
-        → AudioPlaybackEngine.set_filter(fs)    [SOS/zi rebuilt under lock]
+        → MediaSession.set_filter(fs)           [stores state for engine swaps]
+        → AudioPlaybackEngine.set_filter(fs)    [atomic pointer swap, no rebuild]
 
     ParameterPanel.video_dsp_changed(str)
         → MainWindow._current_video_dsp stored  [read in _poll_av per frame]
