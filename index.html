@@ -214,6 +214,12 @@
     border-color: rgba(167, 139, 250, 0.25);
   }
 
+  .badge-github {
+    background: rgba(52, 211, 153, 0.1);
+    color: var(--green);
+    border-color: rgba(52, 211, 153, 0.25);
+  }
+
   /* ── demo sub-section inside notebook rows ── */
   .demo-subsection {
     width: 100%;
@@ -273,6 +279,13 @@
   .icon-osc  { background: rgba(79, 156, 249, 0.12); color: var(--accent); }
   .icon-viz  { background: rgba(167, 139, 250, 0.12); color: var(--accent2); }
   .icon-syn  { background: rgba(52, 211, 153, 0.12); color: var(--green); }
+
+  /* PySide6 icons */
+  .icon-py0  { background: rgba(79, 156, 249, 0.12);  color: var(--accent); }
+  .icon-py1  { background: rgba(167, 139, 250, 0.12); color: var(--accent2); }
+  .icon-py2  { background: rgba(52, 211, 153, 0.12);  color: var(--green); }
+  .icon-py3  { background: rgba(251, 146, 60, 0.12);  color: var(--orange); }
+  .icon-py4  { background: rgba(79, 156, 249, 0.12);  color: var(--accent); }
 
   /* WebGL icons */
   .icon-tri  { background: rgba(79, 156, 249, 0.12); color: var(--accent); }
@@ -575,6 +588,93 @@
               <div class="demo-desc">Normals and diffuse lighting on a cube and a sphere. Move the directional light and compare flat vs smooth shading.</div>
               <div class="demo-optional">optional</div>
               <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Notebook 03 + demos -->
+      <div class="notebook-row has-demos">
+        <div class="notebook-row-top">
+          <div class="notebook-num">03</div>
+          <div class="notebook-title">
+            <a href="03_multimediaprogrammierung_pyside6.html">PySide6 for Multimedia</a>
+            <span>03_multimediaprogrammierung_pyside6.ipynb</span>
+          </div>
+          <div class="badge-group">
+            <a class="badge badge-page"
+               href="03_multimediaprogrammierung_pyside6.html"
+               rel="noopener">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"/><polyline points="14 2 14 8 20 8" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Read
+            </a>
+            <a class="badge badge-github"
+               href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars/tree/main/03_pyside6"
+               target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>
+              GitHub
+            </a>
+          </div>
+        </div>
+
+        <div class="demo-subsection">
+          <p class="demo-sublabel">Python desktop demos — PySide6 · sounddevice · OpenCV</p>
+          <div class="demo-grid">
+
+            <a class="demo-card"
+               href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars/blob/main/03_pyside6/03_mm_hello_multimedia.py"
+               target="_blank" rel="noopener">
+              <div class="demo-icon icon-py0">
+                <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+              </div>
+              <div class="demo-title">Hello Multimedia</div>
+              <div class="demo-desc">Sine tone generator. Qt event loop, sounddevice OutputStream, and the audio callback pattern — the foundation every other demo builds on.</div>
+              <div class="demo-link-label">View source <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+            <a class="demo-card"
+               href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars/blob/main/03_pyside6/03_mm_waveform_player.py"
+               target="_blank" rel="noopener">
+              <div class="demo-icon icon-py1">
+                <svg viewBox="0 0 24 24"><polyline points="2,12 6,6 10,18 14,8 18,14 22,12"/></svg>
+              </div>
+              <div class="demo-title">Waveform Player</div>
+              <div class="demo-desc">WAV file playback with a custom waveform view, scrubber, and DAC-driven A/V sync. Introduces the queue.Queue / QTimer pattern.</div>
+              <div class="demo-link-label">View source <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+            <a class="demo-card"
+               href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars/blob/main/03_pyside6/03_mm_spectrum_analyzer.py"
+               target="_blank" rel="noopener">
+              <div class="demo-icon icon-py2">
+                <svg viewBox="0 0 24 24"><rect x="2" y="14" width="3" height="7" rx="1"/><rect x="7" y="9" width="3" height="12" rx="1"/><rect x="12" y="5" width="3" height="16" rx="1"/><rect x="17" y="11" width="3" height="10" rx="1"/></svg>
+              </div>
+              <div class="demo-title">Spectrum Analyser</div>
+              <div class="demo-desc">Real-time FFT spectrum display with a live IIR filter. SOS form, sosfilt with persistent zi state, and a frequency-response plot.</div>
+              <div class="demo-link-label">View source <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+            <a class="demo-card"
+               href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars/blob/main/03_pyside6/03_mm_video_player.py"
+               target="_blank" rel="noopener">
+              <div class="demo-icon icon-py3">
+                <svg viewBox="0 0 24 24"><rect x="2" y="7" width="15" height="10" rx="2"/><polyline points="17,10 22,7 22,17 17,14"/></svg>
+              </div>
+              <div class="demo-title">Video Player</div>
+              <div class="demo-desc">Audio-driven video sync with OpenCV, ffmpeg audio extraction, and a live frame DSP pipeline: passthrough, grayscale, Canny, blur, histogram EQ, motion diff.</div>
+              <div class="demo-link-label">View source <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+            <a class="demo-card"
+               href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars/blob/main/03_pyside6/03_mm_multimedia_workbench.py"
+               target="_blank" rel="noopener">
+              <div class="demo-icon icon-py4">
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              </div>
+              <div class="demo-title">Multimedia Workbench</div>
+              <div class="demo-desc">All components combined: video display, waveform view, FFT spectrum, and IIR audio filter in one multi-panel application with a background decode thread.</div>
+              <div class="demo-link-label">View source <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
             </a>
 
           </div>
