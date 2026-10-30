@@ -1,0 +1,1467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo 1: Loopback DataChannel — Chapter 04: WebRTC</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Design tokens — shared with chapter theory page ── */
+:root {
+  --bg:       #0d0f14;
+  --surface:  #161a22;
+  --surface2: #1c212c;
+  --border:   #252b38;
+  --text:     #d8dce6;
+  --muted:    #5a6175;
+  --accent:   #4f9cf9;   /* Peer A — blue */
+  --accent2:  #a78bfa;
+  --green:    #34d399;   /* Peer B — green */
+  --orange:   #fb923c;
+  --red:      #f87171;
+  --mono: 'IBM Plex Mono', monospace;
+  --sans: 'IBM Plex Sans', sans-serif;
+  --radius: 8px;
+  --col-a: #4f9cf9;
+  --col-b: #34d399;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.7;
+  min-height: 100vh;
+}
+
+/* ── Header ── */
+header { border-bottom: 2px solid var(--border); padding: 24px 0 20px; }
+.header-inner {
+  max-width: 1100px; margin: 0 auto; padding: 0 32px;
+  display: flex; align-items: center; gap: 24px;
+}
+.header-logo img { width: 100px; border-radius: 10px; display: block; }
+.header-info h1 { font-size: clamp(16px,3vw,22px); font-weight: 500; color: #f0f2f7; line-height: 1.2; margin-bottom: 4px; }
+.header-info h2 { font-size: 12px; font-weight: 400; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; }
+.header-meta { font-size: 13px; color: var(--text); line-height: 1.6; }
+.header-meta a { color: var(--accent); text-decoration: none; }
+.header-meta a:hover { text-decoration: underline; }
+
+/* ── Breadcrumb ── */
+.breadcrumb { max-width: 1100px; margin: 0 auto; padding: 14px 32px 0; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.breadcrumb a { color: var(--accent); text-decoration: none; }
+.breadcrumb a:hover { text-decoration: underline; }
+.breadcrumb span { margin: 0 6px; }
+
+/* ── Main ── */
+main { max-width: 1100px; margin: 0 auto; padding: 36px 32px 80px; }
+
+/* ── Typography ── */
+h1.demo-title { font-size: clamp(20px,3vw,26px); font-weight: 500; color: #f0f2f7; margin: 0 0 6px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+.demo-subtitle { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-bottom: 18px; }
+h2.section-heading { font-size: 16px; font-weight: 500; color: #e8eaf2; margin: 40px 0 10px; padding-bottom: 7px; border-bottom: 1px solid var(--border); }
+p { margin-bottom: 10px; }
+code { background: rgba(79,156,249,0.08); color: #93c5fd; font-family: var(--mono); font-size: 0.87em; padding: 1px 6px; border-radius: 4px; }
+strong { color: #eef0f6; font-weight: 500; }
+
+/* ── Callout boxes ── */
+.info-box {
+  border-left: 3px solid var(--accent);
+  background: rgba(79,156,249,0.05);
+  border-radius: 6px; padding: 13px 16px; margin: 14px 0;
+  font-size: 13.5px; color: var(--text);
+}
+.info-box strong { color: #c3dafe; }
+.info-box code { background: rgba(79,156,249,0.12); color: #93c5fd; }
+.concept-box {
+  border-left: 3px solid var(--accent2);
+  background: rgba(167,139,250,0.05);
+  border-radius: 6px; padding: 13px 16px; margin: 14px 0;
+  font-size: 13.5px;
+}
+.concept-box strong { color: #c4b5fd; }
+.warn-box {
+  border-left: 3px solid var(--orange);
+  background: rgba(251,146,60,0.05);
+  border-radius: 6px; padding: 13px 16px; margin: 14px 0;
+  font-size: 13.5px;
+}
+.warn-box strong { color: var(--orange); }
+
+/* ── Pills ── */
+.pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.pill {
+  display: inline-flex; align-items: center; padding: 5px 13px;
+  border: 1px solid rgba(79,156,249,0.35); border-radius: 20px;
+  text-decoration: none; font-weight: 500; font-size: 12px;
+  color: var(--accent); background: rgba(79,156,249,0.06); font-family: var(--mono);
+  transition: background 0.15s, border-color 0.15s;
+}
+.pill:hover { background: rgba(79,156,249,0.13); border-color: rgba(79,156,249,0.65); }
+
+/* ── Status badge ── */
+.status-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 11px; border-radius: 20px; font-family: var(--mono);
+  font-size: 10.5px; font-weight: 500; letter-spacing: 0.04em;
+  background: rgba(90,97,117,0.18); border: 1px solid var(--border); color: var(--muted);
+  transition: all 0.25s;
+}
+.status-badge.connected    { background: rgba(52,211,153,0.1);  border-color: rgba(52,211,153,0.3);  color: var(--green); }
+.status-badge.connecting   { background: rgba(251,146,60,0.1);  border-color: rgba(251,146,60,0.3);  color: var(--orange); }
+.status-badge.failed       { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.3); color: var(--red); }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+/* ── Buttons ── */
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 20px; border: none; border-radius: 6px;
+  font-size: 13px; font-weight: 500; font-family: var(--sans);
+  cursor: pointer; transition: opacity 0.15s, background 0.15s; white-space: nowrap;
+}
+.btn:disabled { opacity: 0.3; cursor: not-allowed; }
+.btn-primary   { background: var(--accent);              color: #0d0f14; }
+.btn-primary:hover:not(:disabled) { background: #6aadfa; }
+.btn-secondary { background: rgba(79,156,249,0.1);       color: var(--accent);  border: 1px solid rgba(79,156,249,0.3); }
+.btn-secondary:hover:not(:disabled) { background: rgba(79,156,249,0.18); }
+.btn-danger    { background: rgba(248,113,113,0.1);      color: var(--red);    border: 1px solid rgba(248,113,113,0.3); }
+.btn-danger:hover:not(:disabled) { background: rgba(248,113,113,0.18); }
+.btn-a         { background: rgba(79,156,249,0.12);      color: var(--col-a);  border: 1px solid rgba(79,156,249,0.3); }
+.btn-a:hover:not(:disabled) { background: rgba(79,156,249,0.2); }
+.btn-b         { background: rgba(52,211,153,0.1);       color: var(--col-b);  border: 1px solid rgba(52,211,153,0.3); }
+.btn-b:hover:not(:disabled) { background: rgba(52,211,153,0.18); }
+.btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+
+/* ════════════════════════════════════════════════
+   SIGNAL FLOW DIAGRAM — animated SVG wrapper
+   ════════════════════════════════════════════════ */
+.signal-flow-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px 24px 20px;
+  margin: 20px 0;
+  overflow: hidden;
+}
+.signal-flow-wrap svg { display: block; width: 100%; height: auto; }
+
+/* animated packet dots */
+@keyframes flow-ab { 0%{transform:translateX(0)} 100%{transform:translateX(1)} }
+
+/* ════════════════════════════════════════════════
+   STEP-BY-STEP STEPPER
+   ════════════════════════════════════════════════ */
+.stepper {
+  display: flex;
+  gap: 0;
+  align-items: flex-start;
+  margin: 24px 0 0;
+  position: relative;
+}
+.stepper-track {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  margin-right: 16px;
+}
+.step-circle {
+  width: 28px; height: 28px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: var(--surface2);
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  color: var(--muted);
+  flex-shrink: 0;
+  transition: all 0.3s;
+  position: relative; z-index: 1;
+}
+.step-circle.active { border-color: var(--accent); background: rgba(79,156,249,0.15); color: var(--accent); }
+.step-circle.done   { border-color: var(--green);  background: rgba(52,211,153,0.12); color: var(--green); }
+.step-line {
+  width: 2px; flex: 1; min-height: 20px;
+  background: var(--border);
+  margin: 0;
+  transition: background 0.3s;
+}
+.step-line.done { background: var(--green); }
+
+.step-content { flex: 1; padding-bottom: 28px; min-width: 0; }
+.step-header {
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 8px;
+}
+.step-label {
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em;
+}
+.step-label.active { color: var(--accent); }
+.step-label.done   { color: var(--green); }
+.step-title {
+  font-size: 14px; font-weight: 500; color: #d8dce6;
+}
+.step-body {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  font-size: 13.5px;
+}
+.step-body p { margin-bottom: 8px; }
+.step-body p:last-child { margin-bottom: 0; }
+
+/* ════════════════════════════════════════════════
+   TWO-PEER WORKSPACE
+   ════════════════════════════════════════════════ */
+.workspace {
+  display: grid;
+  grid-template-columns: 1fr 60px 1fr;
+  gap: 0;
+  margin: 24px 0;
+  align-items: start;
+}
+@media (max-width: 700px) {
+  .workspace { grid-template-columns: 1fr; }
+  .workspace-divider { display: none; }
+}
+
+/* Peer panels */
+.peer-panel {
+  border-radius: 10px;
+  overflow: hidden;
+}
+.peer-panel-a { border: 1px solid rgba(79,156,249,0.3); background: rgba(79,156,249,0.03); }
+.peer-panel-b { border: 1px solid rgba(52,211,153,0.25); background: rgba(52,211,153,0.02); }
+
+.peer-header {
+  padding: 12px 18px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.peer-header-a { background: rgba(79,156,249,0.08); border-bottom-color: rgba(79,156,249,0.2); }
+.peer-header-b { background: rgba(52,211,153,0.06); border-bottom-color: rgba(52,211,153,0.15); }
+
+.peer-name {
+  font-family: var(--mono); font-size: 13px; font-weight: 500;
+}
+.peer-name-a { color: var(--col-a); }
+.peer-name-b { color: var(--col-b); }
+.peer-role   { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-left: 8px; }
+
+.peer-body { padding: 16px 18px; }
+
+/* Workspace divider — the "channel" visual */
+.workspace-divider {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top: 60px;
+  gap: 6px;
+}
+.divider-label {
+  font-family: var(--mono); font-size: 9px; color: var(--muted);
+  text-align: center; line-height: 1.4;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+}
+.divider-line {
+  width: 2px; flex: 1; min-height: 60px;
+  background: linear-gradient(to bottom, transparent, var(--border) 30%, var(--border) 70%, transparent);
+}
+
+/* SDP textareas */
+.sdp-label { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-bottom: 5px; display: block; }
+.sdp-textarea {
+  width: 100%; height: 140px;
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; color: #93c5fd; font-family: var(--mono);
+  font-size: 10px; line-height: 1.5; padding: 8px 10px; resize: vertical;
+  outline: none; transition: border-color 0.15s;
+}
+.sdp-textarea:focus { border-color: rgba(79,156,249,0.5); }
+.sdp-textarea::placeholder { color: var(--muted); }
+
+/* ════════════════════════════════════════════════
+   DUAL CHAT
+   ════════════════════════════════════════════════ */
+.dual-chat {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 20px 0;
+}
+@media (max-width: 600px) { .dual-chat { grid-template-columns: 1fr; } }
+
+.chat-panel {
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex; flex-direction: column;
+}
+.chat-panel-a { border: 1px solid rgba(79,156,249,0.3); }
+.chat-panel-b { border: 1px solid rgba(52,211,153,0.25); }
+
+.chat-header {
+  padding: 10px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+  font-family: var(--mono); font-size: 11px;
+}
+.chat-header-a { background: rgba(79,156,249,0.08); border-bottom: 1px solid rgba(79,156,249,0.2); color: var(--col-a); }
+.chat-header-b { background: rgba(52,211,153,0.06); border-bottom: 1px solid rgba(52,211,153,0.15); color: var(--col-b); }
+
+.chat-log {
+  height: 200px; overflow-y: auto;
+  background: rgba(13,15,20,0.6);
+  padding: 10px 14px;
+  font-family: var(--mono); font-size: 11.5px; line-height: 1.75;
+  flex: 1;
+}
+.chat-log::-webkit-scrollbar { width: 5px; }
+.chat-log::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* Message bubbles */
+.msg-bubble {
+  margin: 4px 0;
+  padding: 4px 10px;
+  border-radius: 6px;
+  max-width: 90%;
+  font-size: 11.5px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+/* In Peer A's chat: sent msgs right, received msgs left */
+.msg-sent    { background: rgba(79,156,249,0.12);  color: var(--col-a); margin-left: auto; border-bottom-right-radius: 2px; }
+.msg-recvd-a { background: rgba(52,211,153,0.09);  color: var(--col-b); margin-right: auto; border-bottom-left-radius: 2px; }
+/* In Peer B's chat: sent msgs right, received msgs left */
+.msg-sent-b  { background: rgba(52,211,153,0.12);  color: var(--col-b); margin-left: auto; border-bottom-right-radius: 2px; }
+.msg-recvd-b { background: rgba(79,156,249,0.09);  color: var(--col-a); margin-right: auto; border-bottom-left-radius: 2px; }
+.msg-sys     { color: var(--muted); font-style: italic; font-size: 11px; text-align: center; margin: 6px 0; }
+
+.chat-input-area { padding: 10px 14px; background: var(--surface2); border-top: 1px solid var(--border); display: flex; gap: 8px; }
+.chat-input {
+  flex: 1; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text); font-family: var(--sans);
+  font-size: 13px; padding: 7px 12px; outline: none; transition: border-color 0.15s;
+}
+.chat-input:focus { border-color: rgba(79,156,249,0.5); }
+.chat-input::placeholder { color: var(--muted); }
+.chat-input:disabled { opacity: 0.35; }
+
+/* ════════════════════════════════════════════════
+   LOG PANELS (collapsible)
+   ════════════════════════════════════════════════ */
+.log-panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin: 16px 0; }
+.log-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px; border-bottom: 1px solid var(--border);
+  cursor: pointer; user-select: none; transition: background 0.15s;
+}
+.log-panel-header:hover { background: rgba(255,255,255,0.02); }
+.log-panel-title {
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em;
+  display: flex; align-items: center; gap: 10px;
+}
+.log-count { background: rgba(79,156,249,0.15); color: var(--accent); border-radius: 10px; padding: 1px 8px; font-size: 10px; }
+.log-chevron { color: var(--muted); font-size: 11px; transition: transform 0.2s; }
+.log-chevron.open { transform: rotate(180deg); }
+.log-body { display: none; padding: 12px 18px; }
+.log-body.open { display: block; }
+.log-list { height: 200px; overflow-y: auto; font-family: var(--mono); font-size: 11px; line-height: 1.8; color: var(--text); }
+.log-list::-webkit-scrollbar { width: 5px; }
+.log-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.log-entry { padding: 1px 0; border-bottom: 1px solid rgba(37,43,56,0.35); }
+.log-entry:last-child { border-bottom: none; }
+.log-time  { color: var(--muted); margin-right: 7px; }
+.log-tag   { border-radius: 3px; padding: 0 5px; font-size: 9.5px; margin-right: 6px; font-weight: 500; }
+.tag-ice   { background: rgba(167,139,250,0.15); color: var(--accent2); }
+.tag-sdp   { background: rgba(79,156,249,0.15);  color: var(--accent); }
+.tag-dc    { background: rgba(52,211,153,0.15);  color: var(--green); }
+.tag-state { background: rgba(251,146,60,0.12);  color: var(--orange); }
+.tag-err   { background: rgba(248,113,113,0.12); color: var(--red); }
+.tag-info  { background: rgba(90,97,117,0.2);    color: var(--muted); }
+
+/* ════════════════════════════════════════════════
+   SDP ANATOMY TABLE
+   ════════════════════════════════════════════════ */
+.sdp-anatomy-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
+.sdp-anatomy-table th { text-align: left; padding: 7px 10px; font-family: var(--mono); font-size: 10px; color: var(--muted); border-bottom: 1px solid var(--border); font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; }
+.sdp-anatomy-table td { padding: 7px 10px; border-bottom: 1px solid rgba(37,43,56,0.4); vertical-align: top; }
+.sdp-anatomy-table tr:last-child td { border-bottom: none; }
+.sdp-anatomy-table tr:hover td { background: rgba(255,255,255,0.015); }
+.sdp-field { font-family: var(--mono); color: var(--accent2); font-size: 11px; white-space: nowrap; }
+.sdp-raw   { font-family: var(--mono); color: #93c5fd; font-size: 10.5px; word-break: break-all; }
+.sdp-desc  { color: var(--muted); font-size: 11.5px; }
+
+/* ── ICE candidate rows ── */
+.ice-row { display: grid; grid-template-columns: auto 1fr auto; gap: 8px 12px; align-items: start; padding: 5px 0; border-bottom: 1px solid rgba(37,43,56,0.35); font-size: 11px; }
+.ice-row:last-child { border-bottom: none; }
+.ice-type { font-family: var(--mono); font-size: 9.5px; padding: 2px 7px; border-radius: 3px; font-weight: 500; white-space: nowrap; }
+.ice-host  { background: rgba(79,156,249,0.15); color: var(--accent); }
+.ice-srflx { background: rgba(52,211,153,0.12); color: var(--green); }
+.ice-addr  { font-family: var(--mono); color: var(--text); }
+.ice-proto { font-family: var(--mono); color: var(--muted); }
+
+/* ── Footer ── */
+.nb-footer-cell {
+  margin-top: 40px; padding-top: 20px;
+  border-top: 1px solid var(--border);
+  font-size: 12px; color: var(--muted); line-height: 1.6;
+}
+footer { border-top: 1px solid var(--border); padding: 20px 0; margin-top: 20px; text-align: center; font-size: 12px; color: var(--muted); }
+footer a { color: var(--accent); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+/* ── Chapter nav ── */
+.chapter-nav { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-top: 48px; padding-top: 24px; border-top: 1px solid var(--border); }
+.chapter-nav a { display: inline-flex; align-items: center; gap: 8px; font-family: var(--mono); font-size: 12px; color: var(--accent); text-decoration: none; padding: 8px 14px; border: 1px solid rgba(79,156,249,0.3); border-radius: 6px; background: rgba(79,156,249,0.05); transition: background 0.15s; }
+.chapter-nav a:hover { background: rgba(79,156,249,0.12); }
+.chapter-nav .nav-label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 1px; }
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  .header-inner, main, footer, .breadcrumb { padding-left: 16px; padding-right: 16px; }
+  .header-inner { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .chapter-nav { flex-direction: column; align-items: stretch; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+
+/* ── Animated packet on SVG ── */
+.pkt { transition: opacity 0.2s; }
+</style>
+</head>
+<body>
+
+<!-- ── Header ── -->
+<header>
+  <div class="header-inner">
+    <div class="header-logo">
+      <img src="https://raw.githubusercontent.com/TUIlmenauAMS/multimedia_programming_seminars/main/ams_group_tui.png" alt="AMS Group – TU Ilmenau">
+    </div>
+    <div class="header-info">
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 04: WebRTC — Demo 1: Loopback &amp; DataChannel</h2>
+      <p class="header-meta">
+        <strong>Institut für Medientechnik –
+          <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme" target="_blank" rel="noopener">AMS Group</a>
+          – Technische Universität Ilmenau</strong><br>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller &nbsp;·&nbsp;
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+      </p>
+    </div>
+  </div>
+</header>
+
+<nav class="breadcrumb">
+  <a href="index.html">Seminar Materials</a>
+  <span>›</span>
+  <a href="04_multimediaprogrammierung_webrtc.html">Chapter 04: WebRTC</a>
+  <span>›</span>
+  Demo 1: Loopback &amp; DataChannel
+</nav>
+
+<main>
+
+<!-- ── Title ── -->
+<h1 class="demo-title">Demo 1 — RTCPeerConnection Loopback &amp; DataChannel</h1>
+<p class="demo-subtitle">04_mm_loopback_datachannel.html &nbsp;·&nbsp; No network, no camera, no server required</p>
+
+<p>
+  This demo runs a complete WebRTC handshake entirely inside your browser.
+  Two <code>RTCPeerConnection</code> objects — <strong style="color:var(--col-a)">Peer A</strong> and <strong style="color:var(--col-b)">Peer B</strong> — exist as JavaScript objects on this page and negotiate directly,
+  with no signaling server, no camera, and no packets leaving your machine.
+  An <code>RTCDataChannel</code> lets them exchange text messages once connected.
+</p>
+<p>
+  The goal is to make every step of the WebRTC handshake <em>visible and legible</em>:
+  the SDP offer, the SDP answer, ICE candidate gathering, and the moment the channel opens.
+  Work through the steps below in order. The <strong>Event Log</strong> records everything as it happens.
+</p>
+
+<div class="info-box">
+  <strong>Why loopback?</strong>
+  In a real call, Peer A and Peer B would live in different browsers — possibly on different continents.
+  The signaling messages (SDP, ICE candidates) would travel over a WebSocket server.
+  The loopback setup collapses that network into a single page so you can see all the moving parts without network delays or server setup.
+  The WebRTC protocol itself is <strong>identical</strong> to a real call — only the transport of signaling messages is simulated.
+  Compare this demo with <a href="04_mm_signaling_call.html" style="color:var(--accent)">Demo 5</a>, which does the exact same handshake over a real WebSocket signaling server.
+</div>
+
+<!-- ════════════════════════════════════════════════
+     ANIMATED SIGNAL FLOW DIAGRAM
+     ════════════════════════════════════════════════ -->
+<h2 class="section-heading">How the Handshake Works</h2>
+
+<div class="signal-flow-wrap">
+  <svg id="signalDiagram" viewBox="0 0 820 260" xmlns="http://www.w3.org/2000/svg" aria-label="WebRTC handshake signal flow">
+    <defs>
+      <marker id="arr-blue" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#4f9cf9"/>
+      </marker>
+      <marker id="arr-green" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#34d399"/>
+      </marker>
+      <marker id="arr-purple" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#a78bfa"/>
+      </marker>
+      <marker id="arr-muted" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+        <polygon points="0 0, 8 3, 0 6" fill="#5a6175"/>
+      </marker>
+    </defs>
+
+    <!-- Peer A column -->
+    <rect x="20" y="20" width="130" height="220" rx="8" fill="#0d1520" stroke="#4f9cf920" stroke-width="1"/>
+    <text x="85" y="45" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="#5a6175" letter-spacing="1">OFFERER</text>
+    <text x="85" y="64" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="14" font-weight="500" fill="#4f9cf9">Peer A</text>
+    <!-- A timeline -->
+    <line x1="85" y1="75" x2="85" y2="235" stroke="#252b38" stroke-width="1.5" stroke-dasharray="3,3"/>
+
+    <!-- Peer B column -->
+    <rect x="670" y="20" width="130" height="220" rx="8" fill="#0d1a14" stroke="#34d39920" stroke-width="1"/>
+    <text x="735" y="45" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="#5a6175" letter-spacing="1">ANSWERER</text>
+    <text x="735" y="64" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="14" font-weight="500" fill="#34d399">Peer B</text>
+    <!-- B timeline -->
+    <line x1="735" y1="75" x2="735" y2="235" stroke="#252b38" stroke-width="1.5" stroke-dasharray="3,3"/>
+
+    <!-- Step labels in middle -->
+    <text x="410" y="45" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="#5a6175" letter-spacing="1">SIGNALING CHANNEL</text>
+    <text x="410" y="60" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8.5" fill="#3a4155">(simulated in-page)</text>
+
+    <!-- Row 1: createDataChannel -->
+    <circle cx="85" cy="88" r="4" fill="#4f9cf9" opacity="0.7"/>
+    <text x="160" y="92" font-family="IBM Plex Mono,monospace" font-size="9.5" fill="#4f9cf9">createDataChannel()</text>
+
+    <!-- Row 2: createOffer / setLocalDescription -->
+    <circle cx="85" cy="112" r="4" fill="#4f9cf9" opacity="0.7"/>
+    <text x="160" y="116" font-family="IBM Plex Mono,monospace" font-size="9.5" fill="#93c5fd">createOffer()  +  setLocalDescription()</text>
+
+    <!-- Arrow: offer SDP A→B -->
+    <line x1="95" y1="130" x2="725" y2="130" stroke="#4f9cf9" stroke-width="1.5" marker-end="url(#arr-blue)" opacity="0.8"/>
+    <rect x="360" y="118" width="100" height="16" rx="3" fill="#0d0f14"/>
+    <text x="410" y="130" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="#4f9cf9">offer SDP</text>
+
+    <!-- Row 3: setRemoteDescription / createAnswer -->
+    <circle cx="735" cy="148" r="4" fill="#34d399" opacity="0.7"/>
+    <text x="380" y="152" font-family="IBM Plex Mono,monospace" font-size="9.5" fill="#34d399" text-anchor="end">setRemoteDescription()  +  createAnswer()</text>
+
+    <!-- Arrow: answer SDP B→A -->
+    <line x1="725" y1="165" x2="95" y2="165" stroke="#34d399" stroke-width="1.5" marker-end="url(#arr-green)" opacity="0.8"/>
+    <rect x="360" y="153" width="100" height="16" rx="3" fill="#0d0f14"/>
+    <text x="410" y="165" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="#34d399">answer SDP</text>
+
+    <!-- Row 4: ICE candidates (both directions) -->
+    <circle cx="85" cy="188" r="4" fill="#a78bfa" opacity="0.7"/>
+    <circle cx="735" cy="188" r="4" fill="#a78bfa" opacity="0.7"/>
+    <!-- ICE A→B -->
+    <line x1="95" y1="184" x2="725" y2="184" stroke="#a78bfa" stroke-width="1" marker-end="url(#arr-purple)" opacity="0.5"/>
+    <!-- ICE B→A -->
+    <line x1="725" y1="192" x2="95" y2="192" stroke="#a78bfa" stroke-width="1" marker-end="url(#arr-purple)" opacity="0.5"/>
+    <rect x="350" y="177" width="120" height="22" rx="3" fill="#0d0f14"/>
+    <text x="410" y="188" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9" fill="#a78bfa">ICE candidates</text>
+    <text x="410" y="198" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="8" fill="#5a6175">(both directions)</text>
+
+    <!-- Row 5: DataChannel open -->
+    <circle cx="85" cy="225" r="5" fill="#34d399"/>
+    <circle cx="735" cy="225" r="5" fill="#34d399"/>
+    <line x1="90" y1="225" x2="730" y2="225" stroke="#34d399" stroke-width="1.5" stroke-dasharray="4,3" opacity="0.6"/>
+    <rect x="340" y="215" width="140" height="18" rx="3" fill="#0a1a12" stroke="#34d39930" stroke-width="1"/>
+    <text x="410" y="228" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="9.5" fill="#34d399">DataChannel open ✓</text>
+
+    <!-- Animated moving packet — offer direction -->
+    <circle id="pktOffer" cx="85" cy="130" r="5" fill="#4f9cf9" opacity="0"/>
+    <!-- Animated moving packet — answer direction -->
+    <circle id="pktAnswer" cx="735" cy="165" r="5" fill="#34d399" opacity="0"/>
+    <!-- Animated moving packet — data -->
+    <circle id="pktData1" cx="85" cy="225" r="4" fill="#34d399" opacity="0"/>
+    <circle id="pktData2" cx="735" cy="225" r="4" fill="#4f9cf9" opacity="0"/>
+  </svg>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     STEP-BY-STEP DEMO
+     ════════════════════════════════════════════════ -->
+<h2 class="section-heading">Step-by-Step Demo</h2>
+
+<p>Work through each step below. Each step runs exactly one part of the WebRTC handshake and explains what just happened in the browser.
+The full Event Log at the bottom captures everything with timestamps.</p>
+
+<!-- Overall status -->
+<div style="display:flex; align-items:center; gap:14px; margin:16px 0;">
+  <span class="status-badge" id="connStatus"><span class="status-dot"></span><span id="connStatusText">Not started</span></span>
+  <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">DataChannel:</span>
+  <span class="status-badge" id="dcStatus"><span class="status-dot"></span><span id="dcStatusText">waiting</span></span>
+  <button class="btn btn-danger" id="btnReset" style="margin-left:auto;font-size:12px;padding:6px 14px;" disabled>↺ Reset</button>
+</div>
+
+<!-- STEPPER -->
+<div id="stepperContainer">
+
+  <!-- STEP 1 -->
+  <div class="stepper" id="stepRow1">
+    <div class="stepper-track">
+      <div class="step-circle" id="circle1">1</div>
+      <div class="step-line" id="line1"></div>
+    </div>
+    <div class="step-content">
+      <div class="step-header">
+        <span class="step-label" id="label1">Step 1</span>
+        <span class="step-title">Create RTCPeerConnection objects</span>
+      </div>
+      <div class="step-body">
+        <p>Two <code>RTCPeerConnection</code> objects are created — one for each peer — with an empty ICE server list. No STUN server is needed here because both peers are in the same browser; they will find each other using <strong>host candidates</strong> (local network interface addresses) alone.</p>
+        <div class="concept-box" style="margin:10px 0 0;">
+          <strong>Concept:</strong> <code>RTCPeerConnection</code> is the central WebRTC object. It manages the entire connection lifecycle: ICE negotiation, DTLS handshake, codec selection, RTP transport, and DataChannel SCTP transport. Think of it as the "audio context" of WebRTC — everything else connects to it.
+          <br>In Demo 3 and Demo 5, this constructor receives STUN and TURN server URLs so the browser can traverse NAT. Here, we omit them.
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="btnStep1">▶ Run Step 1 — Create peers</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="stepper" id="stepRow2">
+    <div class="stepper-track">
+      <div class="step-circle" id="circle2">2</div>
+      <div class="step-line" id="line2"></div>
+    </div>
+    <div class="step-content">
+      <div class="step-header">
+        <span class="step-label" id="label2">Step 2</span>
+        <span class="step-title">Create DataChannel (Peer A only)</span>
+      </div>
+      <div class="step-body">
+        <p><strong style="color:var(--col-a)">Only Peer A</strong> calls <code>createDataChannel()</code>. This must happen <em>before</em> <code>createOffer()</code>, so the channel is declared in the SDP's <code>m=application</code> section. When Peer B later receives the offer and sees <code>m=application</code>, it fires an <code>ondatachannel</code> event — Peer B never calls <code>createDataChannel()</code> itself.</p>
+        <div class="concept-box" style="margin:10px 0 0;">
+          <strong>The offerer/answerer asymmetry:</strong> In WebRTC, only the <em>offerer</em> creates the DataChannel. The <em>answerer</em> receives it via the <code>ondatachannel</code> event. This asymmetry is fundamental — it reflects which peer initiated the connection. In a real application, whichever peer calls <code>createOffer()</code> first is the offerer.
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="btnStep2" disabled>▶ Run Step 2 — Create DataChannel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="stepper" id="stepRow3">
+    <div class="stepper-track">
+      <div class="step-circle" id="circle3">3</div>
+      <div class="step-line" id="line3"></div>
+    </div>
+    <div class="step-content">
+      <div class="step-header">
+        <span class="step-label" id="label3">Step 3</span>
+        <span class="step-title">Create and exchange SDP offer</span>
+      </div>
+      <div class="step-body">
+        <p><code>pcA.createOffer()</code> asks the browser to generate an SDP description of what Peer A is offering. <code>pcA.setLocalDescription(offer)</code> stores it locally and <strong>starts ICE gathering</strong> — the browser begins enumerating network interfaces to find candidates.
+        Then the offer is handed directly to Peer B (simulating signaling), which calls <code>setRemoteDescription(offer)</code> to learn what Peer A wants.</p>
+        <div class="concept-box" style="margin:10px 0 0;">
+          <strong>ICE gathering starts here.</strong> Calling <code>setLocalDescription()</code> is what triggers ICE gathering — not <code>createOffer()</code>. The browser fires <code>onicecandidate</code> events for each candidate it discovers. In Demo 5 these candidates are forwarded over WebSocket; here we call <code>addIceCandidate()</code> directly on the other peer.
+        </div>
+
+        <!-- Two-panel SDP display -->
+        <div class="workspace" style="margin-top:14px;">
+          <div class="peer-panel peer-panel-a">
+            <div class="peer-header peer-header-a">
+              <span><span class="peer-name peer-name-a">Peer A</span><span class="peer-role">offerer</span></span>
+              <span class="status-badge" id="statusA"><span class="status-dot"></span><span id="statusAText">idle</span></span>
+            </div>
+            <div class="peer-body">
+              <label class="sdp-label" for="sdpOffer">SDP Offer — generated by Peer A</label>
+              <textarea class="sdp-textarea" id="sdpOffer" readonly placeholder="SDP offer appears here after Step 3…"></textarea>
+            </div>
+          </div>
+          <div class="workspace-divider">
+            <div class="divider-line"></div>
+            <div class="divider-label">signaling<br>(simulated)</div>
+            <div class="divider-line"></div>
+          </div>
+          <div class="peer-panel peer-panel-b">
+            <div class="peer-header peer-header-b">
+              <span><span class="peer-name peer-name-b">Peer B</span><span class="peer-role">answerer</span></span>
+              <span class="status-badge" id="statusB"><span class="status-dot"></span><span id="statusBText">idle</span></span>
+            </div>
+            <div class="peer-body">
+              <label class="sdp-label" for="sdpAnswer">SDP Answer — generated by Peer B</label>
+              <textarea class="sdp-textarea" id="sdpAnswer" readonly placeholder="SDP answer appears here after Step 4…"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-primary" id="btnStep3" disabled>▶ Run Step 3 — Create offer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 4 -->
+  <div class="stepper" id="stepRow4">
+    <div class="stepper-track">
+      <div class="step-circle" id="circle4">4</div>
+      <div class="step-line" id="line4"></div>
+    </div>
+    <div class="step-content">
+      <div class="step-header">
+        <span class="step-label" id="label4">Step 4</span>
+        <span class="step-title">Create and exchange SDP answer</span>
+      </div>
+      <div class="step-body">
+        <p>Peer B now has the offer. It calls <code>createAnswer()</code> to generate its own SDP — confirming the codecs, agreeing on security parameters, and adding its own ICE credentials. <code>pcB.setLocalDescription(answer)</code> stores it and starts Peer B's ICE gathering.
+        Finally, the answer is handed back to Peer A: <code>pcA.setRemoteDescription(answer)</code>. Both peers now have complete knowledge of each other — the offer/answer exchange is complete.</p>
+        <div class="concept-box" style="margin:10px 0 0;">
+          <strong>After this step:</strong> <code>pcA.localDescription</code> = offer &nbsp;·&nbsp; <code>pcA.remoteDescription</code> = answer <br>
+          <code>pcB.localDescription</code> = answer &nbsp;·&nbsp; <code>pcB.remoteDescription</code> = offer.<br>
+          ICE connectivity checks are now underway on both sides. Watch the ICE Candidates log below.
+        </div>
+        <div class="btn-row">
+          <button class="btn btn-primary" id="btnStep4" disabled>▶ Run Step 4 — Create answer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STEP 5 (auto) -->
+  <div class="stepper" id="stepRow5">
+    <div class="stepper-track">
+      <div class="step-circle" id="circle5">5</div>
+      <!-- no line after last step -->
+    </div>
+    <div class="step-content">
+      <div class="step-header">
+        <span class="step-label" id="label5">Step 5</span>
+        <span class="step-title">ICE connects — DataChannel opens</span>
+      </div>
+      <div class="step-body">
+        <p>ICE connectivity checks run automatically once both peers have a remote description. The browser tests candidate pairs — sending STUN binding requests and checking responses. When a working path is found, the <code>iceConnectionState</code> transitions to <code>connected</code>. The DTLS handshake then completes, establishing encryption. Finally, the SCTP association opens and the <code>RTCDataChannel</code> fires its <code>onopen</code> event.</p>
+        <p>This step happens <strong>automatically</strong> — no button needed. Watch the Event Log and the status badges above to see it unfold.</p>
+        <div class="concept-box" style="margin:10px 0 0;">
+          <strong>Why no STUN here?</strong> Both peers are in the same browser process. Their <em>host candidates</em> — local loopback addresses (127.0.0.1) — are directly reachable without NAT traversal. In Demo 3 and Demo 5, STUN reveals each peer's public IP so they can connect across the internet.
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /stepperContainer -->
+
+<!-- ════════════════════════════════════════════════
+     DUAL-PANEL CHAT
+     ════════════════════════════════════════════════ -->
+<h2 class="section-heading">DataChannel — Send Messages Between Peers</h2>
+
+<p>
+  Each peer has its own chat panel. Messages sent by Peer A appear as <strong style="color:var(--col-a)">blue</strong> on the right in A's view and as received (left) in B's view, and vice versa.
+  This makes the directionality of the data channel explicit — you can see exactly who sent what and who received it.
+</p>
+<div class="warn-box">
+  <strong>readyState check:</strong> The DataChannel must be in <code>'open'</code> state before calling <code>send()</code>. Calling <code>send()</code> on a channel that is still <code>'connecting'</code> throws an <code>InvalidStateError</code>. The inputs below are disabled until the channel opens.
+</div>
+
+<div class="dual-chat">
+  <!-- Peer A chat -->
+  <div class="chat-panel chat-panel-a">
+    <div class="chat-header chat-header-a">
+      <span>Peer A — Offerer</span>
+      <span style="color:var(--muted);font-size:9.5px;">sends via dcA</span>
+    </div>
+    <div class="chat-log" id="chatLogA" aria-live="polite">
+      <div class="msg-sys">— DataChannel not yet open —</div>
+    </div>
+    <div class="chat-input-area">
+      <input class="chat-input" id="msgInputA" type="text" placeholder="Type a message from A…" disabled>
+      <button class="btn btn-a" id="btnSendA" disabled style="padding:7px 14px;font-size:12px;">Send</button>
+    </div>
+  </div>
+  <!-- Peer B chat -->
+  <div class="chat-panel chat-panel-b">
+    <div class="chat-header chat-header-b">
+      <span>Peer B — Answerer</span>
+      <span style="color:var(--muted);font-size:9.5px;">sends via dcB</span>
+    </div>
+    <div class="chat-log" id="chatLogB" aria-live="polite">
+      <div class="msg-sys">— DataChannel not yet open —</div>
+    </div>
+    <div class="chat-input-area">
+      <input class="chat-input" id="msgInputB" type="text" placeholder="Type a message from B…" disabled>
+      <button class="btn btn-b" id="btnSendB" disabled style="padding:7px 14px;font-size:12px;">Send</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     ICE CANDIDATES LOG
+     ════════════════════════════════════════════════ -->
+<h2 class="section-heading">ICE Candidate Log</h2>
+
+<p>
+  As soon as <code>setLocalDescription()</code> is called on each peer, the browser starts <strong>ICE gathering</strong>:
+  it enumerates local network interfaces and contacts any configured STUN servers.
+  In this loopback demo there are no STUN servers — only <strong>host</strong> candidates (local IPs) appear.
+  In a real P2P call (Demo 3, Demo 5), you would also see <strong>srflx</strong> (server-reflexive) candidates,
+  which are the public IPs discovered by a STUN server — necessary for NAT traversal.
+</p>
+
+<div class="log-panel" id="icePanel">
+  <div class="log-panel-header" tabindex="0" role="button" aria-expanded="true"
+       onclick="togglePanel('icePanel','icePanelBody','iceChevron')"
+       onkeydown="if(e.key==='Enter'||e.key===' ')togglePanel('icePanel','icePanelBody','iceChevron')">
+    <div class="log-panel-title">ICE Candidates <span class="log-count" id="iceCandidateCount">0</span></div>
+    <span class="log-chevron open" id="iceChevron">▼</span>
+  </div>
+  <div class="log-body open" id="icePanelBody">
+    <div id="iceCandidateList" style="font-family:var(--mono);font-size:11px;color:var(--muted);">
+      ICE candidates will appear here after Steps 3 and 4…
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     SDP ANATOMY TABLE
+     ════════════════════════════════════════════════ -->
+<h2 class="section-heading">SDP Offer — Parsed Breakdown</h2>
+
+<p>
+  SDP (Session Description Protocol, <a href="https://www.rfc-editor.org/rfc/rfc8866" target="_blank" style="color:var(--accent)">RFC 8866</a>) is a plain-text format that describes the session:
+  security fingerprints, ICE credentials, codec parameters, and DataChannel details.
+  It looks cryptic, but every line has a specific meaning.
+  The table below parses the offer SDP line by line, linking each field to its role in the protocol.
+  See <a href="04_multimediaprogrammierung_webrtc.html#section-6" target="_blank" style="color:var(--accent)">Section 6</a> of the theory page for the full explanation.
+</p>
+<div class="warn-box">
+  <strong>SDP is written by the browser, not by you.</strong>
+  You never write SDP by hand in a WebRTC application.
+  But <em>reading</em> it is an essential debugging skill — when a call fails, the SDP is almost always where you look first.
+</div>
+
+<div class="log-panel" id="sdpPanel">
+  <div class="log-panel-header" tabindex="0" role="button" aria-expanded="false"
+       onclick="togglePanel('sdpPanel','sdpPanelBody','sdpChevron')"
+       onkeydown="if(e.key==='Enter'||e.key===' ')togglePanel('sdpPanel','sdpPanelBody','sdpChevron')">
+    <div class="log-panel-title">SDP Offer — parsed breakdown <span class="log-count" id="sdpLineCount">—</span></div>
+    <span class="log-chevron" id="sdpChevron">▼</span>
+  </div>
+  <div class="log-body" id="sdpPanelBody">
+    <div id="sdpAnatomyPlaceholder" style="color:var(--muted);font-family:var(--mono);font-size:12px;padding:12px 0;">
+      Run Step 3 first — the SDP offer will be parsed and displayed here.
+    </div>
+    <table class="sdp-anatomy-table" id="sdpAnatomyTable" style="display:none;">
+      <thead><tr><th>Field</th><th>Raw value</th><th>What it means</th></tr></thead>
+      <tbody id="sdpAnatomyRows"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════
+     EVENT LOG
+     ════════════════════════════════════════════════ -->
+<h2 class="section-heading">Event Log</h2>
+
+<p>
+  Every significant event — from <code>RTCPeerConnection</code> state changes to DataChannel lifecycle events — is logged here with a timestamp and a colour-coded tag.
+  You should be able to follow the entire handshake without opening browser DevTools.
+  The <strong>tag colours</strong>:
+  <span class="log-tag tag-sdp" style="display:inline-block;margin:0 3px;">SDP</span> offer/answer exchange &nbsp;·&nbsp;
+  <span class="log-tag tag-ice" style="display:inline-block;margin:0 3px;">ICE</span> candidate gathering &nbsp;·&nbsp;
+  <span class="log-tag tag-state" style="display:inline-block;margin:0 3px;">STATE</span> connection state changes &nbsp;·&nbsp;
+  <span class="log-tag tag-dc" style="display:inline-block;margin:0 3px;">DC</span> DataChannel events &nbsp;·&nbsp;
+  <span class="log-tag tag-info" style="display:inline-block;margin:0 3px;">INFO</span> general info.
+</p>
+
+<div class="log-panel" id="eventPanel">
+  <div class="log-panel-header" tabindex="0" role="button" aria-expanded="true"
+       onclick="togglePanel('eventPanel','eventPanelBody','eventChevron')"
+       onkeydown="if(e.key==='Enter'||e.key===' ')togglePanel('eventPanel','eventPanelBody','eventChevron')">
+    <div class="log-panel-title">Event Log <span class="log-count" id="eventCount">0</span></div>
+    <span class="log-chevron open" id="eventChevron">▼</span>
+  </div>
+  <div class="log-body open" id="eventPanelBody">
+    <div class="log-list" id="eventLog" aria-live="polite">
+      <div class="log-entry"><span class="log-time">--:--:--</span><span class="log-tag tag-info">INFO</span>Page loaded. Work through Steps 1–4 above to start the WebRTC handshake.</div>
+    </div>
+    <div class="btn-row" style="margin-top:10px;">
+      <button class="btn btn-secondary" onclick="clearLog()" style="font-size:12px;padding:6px 14px;">Clear log</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Reference pills ── -->
+<div class="pills" style="margin-top:32px;">
+  <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection" target="_blank" rel="noopener">RTCPeerConnection — MDN ↗</a>
+  <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/RTCDataChannel" target="_blank" rel="noopener">RTCDataChannel — MDN ↗</a>
+  <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/RTCSessionDescription" target="_blank" rel="noopener">RTCSessionDescription — MDN ↗</a>
+  <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/RTCIceCandidate" target="_blank" rel="noopener">RTCIceCandidate — MDN ↗</a>
+  <a class="pill" href="https://www.rfc-editor.org/rfc/rfc8829" target="_blank" rel="noopener">RFC 8829 — JSEP ↗</a>
+  <a class="pill" href="https://www.rfc-editor.org/rfc/rfc8866" target="_blank" rel="noopener">RFC 8866 — SDP ↗</a>
+</div>
+
+<!-- ── Chapter nav ── -->
+<nav class="chapter-nav">
+  <a href="04_multimediaprogrammierung_webrtc.html">
+    <span class="nav-label">← Back to</span>
+    <span class="nav-title">Chapter 04: WebRTC (Theory)</span>
+  </a>
+  <a href="04_mm_getusermedia.html">
+    <span class="nav-label">Next demo →</span>
+    <span class="nav-title">Demo 2: getUserMedia</span>
+  </a>
+</nav>
+
+<div class="nb-footer-cell">
+  <p><strong>Multimediaprogrammierung</strong> · Chapter 04: WebRTC · Demo 1: Loopback &amp; DataChannel<br>
+  Institut für Medientechnik – Technische Universität Ilmenau</p>
+  <p>Demo created by <strong>Renato Fera P.</strong> · <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a></p>
+</div>
+
+</main>
+
+<footer>
+  <p><strong>Multimediaprogrammierung</strong> · Seminar Materials<br>
+  Institut für Medientechnik – Technische Universität Ilmenau &nbsp;·&nbsp;
+  <a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars" target="_blank" rel="noopener">GitHub ↗</a>
+  </p>
+</footer>
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+                              JAVASCRIPT
+     ═══════════════════════════════════════════════════════════════════════ -->
+<script>
+'use strict';
+
+// ── Global state ──────────────────────────────────────────────────────────────
+// Both RTCPeerConnection objects live here. We keep references so we can
+// tear them down cleanly on Reset.
+let pcA = null;   // Peer A — the offerer
+let pcB = null;   // Peer B — the answerer
+let dcA = null;   // RTCDataChannel on Peer A's side (created by A)
+let dcB = null;   // RTCDataChannel on Peer B's side (received via ondatachannel)
+
+let eventCount = 0;
+let iceCount   = 0;
+let stepsDone  = 0; // tracks which step we're on (1–5)
+
+// ── Utility: timestamps ───────────────────────────────────────────────────────
+function ts() {
+  return new Date().toLocaleTimeString('de-DE', { hour12: false });
+}
+
+// ── Event log ─────────────────────────────────────────────────────────────────
+function logEvent(tag, msg, tagClass) {
+  eventCount++;
+  document.getElementById('eventCount').textContent = eventCount;
+  const log  = document.getElementById('eventLog');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="log-time">${ts()}</span><span class="log-tag ${tagClass}">${tag}</span>${msg}`;
+  log.appendChild(entry);
+  log.scrollTop = log.scrollHeight;
+}
+function clearLog() {
+  document.getElementById('eventLog').innerHTML = '';
+  eventCount = 0;
+  document.getElementById('eventCount').textContent = '0';
+}
+
+// ── Status badges ─────────────────────────────────────────────────────────────
+function setStatus(badgeId, textId, text, cls) {
+  const badge = document.getElementById(badgeId);
+  const span  = document.getElementById(textId);
+  badge.className = 'status-badge' + (cls ? ' ' + cls : '');
+  span.textContent = text;
+}
+
+// ── Collapsible panels ────────────────────────────────────────────────────────
+function togglePanel(panelId, bodyId, chevronId) {
+  const body    = document.getElementById(bodyId);
+  const chevron = document.getElementById(chevronId);
+  const isOpen  = body.classList.contains('open');
+  body.classList.toggle('open', !isOpen);
+  chevron.classList.toggle('open', !isOpen);
+}
+
+// ── Stepper UI ────────────────────────────────────────────────────────────────
+function markStepActive(n) {
+  document.getElementById('circle' + n).classList.add('active');
+  document.getElementById('label'  + n).classList.add('active');
+}
+function markStepDone(n) {
+  const circle = document.getElementById('circle' + n);
+  circle.classList.remove('active');
+  circle.classList.add('done');
+  circle.textContent = '✓';
+  const label = document.getElementById('label' + n);
+  label.classList.remove('active');
+  label.classList.add('done');
+  if (document.getElementById('line' + n)) {
+    document.getElementById('line' + n).classList.add('done');
+  }
+}
+
+// ── ICE Candidate log ─────────────────────────────────────────────────────────
+function logIce(peer, candidate) {
+  if (!candidate) return; // null = gathering complete
+  iceCount++;
+  document.getElementById('iceCandidateCount').textContent = iceCount;
+
+  const parts = candidate.candidate.split(' ');
+  const type  = parts[7] || '?';
+  const ip    = parts[4] || '?';
+  const port  = parts[5] || '?';
+  const proto = parts[2] ? parts[2].toLowerCase() : '?';
+  const cls   = type === 'host' ? 'ice-host' : type === 'srflx' ? 'ice-srflx' : 'ice-host';
+
+  const list = document.getElementById('iceCandidateList');
+  if (iceCount === 1) list.innerHTML = '';
+
+  const row = document.createElement('div');
+  row.className = 'ice-row';
+  row.innerHTML =
+    `<span class="ice-type ${cls}">${type}</span>` +
+    `<span class="ice-addr">${peer}: ${ip}:${port}</span>` +
+    `<span class="ice-proto">${proto}</span>`;
+  list.appendChild(row);
+
+  logEvent('ICE', `${peer} candidate: <code>${type}</code> ${ip}:${port} (${proto})`, 'tag-ice');
+}
+
+// ── SDP anatomy parser ────────────────────────────────────────────────────────
+function parseSdp(sdpStr) {
+  document.getElementById('sdpAnatomyPlaceholder').style.display = 'none';
+  const table = document.getElementById('sdpAnatomyTable');
+  table.style.display = 'table';
+  const tbody = document.getElementById('sdpAnatomyRows');
+  const lines = sdpStr.trim().split('\n');
+  document.getElementById('sdpLineCount').textContent = lines.length + ' lines';
+
+  const rows = [];
+  let seenCand = false;
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (line.startsWith('v='))
+      rows.push({ f:'v=', r:line, d:'Protocol version. Always "0" for SDP (RFC 8866 §5.1).' });
+    else if (line.startsWith('o='))
+      rows.push({ f:'o=', r:line, d:'Origin: username, session-id, version, nettype, addrtype, unicast-address. Identifies the session creator.' });
+    else if (line.startsWith('s='))
+      rows.push({ f:'s=', r:line, d:'Session name. WebRTC uses "-" as a placeholder — the session has no human-readable name.' });
+    else if (line.startsWith('t='))
+      rows.push({ f:'t=', r:line, d:'Timing: start-time stop-time. "0 0" means no fixed start/stop — a permanent, on-demand session.' });
+    else if (line.startsWith('a=group:BUNDLE'))
+      rows.push({ f:'a=group:BUNDLE', r:line, d:'BUNDLE group: all media sections share a single transport (one UDP port). Without BUNDLE, each m= section needs its own port — BUNDLE saves resources.' });
+    else if (line.startsWith('a=msid-semantic:'))
+      rows.push({ f:'a=msid-semantic', r:line, d:'MediaStream ID semantics — maps tracks to MediaStream objects in the JavaScript API.' });
+    else if (line.startsWith('m=')) {
+      const kind = line.includes('application') ? 'DataChannel (SCTP over DTLS)'
+                 : line.includes('audio') ? 'Audio (RTP)'
+                 : line.includes('video') ? 'Video (RTP)' : 'Unknown';
+      rows.push({ f:'m=', r:line, d:`Media section: ${kind}. Format: <type> <port> <protocol> <fmt-list>. Each m= section can be individually accepted or rejected.` });
+    }
+    else if (line.startsWith('a=ice-ufrag:'))
+      rows.push({ f:'a=ice-ufrag', r:line, d:'ICE username fragment — part of the credentials used to authenticate STUN binding requests (RFC 8445 §14). Peer B must include this in its answer.' });
+    else if (line.startsWith('a=ice-pwd:'))
+      rows.push({ f:'a=ice-pwd', r:line, d:'ICE password. Combined with ice-ufrag to compute the HMAC-SHA1 MESSAGE-INTEGRITY attribute in STUN messages. Keep this secret.' });
+    else if (line.startsWith('a=ice-options:'))
+      rows.push({ f:'a=ice-options', r:line, d:'"trickle" means ICE candidates can be sent incrementally as they are gathered, instead of waiting for all candidates (RFC 8838).' });
+    else if (line.startsWith('a=fingerprint:'))
+      rows.push({ f:'a=fingerprint', r:line, d:'DTLS certificate fingerprint (hash algo + hex digest). Used to authenticate the DTLS handshake — prevents MITM attacks. Both peers verify each other\'s fingerprint.' });
+    else if (line.startsWith('a=setup:'))
+      rows.push({ f:'a=setup', r:line, d:'"actpass" (offerer): willing to be DTLS client or server — lets the answerer decide. "active" = initiates the DTLS handshake. "passive" = waits for the other peer.' });
+    else if (line.startsWith('a=sctp-port:') || line.startsWith('a=sctpmap:'))
+      rows.push({ f:line.split(':')[0], r:line, d:'SCTP port for the DataChannel transport. RTCDataChannel uses SCTP (Stream Control Transmission Protocol) over the DTLS connection.' });
+    else if (line.startsWith('a=max-message-size:'))
+      rows.push({ f:'a=max-message-size', r:line, d:'Maximum SCTP message size the browser can receive on this DataChannel, in bytes.' });
+    else if (line.startsWith('a=candidate:') && !seenCand) {
+      seenCand = true;
+      rows.push({ f:'a=candidate', r:line, d:'ICE candidate: foundation component protocol priority IP port type. "host" = local network interface. "srflx" = public IP discovered by STUN. "relay" = TURN relay address.' });
+    }
+  }
+
+  tbody.innerHTML = '';
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td class="sdp-field">${r.f}</td><td class="sdp-raw">${r.r}</td><td class="sdp-desc">${r.d}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Chat helpers ──────────────────────────────────────────────────────────────
+// Each peer has its own log. We show sent messages right-aligned, received left-aligned.
+function appendMsg(logId, text, cssClass) {
+  const log = document.getElementById(logId);
+  // Remove the "not yet open" placeholder on first real message
+  const sys = log.querySelector('.msg-sys');
+  if (sys) sys.remove();
+  const div = document.createElement('div');
+  div.className = 'msg-bubble ' + cssClass;
+  div.textContent = text;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+function enableChat() {
+  ['msgInputA','msgInputB','btnSendA','btnSendB'].forEach(id => {
+    document.getElementById(id).disabled = false;
+  });
+}
+function disableChat() {
+  ['msgInputA','msgInputB','btnSendA','btnSendB'].forEach(id => {
+    document.getElementById(id).disabled = true;
+  });
+}
+
+// ── Send message ──────────────────────────────────────────────────────────────
+function sendMessage(from) {
+  const inputId = from === 'A' ? 'msgInputA' : 'msgInputB';
+  const dc      = from === 'A' ? dcA : dcB;
+  const input   = document.getElementById(inputId);
+  const text    = input.value.trim();
+  if (!text) return;
+
+  if (!dc || dc.readyState !== 'open') {
+    logEvent('ERR', `Cannot send: DataChannel (Peer ${from}) readyState is "${dc ? dc.readyState : 'null'}" — must be "open".`, 'tag-err');
+    return;
+  }
+
+  dc.send(text);
+  input.value = '';
+
+  // Show in sender's log as sent (right-aligned)
+  if (from === 'A') {
+    appendMsg('chatLogA', text, 'msg-sent');
+    logEvent('DC', `Peer A sent: "${text}"`, 'tag-dc');
+  } else {
+    appendMsg('chatLogB', text, 'msg-sent-b');
+    logEvent('DC', `Peer B sent: "${text}"`, 'tag-dc');
+  }
+  // The onmessage handler on the receiving side will append to the other log.
+}
+
+// ── Animated diagram helpers ──────────────────────────────────────────────────
+function animatePkt(id, x1, x2, y, color, duration, delay) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  setTimeout(() => {
+    el.setAttribute('cx', x1);
+    el.setAttribute('cy', y);
+    el.setAttribute('fill', color);
+    el.style.opacity = '1';
+    el.style.transition = `cx ${duration}ms linear`;
+    setTimeout(() => { el.setAttribute('cx', x2); }, 30);
+    setTimeout(() => { el.style.opacity = '0'; }, duration + 30);
+  }, delay);
+}
+function animateOfferFlow() {
+  animatePkt('pktOffer', 85, 735, 130, '#4f9cf9', 600, 0);
+}
+function animateAnswerFlow() {
+  animatePkt('pktAnswer', 735, 85, 165, '#34d399', 600, 0);
+}
+function animateDataFlow() {
+  animatePkt('pktData1', 85, 735, 225, '#34d399', 500, 0);
+  animatePkt('pktData2', 735, 85, 225, '#4f9cf9', 500, 300);
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+//                         WEBRTC STEPS
+// ═════════════════════════════════════════════════════════════════════════════
+
+// ── STEP 1: Create RTCPeerConnection objects ──────────────────────────────────
+// Both peers use an empty ICE server list — no STUN needed for loopback.
+// The onicecandidate handler simulates what a signaling server does in a real call:
+// it takes each candidate from one peer and adds it directly to the other.
+
+async function runStep1() {
+  document.getElementById('btnStep1').disabled = true;
+  markStepActive(1);
+  logEvent('INFO', '── Step 1: Creating RTCPeerConnection objects ──', 'tag-info');
+
+  const cfg = { iceServers: [] }; // no STUN — loopback uses host candidates only
+  pcA = new RTCPeerConnection(cfg);
+  pcB = new RTCPeerConnection(cfg);
+
+  logEvent('INFO', 'Created <code>RTCPeerConnection</code> for Peer A (offerer) and Peer B (answerer).', 'tag-info');
+
+  // ICE candidate exchange — simulates what a signaling server does.
+  // In Demo 5, this JSON travels over a WebSocket. The addIceCandidate()
+  // call on the receiving peer is identical in both cases.
+  pcA.onicecandidate = ev => {
+    logIce('Peer A', ev.candidate);
+    if (ev.candidate)
+      pcB.addIceCandidate(new RTCIceCandidate(ev.candidate)).catch(e =>
+        logEvent('ERR', `Peer B addIceCandidate failed: ${e.message}`, 'tag-err'));
+    else
+      logEvent('ICE', 'Peer A ICE gathering complete.', 'tag-ice');
+  };
+  pcB.onicecandidate = ev => {
+    logIce('Peer B', ev.candidate);
+    if (ev.candidate)
+      pcA.addIceCandidate(new RTCIceCandidate(ev.candidate)).catch(e =>
+        logEvent('ERR', `Peer A addIceCandidate failed: ${e.message}`, 'tag-err'));
+    else
+      logEvent('ICE', 'Peer B ICE gathering complete.', 'tag-ice');
+  };
+
+  // ICE + connection state tracking
+  pcA.oniceconnectionstatechange = () => {
+    const s = pcA.iceConnectionState;
+    logEvent('STATE', `Peer A ICE state → <code>${s}</code>`, 'tag-state');
+    if (s === 'connected' || s === 'completed')
+      setStatus('statusA', 'statusAText', s, 'connected');
+    else if (s === 'checking')
+      setStatus('statusA', 'statusAText', 'checking…', 'connecting');
+    else if (s === 'failed')
+      setStatus('statusA', 'statusAText', 'failed', 'failed');
+  };
+  pcB.oniceconnectionstatechange = () => {
+    const s = pcB.iceConnectionState;
+    logEvent('STATE', `Peer B ICE state → <code>${s}</code>`, 'tag-state');
+    if (s === 'connected' || s === 'completed')
+      setStatus('statusB', 'statusBText', s, 'connected');
+    else if (s === 'checking')
+      setStatus('statusB', 'statusBText', 'checking…', 'connecting');
+    else if (s === 'failed')
+      setStatus('statusB', 'statusBText', 'failed', 'failed');
+  };
+  pcA.onconnectionstatechange = () => {
+    const s = pcA.connectionState;
+    logEvent('STATE', `Peer A connection state → <code>${s}</code>`, 'tag-state');
+  };
+  pcB.onconnectionstatechange = () => {
+    const s = pcB.connectionState;
+    logEvent('STATE', `Peer B connection state → <code>${s}</code>`, 'tag-state');
+  };
+
+  setStatus('connStatus', 'connStatusText', 'Peers created', 'connecting');
+  markStepDone(1);
+  document.getElementById('btnStep2').disabled = false;
+  markStepActive(2);
+  document.getElementById('btnReset').disabled = false;
+  stepsDone = 1;
+}
+
+// ── STEP 2: Create DataChannel on Peer A ─────────────────────────────────────
+// Must happen before createOffer() so the channel appears in the SDP.
+// Peer B receives the channel via ondatachannel — it never calls createDataChannel().
+
+function runStep2() {
+  document.getElementById('btnStep2').disabled = true;
+  logEvent('INFO', '── Step 2: Creating DataChannel on Peer A ──', 'tag-info');
+
+  // Create the channel on the offerer side.
+  // 'ordered:true' means SCTP retransmits lost packets — TCP-like reliability.
+  dcA = pcA.createDataChannel('chat', { ordered: true });
+  logEvent('DC', 'Peer A: <code>createDataChannel("chat", {ordered:true})</code> — channel declared in forthcoming SDP offer.', 'tag-dc');
+
+  dcA.onopen = () => {
+    logEvent('DC', 'Peer A DataChannel: <code>open</code> — SCTP association established. Ready to send.', 'tag-dc');
+    setStatus('dcStatus', 'dcStatusText', 'open', 'connected');
+    setStatus('connStatus', 'connStatusText', 'Connected', 'connected');
+    enableChat();
+    markStepDone(5);
+    markStepActive(5);
+    animateDataFlow();
+  };
+  dcA.onclose  = () => logEvent('DC', 'Peer A DataChannel: <code>closed</code>.', 'tag-dc');
+  dcA.onerror  = e => logEvent('ERR', `Peer A DataChannel error: ${e.error?.message || e}`, 'tag-err');
+
+  // Messages received BY Peer A come from Peer B.
+  // Show them in Peer A's chat as received (left-aligned, green = B's colour).
+  dcA.onmessage = ev => {
+    logEvent('DC', `Peer A received from B: "${ev.data}"`, 'tag-dc');
+    appendMsg('chatLogA', ev.data, 'msg-recvd-a');
+  };
+
+  // Peer B receives the channel via ondatachannel.
+  // This fires because the offer SDP contains m=application.
+  pcB.ondatachannel = ev => {
+    dcB = ev.channel;
+    logEvent('DC', 'Peer B: <code>ondatachannel</code> fired — DataChannel received from Peer A\'s offer.', 'tag-dc');
+
+    dcB.onopen  = () => logEvent('DC', 'Peer B DataChannel: <code>open</code>.', 'tag-dc');
+    dcB.onclose = () => logEvent('DC', 'Peer B DataChannel: <code>closed</code>.', 'tag-dc');
+    dcB.onerror = e => logEvent('ERR', `Peer B DataChannel error: ${e.error?.message || e}`, 'tag-err');
+
+    // Messages received BY Peer B come from Peer A.
+    // Show them in Peer B's chat as received (left-aligned, blue = A's colour).
+    dcB.onmessage = ev => {
+      logEvent('DC', `Peer B received from A: "${ev.data}"`, 'tag-dc');
+      appendMsg('chatLogB', ev.data, 'msg-recvd-b');
+    };
+  };
+
+  markStepDone(2);
+  document.getElementById('btnStep3').disabled = false;
+  markStepActive(3);
+  stepsDone = 2;
+}
+
+// ── STEP 3: Create offer on Peer A ───────────────────────────────────────────
+// createOffer() generates the SDP offer. setLocalDescription() stores it
+// AND starts ICE gathering. We then hand the offer to Peer B.
+
+async function runStep3() {
+  document.getElementById('btnStep3').disabled = true;
+  logEvent('INFO', '── Step 3: Creating SDP offer on Peer A ──', 'tag-info');
+
+  try {
+    const offer = await pcA.createOffer();
+    logEvent('SDP', 'Peer A: <code>createOffer()</code> — SDP generated by the browser.', 'tag-sdp');
+
+    await pcA.setLocalDescription(offer);
+    logEvent('SDP', 'Peer A: <code>setLocalDescription(offer)</code> — ICE gathering started.', 'tag-sdp');
+
+    // Show SDP in the textarea
+    document.getElementById('sdpOffer').value = pcA.localDescription.sdp;
+
+    // Parse SDP anatomy (panel is collapsed — student opens it)
+    parseSdp(pcA.localDescription.sdp);
+
+    // Animate the offer flowing from A to B in the diagram
+    animateOfferFlow();
+
+    // Hand the offer to Peer B — this is what the signaling server does in Demo 5.
+    await pcB.setRemoteDescription(pcA.localDescription);
+    logEvent('SDP', 'Peer B: <code>setRemoteDescription(offer)</code> — Peer B now knows what Peer A is offering.', 'tag-sdp');
+
+    markStepDone(3);
+    document.getElementById('btnStep4').disabled = false;
+    markStepActive(4);
+    stepsDone = 3;
+
+  } catch (err) {
+    logEvent('ERR', `Step 3 failed: ${err.message}`, 'tag-err');
+    document.getElementById('btnStep3').disabled = false;
+  }
+}
+
+// ── STEP 4: Create answer on Peer B ──────────────────────────────────────────
+// createAnswer() generates Peer B's SDP answer. setLocalDescription() on B
+// stores it and starts B's ICE gathering. Then the answer goes back to A.
+
+async function runStep4() {
+  document.getElementById('btnStep4').disabled = true;
+  logEvent('INFO', '── Step 4: Creating SDP answer on Peer B ──', 'tag-info');
+
+  try {
+    const answer = await pcB.createAnswer();
+    logEvent('SDP', 'Peer B: <code>createAnswer()</code> — SDP answer generated.', 'tag-sdp');
+
+    await pcB.setLocalDescription(answer);
+    logEvent('SDP', 'Peer B: <code>setLocalDescription(answer)</code> — Peer B ICE gathering started.', 'tag-sdp');
+
+    document.getElementById('sdpAnswer').value = pcB.localDescription.sdp;
+
+    // Animate the answer flowing from B to A in the diagram
+    animateAnswerFlow();
+
+    // Complete the exchange: Peer A now has both sides of the negotiation.
+    await pcA.setRemoteDescription(pcB.localDescription);
+    logEvent('SDP', 'Peer A: <code>setRemoteDescription(answer)</code> — offer/answer exchange complete.', 'tag-sdp');
+    logEvent('INFO', 'Both peers fully described. ICE connectivity checks are now running. Waiting for DataChannel to open…', 'tag-info');
+
+    setStatus('connStatus', 'connStatusText', 'ICE checking…', 'connecting');
+    markStepDone(4);
+    markStepActive(5);
+    stepsDone = 4;
+
+  } catch (err) {
+    logEvent('ERR', `Step 4 failed: ${err.message}`, 'tag-err');
+    document.getElementById('btnStep4').disabled = false;
+  }
+}
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+function reset() {
+  if (dcA) { dcA.close(); dcA = null; }
+  if (dcB) { dcB.close(); dcB = null; }
+  if (pcA) { pcA.close(); pcA = null; }
+  if (pcB) { pcB.close(); pcB = null; }
+
+  stepsDone = 0; eventCount = 0; iceCount = 0;
+
+  // Reset status badges
+  setStatus('connStatus', 'connStatusText', 'Not started', '');
+  setStatus('dcStatus',   'dcStatusText',   'waiting', '');
+  setStatus('statusA',    'statusAText',    'idle', '');
+  setStatus('statusB',    'statusBText',    'idle', '');
+
+  // Reset stepper circles
+  [1,2,3,4,5].forEach(n => {
+    const c = document.getElementById('circle' + n);
+    c.className = 'step-circle';
+    c.textContent = n;
+    const l = document.getElementById('label' + n);
+    if (l) { l.classList.remove('active','done'); }
+    const line = document.getElementById('line' + n);
+    if (line) line.classList.remove('done');
+  });
+
+  // Reset buttons
+  document.getElementById('btnStep1').disabled = false;
+  document.getElementById('btnStep2').disabled = true;
+  document.getElementById('btnStep3').disabled = true;
+  document.getElementById('btnStep4').disabled = true;
+  document.getElementById('btnReset').disabled = true;
+
+  // Reset SDP textareas
+  document.getElementById('sdpOffer').value  = '';
+  document.getElementById('sdpAnswer').value = '';
+
+  // Reset chat logs
+  ['chatLogA','chatLogB'].forEach(id => {
+    document.getElementById(id).innerHTML = '<div class="msg-sys">— DataChannel not yet open —</div>';
+  });
+  disableChat();
+
+  // Reset ICE log
+  document.getElementById('iceCandidateCount').textContent = '0';
+  document.getElementById('iceCandidateList').innerHTML = 'ICE candidates will appear here after Steps 3 and 4…';
+
+  // Reset SDP anatomy
+  document.getElementById('sdpAnatomyPlaceholder').style.display = '';
+  document.getElementById('sdpAnatomyTable').style.display = 'none';
+  document.getElementById('sdpLineCount').textContent = '—';
+
+  // Reset event log
+  clearLog();
+  logEvent('INFO', 'Reset. Click Step 1 to start again.', 'tag-info');
+}
+
+// ── Event listeners ───────────────────────────────────────────────────────────
+document.getElementById('btnStep1').addEventListener('click', runStep1);
+document.getElementById('btnStep2').addEventListener('click', runStep2);
+document.getElementById('btnStep3').addEventListener('click', runStep3);
+document.getElementById('btnStep4').addEventListener('click', runStep4);
+document.getElementById('btnReset').addEventListener('click', reset);
+
+document.getElementById('btnSendA').addEventListener('click', () => sendMessage('A'));
+document.getElementById('btnSendB').addEventListener('click', () => sendMessage('B'));
+
+document.getElementById('msgInputA').addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage('A'); });
+document.getElementById('msgInputB').addEventListener('keydown', e => { if (e.key === 'Enter') sendMessage('B'); });
+
+// Peer B sends to Peer A — received handler already set up in runStep2 (dcB.onmessage).
+// But we also need the reverse: when Peer B's channel sends, Peer A's dcA.onmessage fires.
+// This wiring happens automatically via the DataChannel's SCTP transport —
+// no extra plumbing needed here.
+
+window.addEventListener('beforeunload', () => {
+  if (pcA) pcA.close();
+  if (pcB) pcB.close();
+});
+
+// Mark Step 1 as the current step on load
+markStepActive(1);
+</script>
+</body>
+</html>
