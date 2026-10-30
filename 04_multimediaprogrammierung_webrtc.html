@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 04: WebRTC — Multimediaprogrammierung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0d0f14;
+    --surface: #161a22;
+    --border:  #252b38;
+    --text:    #d8dce6;
+    --muted:   #5a6175;
+    --accent:  #4f9cf9;
+    --accent2: #a78bfa;
+    --green:   #34d399;
+    --orange:  #fb923c;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* ── header ── */
+  header {
+    border-bottom: 2px solid var(--border);
+    padding: 24px 0 20px;
+  }
+  .header-inner {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .header-logo img { width: 100px; border-radius: 10px; display: block; }
+  .header-info h1 { font-size: clamp(18px,3vw,26px); font-weight: 500; color: #f0f2f7; line-height: 1.2; margin-bottom: 4px; }
+  .header-info h2 { font-size: 14px; font-weight: 400; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; }
+  .header-meta { font-size: 13px; color: var(--text); line-height: 1.6; }
+  .header-meta a { color: var(--accent); text-decoration: none; }
+  .header-meta a:hover { text-decoration: underline; }
+
+  /* ── breadcrumb ── */
+  .breadcrumb {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 14px 32px 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .breadcrumb a { color: var(--accent); text-decoration: none; }
+  .breadcrumb a:hover { text-decoration: underline; }
+  .breadcrumb span { margin: 0 6px; }
+
+  /* ── main ── */
+  main {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 40px 32px 80px;
+  }
+
+  /* ── notebook content ── */
+  .nb-content { display: flex; flex-direction: column; gap: 0; }
+  .nb-cell { padding: 0; }
+
+  /* ── prose ── */
+  .nb-cell h1 {
+    font-size: clamp(22px, 3.5vw, 32px);
+    font-weight: 500;
+    color: #f0f2f7;
+    line-height: 1.25;
+    margin: 40px 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .nb-cell h2 {
+    font-size: 20px;
+    font-weight: 500;
+    color: #e8eaf2;
+    margin: 48px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .nb-cell h3 {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--accent2);
+    margin: 28px 0 10px;
+    font-family: var(--mono);
+    letter-spacing: 0.02em;
+  }
+  .nb-cell p { margin-bottom: 14px; color: var(--text); }
+  .nb-cell ul, .nb-cell ol { margin: 0 0 14px 22px; }
+  .nb-cell li { margin-bottom: 6px; }
+  .nb-cell strong { color: #eef0f6; font-weight: 500; }
+  .nb-cell em { color: var(--text); }
+  .nb-cell a { color: var(--accent); text-decoration: none; }
+  .nb-cell a:hover { text-decoration: underline; }
+  .nb-cell hr { border: none; border-top: 1px solid var(--border); margin: 8px 0 0; }
+
+  /* tables */
+  .nb-cell table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 20px;
+    font-size: 13.5px;
+  }
+  .nb-cell th {
+    text-align: left;
+    padding: 8px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .nb-cell td {
+    padding: 9px 12px;
+    border-bottom: 1px solid rgba(37,43,56,0.6);
+    vertical-align: top;
+    color: var(--text);
+  }
+  .nb-cell tr:last-child td { border-bottom: none; }
+  .nb-cell tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* inline code */
+  .nb-cell code {
+    background: rgba(79,156,249,0.08);
+    color: #93c5fd;
+    font-family: var(--mono);
+    font-size: 0.88em;
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  /* code blocks */
+  .nb-cell pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin: 14px 0 20px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.65;
+    color: #c9d1e0;
+  }
+  .nb-cell pre code {
+    background: none;
+    color: inherit;
+    font-size: inherit;
+    padding: 0;
+    border-radius: 0;
+  }
+
+  /* pill links */
+  .nb-cell a[style*="border:1px solid #1a73e8"],
+  .nb-cell a[style*="border: 1px solid #1a73e8"] {
+    display: inline-flex !important;
+    align-items: center;
+    padding: 5px 14px !important;
+    margin: 4px 6px 4px 0 !important;
+    border: 1px solid rgba(79,156,249,0.4) !important;
+    border-radius: 20px !important;
+    text-decoration: none !important;
+    font-weight: 500 !important;
+    font-size: 12px !important;
+    color: var(--accent) !important;
+    background: rgba(79,156,249,0.07) !important;
+    font-family: var(--mono);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .nb-cell a[style*="border:1px solid #1a73e8"]:hover,
+  .nb-cell a[style*="border: 1px solid #1a73e8"]:hover {
+    background: rgba(79,156,249,0.14) !important;
+    border-color: rgba(79,156,249,0.7) !important;
+  }
+
+  /* callout / info boxes */
+  .nb-cell div[style*="border-left:5px solid #1a73e8"],
+  .nb-cell div[style*="border-left: 5px solid #1a73e8"] {
+    border-left: 4px solid var(--accent) !important;
+    background: rgba(79,156,249,0.06) !important;
+    border-radius: 6px;
+    padding: 16px 20px !important;
+    margin: 20px 0 !important;
+    color: var(--text);
+  }
+
+  /* demo boxes */
+  .demo-box {
+    border-left: 4px solid var(--green);
+    background: rgba(52,211,153,0.06);
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin: 20px 0;
+    color: var(--text);
+  }
+  .demo-box strong { color: var(--green); }
+  .demo-box a { color: var(--green); }
+
+  /* warning/orange boxes */
+  .warn-box {
+    border-left: 4px solid var(--orange);
+    background: rgba(251,146,60,0.06);
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin: 20px 0;
+    color: var(--text);
+  }
+  .warn-box strong { color: var(--orange); }
+
+  /* images */
+  .nb-cell img {
+    max-width: 100%;
+    border-radius: 10px;
+    display: block;
+  }
+  .nb-cell p[align="center"] { text-align: center; }
+  .nb-cell p[align="center"] img { margin: 0 auto; }
+  .nb-cell p[align="center"] em { display: block; margin-top: 8px; font-size: 13px; color: var(--muted); }
+
+  /* footer cell */
+  .nb-footer-cell {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 2px solid var(--border);
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .nb-footer-cell b { color: var(--text); }
+  .nb-footer-cell a { color: var(--accent); text-decoration: none; }
+  .nb-footer-cell a:hover { text-decoration: underline; }
+
+  /* ── prev / next navigation ── */
+  .chapter-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-top: 56px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .chapter-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    text-decoration: none;
+    padding: 8px 14px;
+    border: 1px solid rgba(79,156,249,0.3);
+    border-radius: 6px;
+    background: rgba(79,156,249,0.05);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .chapter-nav a:hover {
+    background: rgba(79,156,249,0.12);
+    border-color: rgba(79,156,249,0.6);
+  }
+  .chapter-nav .nav-label {
+    font-size: 11px;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 1px;
+  }
+  .chapter-nav .nav-title { color: var(--accent); }
+
+  /* ── page footer ── */
+  footer {
+    border-top: 2px solid var(--border);
+    padding: 18px 32px 24px;
+    max-width: 860px;
+    margin: 0 auto;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.7;
+  }
+  footer p + p { margin-top: 4px; font-size: 12px; color: var(--muted); }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 600px) {
+    .header-inner, main, footer, .breadcrumb, .nb-badges { padding-left: 20px; padding-right: 20px; }
+    .header-inner { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .chapter-nav { flex-direction: column; align-items: stretch; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="header-logo">
+      <img src="ams_group_tui.png" alt="AMS Group – TU Ilmenau">
+    </div>
+    <div class="header-info">
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 04: WebRTC</h2>
+      <p class="header-meta">
+        <strong>Institut für Medientechnik –
+          <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme"
+             target="_blank" rel="noopener">AMS Group</a>
+          – Technische Universität Ilmenau</strong><br>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller &nbsp;·&nbsp;
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+      </p>
+    </div>
+  </div>
+</header>
+
+<nav class="breadcrumb">
+  <a href="index.html">Seminar Materials</a>
+  <span>›</span>
+  Chapter 04: WebRTC
+</nav>
+
+
+
+<main>
+<div class="nb-content">
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Cell 1 — chapter intro                                      -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<h1>Chapter 04: WebRTC</h1>
+<p><strong>WebRTC</strong> (Web Real-Time Communication) is a collection of open standards built into every modern browser that enables <strong>peer-to-peer audio, video, and data transfer</strong> — entirely in JavaScript, with no plugins and no native apps. Two browser tabs on opposite sides of the world can open a direct connection, exchange a live video stream, and send arbitrary binary data, all without any media traffic passing through a server.</p>
+<p>What makes WebRTC remarkable is what it hides: NAT traversal, DTLS encryption, RTP packetisation, codec negotiation, congestion control, and adaptive bitrate are all handled automatically by the browser. What you write is a few dozen lines of JavaScript. What the browser does underneath is decades of real-time networking research.</p>
+<p>This chapter teaches WebRTC from the ground up — the networking problems it solves, the protocols it uses, and the browser API that exposes them — through seven escalating hands-on demos.</p>
+
+<h3>What this chapter covers</h3>
+<table>
+  <thead><tr><th>#</th><th>Topic</th><th>What you will learn</th></tr></thead>
+  <tbody>
+    <tr><td>0</td><td>GitHub Codespaces</td><td>How to launch the course infrastructure in the cloud</td></tr>
+    <tr><td>1</td><td>What is WebRTC</td><td>History, use cases, the three pillars, and what WebRTC does not do</td></tr>
+    <tr><td>2</td><td>NAT and the connectivity problem</td><td>Why peers behind routers cannot reach each other directly</td></tr>
+    <tr><td>3</td><td>ICE</td><td>How the browser systematically finds a working network path</td></tr>
+    <tr><td>4</td><td>STUN</td><td>Discovering your public IP address and punching through NAT</td></tr>
+    <tr><td>5</td><td>TURN</td><td>Relay servers for when direct connection is impossible</td></tr>
+    <tr><td>6</td><td>SDP</td><td>How peers describe and negotiate media sessions</td></tr>
+    <tr><td>7</td><td>RTCPeerConnection</td><td>The core API — state machine, events, tracks</td></tr>
+    <tr><td>8</td><td>getUserMedia</td><td>Capturing camera, microphone, and screen</td></tr>
+    <tr><td>9</td><td>RTCDataChannel</td><td>Peer-to-peer data transfer alongside media</td></tr>
+    <tr><td>10</td><td>Signaling</td><td>The missing piece — how peers find each other</td></tr>
+    <tr><td>11</td><td>getStats()</td><td>Monitoring and diagnosing a live connection</td></tr>
+    <tr><td>12</td><td>The Codespace infrastructure</td><td>Signaling server + coturn — every line explained</td></tr>
+    <tr><td>13</td><td>Demo index</td><td>All seven demos with links</td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Cell 2 — GitHub Codespaces                                  -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>0. GitHub Codespaces — Running the Course Infrastructure</h2>
+<p>Demos 1–4 in this chapter are fully self-contained HTML files — open them in a browser and they work. Demos 5–7 require a <strong>signaling server</strong> and a <strong>TURN server</strong> running somewhere on the network. We provide both inside a <strong>GitHub Codespace</strong>, so you do not need to install or configure anything on your own machine.</p>
+
+<h3>What is a GitHub Codespace?</h3>
+<p>A Codespace is a <strong>cloud-hosted Linux virtual machine</strong> (Ubuntu 24.04) that GitHub provisions on demand from your repository. It comes with VS Code in the browser, a terminal, and — crucially for us — <strong>automatic port forwarding</strong>: any port your server listens on inside the VM gets a public <code>*.app.github.dev</code> HTTPS/WSS URL that the outside world can reach.</p>
+<p>This is exactly what WebRTC needs: a publicly reachable, HTTPS-terminated endpoint for the signaling server and the TURN server. The Codespace provides both without any cloud account, DNS setup, or TLS certificate management.</p>
+
+<h3>Step-by-step: launching the Codespace</h3>
+<ol>
+  <li>Open the course repository at <a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars" target="_blank" rel="noopener">github.com/TUIlmenauAMS/multimedia_programming_seminars</a></li>
+  <li>Click the green <strong>Code</strong> button, then the <strong>Codespaces</strong> tab, then <strong>Create codespace on main</strong>.</li>
+  <li>Wait for the Codespace to build. The first time takes about 2 minutes — it installs <code>coturn</code>, Python 3.12, and the <code>websockets</code> library, then runs <code>codespace/start.sh</code> automatically.</li>
+  <li>Once the terminal is ready, click the <strong>Ports</strong> tab at the bottom of the screen. You will see two forwarded ports:</li>
+</ol>
+<table>
+  <thead><tr><th>Port</th><th>Service</th><th>Protocol</th></tr></thead>
+  <tbody>
+    <tr><td><code>8765</code></td><td>Signaling server</td><td>WSS (WebSocket over TLS)</td></tr>
+    <tr><td><code>5349</code></td><td>TURN server (coturn)</td><td>TURNS (TURN over TLS/TCP)</td></tr>
+  </tbody>
+</table>
+<ol start="5">
+  <li>Hover over each port in the Ports tab and click the <strong>globe icon</strong> to copy the public URL. It will look like <code>https://yourname-random-8765.app.github.dev</code>.</li>
+  <li>For WSS, replace <code>https://</code> with <code>wss://</code> in the URL. This is the address you paste into the demo pages.</li>
+  <li>Open a demo HTML file (e.g. <code>04_mm_signaling_call.html</code>) in two browser tabs, paste the WSS URL, and click Connect.</li>
+</ol>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(79,156,249,0.06); border-radius:6px; padding:16px 20px; margin:20px 0;">
+  <strong>Why HTTPS matters for WebRTC.</strong> The browser's <code>getUserMedia()</code> API — which accesses your camera and microphone — is only available in a <strong>secure context</strong>: either <code>https://</code> or <code>localhost</code>. Codespaces forwarded port URLs are always HTTPS, so they satisfy this requirement automatically. If you try to open a WebRTC demo over plain HTTP from a remote host, the camera API will be blocked by the browser.
+</div>
+
+<div class="warn-box">
+  <strong>Free tier limit.</strong> GitHub Free accounts include 60 core-hours of Codespaces per month. A Codespace with 2 cores uses 2 core-hours per clock hour. Remember to <strong>stop your Codespace</strong> when you are done (Code → Codespaces → the three-dot menu → Stop codespace) to avoid using your allowance unnecessarily.
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Cell 3 — What is WebRTC                                     -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>1. What is WebRTC and Why Does It Exist</h2>
+<p>Before WebRTC, real-time communication in the browser required Flash, Java applets, or proprietary browser plugins. These were slow to install, insecure, and unavailable on mobile. In 2010, Google acquired two companies — GIPS (audio/video processing) and On2 Technologies (video codecs) — and open-sourced the combined technology stack. The W3C and IETF standardised the browser API and the underlying protocols. By 2012, Chrome and Firefox shipped the first implementations. Today, WebRTC is built into every major browser with no installation required.</p>
+
+<h3>Where WebRTC is used in industry</h3>
+<table>
+  <thead><tr><th>Application</th><th>How WebRTC is used</th></tr></thead>
+  <tbody>
+    <tr><td>Video conferencing</td><td>Google Meet, Discord, Whereby — all built on WebRTC peer connections</td></tr>
+    <tr><td>Live streaming</td><td>Sub-second latency streams (WHIP/WHEP protocol uses WebRTC as transport)</td></tr>
+    <tr><td>Remote desktop</td><td>Screen sharing and remote control over DataChannel</td></tr>
+    <tr><td>Broadcast contribution</td><td>Camera-to-server ingest at broadcasters using WebRTC instead of satellite</td></tr>
+    <tr><td>IoT and telemetry</td><td>Low-latency data from sensors via DataChannel</td></tr>
+    <tr><td>Multiplayer gaming</td><td>Peer-to-peer game state synchronisation</td></tr>
+  </tbody>
+</table>
+
+<h3>The three pillars of WebRTC</h3>
+<p>WebRTC is built on three independent capabilities that work together:</p>
+<ol>
+  <li><strong>Media capture</strong> — <code>getUserMedia()</code> and <code>getDisplayMedia()</code> give you access to the camera, microphone, and screen as <code>MediaStream</code> objects.</li>
+  <li><strong>Peer connection</strong> — <code>RTCPeerConnection</code> establishes an encrypted, direct connection between two browsers, handles NAT traversal via ICE, negotiates codecs via SDP, and transports media via RTP.</li>
+  <li><strong>Data channels</strong> — <code>RTCDataChannel</code> adds a bidirectional, low-latency data transport (SCTP over DTLS) alongside the media streams. You can send text, JSON, binary blobs — anything.</li>
+</ol>
+
+<h3>What WebRTC deliberately does not provide</h3>
+<p>WebRTC has no built-in mechanism for two peers to <em>find each other</em>. Before a peer connection can be established, the two browsers must exchange some setup information (called an <strong>offer and answer</strong>) through some out-of-band channel. This channel is called the <strong>signaling channel</strong>, and WebRTC leaves its implementation entirely to the application. You can use WebSocket, HTTP, email, SMS, or even copy-paste — WebRTC does not care. This is a deliberate design choice: it gives applications full freedom over authentication, room management, and transport.</p>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(79,156,249,0.06); border-radius:6px; padding:16px 20px; margin:20px 0;">
+  <strong>Connection to earlier chapters.</strong> The Web Audio API (Chapter 01) models audio as a graph of processing nodes. WebRTC extends this idea to the network: a <code>MediaStreamTrack</code> from <code>getUserMedia()</code> can be fed directly into an <code>RTCPeerConnection</code>, which transports it to a remote peer whose browser can feed it into a Web Audio processing graph. The two APIs are designed to compose.
+</div>
+
+<table>
+  <thead><tr><th>Technology</th><th>Direction</th><th>Latency</th><th>Media support</th><th>NAT traversal</th><th>Best for</th></tr></thead>
+  <tbody>
+    <tr><td><strong>WebRTC</strong></td><td>Peer-to-peer</td><td>~50 ms</td><td>Native (audio, video, data)</td><td>Built-in (ICE)</td><td>Real-time A/V calls, low-latency data</td></tr>
+    <tr><td><strong>WebSocket</strong></td><td>Client–server</td><td>~100 ms</td><td>Text/binary only</td><td>None (server-mediated)</td><td>Chat, notifications, signaling</td></tr>
+    <tr><td><strong>HTTP (fetch)</strong></td><td>Client–server</td><td>&gt;200 ms</td><td>Text/binary only</td><td>None</td><td>Request/response, file upload</td></tr>
+  </tbody>
+</table>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/WebRTC_API" target="_blank" rel="noopener" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">MDN WebRTC API &#8599;</a>
+  <a href="https://www.w3.org/TR/webrtc/" target="_blank" rel="noopener" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">W3C WebRTC Specification &#8599;</a>
+  <a href="https://datatracker.ietf.org/doc/html/rfc8825" target="_blank" rel="noopener" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">RFC 8825 — WebRTC Overview &#8599;</a>
+</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Cell 4 — NAT                                                -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>2. NAT and the Peer Connectivity Problem</h2>
+<p>The fundamental networking challenge WebRTC must solve is that most devices on the internet do not have a publicly reachable IP address. They sit behind a <strong>Network Address Translator (NAT)</strong> — typically a home router or corporate firewall — that shares a single public IP address among many private devices.</p>
+
+<h3>How NAT works</h3>
+<p>When your laptop (private IP <code>192.168.1.5</code>) opens a connection to a web server, your router translates the source address to its public IP (say <code>87.100.42.7</code>) and records the mapping in a <strong>translation table</strong>:</p>
+<pre><code>Private address          Public address        Destination
+192.168.1.5:54321   →   87.100.42.7:54321  →  93.184.216.34:443</code></pre>
+<p>When the server replies to <code>87.100.42.7:54321</code>, the router looks up the table and forwards the packet to <code>192.168.1.5:54321</code>. This works perfectly for client-initiated connections — which is all HTTP, WebSocket, and most internet traffic.</p>
+<p>The problem arises with <strong>peer-to-peer connections</strong>. If Peer A (behind NAT A) wants to send a packet directly to Peer B (behind NAT B), it does not know B's public IP:port — B's router has not created a mapping for that destination yet. And even if A somehow knew B's public address, B's router would drop the incoming packet because it has no table entry for it.</p>
+
+<h3>NAT types and traversal difficulty</h3>
+<table>
+  <thead><tr><th>NAT type</th><th>Inbound rule</th><th>Traversal</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Full cone</strong></td><td>Accepts packets from any source once an outbound mapping exists</td><td>Easy — STUN is sufficient</td></tr>
+    <tr><td><strong>Address-restricted cone</strong></td><td>Accepts packets only from addresses the client previously sent to</td><td>STUN with hole-punching</td></tr>
+    <tr><td><strong>Port-restricted cone</strong></td><td>Accepts packets only from the exact address:port previously sent to</td><td>STUN with hole-punching</td></tr>
+    <tr><td><strong>Symmetric NAT</strong></td><td>Creates a different public port for each destination — no hole-punch possible</td><td>Requires TURN relay</td></tr>
+  </tbody>
+</table>
+<p>Corporate networks frequently use symmetric NAT and block all UDP traffic at the firewall. This is why WebRTC needs both STUN (for most cases) and TURN (for the hard cases).</p>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(79,156,249,0.06); border-radius:6px; padding:16px 20px; margin:20px 0;">
+  <strong>ICE, STUN, and TURN exist because of NAT.</strong> Without NAT, every device would have a public IP and peers could connect directly. The entire ICE/STUN/TURN stack is a workaround for the IP address exhaustion problem that led to NAT being deployed everywhere. IPv6 removes the need for NAT entirely — but IPv6 adoption is still incomplete, so WebRTC must handle IPv4 NAT for the foreseeable future.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://datatracker.ietf.org/doc/html/rfc4787" target="_blank" rel="noopener" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">RFC 4787 — NAT Behavioral Requirements &#8599;</a>
+</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Cell 5 — ICE                                                -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>3. ICE — Interactive Connectivity Establishment</h2>
+<p>ICE (RFC 8445) is the framework WebRTC uses to find a working network path between two peers. Rather than guessing, ICE takes a systematic approach: it gathers <em>every possible address</em> a peer might be reachable at, exchanges that list with the remote peer, and then tries every combination until one works.</p>
+
+<h3>ICE candidate types</h3>
+<p>Each address ICE considers is called a <strong>candidate</strong>. There are three types:</p>
+<table>
+  <thead><tr><th>Type</th><th>Address source</th><th>When it works</th><th>Priority</th></tr></thead>
+  <tbody>
+    <tr><td><strong>host</strong></td><td>The peer's local network interface (e.g. <code>192.168.1.5:54321</code>)</td><td>Both peers on the same LAN</td><td>Highest</td></tr>
+    <tr><td><strong>srflx</strong> (server reflexive)</td><td>The peer's public IP:port as seen by a STUN server</td><td>Peers on different networks with NAT that permits hole-punching</td><td>Medium</td></tr>
+    <tr><td><strong>relay</strong></td><td>An address on a TURN server that relays all traffic</td><td>Always — but all media goes through the relay server</td><td>Lowest</td></tr>
+  </tbody>
+</table>
+
+<h3>The ICE gathering process</h3>
+<p>When <code>setLocalDescription()</code> is called on an <code>RTCPeerConnection</code>, the browser begins ICE gathering:</p>
+<ol>
+  <li>It collects <strong>host candidates</strong> from every local network interface (WiFi, Ethernet, loopback).</li>
+  <li>It contacts the configured <strong>STUN server</strong> and records the public IP:port it receives back — this becomes the <strong>srflx candidate</strong>.</li>
+  <li>If a TURN server is configured, it authenticates and requests an allocation — the allocated relay address becomes the <strong>relay candidate</strong>.</li>
+  <li>Each candidate is reported to the application via the <code>onicecandidate</code> event as it is discovered. When gathering is complete, <code>onicecandidate</code> fires with <code>event.candidate === null</code>.</li>
+</ol>
+
+<h3>Trickle ICE vs. vanilla ICE</h3>
+<p>In <strong>vanilla ICE</strong>, the peer waits until all candidates are gathered before sending the SDP to the remote peer. In <strong>trickle ICE</strong> (the modern standard), candidates are sent to the remote peer as they are discovered — via the signaling channel — without waiting for gathering to complete. Trickle ICE significantly reduces call setup time because connectivity checks can begin before the slowest candidate (TURN allocation) has arrived.</p>
+<p>The <code>onicecandidate</code> event is the hook for trickle ICE: each time it fires with a non-null candidate, send that candidate to the remote peer via the signaling channel, and call <code>addIceCandidate()</code> on the remote peer's connection.</p>
+
+<h3>ICE connectivity checks</h3>
+<p>Once both peers have each other's candidate lists, ICE performs <strong>connectivity checks</strong>: it sends STUN binding requests from every local candidate to every remote candidate and waits for a response. The highest-priority candidate pair that succeeds in both directions is <strong>nominated</strong> as the active path. All media then flows through the nominated pair.</p>
+
+<pre><code>// The onicecandidate event fires once per candidate as ICE gathers them.
+// Each candidate is an RTCIceCandidate object with a .candidate string
+// that encodes the type, address, port, priority, and protocol.
+
+peerConnection.onicecandidate = (event) => {
+  if (event.candidate === null) {
+    // Gathering is complete — all candidates have been reported.
+    console.log('ICE gathering complete');
+    return;
+  }
+
+  // event.candidate.type is 'host', 'srflx', or 'relay'
+  // event.candidate.address is the IP address (may be mDNS on Chrome for privacy)
+  // event.candidate.port is the port number
+  // event.candidate.protocol is 'udp' or 'tcp'
+  console.log(`New ICE candidate: type=${event.candidate.type}`);
+
+  // In trickle ICE, send this candidate to the remote peer immediately
+  // via the signaling channel, rather than waiting for all candidates.
+  signalingChannel.send(JSON.stringify({
+    type: 'ice',
+    candidate: event.candidate.toJSON()
+  }));
+};</code></pre>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(79,156,249,0.06); border-radius:6px; padding:16px 20px; margin:20px 0;">
+  <strong>ICE candidate priority.</strong> The priority of a candidate is a 32-bit number calculated as: <code>(type_preference × 2²⁴) + (local_preference × 2⁸) + component</code>. The browser assigns <code>type_preference</code> values of 126 for host, 100 for srflx, and 0 for relay. This ensures that direct paths are always preferred over relay paths, and local paths are preferred over public ones.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://datatracker.ietf.org/doc/html/rfc8445" target="_blank" rel="noopener" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">RFC 8445 — ICE &#8599;</a>
+</p>
+
+<div class="demo-box">
+  <strong>Demo 4 — ICE &amp; Stats Inspector.</strong> <code>04_mm_ice_stats.html</code> displays every ICE candidate gathered by both peers in a live table, colour-coded by type (host / srflx / relay), and shows the selected candidate pair and live <code>getStats()</code> metrics once the connection is established.
+  <p style="margin:10px 0 0 0;"><a href="04_mm_ice_stats.html" target="_blank" style="display:inline-block; padding:6px 14px; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Demo 4 &#8599;</a></p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Cell 6 — STUN                                               -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>4. STUN — Session Traversal Utilities for NAT</h2>
+<p>STUN (RFC 8489) is a lightweight request-response protocol with one job: tell a client what its public IP address and port look like from outside its NAT. A STUN server is a simple UDP/TCP server on a public IP that reads the source address of incoming packets and echoes it back in the response.</p>
+
+<h3>How a STUN binding request works</h3>
+<ol>
+  <li>The browser opens a UDP socket on a local port (e.g. <code>192.168.1.5:54321</code>).</li>
+  <li>It sends a <strong>Binding Request</strong> to the STUN server at <code>stun.l.google.com:19302</code>.</li>
+  <li>The STUN server receives the packet. The source address in the IP header is the NAT's public translation: <code>87.100.42.7:54321</code>.</li>
+  <li>The STUN server sends a <strong>Binding Response</strong> containing <code>87.100.42.7:54321</code>.</li>
+  <li>The browser now knows its public address and includes it as an <strong>srflx candidate</strong> in the SDP.</li>
+</ol>
+<p>That is the entire STUN protocol for the common case. It is stateless: the server forgets about the exchange as soon as it sends the response.</p>
+
+<h3>What STUN does not do</h3>
+<p>STUN only <em>discovers</em> the public address. It does not relay traffic. Once both peers know each other's public address (from the SDP exchange), they attempt to send packets directly to each other — this is called <strong>NAT hole-punching</strong>. For full-cone, address-restricted, and port-restricted NAT, this works. For symmetric NAT, it does not — because each outbound connection gets a different public port, so the address in the SDP is only valid for the specific destination it was created for (the STUN server), not for the peer.</p>
+
+<pre><code>// The RTCConfiguration tells the browser which STUN and TURN servers to use.
+// The browser's ICE agent contacts these servers automatically during gathering.
+
+const configuration = {
+  iceServers: [
+    {
+      // Google's public STUN server — free, reliable, no credentials required.
+      // Used in development and in many production deployments.
+      urls: 'stun:stun.l.google.com:19302'
+    }
+    // TURN server would go here as a second entry (see Section 5)
+  ]
+};
+
+const peerConnection = new RTCPeerConnection(configuration);</code></pre>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(79,156,249,0.06); border-radius:6px; padding:16px 20px; margin:20px 0;">
+  <strong>STUN is cheap; TURN is expensive.</strong> A STUN transaction is a single round-trip of two small UDP packets. The STUN server uses minimal bandwidth and CPU. A TURN relay, by contrast, carries all media traffic — every video frame and audio packet passes through it. This is why ICE always prefers host and srflx candidates over relay candidates. TURN is the last resort.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://datatracker.ietf.org/doc/html/rfc8489" target="_blank" rel="noopener" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">RFC 8489 — STUN &#8599;</a>
+</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Cell 7 — TURN                                               -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>5. TURN — Traversal Using Relays around NAT</h2>
+<p>When ICE cannot find a direct path between peers — because both are behind symmetric NAT, or because a firewall blocks all inbound UDP — it falls back to a <strong>TURN relay</strong>. The TURN server (RFC 8656) sits on a public IP, allocates a relay address for each peer, and forwards all traffic between them. From the perspective of each peer's NAT, the traffic looks like an outbound connection to the TURN server — which is always permitted.</p>
+
+<h3>How TURN works</h3>
+<ol>
+  <li><strong>Authentication</strong> — the browser sends a TURN Allocate request with credentials (username + password). The server verifies the credentials and allocates a relay address (a public IP:port on the TURN server).</li>
+  <li><strong>Relay address as ICE candidate</strong> — the relay address becomes a <strong>relay candidate</strong> in the SDP. Both peers exchange their relay addresses via signaling.</li>
+  <li><strong>Media relay</strong> — once connectivity checks confirm the relay path works, all media flows from Peer A → TURN server → Peer B and back. Neither peer sends traffic directly to the other.</li>
+</ol>
+
+<h3>TURN credentials</h3>
+<p>TURN always requires authentication to prevent abuse (an open TURN server would be exploited as a free bandwidth relay). Two credential models exist:</p>
+<table>
+  <thead><tr><th>Model</th><th>How it works</th><th>Use case</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Long-term credentials</strong></td><td>Static username and password configured on the server. Simple, but credentials cannot be revoked per-session.</td><td>Development, course environments (this chapter)</td></tr>
+    <tr><td><strong>Time-limited credentials</strong></td><td>Username encodes a timestamp; password is HMAC-SHA1(secret, username). Credentials expire automatically.</td><td>Production — backend generates fresh credentials per session</td></tr>
+  </tbody>
+</table>
+
+<h3>TURN transport modes</h3>
+<table>
+  <thead><tr><th>Mode</th><th>Transport</th><th>Port</th><th>When to use</th></tr></thead>
+  <tbody>
+    <tr><td><strong>TURN/UDP</strong></td><td>UDP</td><td>3478</td><td>Default — lowest latency, best performance</td></tr>
+    <tr><td><strong>TURN/TCP</strong></td><td>TCP</td><td>3478</td><td>When UDP is blocked by a firewall</td></tr>
+    <tr><td><strong>TURNS/TCP</strong></td><td>TLS over TCP</td><td>5349</td><td>When only HTTPS traffic is permitted (corporate firewalls, Codespaces)</td></tr>
+  </tbody>
+</table>
+<p>In this course we use <strong>TURNS over TCP/TLS</strong> because GitHub Codespaces port forwarding is HTTP-based and cannot forward raw UDP. TURNS is a legitimate production configuration — many enterprise deployments use it for exactly the same reason: strict firewalls that permit only TLS traffic.</p>
+
+<pre><code>// RTCConfiguration with both STUN and TURN.
+// The browser tries all iceServers entries in parallel during ICE gathering.
+
+const configuration = {
+  iceServers: [
+    {
+      // STUN — no credentials needed, used to discover srflx candidates
+      urls: 'stun:stun.l.google.com:19302'
+    },
+    {
+      // TURN — credentials required
+      // 'turns:' prefix means TURNS (TURN over TLS/TCP) — suitable for Codespaces
+      // Replace hostname with your Codespace's forwarded port URL (port 5349)
+      urls: 'turns:YOUR_CODESPACE_HOSTNAME:5349?transport=tcp',
+
+      // Long-term credentials (as configured in coturn.conf)
+      username: 'webrtc',
+      credential: 'seminar04'
+    }
+  ]
+};
+
+// iceTransportPolicy controls which candidate types ICE will use.
+// 'all' (default): use host, srflx, and relay candidates — prefers direct paths.
+// 'relay': use ONLY relay candidates — forces all traffic through TURN.
+//          Useful for testing TURN, for privacy (hides real IP), or for
+//          corporate networks that block all UDP.
+const configuration_force_relay = {
+  iceServers: [ /* ... */ ],
+  iceTransportPolicy: 'relay'  // Force TURN — no direct paths allowed
+};</code></pre>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(79,156,249,0.06); border-radius:6px; padding:16px 20px; margin:20px 0;">
+  <strong>coturn</strong> is the de facto open-source TURN server. It is used in production by Jitsi, Matrix/Element, and many others. In this course, coturn runs inside the GitHub Codespace and is configured in <code>codespace/coturn.conf</code>. Section 12 walks through every line of the configuration.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://datatracker.ietf.org/doc/html/rfc8656" target="_blank" rel="noopener" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">RFC 8656 — TURN &#8599;</a>
+  <a href="https://github.com/coturn/coturn" target="_blank" rel="noopener" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">coturn on GitHub &#8599;</a>
+</p>
+
+<div class="demo-box">
+  <strong>Demo 6 — TURN Relay Verification.</strong> <code>04_mm_turn_relay.html</code> adds coturn to the ICE configuration and uses <code>getStats()</code> to show whether traffic is flowing via a relay candidate. A toggle sets <code>iceTransportPolicy: 'relay'</code> to force TURN and prove it is working.
+  <p style="margin:10px 0 0 0;"><a href="04_mm_turn_relay.html" target="_blank" style="display:inline-block; padding:6px 14px; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Demo 6 &#8599;</a></p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Cell 8 — SDP                                                -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>6. SDP — Session Description Protocol</h2>
+<p>SDP (RFC 8866) is the text format that peers use to describe what they want to send and receive: which codecs they support, which network addresses they are reachable at, which security parameters to use. It is not a negotiation protocol — it is a description format. The negotiation (the offer/answer exchange) is defined separately in the JavaScript Session Establishment Protocol (JSEP, RFC 8829).</p>
+
+<h3>Anatomy of a WebRTC SDP offer</h3>
+<p>An SDP document is a sequence of lines, each in the form <code>type=value</code>. Here is a minimal annotated example:</p>
+<pre><code>v=0                          ; SDP version — always 0
+o=- 12345 2 IN IP4 127.0.0.1 ; origin: session-id, version, network type, address
+s=-                          ; session name — unused in WebRTC, set to '-'
+t=0 0                        ; timing: start and stop time (0 = unbounded)
+
+; === Audio media section ===
+m=audio 9 UDP/TLS/RTP/SAVPF 111 103
+; m= type port proto fmt-list
+; port 9 is a dummy (actual address comes from ICE candidates)
+; UDP/TLS/RTP/SAVPF = DTLS-encrypted RTP with feedback
+
+a=rtpmap:111 opus/48000/2    ; payload type 111 = Opus codec, 48kHz, stereo
+a=fmtp:111 minptime=10;useinbandfec=1  ; Opus parameters: min frame 10ms, FEC on
+
+a=ice-ufrag:xK3y             ; ICE username fragment — part of the ICE credentials
+a=ice-pwd:vNd2kLm9zXqR...    ; ICE password — shared secret for this session
+a=fingerprint:sha-256 AA:BB: ; DTLS certificate fingerprint — used for verification
+a=setup:actpass              ; this peer can be either DTLS client or server
+a=mid:audio                  ; media stream identifier
+
+; ICE candidates (in trickle ICE, these arrive separately via signaling)
+a=candidate:1 1 udp 2130706431 192.168.1.5 54321 typ host
+;             ^ ^ ^   priority   address     port  type
+a=candidate:2 1 udp 1694498815 87.100.42.7 54321 typ srflx raddr 192.168.1.5 rport 54321
+;             srflx = server-reflexive = our public IP as seen by STUN
+
+; === Video media section ===
+m=video 9 UDP/TLS/RTP/SAVPF 96 97
+a=rtpmap:96 VP8/90000         ; payload type 96 = VP8 video codec
+a=rtpmap:97 H264/90000        ; payload type 97 = H.264 video codec
+a=rtcp-fb:96 nack             ; negative acknowledgement (retransmission)
+a=rtcp-fb:96 nack pli         ; picture loss indication (keyframe request)</code></pre>
+
+<h3>The offer/answer model</h3>
+<p>Establishing a WebRTC connection requires an <strong>offer</strong> from one peer and an <strong>answer</strong> from the other. The sequence is:</p>
+<ol>
+  <li>Caller calls <code>createOffer()</code> — browser generates an SDP offer describing its capabilities.</li>
+  <li>Caller calls <code>setLocalDescription(offer)</code> — ICE gathering begins; the offer is stored locally.</li>
+  <li>Caller sends the offer to the callee via the <em>signaling channel</em>.</li>
+  <li>Callee calls <code>setRemoteDescription(offer)</code> — callee learns what the caller wants.</li>
+  <li>Callee calls <code>createAnswer()</code> — browser generates an answer from the intersection of both sets of capabilities.</li>
+  <li>Callee calls <code>setLocalDescription(answer)</code> — callee's ICE gathering begins.</li>
+  <li>Callee sends the answer to the caller via the signaling channel.</li>
+  <li>Caller calls <code>setRemoteDescription(answer)</code> — the negotiation is complete; connectivity checks begin.</li>
+</ol>
+
+<pre><code>// ── Caller side ──────────────────────────────────────────────
+
+// createOffer() returns a Promise resolving to an RTCSessionDescription.
+// The SDP is generated by the browser based on the tracks added to the connection
+// and the RTCConfiguration (STUN/TURN servers).
+const offer = await peerConnection.createOffer();
+
+// setLocalDescription() stores the offer and begins ICE gathering.
+// After this call, onicecandidate will start firing.
+await peerConnection.setLocalDescription(offer);
+
+// Send the offer SDP to the remote peer via your signaling channel.
+// In demos 1–3 this is copy-paste; in demos 5–7 it is a WebSocket message.
+signalingChannel.send(JSON.stringify({ type: 'offer', sdp: offer.sdp }));
+
+
+// ── Callee side (after receiving the offer) ───────────────────
+
+// setRemoteDescription() stores the remote peer's offer.
+// Must be called before createAnswer().
+await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+
+// createAnswer() generates an SDP answer from the intersection of capabilities.
+const answer = await peerConnection.createAnswer();
+
+// Store the answer locally and begin ICE gathering on the callee side.
+await peerConnection.setLocalDescription(answer);
+
+// Send the answer back to the caller.
+signalingChannel.send(JSON.stringify({ type: 'answer', sdp: answer.sdp }));</code></pre>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(79,156,249,0.06); border-radius:6px; padding:16px 20px; margin:20px 0;">
+  <strong>SDP is verbose, but read it at least once.</strong> Most developers never look at raw SDP — the browser generates and parses it automatically. But reading it helps you understand codec negotiation failures, why certain browsers fall back to different codecs, and what DTLS fingerprints are for. Demo 1 displays the raw SDP offer and answer so you can inspect them.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://datatracker.ietf.org/doc/html/rfc8866" target="_blank" rel="noopener" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">RFC 8866 — SDP &#8599;</a>
+  <a href="https://datatracker.ietf.org/doc/html/rfc8829" target="_blank" rel="noopener" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">RFC 8829 — JSEP &#8599;</a>
+</p>
+
+<div class="demo-box">
+  <strong>Demo 1 — Loopback DataChannel &amp; SDP Inspector.</strong> <code>04_mm_loopback_datachannel.html</code> creates a local loopback peer connection, exchanges the offer and answer on the same page, and displays the full SDP in a readable annotated panel.
+  <p style="margin:10px 0 0 0;"><a href="04_mm_loopback_datachannel.html" target="_blank" style="display:inline-block; padding:6px 14px; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Demo 1 &#8599;</a></p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Cell 9 — RTCPeerConnection                                  -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>7. RTCPeerConnection — The Core API</h2>
+<p><code>RTCPeerConnection</code> is the central object in the WebRTC browser API. It encapsulates the entire connection lifecycle: ICE negotiation, DTLS handshake, codec selection, RTP media transport, RTCP feedback, and DataChannel SCTP transport. You interact with it through a set of methods and event handlers.</p>
+
+<h3>Key events</h3>
+<table>
+  <thead><tr><th>Event</th><th>When it fires</th><th>What to do</th></tr></thead>
+  <tbody>
+    <tr><td><code>onicecandidate</code></td><td>Each time ICE discovers a new candidate (or finishes gathering)</td><td>Send the candidate to the remote peer via signaling</td></tr>
+    <tr><td><code>oniceconnectionstatechange</code></td><td>ICE connection state changes</td><td>Monitor for <code>failed</code> — consider ICE restart</td></tr>
+    <tr><td><code>onconnectionstatechange</code></td><td>Overall connection state changes</td><td>Update UI; handle <code>failed</code> with reconnection logic</td></tr>
+    <tr><td><code>onnegotiationneeded</code></td><td>A track was added/removed and renegotiation is needed</td><td>Create and send a new offer</td></tr>
+    <tr><td><code>ontrack</code></td><td>A remote media track arrives</td><td>Attach <code>event.streams[0]</code> to a <code>&lt;video&gt;</code> element</td></tr>
+    <tr><td><code>ondatachannel</code></td><td>The remote peer created a DataChannel</td><td>Store the channel; set up its event handlers</td></tr>
+  </tbody>
+</table>
+
+<h3>The connection state machine</h3>
+<p>The <code>connectionState</code> property follows this lifecycle. Understanding each state is essential for building reliable applications:</p>
+<table>
+  <thead><tr><th>State</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>new</code></td><td>Connection created; no ICE gathering has started yet</td></tr>
+    <tr><td><code>connecting</code></td><td>ICE and DTLS are in progress</td></tr>
+    <tr><td><code>connected</code></td><td>At least one ICE candidate pair is working and DTLS is complete — media is flowing</td></tr>
+    <tr><td><code>disconnected</code></td><td>The network temporarily lost packets. ICE is trying to recover. May return to <code>connected</code>.</td></tr>
+    <tr><td><code>failed</code></td><td>ICE could not find a working path, or the path permanently failed. Action required: ICE restart.</td></tr>
+    <tr><td><code>closed</code></td><td><code>close()</code> was called. Resources released. Cannot be reused.</td></tr>
+  </tbody>
+</table>
+
+<pre><code>// Monitor the connection state — this is the most important event handler
+// for building reliable WebRTC applications.
+peerConnection.onconnectionstatechange = () => {
+  const state = peerConnection.connectionState;
+  console.log('Connection state:', state);
+
+  switch (state) {
+    case 'connected':
+      // Media is flowing. Update the UI to show the call is active.
+      showCallActive();
+      break;
+
+    case 'disconnected':
+      // Temporary network interruption. ICE may recover automatically.
+      // Show a "reconnecting..." indicator but do not tear down the call yet.
+      showReconnecting();
+      break;
+
+    case 'failed':
+      // ICE gave up. The connection cannot recover on its own.
+      // Trigger an ICE restart: generates new ICE credentials and
+      // re-runs connectivity checks without tearing down the media session.
+      peerConnection.restartIce();
+      // restartIce() triggers onnegotiationneeded → create and send a new offer.
+      break;
+
+    case 'closed':
+      // The connection was explicitly closed. Clean up the UI.
+      showCallEnded();
+      break;
+  }
+};
+
+// addTrack() adds a local media track to the connection.
+// Call this BEFORE createOffer() so the track appears in the SDP.
+// Returns an RTCRtpSender — store it if you need to replace the track later.
+const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+stream.getTracks().forEach(track => {
+  const sender = peerConnection.addTrack(track, stream);
+  // sender.replaceTrack(newTrack) can swap the track without renegotiation.
+});
+
+// ontrack fires when the remote peer's tracks arrive.
+// event.streams[0] is the remote MediaStream — attach it to a <video> element.
+peerConnection.ontrack = (event) => {
+  remoteVideoElement.srcObject = event.streams[0];
+};</code></pre>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection" target="_blank" rel="noopener" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">MDN RTCPeerConnection &#8599;</a>
+</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Cell 10 — getUserMedia                                      -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>8. getUserMedia — Capturing Camera, Microphone, and Screen</h2>
+<p><code>navigator.mediaDevices.getUserMedia()</code> requests access to the user's camera and microphone. It returns a Promise that resolves to a <code>MediaStream</code> — a collection of <code>MediaStreamTrack</code> objects, one per input device. The browser shows a permission dialog; if the user denies, the Promise rejects.</p>
+
+<h3>Constraints — requesting what you need</h3>
+<p>The constraints object tells the browser what you want. The browser provides the closest match it can. You can specify ideal values, minimum values, or exact requirements:</p>
+<pre><code>// Basic constraints — request both video and audio
+const stream = await navigator.mediaDevices.getUserMedia({
+  video: true,  // any camera
+  audio: true   // any microphone
+});
+
+// Detailed constraints — specify resolution, frame rate, and audio processing
+const stream = await navigator.mediaDevices.getUserMedia({
+  video: {
+    width:  { ideal: 1280 },    // prefer 720p width, accept anything
+    height: { ideal: 720 },
+    frameRate: { ideal: 30, max: 60 },
+
+    // Request a specific camera by its deviceId (from enumerateDevices)
+    deviceId: { exact: selectedDeviceId }
+  },
+  audio: {
+    echoCancellation: true,   // remove echo from the speaker playing in the room
+    noiseSuppression: true,   // filter background noise
+    autoGainControl:  true,   // normalise microphone volume
+    sampleRate: { ideal: 48000 }
+  }
+});</code></pre>
+
+<h3>Attaching a stream to a video element</h3>
+<pre><code>// Attach the stream to a <video> element via the srcObject property.
+// Do NOT use .src with a blob URL — srcObject is the correct modern API.
+const videoElement = document.getElementById('localVideo');
+videoElement.srcObject = stream;
+// autoplay: starts playing without a user gesture (allowed for muted video)
+// muted: silences local audio to prevent echo feedback
+// playsinline: required for iOS Safari to play inline (not fullscreen)
+videoElement.autoplay = true;
+videoElement.muted    = true;
+videoElement.playsInline = true;</code></pre>
+
+<h3>MediaStreamTrack — reading what the browser granted</h3>
+<pre><code>const videoTrack = stream.getVideoTracks()[0];
+
+// getSettings() returns what was actually granted vs what was requested.
+// The browser applies best-effort constraint matching — you may get
+// a different resolution or frame rate than you asked for.
+const settings = videoTrack.getSettings();
+console.log(`Granted: ${settings.width}x${settings.height} @ ${settings.frameRate}fps`);
+
+// Soft-mute: track.enabled = false stops sending data but does not
+// release the camera hardware (the camera LED stays on).
+videoTrack.enabled = false;  // mute (camera still running)
+videoTrack.enabled = true;   // unmute
+
+// Hard-stop: track.stop() releases the camera hardware (LED turns off).
+// After stop(), the track cannot be restarted — call getUserMedia again.
+videoTrack.stop();</code></pre>
+
+<h3>Device enumeration</h3>
+<pre><code>// enumerateDevices() lists all available input and output devices.
+// IMPORTANT: device labels are only available after the user has granted
+// camera/mic permission. Before permission, labels are empty strings
+// (browser privacy protection against fingerprinting).
+const devices = await navigator.mediaDevices.enumerateDevices();
+
+devices.forEach(device => {
+  // device.kind: 'audioinput', 'videoinput', 'audiooutput'
+  // device.label: human-readable name (e.g. 'FaceTime HD Camera')
+  // device.deviceId: unique identifier for use in constraints
+  console.log(`${device.kind}: ${device.label} [${device.deviceId}]`);
+});</code></pre>
+
+<h3>Screen capture</h3>
+<pre><code>// getDisplayMedia() captures the screen, a window, or a tab.
+// It always shows a browser permission dialog — cannot be suppressed.
+const screenStream = await navigator.mediaDevices.getDisplayMedia({
+  video: { frameRate: { ideal: 30 } },
+  // Audio capture of system audio is supported in Chrome on Windows/macOS
+  // but not in Firefox or on Linux.
+  audio: false
+});</code></pre>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(79,156,249,0.06); border-radius:6px; padding:16px 20px; margin:20px 0;">
+  <strong>Connection to Web Audio (Chapter 01).</strong> A <code>MediaStreamTrack</code> from <code>getUserMedia()</code> can be fed into a Web Audio processing graph using <code>AudioContext.createMediaStreamSource(stream)</code>. This lets you apply Web Audio effects (filters, analysis, gain) to a live microphone input before it goes into a WebRTC peer connection.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia" target="_blank" rel="noopener" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">MDN getUserMedia &#8599;</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/Media_Capture_and_Streams_API/Constraints" target="_blank" rel="noopener" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">MDN Constraints &#8599;</a>
+</p>
+
+<div class="demo-box">
+  <strong>Demo 2 — getUserMedia &amp; Media Constraints.</strong> <code>04_mm_getusermedia.html</code> captures camera and microphone, shows the live preview, lets you adjust resolution and frame rate constraints, and displays the actual <code>getSettings()</code> values the browser granted.
+  <p style="margin:10px 0 0 0;"><a href="04_mm_getusermedia.html" target="_blank" style="display:inline-block; padding:6px 14px; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Demo 2 &#8599;</a></p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Cell 11 — RTCDataChannel                                    -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>9. RTCDataChannel — Peer-to-Peer Data</h2>
+<p><code>RTCDataChannel</code> provides a bidirectional peer-to-peer data transport built on SCTP over DTLS. Once a peer connection is established, you can send arbitrary text or binary data — JSON messages, file chunks, game state, subtitles — with very low latency and no server involvement. The data channel shares the same DTLS session as the media tracks, so no additional connection setup is needed.</p>
+
+<h3>Delivery modes</h3>
+<table>
+  <thead><tr><th>Option</th><th>Behaviour</th><th>Analogous to</th></tr></thead>
+  <tbody>
+    <tr><td><code>ordered: true</code> (default)</td><td>Messages arrive in order; lost messages are retransmitted</td><td>TCP</td></tr>
+    <tr><td><code>ordered: false</code></td><td>Messages may arrive out of order; no retransmission</td><td>UDP</td></tr>
+    <tr><td><code>maxRetransmits: N</code></td><td>Retransmit at most N times, then discard</td><td>UDP with limited retry</td></tr>
+    <tr><td><code>maxPacketLifeTime: ms</code></td><td>Discard messages older than this many milliseconds</td><td>Real-time data with expiry</td></tr>
+  </tbody>
+</table>
+
+<pre><code>// ── Offerer side: create the channel BEFORE calling createOffer() ──
+// Creating the channel before the offer ensures it appears in the SDP
+// (as an m=application section) so the answerer knows to expect it.
+
+const dataChannel = peerConnection.createDataChannel('chat', {
+  ordered: true       // guarantee delivery order (TCP-like)
+  // maxRetransmits: 0  // use this for real-time data that must not be delayed
+});
+
+// DataChannel lifecycle events
+dataChannel.onopen = () => {
+  // Channel is ready — both peers have completed the SCTP handshake.
+  // Only send data after onopen fires; sending before open is silently dropped.
+  console.log('DataChannel open');
+  dataChannel.send('Hello from the offerer!');
+};
+
+dataChannel.onmessage = (event) => {
+  // event.data is a string, ArrayBuffer, or Blob depending on what was sent.
+  console.log('Received:', event.data);
+};
+
+dataChannel.onclose = () => console.log('DataChannel closed');
+dataChannel.onerror = (error) => console.error('DataChannel error:', error);
+
+
+// ── Answerer side: receive the channel via ondatachannel ──
+// The answerer does NOT call createDataChannel().
+// Instead, the browser fires ondatachannel when the channel is negotiated.
+
+peerConnection.ondatachannel = (event) => {
+  const remoteChannel = event.channel;
+  remoteChannel.onopen    = () => remoteChannel.send('Hello back!');
+  remoteChannel.onmessage = (e) => console.log('Received:', e.data);
+};
+
+// Sending different data types
+dataChannel.send('plain text message');
+dataChannel.send(JSON.stringify({ type: 'position', x: 100, y: 200 }));
+
+// Binary data — send an ArrayBuffer
+const buffer = new Uint8Array([1, 2, 3, 4]).buffer;
+dataChannel.send(buffer);</code></pre>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(79,156,249,0.06); border-radius:6px; padding:16px 20px; margin:20px 0;">
+  <strong>Connection to earlier chapters.</strong> <code>RTCDataChannel</code> is conceptually similar to the browser's <code>MessageChannel</code> API — both provide bidirectional message passing. The key difference is that DataChannel works across the network, peer-to-peer, with no server in the middle once the WebRTC connection is established.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/RTCDataChannel" target="_blank" rel="noopener" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">MDN RTCDataChannel &#8599;</a>
+</p>
+
+<div class="demo-box">
+  <strong>Demo 1 — Loopback DataChannel.</strong> <code>04_mm_loopback_datachannel.html</code> creates a DataChannel between two local <code>RTCPeerConnection</code> objects on the same page and lets you send messages between them — with no network and no camera required.
+  <p style="margin:10px 0 0 0;"><a href="04_mm_loopback_datachannel.html" target="_blank" style="display:inline-block; padding:6px 14px; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Demo 1 &#8599;</a></p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Cell 12 — Signaling                                         -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>10. Signaling — The Missing Piece</h2>
+<p>Before two peers can establish a WebRTC connection, they must exchange three things:</p>
+<ol>
+  <li>The <strong>offer SDP</strong> from the caller to the callee.</li>
+  <li>The <strong>answer SDP</strong> from the callee back to the caller.</li>
+  <li><strong>ICE candidates</strong> from each peer to the other (in both directions, in trickle ICE mode).</li>
+</ol>
+<p>This exchange requires some out-of-band channel — a channel that exists <em>before</em> the WebRTC connection. WebRTC calls this the <strong>signaling channel</strong> and deliberately leaves its implementation to the application.</p>
+
+<h3>Signaling options</h3>
+<table>
+  <thead><tr><th>Option</th><th>How it works</th><th>Used in this chapter</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Copy-paste (manual)</strong></td><td>User copies SDP text from one browser tab to another</td><td>Demos 1, 3 — makes signaling completely visible</td></tr>
+    <tr><td><strong>WebSocket server</strong></td><td>A server routes JSON messages between peers in the same room</td><td>Demos 5, 6, 7 — automated, realistic</td></tr>
+    <tr><td><strong>HTTP polling</strong></td><td>Peers poll a server endpoint for messages</td><td>Viable but adds latency</td></tr>
+    <tr><td><strong>BroadcastChannel</strong></td><td>Browser API for same-origin cross-tab messaging (no server needed)</td><td>Not used here — same-origin only</td></tr>
+  </tbody>
+</table>
+
+<h3>Our WebSocket signaling server</h3>
+<p>The signaling server in <code>codespace/signaling_server.py</code> is intentionally minimal: it routes JSON messages between two peers in the same room. It has no knowledge of SDP or ICE — it is a <strong>dumb router</strong>. The message format is:</p>
+<pre><code>// All signaling messages use this JSON structure.
+// The server reads 'type' to know whether to broadcast or route,
+// and 'room' to know which peer to forward to.
+{
+  "type":  "join" | "offer" | "answer" | "ice",
+  "room":  "room1",     // room identifier — both peers must use the same room
+  "data":  { ... }      // the SDP object or ICE candidate object
+}</code></pre>
+<p>The full server source code with line-by-line comments is in Section 12 below.</p>
+
+<h3>ICE candidate timing: a critical subtlety</h3>
+<p>In trickle ICE, ICE candidates from the remote peer may arrive via the signaling channel <em>before</em> <code>setRemoteDescription()</code> has been called on your peer connection. If you call <code>addIceCandidate()</code> before <code>setRemoteDescription()</code>, the browser throws an error. The solution is to <strong>queue incoming candidates</strong> and add them after <code>setRemoteDescription()</code> completes:</p>
+<pre><code>// Queue for ICE candidates that arrive before setRemoteDescription()
+const pendingCandidates = [];
+let remoteDescriptionSet = false;
+
+signalingChannel.onmessage = async (event) => {
+  const message = JSON.parse(event.data);
+
+  if (message.type === 'ice') {
+    if (remoteDescriptionSet) {
+      // Safe to add immediately
+      await peerConnection.addIceCandidate(new RTCIceCandidate(message.data));
+    } else {
+      // Queue it — will be added after setRemoteDescription()
+      pendingCandidates.push(message.data);
+    }
+  }
+
+  if (message.type === 'answer') {
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(message.data));
+    remoteDescriptionSet = true;
+
+    // Drain the queue — add all candidates that arrived early
+    for (const candidate of pendingCandidates) {
+      await peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+    }
+    pendingCandidates.length = 0;
+  }
+};</code></pre>
+
+<div class="demo-box">
+  <strong>Demo 3 — Manual SDP Video Call.</strong> <code>04_mm_manual_sdp_video.html</code> is a real two-tab video call where you copy and paste the SDP and ICE candidates between tabs. This makes every step of the signaling process visible and concrete.
+  <p style="margin:10px 0 0 0;"><a href="04_mm_manual_sdp_video.html" target="_blank" style="display:inline-block; padding:6px 14px; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Demo 3 &#8599;</a></p>
+</div>
+<div class="demo-box">
+  <strong>Demo 5 — Automatic Signaling Call.</strong> <code>04_mm_signaling_call.html</code> uses the Codespace WebSocket server to automate the same exchange. Compare the event log in Demo 5 with the manual steps in Demo 3 — they are identical, just automated.
+  <p style="margin:10px 0 0 0;"><a href="04_mm_signaling_call.html" target="_blank" style="display:inline-block; padding:6px 14px; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Demo 5 &#8599;</a></p>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Cell 13 — getStats                                          -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>11. getStats() — Monitoring a Live Connection</h2>
+<p><code>RTCPeerConnection.getStats()</code> returns a detailed snapshot of the connection's internal state. It is the primary tool for diagnosing WebRTC quality issues in production — the programmatic equivalent of Chrome's <code>chrome://webrtc-internals</code>.</p>
+
+<h3>How to read the stats report</h3>
+<pre><code>// getStats() returns a Promise resolving to an RTCStatsReport — a Map
+// where each value is a stats object with a 'type' property.
+const report = await peerConnection.getStats();
+
+report.forEach((stats) => {
+  // Each stats entry has a unique 'id' and a 'type'.
+  // Filter by type to find the data you need.
+  switch (stats.type) {
+
+    case 'inbound-rtp':
+      // Stats for media being received from the remote peer.
+      // bytesReceived: cumulative bytes (not rate — see bitrate calculation below)
+      // packetsLost: cumulative lost packets (use for packet loss percentage)
+      // jitter: variance in inter-packet arrival time (in seconds)
+      // framesDecoded: for video — total frames decoded
+      console.log(`Inbound: ${stats.bytesReceived} bytes, ${stats.packetsLost} lost`);
+      break;
+
+    case 'outbound-rtp':
+      // Stats for media being sent to the remote peer.
+      // bytesSent, packetsSent, retransmittedPacketsSent
+      break;
+
+    case 'candidate-pair':
+      // Stats for an ICE candidate pair. The nominated pair is the active path.
+      if (stats.nominated) {
+        // currentRoundTripTime: RTT in seconds (multiply by 1000 for ms)
+        // availableOutgoingBitrate: estimated available bandwidth
+        console.log(`RTT: ${stats.currentRoundTripTime * 1000} ms`);
+      }
+      break;
+
+    case 'local-candidate':
+    case 'remote-candidate':
+      // candidateType: 'host', 'srflx', or 'relay'
+      // If remote-candidate.candidateType === 'relay', TURN is active.
+      console.log(`Candidate type: ${stats.candidateType}`);
+      break;
+  }
+});</code></pre>
+
+<h3>Calculating bitrate from cumulative bytes</h3>
+<p>WebRTC stats report <em>cumulative</em> byte counts, not instantaneous rates. To calculate bitrate, sample the stats at a regular interval and compute the difference:</p>
+<pre><code>let previousBytesReceived = 0;
+let previousTimestamp     = 0;
+
+setInterval(async () => {
+  const report = await peerConnection.getStats();
+
+  report.forEach((stats) => {
+    if (stats.type === 'inbound-rtp' && stats.kind === 'video') {
+      const bytesDelta = stats.bytesReceived - previousBytesReceived;
+      const timeDelta  = (stats.timestamp - previousTimestamp) / 1000; // seconds
+
+      // Convert bytes per second to kilobits per second
+      const bitrateKbps = (bytesDelta * 8) / timeDelta / 1000;
+      console.log(`Video bitrate: ${bitrateKbps.toFixed(1)} kbps`);
+
+      previousBytesReceived = stats.bytesReceived;
+      previousTimestamp     = stats.timestamp;
+    }
+  });
+}, 1000);</code></pre>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(79,156,249,0.06); border-radius:6px; padding:16px 20px; margin:20px 0;">
+  <strong>chrome://webrtc-internals</strong> is a browser page that displays the same stats in a rich visual interface with time-series graphs. Open it in a separate tab while running any of the Codespace demos to see bitrate, packet loss, and ICE state graphed in real time. It is the most powerful WebRTC debugging tool available.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/getStats" target="_blank" rel="noopener" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">MDN getStats() &#8599;</a>
+  <a href="https://www.w3.org/TR/webrtc-stats/" target="_blank" rel="noopener" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">W3C WebRTC Stats Spec &#8599;</a>
+</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Cell 14 — Codespace infrastructure                          -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>12. The Codespace Infrastructure</h2>
+<p>Demos 5–7 require two servers running in the Codespace: a WebSocket signaling server and a TURN server (coturn). This section explains every file in the <code>codespace/</code> folder.</p>
+
+<h3>codespace/devcontainer.json</h3>
+<p>The <code>devcontainer.json</code> file tells GitHub Codespaces how to provision the VM. It specifies the base image, packages to install, ports to forward, and the command to run on startup.</p>
+<pre><code>{
+  // Base image: Ubuntu 24.04 with common dev tools
+  "name": "WebRTC Seminar 04",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
+
+  // Install Python 3.12 via the devcontainers feature registry
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": { "version": "3.12" }
+  },
+
+  // Commands run once when the Codespace is first created.
+  // apt-get installs coturn (the TURN server).
+  // pip installs the Python websockets library for the signaling server.
+  "onCreateCommand": "apt-get update && apt-get install -y coturn && pip install websockets",
+
+  // Command run every time the Codespace starts (after creation).
+  // Starts the signaling server and coturn in the background.
+  "postStartCommand": "bash codespace/start.sh",
+
+  // Ports to forward publicly. GitHub assigns a *.app.github.dev URL to each.
+  "forwardPorts": [8765, 5349],
+  "portsAttributes": {
+    "8765": { "label": "Signaling Server (WSS)", "protocol": "https" },
+    "5349": { "label": "TURN Server (TURNS/TCP)", "protocol": "https" }
+  },
+
+  "remoteUser": "vscode"
+}</code></pre>
+
+<h3>codespace/signaling_server.py</h3>
+<p>The signaling server is a minimal Python WebSocket server. It maintains a dictionary of rooms, each holding at most two connections. When a message arrives, it is forwarded to the other peer in the same room.</p>
+<pre><code>"""Minimal WebSocket signaling server for WebRTC demos.
+
+Course: Multimediaprogrammierung — Chapter 04: WebRTC
+Author: Renato Fera P. — TU Ilmenau AMS Group
+
+Run with: python codespace/signaling_server.py
+"""
+
+from __future__ import annotations
+import asyncio
+import json
+import logging
+import ssl
+from pathlib import Path
+import websockets
+from websockets.asyncio.server import ServerConnection
+
+# ── Logging ─────────────────────────────────────────────────────────────────
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%H:%M:%S'
+)
+log = logging.getLogger(__name__)
+
+# ── Room registry ────────────────────────────────────────────────────────────
+# rooms maps a room_id (str) to a list of at most 2 WebSocket connections.
+# When a peer disconnects, it is removed from its room.
+rooms: dict[str, list[ServerConnection]] = {}
+
+# ── Message handler ──────────────────────────────────────────────────────────
+async def handler(websocket: ServerConnection) -> None:
+    """Handle one WebSocket connection for its lifetime.
+
+    Receives JSON messages from the client, routes them to the other peer
+    in the same room, and cleans up when the connection closes.
+    """
+    room_id: str | None = None
+
+    try:
+        async for raw in websocket:
+            message = json.loads(raw)
+            msg_type = message.get('type')
+            room_id  = message.get('room', 'default')
+
+            if msg_type == 'join':
+                # Add this peer to the room (create the room if it does not exist).
+                if room_id not in rooms:
+                    rooms[room_id] = []
+                rooms[room_id].append(websocket)
+                log.info(f"Peer joined room '{room_id}' ({len(rooms[room_id])}/2 peers)")
+
+                if len(rooms[room_id]) == 2:
+                    # Two peers are now in the room — tell the first peer
+                    # that a second peer has joined so it can start the offer.
+                    first_peer = rooms[room_id][0]
+                    await first_peer.send(json.dumps({'type': 'peer-joined'}))
+
+            else:
+                # For all other message types (offer, answer, ice),
+                # forward the message to the OTHER peer in the room.
+                peers = rooms.get(room_id, [])
+                for peer in peers:
+                    if peer is not websocket:
+                        await peer.send(raw)  # forward the raw JSON string unchanged
+                        log.info(f"Routed '{msg_type}' in room '{room_id}'")
+
+    except websockets.exceptions.ConnectionClosedOK:
+        pass  # Normal disconnect — no error logging needed
+    except Exception as e:
+        log.error(f"Handler error: {e}")
+    finally:
+        # Remove this peer from its room on disconnect.
+        if room_id and room_id in rooms:
+            rooms[room_id] = [p for p in rooms[room_id] if p is not websocket]
+            log.info(f"Peer left room '{room_id}' ({len(rooms[room_id])} remaining)")
+            if not rooms[room_id]:
+                del rooms[room_id]
+
+# ── TLS context ─────────────────────────────────────────────────────────────
+def make_ssl_context() -> ssl.SSLContext:
+    """Create an SSL context using the self-signed certificate generated by start.sh."""
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.load_cert_chain(
+        certfile='/etc/coturn/turn_server_cert.pem',
+        keyfile='/etc/coturn/turn_server_pkey.pem'
+    )
+    return ctx
+
+# ── Entry point ──────────────────────────────────────────────────────────────
+async def main() -> None:
+    """Start the WSS signaling server on port 8765."""
+    ssl_context = make_ssl_context()
+    log.info("Signaling server starting on wss://0.0.0.0:8765")
+    async with websockets.serve(handler, '0.0.0.0', 8765, ssl=ssl_context):
+        await asyncio.get_running_loop().create_future()  # run forever
+
+if __name__ == '__main__':
+    asyncio.run(main())</code></pre>
+
+<h3>codespace/coturn.conf</h3>
+<p>coturn is configured with the following directives. Each is explained below:</p>
+<pre><code># Listening ports
+listening-port=3478        # Standard TURN/UDP port (not reachable via Codespaces forwarding)
+tls-listening-port=5349   # TURNS/TLS port — this is what Codespaces forwards
+
+# Listen on all network interfaces
+listening-ip=0.0.0.0
+relay-ip=0.0.0.0
+
+# Realm: an arbitrary string that identifies this TURN server.
+# Must match the realm used in the RTCConfiguration in the demo pages.
+realm=codespace.local
+
+# Long-term credential — username:password for demo use.
+# In production, use --lt-cred-mech with time-limited HMAC credentials.
+user=webrtc:seminar04
+lt-cred-mech
+
+# Transport: disable UDP and plain TCP; enable TLS only.
+# Codespaces can forward TCP/TLS (port 5349) but not raw UDP.
+no-udp
+no-tcp
+no-dtls=true   # disable DTLS (used for TURN over DTLS, not needed here)
+
+# TLS certificate — self-signed, generated by start.sh
+cert=/etc/coturn/turn_server_cert.pem
+pkey=/etc/coturn/turn_server_pkey.pem
+
+# Logging
+log-file=/var/log/coturn/turnserver.log
+verbose   # log every allocation and permission for debugging</code></pre>
+
+<h3>codespace/start.sh</h3>
+<pre><code>#!/bin/bash
+# start.sh — starts coturn and the signaling server inside the Codespace.
+# Runs automatically via devcontainer.json postStartCommand.
+
+set -e  # exit immediately on any error
+
+CERT=/etc/coturn/turn_server_cert.pem
+KEY=/etc/coturn/turn_server_pkey.pem
+
+# Generate a self-signed TLS certificate if one does not already exist.
+# Both coturn and the signaling server share this certificate.
+if [ ! -f "$CERT" ]; then
+  echo "Generating self-signed TLS certificate..."
+  mkdir -p /etc/coturn
+  openssl req -x509 -newkey rsa:2048 -keyout "$KEY" -out "$CERT" \
+    -days 365 -nodes -subj "/CN=codespace.local"
+  echo "Certificate generated."
+fi
+
+# Start coturn in the background.
+turnserver -c /workspaces/multimedia_programming_seminars/codespace/coturn.conf &
+echo "coturn started (TURNS on port 5349)"
+
+# Start the WebSocket signaling server in the background.
+python /workspaces/multimedia_programming_seminars/codespace/signaling_server.py &
+echo "Signaling server started (WSS on port 8765)"
+
+echo ""
+echo "Both servers are running. Find the public URLs in the Codespace Ports tab."
+echo "Replace 'https://' with 'wss://' for the signaling server URL."
+
+# Keep this script alive so the Codespace postStartCommand does not exit.
+wait</code></pre>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════ -->
+<!-- Cell 15 — Demo index                                        -->
+<!-- ═══════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>13. Demo Index</h2>
+<p>This chapter has seven demos that progress from pure browser (no infrastructure) to a full production-pattern implementation using the Codespace signaling server and TURN relay.</p>
+<table>
+  <thead><tr><th>#</th><th>File</th><th>Infrastructure</th><th>Key concepts</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td><a href="04_mm_loopback_datachannel.html" target="_blank"><code>04_mm_loopback_datachannel.html</code></a></td>
+      <td>None</td>
+      <td>RTCPeerConnection, RTCDataChannel, SDP anatomy, ICE gathering</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td><a href="04_mm_getusermedia.html" target="_blank"><code>04_mm_getusermedia.html</code></a></td>
+      <td>None</td>
+      <td>getUserMedia, media constraints, MediaStreamTrack, device enumeration</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td><a href="04_mm_manual_sdp_video.html" target="_blank"><code>04_mm_manual_sdp_video.html</code></a></td>
+      <td>None (Google STUN)</td>
+      <td>Manual signaling, offer/answer exchange, trickle ICE, P2P video call</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td><a href="04_mm_ice_stats.html" target="_blank"><code>04_mm_ice_stats.html</code></a></td>
+      <td>None (Google STUN)</td>
+      <td>ICE candidate types and priorities, getStats(), candidate pair selection</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td><a href="04_mm_signaling_call.html" target="_blank"><code>04_mm_signaling_call.html</code></a></td>
+      <td>Codespace: WSS signaling server</td>
+      <td>Automatic WebSocket signaling, room-based connection, trickle ICE over WSS</td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td><a href="04_mm_turn_relay.html" target="_blank"><code>04_mm_turn_relay.html</code></a></td>
+      <td>Codespace: WSS + coturn</td>
+      <td>TURN relay, TURNS/TCP, iceTransportPolicy, relay candidate verification</td>
+    </tr>
+    <tr>
+      <td>7</td>
+      <td><a href="04_mm_production.html" target="_blank"><code>04_mm_production.html</code></a></td>
+      <td>Codespace: WSS + coturn</td>
+      <td>Perfect negotiation, multi-track, DataChannel chat, stats dashboard, ICE restart</td>
+    </tr>
+  </tbody>
+</table>
+
+<!-- prev / next navigation -->
+<nav class="chapter-nav">
+  <a href="03_multimediaprogrammierung_pyside6.html">
+    <span class="nav-label">← Previous</span>
+    <span class="nav-title">Chapter 03: PySide6</span>
+  </a>
+  <a href="05_multimediaprogrammierung_XXXX.html">
+    <span class="nav-label">Next →</span>
+    <span class="nav-title">Chapter 05</span>
+  </a>
+</nav>
+
+<!-- Footer cell -->
+<div class="nb-footer-cell">
+  <p><strong>Multimediaprogrammierung</strong> &middot; Chapter 04: WebRTC<br>
+  Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+  <p>Notebook created by <strong>Renato Fera P.</strong> &middot;
+  <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a></p>
+</div>
+
+</div><!-- end nb-content -->
+</main>
+
+<footer>
+  <p><strong>Multimediaprogrammierung</strong> &middot; Seminar Materials<br>
+  Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+  <p>
+    Page maintained by <strong>Renato Fera P.</strong> &middot;
+    <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+    &nbsp;&middot;&nbsp;
+    <a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars" target="_blank" rel="noopener">github.com/TUIlmenauAMS/multimedia_programming_seminars</a>
+  </p>
+</footer>
+
+</body>
+</html>
