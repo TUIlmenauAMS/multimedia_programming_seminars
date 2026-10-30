@@ -1702,7 +1702,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self) -> None:
         """Initialise the workbench: create model, build UI, restore settings."""
-        super().__init__(self)
+        super().__init__()
         self.setWindowTitle(WINDOW_TITLE)
         self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
 
