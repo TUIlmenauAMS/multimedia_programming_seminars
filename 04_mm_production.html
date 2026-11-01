@@ -1,0 +1,1551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo 7: Production Pattern — Multimediaprogrammierung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  /* ── STEP 0: Design system — exact match to course CSS variables ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0d0f14;
+    --surface: #161a22;
+    --border:  #252b38;
+    --text:    #d8dce6;
+    --muted:   #5a6175;
+    --accent:  #4f9cf9;
+    --accent2: #a78bfa;
+    --green:   #34d399;
+    --orange:  #fb923c;
+    --red:     #f87171;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* ── header ── */
+  header { border-bottom: 2px solid var(--border); padding: 24px 0 20px; }
+  .header-inner {
+    max-width: 1060px; margin: 0 auto; padding: 0 32px;
+    display: flex; align-items: center; gap: 24px;
+  }
+  .header-logo img { width: 100px; border-radius: 10px; display: block; }
+  .header-info h1 { font-size: clamp(16px,2.5vw,22px); font-weight: 500; color: #f0f2f7; line-height: 1.2; margin-bottom: 4px; }
+  .header-info h2 { font-size: 13px; font-weight: 400; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; }
+  .header-meta { font-size: 13px; color: var(--text); line-height: 1.6; }
+  .header-meta a { color: var(--accent); text-decoration: none; }
+  .header-meta a:hover { text-decoration: underline; }
+
+  /* ── breadcrumb ── */
+  .breadcrumb {
+    max-width: 1060px; margin: 0 auto; padding: 14px 32px 0;
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+  }
+  .breadcrumb a { color: var(--accent); text-decoration: none; }
+  .breadcrumb a:hover { text-decoration: underline; }
+  .breadcrumb span { margin: 0 6px; }
+
+  /* ── main ── */
+  main { max-width: 1060px; margin: 0 auto; padding: 28px 32px 80px; }
+
+  /* ── demo intro ── */
+  .demo-intro {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px 24px; margin-bottom: 20px;
+  }
+  .demo-intro h1 { font-size: clamp(17px,2.5vw,24px); font-weight: 500; color: #f0f2f7; margin-bottom: 6px; }
+  .demo-badge {
+    display: inline-block;
+    background: rgba(167,139,250,0.12); color: var(--accent2);
+    font-family: var(--mono); font-size: 11px; padding: 2px 10px;
+    border-radius: 20px; border: 1px solid rgba(167,139,250,0.3); margin-bottom: 10px;
+  }
+  .demo-intro p { color: var(--text); margin-bottom: 6px; font-size: 14px; }
+  .demo-intro p:last-child { margin-bottom: 0; }
+
+  /* ── config section ── */
+  .config-section {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 18px 22px; margin-bottom: 16px;
+  }
+  .config-section h3 {
+    font-size: 12px; font-family: var(--mono); color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px;
+  }
+  .config-grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; gap: 10px; }
+  @media (max-width: 800px) { .config-grid { grid-template-columns: 1fr 1fr; } }
+  .config-field { display: flex; flex-direction: column; gap: 4px; }
+  .config-field label {
+    font-size: 10px; font-family: var(--mono); color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  input[type="text"] {
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; font-family: var(--mono);
+    font-size: 12px; padding: 6px 10px; outline: none;
+    transition: border-color 0.15s; width: 100%;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+  input[type="text"]::placeholder { color: var(--muted); }
+
+  /* ── state bar ── */
+  .state-bar {
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .state-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 3px 10px; border-radius: 20px; font-family: var(--mono); font-size: 11px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--muted);
+    transition: all 0.3s;
+  }
+  .state-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .state-pill.connected    { border-color: rgba(52,211,153,0.4);  color: var(--green);  }
+  .state-pill.connected .dot  { background: var(--green);  box-shadow: 0 0 5px rgba(52,211,153,0.5); }
+  .state-pill.connecting   { border-color: rgba(79,156,249,0.4);  color: var(--accent); }
+  .state-pill.connecting .dot { background: var(--accent); }
+  .state-pill.failed       { border-color: rgba(248,113,113,0.4); color: var(--red);    }
+  .state-pill.failed .dot  { background: var(--red); }
+  .state-pill.restarting   { border-color: rgba(251,146,60,0.4);  color: var(--orange); }
+  .state-pill.restarting .dot { background: var(--orange); }
+
+  /* ── panels ── */
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+  }
+  .panel-header {
+    padding: 10px 16px; border-bottom: 1px solid var(--border);
+    font-family: var(--mono); font-size: 11px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel-header .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--muted); flex-shrink: 0;
+  }
+  .panel-header .dot.green  { background: var(--green); }
+  .panel-header .dot.blue   { background: var(--accent); }
+  .panel-header .dot.orange { background: var(--orange); }
+  .panel-header .dot.purple { background: var(--accent2); }
+  .panel-header .dot.red    { background: var(--red); }
+  .panel-body { padding: 14px; }
+
+  /* ── main call layout ── */
+  .call-grid {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+  @media (max-width: 760px) { .call-grid { grid-template-columns: 1fr; } }
+
+  /* ── right column: local + chat stacked ── */
+  .right-col { display: flex; flex-direction: column; gap: 14px; }
+
+  /* ── video elements ── */
+  video {
+    width: 100%; border-radius: 6px;
+    background: #0a0c11; display: block; object-fit: cover;
+  }
+  #remoteVideo { aspect-ratio: 16/9; }
+  #localVideo  { aspect-ratio: 16/9; }
+  .video-wrap { position: relative; }
+  .video-label {
+    position: absolute; top: 7px; left: 9px;
+    background: rgba(0,0,0,0.65); color: var(--muted);
+    font-family: var(--mono); font-size: 11px;
+    padding: 2px 7px; border-radius: 4px;
+  }
+  .video-label.live { color: var(--green); }
+
+  /* ── DataChannel chat ── */
+  #chatLog {
+    height: 160px; overflow-y: auto;
+    background: var(--bg); border-radius: 6px;
+    padding: 8px 10px; font-family: var(--mono); font-size: 12px; line-height: 1.6;
+    margin-bottom: 8px;
+  }
+  .chat-msg { padding: 2px 0; border-bottom: 1px solid rgba(37,43,56,0.4); }
+  .chat-msg:last-child { border-bottom: none; }
+  .chat-time { color: var(--muted); }
+  .chat-self { color: var(--accent); }
+  .chat-peer { color: var(--green); }
+  .chat-sys  { color: var(--muted); font-style: italic; }
+  .chat-input-row { display: flex; gap: 6px; }
+  .chat-input-row input {
+    flex: 1; padding: 6px 10px; font-size: 12px;
+  }
+
+  /* ── bottom grid ── */
+  .bottom-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 14px; margin-bottom: 14px;
+  }
+  @media (max-width: 700px) { .bottom-grid { grid-template-columns: 1fr; } }
+
+  /* ── stats table ── */
+  .stats-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .stats-table th {
+    text-align: left; padding: 5px 8px;
+    font-family: var(--mono); font-size: 10px; color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .stats-table td {
+    padding: 5px 8px; border-bottom: 1px solid rgba(37,43,56,0.5);
+    font-family: var(--mono); font-size: 12px; vertical-align: middle;
+  }
+  .stats-table tr:last-child td { border-bottom: none; }
+  .stats-table .key  { color: var(--muted); }
+  .stats-table .val  { color: var(--text); }
+  .stats-table .green  { color: var(--green); }
+  .stats-table .blue   { color: var(--accent); }
+  .stats-table .orange { color: var(--orange); }
+  .stats-table .red    { color: var(--red); }
+  .stats-table .purple { color: var(--accent2); }
+
+  /* ── event log ── */
+  #eventLog {
+    background: var(--bg); border-radius: 6px; padding: 10px;
+    height: 260px; overflow-y: auto;
+    font-family: var(--mono); font-size: 11px; line-height: 1.6;
+  }
+  .log-entry { display: flex; gap: 8px; padding: 2px 0; border-bottom: 1px solid rgba(37,43,56,0.4); }
+  .log-entry:last-child { border-bottom: none; }
+  .log-time { color: var(--muted); flex-shrink: 0; }
+  .log-msg         { color: var(--text); }
+  .log-msg.info    { color: var(--accent); }
+  .log-msg.ok      { color: var(--green); }
+  .log-msg.warn    { color: var(--orange); }
+  .log-msg.error   { color: var(--red); }
+  .log-msg.signal  { color: var(--accent2); }
+
+  /* ── buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 7px 16px; border-radius: 6px; border: none;
+    font-family: var(--mono); font-size: 12px; font-weight: 500;
+    cursor: pointer; transition: opacity 0.15s, filter 0.15s;
+  }
+  .btn:disabled { opacity: 0.38; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #0d0f14; }
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.12); }
+  .btn-success { background: var(--green); color: #0d0f14; }
+  .btn-success:hover:not(:disabled) { filter: brightness(1.1); }
+  .btn-danger  { background: rgba(248,113,113,0.15); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
+  .btn-danger:hover:not(:disabled)  { background: rgba(248,113,113,0.25); }
+  .btn-warn    { background: rgba(251,146,60,0.15); color: var(--orange); border: 1px solid rgba(251,146,60,0.3); }
+  .btn-warn:hover:not(:disabled)    { background: rgba(251,146,60,0.25); }
+  .btn-muted   { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-muted:hover:not(:disabled)   { border-color: var(--accent); color: var(--accent); }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+
+  /* ── info / concept boxes ── */
+  .info-box {
+    border-left: 4px solid var(--accent); background: rgba(79,156,249,0.06);
+    border-radius: 6px; padding: 12px 16px; margin: 14px 0; font-size: 13px;
+  }
+  .info-box strong { color: var(--accent); }
+  .concept-box {
+    border-left: 4px solid var(--accent2); background: rgba(167,139,250,0.06);
+    border-radius: 6px; padding: 12px 16px; margin: 14px 0; font-size: 13px;
+  }
+  .concept-box strong { color: var(--accent2); }
+
+  /* ── error box ── */
+  .error-box {
+    display: none; background: rgba(248,113,113,0.08);
+    border: 1px solid rgba(248,113,113,0.3); border-left: 4px solid var(--red);
+    border-radius: 6px; padding: 10px 14px; margin-top: 10px;
+    font-family: var(--mono); font-size: 12px; color: var(--red);
+  }
+  .error-box.visible { display: block; }
+
+  /* ── candidate type badge (inline, smaller than Demo 6) ── */
+  .cand-badge {
+    display: inline-block; padding: 2px 10px; border-radius: 6px;
+    font-family: var(--mono); font-size: 11px; font-weight: 500;
+    border: 1px solid transparent; vertical-align: middle;
+  }
+  .cand-host    { background: rgba(52,211,153,0.12);  color: var(--green);  border-color: rgba(52,211,153,0.3); }
+  .cand-srflx   { background: rgba(79,156,249,0.12);  color: var(--accent); border-color: rgba(79,156,249,0.3); }
+  .cand-relay   { background: rgba(251,146,60,0.15);  color: var(--orange); border-color: rgba(251,146,60,0.4); }
+  .cand-unknown { background: rgba(90,97,117,0.12);   color: var(--muted);  border-color: var(--border); }
+
+  /* ── footer ── */
+  .nb-footer-cell {
+    margin-top: 48px; padding-top: 24px; border-top: 2px solid var(--border);
+    text-align: center; font-size: 13px; color: var(--muted); line-height: 1.7;
+  }
+  .nb-footer-cell b { color: var(--text); }
+  .nb-footer-cell a { color: var(--accent); text-decoration: none; }
+  .nb-footer-cell a:hover { text-decoration: underline; }
+  footer {
+    border-top: 2px solid var(--border); padding: 18px 32px 24px;
+    max-width: 1060px; margin: 0 auto; text-align: center;
+    font-size: 13px; color: var(--text); line-height: 1.7;
+  }
+  footer p + p { margin-top: 4px; font-size: 12px; color: var(--muted); }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 600px) {
+    .header-inner, main, footer, .breadcrumb { padding-left: 20px; padding-right: 20px; }
+    .header-inner { flex-direction: column; align-items: flex-start; gap: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<!-- ── Header — matches course design system exactly ── -->
+<header>
+  <div class="header-inner">
+    <div class="header-logo">
+      <img src="ams_group_tui.png" alt="AMS Group – TU Ilmenau">
+    </div>
+    <div class="header-info">
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 04: WebRTC — Demo 7</h2>
+      <p class="header-meta">
+        <strong>Institut für Medientechnik –
+          <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme"
+             target="_blank" rel="noopener">AMS Group</a>
+          – Technische Universität Ilmenau</strong><br>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller &nbsp;·&nbsp;
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+      </p>
+    </div>
+  </div>
+</header>
+
+<nav class="breadcrumb">
+  <a href="index.html">Seminar Materials</a>
+  <span>›</span>
+  <a href="04_multimediaprogrammierung_webrtc.html">Chapter 04: WebRTC</a>
+  <span>›</span>
+  Demo 7: Production Pattern
+</nav>
+
+<main>
+
+  <!-- ── Demo intro ── -->
+  <div class="demo-intro">
+    <div class="demo-badge">Demo 7 of 7 — Capstone · Requires Codespace (WSS + TURNS)</div>
+    <h1>Production Pattern — Multi-track · DataChannel · ICE Restart · QoS Stats</h1>
+    <p>
+      This is the reference implementation for a production-quality WebRTC application.
+      It combines everything from Demos 1–6: automatic WSS signaling, STUN + TURN relay,
+      multi-track media (video + audio), a <code>RTCDataChannel</code> chat running alongside
+      the video call, full <code>getStats()</code> QoS monitoring, and robust connection state
+      management including automatic ICE restart on failure.
+    </p>
+    <p style="font-size:13px; color: var(--muted);">
+      See Sections 7–13 of the theory HTML for the concepts used here. ·
+      <!-- WEB AUDIO EQUIVALENT: RTCPeerConnection is to WebRTC what AudioContext is to Web Audio —
+           the central object owning the entire processing pipeline (ICE, DTLS, RTP, codec negotiation). -->
+    </p>
+  </div>
+
+  <!-- ── STEP 1: Server configuration ── -->
+  <!--
+    STEP 1: Configuration constants.
+    All server parameters are gathered from UI inputs before any connection is made.
+    Keeping server addresses out of the code and in the UI avoids magic strings
+    and lets students use the same file with any Codespace without editing source.
+  -->
+  <div class="config-section">
+    <h3>Codespace Server Configuration</h3>
+    <div class="config-grid">
+      <div class="config-field">
+        <label>Signaling Server (WSS URL)</label>
+        <input type="text" id="wssUrl" placeholder="wss://yourname-random-8765.app.github.dev">
+      </div>
+      <div class="config-field">
+        <label>Room ID</label>
+        <input type="text" id="roomId" value="room1">
+      </div>
+      <div class="config-field">
+        <label>TURN Hostname (port 5349)</label>
+        <input type="text" id="turnHost" placeholder="yourname-random-5349.app.github.dev">
+      </div>
+      <div class="config-field" style="display:grid; grid-template-columns:1fr 1fr; gap:6px; align-items:end;">
+        <div>
+          <label>TURN User</label>
+          <input type="text" id="turnUser" value="webrtc">
+        </div>
+        <div>
+          <label>TURN Cred</label>
+          <input type="text" id="turnCred" value="seminar04">
+        </div>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btnConnect" onclick="connect()">▶ Connect &amp; Join Room</button>
+      <button class="btn btn-warn"    id="btnRestart" onclick="iceRestart()" disabled>↺ ICE Restart</button>
+      <button class="btn btn-danger"  id="btnHangup"  onclick="hangup()" disabled>■ Hang Up</button>
+    </div>
+    <div class="error-box" id="errorBox"></div>
+  </div>
+
+  <!-- ── Connection state bar ── -->
+  <div class="state-bar">
+    <div class="state-pill" id="pillSignaling">
+      <span class="dot"></span>Signaling: <span id="stSignaling">idle</span>
+    </div>
+    <div class="state-pill" id="pillIce">
+      <span class="dot"></span>ICE: <span id="stIce">—</span>
+    </div>
+    <div class="state-pill" id="pillConn">
+      <span class="dot"></span>Connection: <span id="stConn">—</span>
+    </div>
+    <div class="state-pill" id="pillDtls">
+      <span class="dot"></span>DTLS: <span id="stDtls">—</span>
+    </div>
+    <div class="state-pill" id="pillRole" style="margin-left:auto;">
+      Role: <span id="stRole">—</span>
+    </div>
+  </div>
+
+  <!-- ── Main call layout ── -->
+  <div class="call-grid">
+
+    <!-- LEFT: remote video (large) -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="dot blue" id="remoteDot"></div>
+        Remote Peer
+      </div>
+      <div class="panel-body" style="padding:10px;">
+        <div class="video-wrap">
+          <!--
+            STEP 8: ontrack — remote video element.
+            NOT muted: we want to hear the remote peer's audio.
+            autoplay + playsinline: required for immediate playback on all platforms.
+          -->
+          <video id="remoteVideo" autoplay playsinline></video>
+          <div class="video-label" id="remoteLbl">Waiting for remote…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: local preview + DataChannel chat -->
+    <div class="right-col">
+
+      <!-- Local video preview -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="dot green" id="localDot"></div>
+          Local Preview (muted)
+        </div>
+        <div class="panel-body" style="padding:10px;">
+          <div class="video-wrap">
+            <!--
+              STEP 4: Local video preview.
+              muted: REQUIRED — playing our own microphone back to ourselves causes echo feedback.
+              playsinline: required on iOS to prevent fullscreen takeover; good practice everywhere.
+            -->
+            <video id="localVideo" autoplay muted playsinline></video>
+            <div class="video-label" id="localLbl">No camera</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- DataChannel chat -->
+      <!--
+        STEP 5: RTCDataChannel.
+        WEB AUDIO EQUIVALENT: RTCDataChannel is to WebRTC what MessageChannel is to
+        the Web Audio API — a bidirectional data pipe between two endpoints.
+        Unlike media tracks (RTP/RTCP), DataChannel runs over SCTP on top of DTLS.
+        It coexists with media in the same RTCPeerConnection — no extra signaling needed.
+        See Demo 1 (04_mm_loopback_datachannel.html) for the full DataChannel explanation.
+      -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="dot purple" id="dcDot"></div>
+          DataChannel Chat
+          <span id="dcState" style="margin-left:auto; font-size:10px; color:var(--muted);">closed</span>
+        </div>
+        <div class="panel-body" style="padding:10px;">
+          <div id="chatLog">
+            <div class="chat-msg chat-sys">Chat will open once the DataChannel connects…</div>
+          </div>
+          <div class="chat-input-row">
+            <input type="text" id="chatInput" placeholder="Type a message…"
+                   onkeydown="if(event.key==='Enter') sendChat()"
+                   disabled>
+            <button class="btn btn-muted" id="btnSend" onclick="sendChat()" disabled>Send</button>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /right-col -->
+  </div><!-- /call-grid -->
+
+  <!-- ── Bottom grid: connection status + QoS stats dashboard ── -->
+  <div class="bottom-grid">
+
+    <!-- Connection status panel -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="dot blue"></div>
+        Connection Status
+      </div>
+      <div class="panel-body" style="padding:10px;">
+        <table class="stats-table">
+          <tr><td class="key">Signaling state</td> <td class="val" id="dSignaling">—</td></tr>
+          <tr><td class="key">ICE state</td>        <td class="val" id="dIce">—</td></tr>
+          <tr><td class="key">Connection state</td> <td class="val" id="dConn">—</td></tr>
+          <tr><td class="key">DTLS state</td>       <td class="val" id="dDtls">—</td></tr>
+          <tr><td class="key">DataChannel</td>      <td class="val" id="dDc">—</td></tr>
+          <tr><td class="key">Local candidate</td>  <td class="val" id="dLocalCand">—</td></tr>
+          <tr><td class="key">Remote candidate</td> <td class="val" id="dRemoteCand">—</td></tr>
+          <tr><td class="key">Polite peer</td>      <td class="val blue" id="dPolite">—</td></tr>
+        </table>
+      </div>
+    </div>
+
+    <!-- QoS stats dashboard -->
+    <!--
+      STEP 10: getStats() dashboard.
+      WEB AUDIO EQUIVALENT: getStats() is to RTCPeerConnection what AnalyserNode is to
+      AudioContext — both provide real-time metrics from inside the processing pipeline.
+      getStats() returns cumulative counters (bytes, packets) — not rates.
+      We difference consecutive samples to compute instantaneous bitrate and packet loss.
+    -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="dot purple"></div>
+        QoS Stats Dashboard (getStats · 1 s)
+      </div>
+      <div class="panel-body" style="padding:10px;">
+        <table class="stats-table">
+          <tr><td class="key">Video bitrate TX</td>  <td class="val green"  id="sVideoBrTx">—</td></tr>
+          <tr><td class="key">Video bitrate RX</td>  <td class="val green"  id="sVideoBrRx">—</td></tr>
+          <tr><td class="key">Audio bitrate TX</td>  <td class="val blue"   id="sAudioBrTx">—</td></tr>
+          <tr><td class="key">Audio bitrate RX</td>  <td class="val blue"   id="sAudioBrRx">—</td></tr>
+          <tr><td class="key">Packet loss</td>       <td class="val"        id="sLoss">—</td></tr>
+          <tr><td class="key">Jitter (audio)</td>    <td class="val"        id="sJitter">—</td></tr>
+          <tr><td class="key">RTT</td>               <td class="val green"  id="sRtt">—</td></tr>
+          <tr><td class="key">Bytes sent / recv</td> <td class="val"        id="sBytes">—</td></tr>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /bottom-grid -->
+
+  <!-- ── Event log ── -->
+  <div class="panel" style="margin-bottom:20px;">
+    <div class="panel-header">
+      <div class="dot blue"></div>
+      Event Log — all signaling, WebRTC state changes, and ICE candidates
+      <button class="btn btn-muted"
+              style="margin-left:auto; padding:2px 10px; font-size:10px;"
+              onclick="document.getElementById('eventLog').innerHTML=''">Clear</button>
+    </div>
+    <div class="panel-body" style="padding:10px;">
+      <div id="eventLog"></div>
+    </div>
+  </div>
+
+  <!-- ── Teaching callouts ── -->
+  <div class="concept-box">
+    <strong>CONCEPT: Perfect negotiation pattern.</strong>
+    When both peers can trigger renegotiation independently (e.g., adding a track,
+    or a network change fires <code>onnegotiationneeded</code> on both sides simultaneously),
+    a naive implementation enters <em>glare</em>: both peers create an offer at the same
+    moment, each tries to set the other's offer as remote description while their own
+    offer is pending, and the signaling state machine breaks. The W3C perfect negotiation
+    pattern resolves this with a simple rule: one peer is designated <em>polite</em>,
+    the other <em>impolite</em>. When there is a collision, the polite peer rolls back its
+    own pending offer and accepts the incoming one. The impolite peer ignores the incoming
+    offer and keeps its own. The result is always a stable, agreed-upon description.
+    In this demo, the second peer to join the room is polite.
+  </div>
+
+  <div class="concept-box">
+    <strong>CONCEPT: ICE restart.</strong>
+    When a connection enters <code>failed</code> state — because a network change broke
+    all previously working candidate pairs — <code>pc.restartIce()</code> generates new
+    ICE credentials (<code>ice-ufrag</code> and <code>ice-pwd</code>) and triggers
+    <code>onnegotiationneeded</code>, which re-runs the full offer/answer exchange with
+    fresh credentials. The existing media session is preserved — tracks are not stopped,
+    no new <code>getUserMedia</code> is needed. This is how production applications recover
+    from WiFi → mobile network switches and VPN connect/disconnect events.
+    <code>restartIce()</code> is the modern API (Chrome 77+, Firefox 70+); the older
+    <code>createOffer({ iceRestart: true })</code> is equivalent but requires manual signaling.
+  </div>
+
+  <!-- ── Footer ── -->
+  <div class="nb-footer-cell">
+    <b>Demo 7 of 7</b> — Production Pattern (capstone)<br>
+    Course: <b>Multimediaprogrammierung</b> · Chapter 04: WebRTC<br>
+    TU Ilmenau · Institut für Medientechnik ·
+    <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme"
+       target="_blank" rel="noopener">AMS Group</a>
+  </div>
+
+</main>
+
+<footer>
+  <p>
+    Multimediaprogrammierung · Chapter 04: WebRTC ·
+    <a href="04_multimediaprogrammierung_webrtc.html">Back to theory</a>
+  </p>
+  <p>TU Ilmenau · AMS Group · Prof. Dr.-Ing. Gerald Schuller · Renato Fera P.</p>
+</footer>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 1: Module-level state
+// All mutable state is declared here at module scope. This makes the call
+// lifecycle explicit — you can see everything that must be cleaned up in hangup().
+// ═══════════════════════════════════════════════════════════════════════════
+
+let ws          = null;  // WebSocket to the signaling server
+let pc          = null;  // RTCPeerConnection
+let localStream = null;  // MediaStream from getUserMedia (video + audio)
+
+// CONCEPT: Multi-track management
+//   addTrack() returns an RTCRtpSender. Storing senders lets us call
+//   sender.replaceTrack(newTrack) later without renegotiation — useful
+//   for camera switching or adding/removing tracks during a live call.
+//   For replacement to work without renegotiation the new track must use
+//   the same codec as the old one; otherwise onnegotiationneeded fires.
+let videoSender = null;  // RTCRtpSender for the video track
+let audioSender = null;  // RTCRtpSender for the audio track
+
+let dc          = null;  // RTCDataChannel (created by caller, received by callee)
+
+// STEP 2: Perfect negotiation state
+//   polite: true if we are the second peer to join (we yield on collision).
+//   makingOffer: true while our own createOffer/setLocalDescription is in flight.
+//     Used to detect the collision window.
+//   ignoreOffer: true when we are the impolite peer and must ignore an incoming offer.
+let polite      = false;
+let makingOffer = false;
+let ignoreOffer = false;
+
+let room        = 'room1';
+
+// ICE candidate queue for trickle ICE — same pattern as Demo 6.
+// See Demo 6 for the full CONCEPT: ICE candidate queueing explanation.
+let iceCandidateQueue = [];
+let remoteDescSet     = false;
+
+// STEP 10: getStats() state — previous sample for derivative calculation.
+// CONCEPT: Bitrate from cumulative bytes
+//   WebRTC stats counters are cumulative (total bytes since connection started),
+//   not instantaneous. To compute bitrate we take two samples 1 second apart
+//   and calculate: bitrate_bps = (bytesNow - bytesBefore) * 8 / 1.0
+//   This is the standard approach in all production WebRTC monitoring systems.
+let statsInterval = null;
+let prev = {
+  videoBytesSent: 0, videoBytesRecv: 0,
+  audioBytesSent: 0, audioBytesRecv: 0,
+  packetsLost: 0,    packetsReceived: 0
+};
+
+// STEP 9: Reconnection timer — started when connection enters "disconnected".
+// ICE may self-recover in "disconnected" state; we wait before triggering
+// an explicit ICE restart in case it recovers on its own.
+let reconnectTimer = null;
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 2: Logging utilities
+// ═══════════════════════════════════════════════════════════════════════════
+
+function ts() {
+  const d = new Date();
+  return [d.getHours(), d.getMinutes(), d.getSeconds()]
+    .map(n => String(n).padStart(2, '0')).join(':');
+}
+
+function log(msg, type = '') {
+  const div = document.getElementById('eventLog');
+  const e = document.createElement('div');
+  e.className = 'log-entry';
+  e.innerHTML = `<span class="log-time">${ts()}</span><span class="log-msg ${type}">${msg}</span>`;
+  div.appendChild(e);
+  div.scrollTop = div.scrollHeight;
+}
+
+function showError(msg) {
+  const b = document.getElementById('errorBox');
+  b.textContent = msg;
+  b.classList.add('visible');
+  log(msg, 'error');
+}
+
+function clearError() {
+  document.getElementById('errorBox').classList.remove('visible');
+}
+
+function chatMsg(text, kind) {
+  // kind: "self" | "peer" | "sys"
+  const log = document.getElementById('chatLog');
+  // Remove the placeholder text on first real message
+  const sys = log.querySelector('.chat-sys');
+  if (sys && kind !== 'sys') sys.remove();
+  const div = document.createElement('div');
+  div.className = `chat-msg chat-${kind}`;
+  div.innerHTML = `<span class="chat-time">${ts()} </span>${text}`;
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 3: State pill updater
+// ═══════════════════════════════════════════════════════════════════════════
+
+function setPill(pillId, textId, val) {
+  const pill = document.getElementById(pillId);
+  document.getElementById(textId).textContent = val;
+  pill.classList.remove('connected','connecting','failed','restarting');
+  if (['connected','completed'].includes(val))             pill.classList.add('connected');
+  else if (['connecting','checking','new'].includes(val))  pill.classList.add('connecting');
+  else if (['failed','closed'].includes(val))             pill.classList.add('failed');
+  else if (val === 'restarting')                           pill.classList.add('restarting');
+}
+
+function setDetail(id, val, colorClass = '') {
+  const el = document.getElementById(id);
+  el.textContent = val;
+  el.className = 'val ' + colorClass;
+}
+
+function candBadge(type) {
+  const map = { host:'cand-host', srflx:'cand-srflx', relay:'cand-relay' };
+  return `<span class="cand-badge ${map[type]||'cand-unknown'}">${(type||'?').toUpperCase()}</span>`;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 3: Build RTCConfiguration — STUN + TURN (same as Demo 6)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function buildConfig() {
+  const host = document.getElementById('turnHost').value.trim();
+  const user = document.getElementById('turnUser').value.trim();
+  const cred = document.getElementById('turnCred').value.trim();
+
+  if (!host) {
+    showError('TURN hostname required — copy from port 5349 in the Codespace Ports tab.');
+    return null;
+  }
+
+  return {
+    iceServers: [
+      {
+        // STUN — discovers our server-reflexive (public NAT-translated) address.
+        // No credentials needed. Free, maintained by Google.
+        // See Demo 4 (04_mm_ice_stats.html) for ICE candidate type details.
+        urls: 'stun:stun.l.google.com:19302'
+      },
+      {
+        // TURNS: TURN over TLS over TCP — required for Codespaces port forwarding.
+        // "turns:" scheme, port 5349, ?transport=tcp (forces TCP; Codespaces
+        // cannot proxy raw UDP).
+        // See Demo 6 (04_mm_turn_relay.html) for the full TURNS URL explanation.
+        urls: `turns:${host}:5349?transport=tcp`,
+        username: user,
+        credential: cred
+      }
+    ]
+    // iceTransportPolicy defaults to "all": browser prefers direct paths,
+    // falls back to TURN only when necessary.
+  };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 6: WebSocket signaling connection
+// Same room-join protocol as Demos 5 and 6.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function send(msg) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(msg));
+    log(`→ signal [${msg.type}]`, 'signal');
+  } else {
+    log(`Cannot send [${msg.type}] — WebSocket not open`, 'warn');
+  }
+}
+
+async function connect() {
+  clearError();
+  const wssUrl = document.getElementById('wssUrl').value.trim();
+  room         = document.getElementById('roomId').value.trim() || 'room1';
+
+  if (!wssUrl.startsWith('wss://')) {
+    showError('WSS URL must start with wss://');
+    return;
+  }
+
+  document.getElementById('btnConnect').disabled = true;
+  document.getElementById('btnHangup').disabled  = false;
+  setPill('pillSignaling', 'stSignaling', 'connecting');
+  log(`Connecting to signaling server: ${wssUrl}`, 'info');
+
+  ws = new WebSocket(wssUrl);
+
+  ws.onopen = () => {
+    log('WebSocket connected', 'ok');
+    setPill('pillSignaling', 'stSignaling', 'connected');
+    send({ type: 'join', room });
+    log(`Joined room "${room}"`, 'info');
+  };
+
+  ws.onerror = () => {
+    showError('WebSocket error — check WSS URL and that your Codespace is running.');
+  };
+
+  ws.onclose = (e) => {
+    log(`WebSocket closed (code ${e.code})`, e.wasClean ? '' : 'warn');
+    setPill('pillSignaling', 'stSignaling', 'closed');
+  };
+
+  // ── Signaling message dispatcher ─────────────────────────────────────────
+  ws.onmessage = async (event) => {
+    const msg = JSON.parse(event.data);
+    log(`← signal [${msg.type}]`, 'signal');
+
+    switch (msg.type) {
+
+      case 'joined':
+        // First peer — we are the impolite peer (we do NOT yield on collision).
+        polite = false;
+        document.getElementById('stRole').textContent = 'Peer 1 (impolite)';
+        setDetail('dPolite', 'No (impolite — Peer 1)', 'blue');
+        log('We are Peer 1 (impolite) — waiting for Peer 2', 'info');
+        await initPeerConnection();
+        break;
+
+      case 'peer-joined':
+        // Peer 2 has arrived. As Peer 1 we trigger onnegotiationneeded
+        // by adding tracks, which starts the offer/answer exchange.
+        log('Peer 2 joined — starting negotiation', 'ok');
+        await startMedia();
+        break;
+
+      case 'offer':
+        // STEP 7 (perfect negotiation): incoming offer from the remote peer.
+        await handleOffer(msg.data);
+        break;
+
+      case 'answer':
+        await handleAnswer(msg.data);
+        break;
+
+      case 'ice':
+        await handleRemoteIce(msg.data);
+        break;
+
+      case 'error':
+        showError(`Signaling error: ${msg.message}`);
+        break;
+    }
+  };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 4: getUserMedia — capture camera and microphone
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function captureMedia() {
+  if (localStream) return;
+  try {
+    // Request video and audio with separate constraint objects.
+    // Explicit constraints (rather than just "true") make the request declarative —
+    // easy to extend with resolution or echo-cancellation constraints.
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
+    });
+
+    // Attach to local preview (<video muted playsinline>)
+    const lv = document.getElementById('localVideo');
+    lv.srcObject = localStream;
+    document.getElementById('localLbl').textContent = '● LIVE';
+    document.getElementById('localLbl').classList.add('live');
+    document.getElementById('localDot').style.background = 'var(--green)';
+    log('getUserMedia granted (video 720p + audio with EC/NS/AGC)', 'ok');
+  } catch (err) {
+    throw new Error(`getUserMedia failed: ${err.name} — ${err.message}`);
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 5 + STEP 7: Create RTCPeerConnection, DataChannel, and all handlers
+//
+// Called once when Peer 1 joins (before Peer 2 arrives).
+// Peer 2 calls this path via handleOffer → initPeerConnection.
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function initPeerConnection() {
+  if (pc) return;
+
+  const config = buildConfig();
+  if (!config) return;
+
+  // WEB AUDIO EQUIVALENT: RTCPeerConnection ↔ AudioContext
+  //   Both own the entire media processing pipeline. RTCPeerConnection manages
+  //   ICE (connectivity), DTLS (encryption), RTP (media transport), and SCTP (data).
+  pc = new RTCPeerConnection(config);
+  log('RTCPeerConnection created', 'info');
+
+  // ── STEP 5: DataChannel (caller side) ────────────────────────────────────
+  // The caller creates the DataChannel BEFORE any offer is made.
+  // This ensures the SDP includes an "m=application" section (SCTP),
+  // so the channel is ready without a second renegotiation.
+  if (!polite) {
+    // We are Peer 1 (impolite / caller) — create the DataChannel.
+    dc = pc.createDataChannel('chat', {
+      // ordered: true — messages delivered in order (like TCP).
+      // Use ordered:false + maxRetransmits:0 for low-latency game state.
+      ordered: true
+    });
+    wireDataChannel(dc);
+    log('DataChannel "chat" created (caller side)', 'info');
+  }
+
+  // The callee receives the DataChannel via ondatachannel when the connection
+  // is established. The callee never calls createDataChannel.
+  pc.ondatachannel = (event) => {
+    // CONCEPT: ondatachannel on the callee side
+    //   The callee does not create a DataChannel — it receives the one the caller
+    //   created, delivered via this event. The channel label matches what the
+    //   caller passed to createDataChannel (here: "chat").
+    dc = event.channel;
+    wireDataChannel(dc);
+    log(`DataChannel received by callee: "${dc.label}"`, 'info');
+  };
+
+  // ── STEP 7: Perfect negotiation — onnegotiationneeded ───────────────────
+  //
+  // CONCEPT: Perfect negotiation pattern (W3C recommended)
+  //   onnegotiationneeded fires whenever the connection needs to renegotiate:
+  //   - Initially, when the first track is added via addTrack()
+  //   - When a track is added/removed after the initial offer/answer
+  //   - When restartIce() is called (ICE restart)
+  //
+  //   Collision scenario: both peers call addTrack() at the "same" time
+  //   (relative to the signaling round-trip). Both fire onnegotiationneeded,
+  //   both create offers, and both send them. Each peer receives the other's
+  //   offer while its own offer is pending (signalingState !== "stable").
+  //
+  //   The perfect negotiation solution:
+  //   - Polite peer (Peer 2): rolls back its own pending offer and accepts
+  //     the incoming one. Rollback: setLocalDescription({type:"rollback"}).
+  //   - Impolite peer (Peer 1): ignores the incoming offer. It keeps its own
+  //     offer pending and waits for the polite peer to roll back and answer.
+  //
+  //   Result: exactly one offer/answer exchange completes, regardless of timing.
+  //   Reference: https://w3c.github.io/webrtc-pc/#perfect-negotiation-example
+
+  pc.onnegotiationneeded = async () => {
+    try {
+      makingOffer = true;
+      log('onnegotiationneeded — creating offer', 'info');
+
+      // setLocalDescription with no argument: browser creates the best offer
+      // automatically (replaces explicit createOffer() + setLocalDescription(offer)).
+      // This is the modern API (Chrome 80+, Firefox 75+).
+      await pc.setLocalDescription();
+
+      // Send the offer to the remote peer via WebSocket
+      send({ type: 'offer', room, data: pc.localDescription });
+    } catch (err) {
+      log(`onnegotiationneeded error: ${err.message}`, 'error');
+    } finally {
+      makingOffer = false;
+    }
+  };
+
+  // ── Incoming offer handler (used by both peers in perfect negotiation) ───
+  // This is also called directly for Peer 2's initial offer (handleOffer).
+
+  // ── ICE candidate handler ─────────────────────────────────────────────────
+  pc.onicecandidate = ({ candidate }) => {
+    if (candidate) {
+      send({ type: 'ice', room, data: candidate });
+    } else {
+      log('ICE gathering complete', 'info');
+    }
+  };
+
+  pc.onicegatheringstatechange = () => {
+    log(`ICE gathering: ${pc.iceGatheringState}`, 'info');
+  };
+
+  pc.oniceconnectionstatechange = () => {
+    const s = pc.iceConnectionState;
+    log(`ICE connection: ${s}`, s === 'connected' || s === 'completed' ? 'ok' : '');
+    setPill('pillIce', 'stIce', s);
+    setDetail('dIce', s, s === 'connected' || s === 'completed' ? 'green' : s === 'failed' ? 'red' : '');
+  };
+
+  // ── STEP 9: Connection state management ───────────────────────────────────
+  // This is the authoritative connection state (combines ICE + DTLS).
+  // Production applications must handle all states, especially "failed".
+  pc.onconnectionstatechange = () => {
+    const s = pc.connectionState;
+    log(`Connection state: ${s}`, s === 'connected' ? 'ok' : s === 'failed' ? 'error' : '');
+    setPill('pillConn', 'stConn', s);
+    setDetail('dConn', s, s === 'connected' ? 'green' : s === 'failed' ? 'red' : '');
+
+    switch (s) {
+      case 'connected':
+        // Peer connection is up — DTLS handshake complete, media flowing.
+        if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+        document.getElementById('btnRestart').disabled = false;
+        startStatsPolling();
+        log('Connected — media session active', 'ok');
+        break;
+
+      case 'disconnected':
+        // ICE has lost connectivity but may recover automatically (e.g., temporary
+        // network interruption). Wait 5 seconds before triggering an explicit restart.
+        log('Disconnected — waiting 5 s before ICE restart', 'warn');
+        reconnectTimer = setTimeout(() => {
+          if (pc && pc.connectionState === 'disconnected') {
+            log('Auto-triggering ICE restart after disconnection timeout', 'warn');
+            iceRestart();
+          }
+        }, 5000);
+        break;
+
+      case 'failed':
+        // ICE gave up — no working path found (or all paths broken).
+        // Trigger an immediate ICE restart.
+        log('Connection failed — triggering ICE restart', 'error');
+        iceRestart();
+        break;
+
+      case 'closed':
+        stopStatsPolling();
+        break;
+    }
+  };
+
+  pc.onsignalingstatechange = () => {
+    const s = pc.signalingState;
+    log(`Signaling state: ${s}`, 'info');
+    setDetail('dSignaling', s);
+  };
+
+  // DTLS state — accessed via the transport of the first sender/receiver.
+  // Useful for debugging TLS handshake issues.
+  pc.addEventListener('icecandidateerror', (e) => {
+    // ICE candidate errors are common (e.g., STUN server unreachable on
+    // some interface). Log at warn level — they are not always fatal.
+    if (e.errorCode !== 701) { // 701 = MDNS resolution failure (benign in some envs)
+      log(`ICE candidate error ${e.errorCode}: ${e.errorText}`, 'warn');
+    }
+  });
+
+  // ── STEP 8: ontrack — remote media ────────────────────────────────────────
+  // CONCEPT: event.streams[0] vs event.track
+  //   ontrack fires once per track (so twice for video+audio).
+  //   event.track is the individual MediaStreamTrack.
+  //   event.streams[0] is the MediaStream that groups the tracks together.
+  //   Attaching event.streams[0] to the video element is preferred:
+  //   the first time it fires (video track), the stream already contains
+  //   the audio track too (or will soon). Attaching the stream once is
+  //   cleaner than managing individual tracks on the element.
+  pc.ontrack = (event) => {
+    log(`Remote track received: ${event.track.kind} (id: ${event.track.id.slice(0,8)}…)`, 'ok');
+    const rv = document.getElementById('remoteVideo');
+    if (rv.srcObject !== event.streams[0]) {
+      rv.srcObject = event.streams[0];
+      document.getElementById('remoteLbl').textContent = '● LIVE';
+      document.getElementById('remoteLbl').classList.add('live');
+      document.getElementById('remoteDot').style.background = 'var(--green)';
+      log('Remote stream attached to video element', 'ok');
+    }
+  };
+}
+
+// ── Wire DataChannel events ───────────────────────────────────────────────
+function wireDataChannel(channel) {
+  // WEB AUDIO EQUIVALENT: RTCDataChannel ↔ MessageChannel
+  //   Both are bidirectional data pipes. DataChannel runs over SCTP/DTLS
+  //   (peer-to-peer), MessageChannel over the browser's event loop (same tab).
+
+  channel.onopen = () => {
+    log('DataChannel open — chat ready', 'ok');
+    document.getElementById('dcState').textContent  = 'open';
+    document.getElementById('dcState').style.color  = 'var(--green)';
+    document.getElementById('dcDot').style.background = 'var(--green)';
+    document.getElementById('dDc').textContent      = 'open';
+    document.getElementById('dDc').className        = 'val green';
+    document.getElementById('chatInput').disabled   = false;
+    document.getElementById('btnSend').disabled     = false;
+    chatMsg('Chat channel open — say hello!', 'sys');
+  };
+
+  channel.onclose = () => {
+    log('DataChannel closed', 'warn');
+    document.getElementById('dcState').textContent  = 'closed';
+    document.getElementById('dcState').style.color  = 'var(--muted)';
+    document.getElementById('dcDot').style.background = 'var(--muted)';
+    document.getElementById('dDc').textContent      = 'closed';
+    document.getElementById('chatInput').disabled   = true;
+    document.getElementById('btnSend').disabled     = true;
+  };
+
+  channel.onerror = (e) => {
+    log(`DataChannel error: ${e.message || e}`, 'error');
+  };
+
+  channel.onmessage = (event) => {
+    // Incoming message from the remote peer.
+    // DataChannel messages are always strings or ArrayBuffers (here: strings).
+    chatMsg(`Peer: ${event.data}`, 'peer');
+  };
+}
+
+// ── Send a chat message via the DataChannel ───────────────────────────────
+function sendChat() {
+  const input = document.getElementById('chatInput');
+  const text  = input.value.trim();
+  if (!text) return;
+  if (!dc || dc.readyState !== 'open') {
+    log('DataChannel not open — cannot send message', 'warn');
+    return;
+  }
+
+  // CONCEPT: readyState check before send()
+  //   Always check dc.readyState === "open" before calling dc.send().
+  //   Calling send() on a non-open channel throws an InvalidStateError.
+  dc.send(text);
+  chatMsg(`You: ${text}`, 'self');
+  input.value = '';
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 4 + STEP 7: Start media and trigger initial negotiation
+// Called when Peer 1 learns that Peer 2 has joined.
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function startMedia() {
+  try {
+    await captureMedia();
+
+    // CONCEPT: addTrack before createOffer (via onnegotiationneeded)
+    //   addTrack() triggers onnegotiationneeded, which creates and sends the offer.
+    //   The tracks must be added before the offer so they appear in the SDP.
+    //   addTrack() returns an RTCRtpSender — store it for potential replaceTrack() later.
+    localStream.getVideoTracks().forEach(t => {
+      videoSender = pc.addTrack(t, localStream);
+      log(`Added video track: ${t.label}`, 'info');
+    });
+    localStream.getAudioTracks().forEach(t => {
+      audioSender = pc.addTrack(t, localStream);
+      log(`Added audio track: ${t.label}`, 'info');
+    });
+    // onnegotiationneeded fires here automatically, creating and sending the offer.
+  } catch (err) {
+    showError(`startMedia failed: ${err.message}`);
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 7: Perfect negotiation — offer/answer handlers
+// ═══════════════════════════════════════════════════════════════════════════
+
+async function handleOffer(sdp) {
+  // Detect collision: an offer arrived while we are already making one.
+  const offerCollision = makingOffer || pc.signalingState !== 'stable';
+
+  // CONCEPT: Perfect negotiation — collision handling
+  //   If there is no collision, this is a straightforward offer from the remote peer.
+  //   We set it as remote description and answer.
+  //
+  //   If there IS a collision:
+  //     Impolite peer (polite===false): ignores the offer completely.
+  //       The remote peer (polite) will roll back and answer our offer instead.
+  //     Polite peer (polite===true): rolls back its own pending offer and accepts
+  //       the incoming one. Rollback means setLocalDescription({type:"rollback"}),
+  //       which returns signalingState to "stable" without applying any description.
+  ignoreOffer = !polite && offerCollision;
+  if (ignoreOffer) {
+    log('Offer collision — ignoring offer (we are impolite)', 'warn');
+    return;
+  }
+
+  if (!pc) {
+    // Peer 2: we receive an offer before initPeerConnection was called.
+    // Initialize now (Peer 1 called initPeerConnection on join).
+    polite = true;
+    document.getElementById('stRole').textContent = 'Peer 2 (polite)';
+    setDetail('dPolite', 'Yes (polite — Peer 2)', 'blue');
+    log('We are Peer 2 (polite)', 'info');
+    await initPeerConnection();
+    await captureMedia();
+    localStream.getVideoTracks().forEach(t => { videoSender = pc.addTrack(t, localStream); });
+    localStream.getAudioTracks().forEach(t => { audioSender = pc.addTrack(t, localStream); });
+  }
+
+  try {
+    if (offerCollision) {
+      // Polite peer: roll back our pending offer so we can accept the incoming one.
+      log('Offer collision — rolling back our offer (we are polite)', 'warn');
+      await pc.setLocalDescription({ type: 'rollback' });
+    }
+
+    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    remoteDescSet = true;
+    log('Set remote description (offer)', 'info');
+
+    await flushIceQueue();
+
+    // Create and send the answer.
+    // setLocalDescription with no argument generates the answer automatically.
+    await pc.setLocalDescription();
+    send({ type: 'answer', room, data: pc.localDescription });
+    log('Created and sent answer', 'info');
+  } catch (err) {
+    showError(`handleOffer failed: ${err.message}`);
+  }
+}
+
+async function handleAnswer(sdp) {
+  // Ignore if we were the polite peer and just rolled back — the answer
+  // corresponds to our rolled-back offer, which is now irrelevant.
+  if (ignoreOffer) return;
+
+  try {
+    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    remoteDescSet = true;
+    log('Set remote description (answer)', 'ok');
+    await flushIceQueue();
+  } catch (err) {
+    showError(`handleAnswer failed: ${err.message}`);
+  }
+}
+
+async function handleRemoteIce(candidateInit) {
+  if (!candidateInit || !candidateInit.candidate) return;
+
+  if (!remoteDescSet || !pc) {
+    iceCandidateQueue.push(candidateInit);
+    log('Queued remote ICE candidate (remote desc not yet set)', 'warn');
+    return;
+  }
+  try {
+    await pc.addIceCandidate(new RTCIceCandidate(candidateInit));
+  } catch (err) {
+    if (!ignoreOffer) log(`addIceCandidate error: ${err.message}`, 'warn');
+  }
+}
+
+async function flushIceQueue() {
+  while (iceCandidateQueue.length > 0) {
+    const c = iceCandidateQueue.shift();
+    try {
+      await pc.addIceCandidate(new RTCIceCandidate(c));
+      log('Applied queued ICE candidate', 'info');
+    } catch (err) {
+      log(`Queued addIceCandidate error: ${err.message}`, 'warn');
+    }
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 9: ICE restart
+//
+// CONCEPT: ICE restart
+//   pc.restartIce() signals the ICE agent to generate new credentials
+//   (ice-ufrag and ice-pwd change in the next offer). This triggers
+//   onnegotiationneeded, which runs the perfect negotiation offer/answer
+//   exchange with the new credentials. ICE then runs fresh connectivity
+//   checks on all candidate pairs. The media session is preserved — no
+//   getUserMedia needed, no track re-add. This is the correct way to
+//   recover from "failed" or persistent "disconnected" state.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function iceRestart() {
+  if (!pc) return;
+  log('ICE restart initiated', 'warn');
+  setPill('pillConn', 'stConn', 'restarting');
+  remoteDescSet = false;         // reset — new remote description incoming
+  iceCandidateQueue = [];        // clear stale candidates from previous ICE session
+  pc.restartIce();               // triggers onnegotiationneeded → new offer with fresh ICE credentials
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 10: getStats() — QoS dashboard with bitrate, loss, jitter, RTT
+// ═══════════════════════════════════════════════════════════════════════════
+
+function startStatsPolling() {
+  if (statsInterval) return;
+  statsInterval = setInterval(pollStats, 1000);
+  log('getStats() polling started (1 s)', 'info');
+}
+
+function stopStatsPolling() {
+  if (statsInterval) { clearInterval(statsInterval); statsInterval = null; }
+}
+
+function fmt(bytes) {
+  if (bytes < 1024)    return `${bytes} B`;
+  if (bytes < 1048576) return `${(bytes/1024).toFixed(1)} KB`;
+  return `${(bytes/1048576).toFixed(2)} MB`;
+}
+
+function fmtKbps(bitsPerSec) {
+  if (bitsPerSec === 0) return '0 kbps';
+  if (bitsPerSec < 1000000) return `${(bitsPerSec/1000).toFixed(0)} kbps`;
+  return `${(bitsPerSec/1000000).toFixed(2)} Mbps`;
+}
+
+async function pollStats() {
+  if (!pc) return;
+  let report;
+  try { report = await pc.getStats(); } catch (e) { return; }
+
+  // Maps for looking up candidates and per-track stats
+  const localCands  = new Map();
+  const remoteCands = new Map();
+  let selectedPair  = null;
+  let totalSent = 0, totalRecv = 0;
+
+  // Per-track accumulators
+  let videoBytesSent = 0, videoBytesRecv = 0;
+  let audioBytesSent = 0, audioBytesRecv = 0;
+  let packetsLost    = 0, packetsReceived = 0;
+  let jitterMs       = 0;
+
+  report.forEach((stats) => {
+    switch (stats.type) {
+      case 'local-candidate':
+        localCands.set(stats.id, stats);
+        break;
+      case 'remote-candidate':
+        remoteCands.set(stats.id, stats);
+        break;
+      case 'candidate-pair':
+        if (stats.nominated && stats.state === 'succeeded') {
+          selectedPair = stats;
+          totalSent = stats.bytesSent     || 0;
+          totalRecv = stats.bytesReceived || 0;
+        }
+        break;
+
+      // outbound-rtp: stats for media we are sending
+      case 'outbound-rtp':
+        if (stats.kind === 'video') videoBytesSent = stats.bytesSent || 0;
+        if (stats.kind === 'audio') audioBytesSent = stats.bytesSent || 0;
+        break;
+
+      // inbound-rtp: stats for media we are receiving
+      case 'inbound-rtp':
+        if (stats.kind === 'video') videoBytesRecv = stats.bytesReceived || 0;
+        if (stats.kind === 'audio') {
+          audioBytesRecv = stats.bytesReceived || 0;
+          // jitter: reported in seconds by the WebRTC stats API — convert to ms
+          jitterMs = stats.jitter != null ? (stats.jitter * 1000).toFixed(1) : 0;
+          // CONCEPT: Packet loss = packetsLost / (packetsLost + packetsReceived)
+          //   packetsLost is a cumulative counter (can be negative in some impls).
+          //   packetsReceived is cumulative. We snapshot these here and compute
+          //   the loss ratio below. For instantaneous loss rate over the last second,
+          //   you would difference consecutive samples (same as bitrate).
+          packetsLost     = stats.packetsLost     || 0;
+          packetsReceived = stats.packetsReceived || 0;
+        }
+        break;
+
+      case 'transport':
+        // DTLS state lives on the transport object
+        if (stats.dtlsState) {
+          setDetail('dDtls', stats.dtlsState,
+            stats.dtlsState === 'connected' ? 'green' : stats.dtlsState === 'failed' ? 'red' : '');
+          setPill('pillDtls', 'stDtls', stats.dtlsState === 'connected' ? 'connected' : stats.dtlsState);
+        }
+        break;
+    }
+  });
+
+  // ── Bitrate calculation (derivative of cumulative byte counters) ──────────
+  // CONCEPT: Bitrate from cumulative bytes
+  //   The interval is nominally 1 second (setInterval(pollStats, 1000)).
+  //   Multiply byte delta by 8 to convert to bits.
+  const vTx = (videoBytesSent - prev.videoBytesSent) * 8;
+  const vRx = (videoBytesRecv - prev.videoBytesRecv) * 8;
+  const aTx = (audioBytesSent - prev.audioBytesSent) * 8;
+  const aRx = (audioBytesRecv - prev.audioBytesRecv) * 8;
+
+  // ── Packet loss ratio ─────────────────────────────────────────────────────
+  const totalPackets = packetsLost + packetsReceived;
+  const lossRatio    = totalPackets > 0
+    ? ((packetsLost / totalPackets) * 100).toFixed(2)
+    : '0.00';
+  const lossColor    = parseFloat(lossRatio) > 5 ? 'red' : parseFloat(lossRatio) > 1 ? 'orange' : 'green';
+
+  // ── RTT ───────────────────────────────────────────────────────────────────
+  const rttMs = selectedPair && selectedPair.currentRoundTripTime != null
+    ? `${(selectedPair.currentRoundTripTime * 1000).toFixed(1)} ms`
+    : '—';
+  const rttColor = selectedPair && selectedPair.currentRoundTripTime != null
+    ? (selectedPair.currentRoundTripTime > 0.15 ? 'orange' : 'green')
+    : '';
+
+  // ── Update stats table ────────────────────────────────────────────────────
+  setDetail('sVideoBrTx', fmtKbps(vTx), vTx > 0 ? 'green' : '');
+  setDetail('sVideoBrRx', fmtKbps(vRx), vRx > 0 ? 'green' : '');
+  setDetail('sAudioBrTx', fmtKbps(aTx), aTx > 0 ? 'blue'  : '');
+  setDetail('sAudioBrRx', fmtKbps(aRx), aRx > 0 ? 'blue'  : '');
+  setDetail('sLoss',   `${lossRatio}%`, lossColor);
+  setDetail('sJitter', jitterMs > 0 ? `${jitterMs} ms` : '—', jitterMs > 30 ? 'orange' : '');
+  setDetail('sRtt',    rttMs, rttColor);
+  setDetail('sBytes',  `${fmt(totalSent)} / ${fmt(totalRecv)}`);
+
+  // ── Candidate type badges in the connection status panel ──────────────────
+  if (selectedPair) {
+    const lc = localCands.get(selectedPair.localCandidateId);
+    const rc = remoteCands.get(selectedPair.remoteCandidateId);
+    if (lc) {
+      document.getElementById('dLocalCand').innerHTML = candBadge(lc.candidateType);
+    }
+    if (rc) {
+      document.getElementById('dRemoteCand').innerHTML = candBadge(rc.candidateType);
+    }
+  }
+
+  // ── Save current values as previous for next sample ──────────────────────
+  prev = { videoBytesSent, videoBytesRecv, audioBytesSent, audioBytesRecv,
+           packetsLost, packetsReceived };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STEP 11: Hang up — release all resources
+//
+// CONCEPT: Explicit cleanup
+//   Failing to stop tracks leaves the camera LED on and the microphone
+//   active — a serious UX problem. Failing to close the RTCPeerConnection
+//   leaves the ICE agent running (sending keep-alive STUN packets) and
+//   keeps RTP sessions open on the TURN server (consuming server bandwidth).
+//   Failing to close the WebSocket leaves the signaling room occupied.
+//   Always clean up explicitly — do not rely on garbage collection.
+// ═══════════════════════════════════════════════════════════════════════════
+
+function hangup() {
+  log('Hanging up — releasing all resources', 'warn');
+
+  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+  stopStatsPolling();
+
+  // Stop all local media tracks (releases camera LED and microphone)
+  if (localStream) {
+    localStream.getTracks().forEach(t => { t.stop(); log(`Stopped ${t.kind} track`); });
+    localStream = null;
+  }
+
+  // Close the DataChannel
+  if (dc) {
+    dc.close();
+    dc = null;
+    log('DataChannel closed');
+  }
+
+  // Close the peer connection (terminates ICE, DTLS, RTP)
+  if (pc) { pc.close(); pc = null; }
+
+  // Close the WebSocket signaling channel
+  if (ws) { ws.close(); ws = null; }
+
+  // Reset all state
+  polite = false; makingOffer = false; ignoreOffer = false;
+  videoSender = null; audioSender = null;
+  iceCandidateQueue = []; remoteDescSet = false;
+  prev = { videoBytesSent:0, videoBytesRecv:0, audioBytesSent:0,
+           audioBytesRecv:0, packetsLost:0, packetsReceived:0 };
+
+  // Reset video elements
+  document.getElementById('localVideo').srcObject  = null;
+  document.getElementById('remoteVideo').srcObject = null;
+  document.getElementById('localLbl').textContent  = 'No camera';
+  document.getElementById('localLbl').classList.remove('live');
+  document.getElementById('remoteLbl').textContent = 'Waiting for remote…';
+  document.getElementById('remoteLbl').classList.remove('live');
+
+  // Reset chat
+  document.getElementById('chatInput').disabled = true;
+  document.getElementById('btnSend').disabled   = true;
+  document.getElementById('dcState').textContent = 'closed';
+  document.getElementById('dcState').style.color = 'var(--muted)';
+
+  // Reset state pills and detail cells
+  setPill('pillSignaling', 'stSignaling', 'idle');
+  setPill('pillIce',       'stIce',       '—');
+  setPill('pillConn',      'stConn',      '—');
+  setPill('pillDtls',      'stDtls',      '—');
+  document.getElementById('stRole').textContent = '—';
+  ['dSignaling','dIce','dConn','dDtls','dDc','dLocalCand','dRemoteCand','dPolite',
+   'sVideoBrTx','sVideoBrRx','sAudioBrTx','sAudioBrRx','sLoss','sJitter','sRtt','sBytes']
+    .forEach(id => { document.getElementById(id).textContent = '—'; document.getElementById(id).className = 'val'; });
+
+  document.getElementById('btnConnect').disabled = false;
+  document.getElementById('btnRestart').disabled = true;
+  document.getElementById('btnHangup').disabled  = true;
+
+  log('Hung up — all resources released', 'ok');
+}
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Page lifecycle
+// ═══════════════════════════════════════════════════════════════════════════
+
+window.addEventListener('beforeunload', () => {
+  // Stop tracks when the page unloads — turns off the camera LED.
+  if (localStream) localStream.getTracks().forEach(t => t.stop());
+  if (pc) pc.close();
+  if (ws) ws.close();
+});
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Startup checks
+// ═══════════════════════════════════════════════════════════════════════════
+
+log('Demo 7 ready — Production Pattern (capstone)');
+log(`RTCPeerConnection: ${window.RTCPeerConnection ? '✓' : '✗ NOT available'}`, 'info');
+log(`getUserMedia:      ${navigator.mediaDevices?.getUserMedia ? '✓' : '✗ NOT available'}`, 'info');
+
+if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+  showError(
+    'getUserMedia requires HTTPS or localhost. Open this page from GitHub Pages ' +
+    'or the Codespace forwarded port URL.'
+  );
+  log('Insecure context — getUserMedia will be blocked', 'error');
+}
+</script>
+</body>
+</html>
