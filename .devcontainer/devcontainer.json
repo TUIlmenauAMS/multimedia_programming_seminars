@@ -7,16 +7,12 @@
     "ghcr.io/devcontainers/features/python:1": { "version": "3.12" }
   },
 
-  // onCreateCommand runs once when the Codespace is first created.
-  // Runs as root (before remoteUser takes effect) so apt-get and
-  // directory creation under /etc/ and /var/ work without sudo.
-  // --break-system-packages is required on Python 3.12 / Ubuntu 24.04
-  // (PEP 668 blocks pip installs into the system Python without it).
-  "onCreateCommand": "apt-get update && apt-get install -y coturn && pip install websockets --break-system-packages && mkdir -p /etc/coturn /var/log/coturn && chmod 777 /etc/coturn /var/log/coturn",
+  // postCreateCommand runs once after the container is created.
+  // Uses sudo for system-level operations (apt-get, mkdir under /etc/, /var/).
+  // The vscode user has passwordless sudo in devcontainer base images.
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y coturn && pip install websockets --break-system-packages && sudo mkdir -p /etc/coturn /var/log/coturn && sudo chmod 777 /etc/coturn /var/log/coturn",
 
   // postStartCommand runs every time the Codespace starts (including after resume).
-  // By this point remoteUser (vscode) is active, but /etc/coturn and
-  // /var/log/coturn are world-writable (set above) so start.sh can write there.
   "postStartCommand": "bash codespace/start.sh",
 
   "forwardPorts": [8765, 5349],
