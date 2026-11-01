@@ -11,7 +11,7 @@
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ── STEP 0: Design tokens — identical to the course design system ── */
+/* ── Design tokens — identical to course design system ── */
 :root {
   --bg:       #0d0f14;
   --surface:  #161a22;
@@ -19,9 +19,9 @@
   --border:   #252b38;
   --text:     #d8dce6;
   --muted:    #5a6175;
-  --accent:   #4f9cf9;   /* Peer A — blue */
+  --accent:   #4f9cf9;
   --accent2:  #a78bfa;
-  --green:    #34d399;   /* Peer B — green */
+  --green:    #34d399;
   --orange:   #fb923c;
   --red:      #f87171;
   --mono: 'IBM Plex Mono', monospace;
@@ -34,7 +34,7 @@ body { background: var(--bg); color: var(--text); font-family: var(--sans); font
 
 /* ── Header ── */
 header { border-bottom: 2px solid var(--border); padding: 24px 0 20px; }
-.header-inner { max-width: 1200px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; gap: 24px; }
+.header-inner { max-width: 1100px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; gap: 24px; }
 .header-logo img { width: 100px; border-radius: 10px; display: block; }
 .header-info h1 { font-size: clamp(16px,3vw,22px); font-weight: 500; color: #f0f2f7; line-height: 1.2; margin-bottom: 4px; }
 .header-info h2 { font-size: 12px; font-weight: 400; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; }
@@ -42,17 +42,17 @@ header { border-bottom: 2px solid var(--border); padding: 24px 0 20px; }
 .header-meta a { color: var(--accent); text-decoration: none; }
 
 /* ── Breadcrumb ── */
-.breadcrumb { max-width: 1200px; margin: 0 auto; padding: 14px 32px 0; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+.breadcrumb { max-width: 1100px; margin: 0 auto; padding: 14px 32px 0; font-family: var(--mono); font-size: 12px; color: var(--muted); }
 .breadcrumb a { color: var(--accent); text-decoration: none; }
 .breadcrumb span { margin: 0 6px; }
 
 /* ── Main ── */
-main { max-width: 1200px; margin: 0 auto; padding: 36px 32px 80px; }
+main { max-width: 1100px; margin: 0 auto; padding: 36px 32px 80px; }
 
 /* ── Typography ── */
 h1.demo-title { font-size: clamp(20px,3vw,26px); font-weight: 500; color: #f0f2f7; margin: 0 0 6px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
 .demo-subtitle { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-bottom: 18px; }
-h2.sh { font-size: 16px; font-weight: 500; color: #e8eaf2; margin: 32px 0 10px; padding-bottom: 7px; border-bottom: 1px solid var(--border); }
+h2.section-heading { font-size: 16px; font-weight: 500; color: #e8eaf2; margin: 40px 0 10px; padding-bottom: 7px; border-bottom: 1px solid var(--border); }
 p { margin-bottom: 10px; }
 code { background: rgba(79,156,249,0.08); color: #93c5fd; font-family: var(--mono); font-size: 0.87em; padding: 1px 6px; border-radius: 4px; }
 strong { color: #eef0f6; font-weight: 500; }
@@ -62,99 +62,127 @@ strong { color: #eef0f6; font-weight: 500; }
 .info-box strong { color: #c3dafe; }
 .concept-box { border-left: 3px solid var(--accent2); background: rgba(167,139,250,0.05); border-radius: 6px; padding: 13px 16px; margin: 14px 0; font-size: 13.5px; }
 .concept-box strong { color: #c4b5fd; }
+.warn-box    { border-left: 3px solid var(--orange);  background: rgba(251,146,60,0.05);  border-radius: 6px; padding: 13px 16px; margin: 14px 0; font-size: 13.5px; }
+.warn-box strong { color: var(--orange); }
+
+/* ── Pills / links ── */
+.pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
+.pill { display: inline-flex; align-items: center; padding: 5px 13px; border: 1px solid rgba(79,156,249,0.35); border-radius: 20px; text-decoration: none; font-weight: 500; font-size: 12px; color: var(--accent); background: rgba(79,156,249,0.06); font-family: var(--mono); transition: background 0.15s; }
+.pill:hover { background: rgba(79,156,249,0.13); }
+
+/* ── Status badge ── */
+.status-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 11px; border-radius: 20px; font-family: var(--mono); font-size: 10.5px; font-weight: 500; background: rgba(90,97,117,0.18); border: 1px solid var(--border); color: var(--muted); transition: all 0.25s; }
+.status-badge.connected    { background: rgba(52,211,153,0.1);  border-color: rgba(52,211,153,0.3);  color: var(--green); }
+.status-badge.connecting   { background: rgba(251,146,60,0.1);  border-color: rgba(251,146,60,0.3);  color: var(--orange); }
+.status-badge.failed       { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.3); color: var(--red); }
+.status-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 
 /* ── Buttons ── */
 .btn { display: inline-flex; align-items: center; gap: 7px; padding: 9px 20px; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; font-family: var(--sans); cursor: pointer; transition: opacity 0.15s, background 0.15s; white-space: nowrap; }
 .btn:disabled { opacity: 0.3; cursor: not-allowed; }
 .btn-primary   { background: var(--accent); color: #0d0f14; }
 .btn-primary:hover:not(:disabled) { background: #6aadfa; }
+.btn-secondary { background: rgba(79,156,249,0.1); color: var(--accent); border: 1px solid rgba(79,156,249,0.3); }
+.btn-secondary:hover:not(:disabled) { background: rgba(79,156,249,0.18); }
 .btn-danger    { background: rgba(248,113,113,0.1); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
 .btn-danger:hover:not(:disabled) { background: rgba(248,113,113,0.18); }
-.btn-sm { font-size: 11px; padding: 5px 13px; }
+.btn-sm { font-size: 11px; padding: 5px 12px; }
 .btn-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
 
-/* ── Status badge ── */
-.sbadge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-family: var(--mono); font-size: 10.5px; font-weight: 500; background: rgba(90,97,117,0.15); border: 1px solid var(--border); color: var(--muted); transition: all 0.25s; }
-.sbadge .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.sbadge.connected  { background: rgba(52,211,153,0.1);  border-color: rgba(52,211,153,0.3);  color: var(--green); }
-.sbadge.connecting { background: rgba(251,146,60,0.1);  border-color: rgba(251,146,60,0.3);  color: var(--orange); }
-.sbadge.failed     { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.3); color: var(--red); }
+/* ── Stepper ── */
+.stepper { display: flex; gap: 0; align-items: flex-start; margin: 24px 0 0; }
+.stepper-track { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; width: 36px; margin-right: 16px; }
+.step-circle { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); background: var(--surface2); display: flex; align-items: center; justify-content: center; font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--muted); flex-shrink: 0; transition: all 0.3s; position: relative; z-index: 1; }
+.step-circle.active { border-color: var(--accent); background: rgba(79,156,249,0.15); color: var(--accent); }
+.step-circle.done   { border-color: var(--green);  background: rgba(52,211,153,0.12); color: var(--green); }
+.step-line { width: 2px; flex: 1; min-height: 20px; background: var(--border); transition: background 0.3s; }
+.step-line.done { background: var(--green); }
+.step-content { flex: 1; padding-bottom: 28px; min-width: 0; }
+.step-header { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.step-label { font-family: var(--mono); font-size: 11px; font-weight: 500; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; }
+.step-label.active { color: var(--accent); }
+.step-label.done   { color: var(--green); }
+.step-title { font-size: 14px; font-weight: 500; color: #d8dce6; }
+.step-body { background: var(--surface2); border: 1px solid var(--border); border-radius: 8px; padding: 16px 18px; font-size: 13.5px; }
+.step-body p { margin-bottom: 8px; }
+.step-body p:last-child { margin-bottom: 0; }
 
-/* ── Main two-column layout ── */
-.main-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin: 24px 0;
-}
-@media (max-width: 900px) { .main-grid { grid-template-columns: 1fr; } }
-
-/* ── Panel cards (left = ICE table, right = stats) ── */
-.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
-.panel-a { border-top: 2px solid var(--col-a); }
-.panel-b { border-top: 2px solid var(--col-b); }
-.panel-header { padding: 12px 18px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
-.panel-header .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.panel-header .dot.blue  { background: var(--col-a); }
-.panel-header .dot.green { background: var(--col-b); }
-.panel-header .dot.purple { background: var(--accent2); }
-.panel-header strong { color: var(--text); }
-.panel-body { padding: 16px 18px; }
-
-/* ── ICE candidate table ──
-   STEP 0: Color coding by candidate type (host / srflx / relay).
-   These colors are the course convention used across all demos. ── */
-.ice-table-wrap { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin: 8px 0; }
+/* ── ICE candidate table ── */
+.ice-table-wrap { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin: 12px 0; }
 table.ice-table { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 11px; }
 table.ice-table thead th { text-align: left; padding: 7px 10px; background: var(--surface2); color: var(--muted); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 500; border-bottom: 1px solid var(--border); }
 table.ice-table tbody td { padding: 6px 10px; border-bottom: 1px solid rgba(37,43,56,0.6); color: var(--text); vertical-align: middle; }
 table.ice-table tbody tr:last-child td { border-bottom: none; }
 table.ice-table tbody tr:hover td { background: rgba(255,255,255,0.02); }
-.ice-table-empty { padding: 16px 10px; text-align: center; color: var(--muted); font-family: var(--mono); font-size: 11px; }
-
-/* Candidate type pills — host=green, srflx=blue, relay=orange, prflx=purple */
+.ice-empty { padding: 14px 10px; text-align: center; color: var(--muted); font-family: var(--mono); font-size: 11px; }
+/* Candidate type pills */
 .type-pill { display: inline-block; font-family: var(--mono); font-size: 9px; font-weight: 600; padding: 2px 7px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.03em; }
 .type-pill.host  { background: rgba(52,211,153,0.15);  color: var(--green); }
 .type-pill.srflx { background: rgba(79,156,249,0.15);  color: var(--accent); }
 .type-pill.relay { background: rgba(251,146,60,0.15);  color: var(--orange); }
 .type-pill.prflx { background: rgba(167,139,250,0.15); color: var(--accent2); }
+/* Peer labels */
+.peer-lbl-a { display: inline-block; font-family: var(--mono); font-size: 9px; padding: 1px 6px; border-radius: 8px; background: rgba(79,156,249,0.12); color: var(--col-a); }
+.peer-lbl-b { display: inline-block; font-family: var(--mono); font-size: 9px; padding: 1px 6px; border-radius: 8px; background: rgba(52,211,153,0.1); color: var(--col-b); }
 
-/* Peer label pills in the ICE table */
-.peer-pill-a { display: inline-block; font-family: var(--mono); font-size: 9px; padding: 1px 6px; border-radius: 8px; background: rgba(79,156,249,0.12); color: var(--col-a); }
-.peer-pill-b { display: inline-block; font-family: var(--mono); font-size: 9px; padding: 1px 6px; border-radius: 8px; background: rgba(52,211,153,0.1); color: var(--col-b); }
-
-/* ── Selected candidate pair box ── */
-.pair-box { border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin: 14px 0; background: var(--bg); }
+/* ── Selected candidate pair ── */
+.pair-box { border: 1px solid var(--border); border-radius: 8px; padding: 13px 15px; margin: 12px 0; background: var(--bg); }
 .pair-box.pending { color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
-.pair-box .pair-row { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 11.5px; padding: 4px 0; }
-.pair-box .pair-side { color: var(--muted); min-width: 52px; flex-shrink: 0; }
-.pair-box .rtt { margin-top: 6px; font-size: 11px; color: var(--accent2); }
+.pair-row { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: 11.5px; padding: 4px 0; }
+.pair-side { color: var(--muted); min-width: 54px; flex-shrink: 0; }
+.rtt-line { margin-top: 6px; font-size: 11px; color: var(--accent2); font-family: var(--mono); }
 
 /* ── Live stats grid ── */
-.stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 10px 0; }
-.stat-cell { border: 1px solid var(--border); border-radius: 6px; padding: 9px 12px; background: var(--bg); }
-.stat-cell .stat-label { font-family: var(--mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 3px; }
-.stat-cell .stat-value { font-family: var(--mono); font-size: 15px; color: #e8eaf2; }
-.stat-cell .stat-value small { font-size: 10px; color: var(--muted); }
-.stats-empty { color: var(--muted); font-family: var(--mono); font-size: 11.5px; padding: 8px 0; }
+.stats-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 12px 0; }
+@media (max-width: 700px) { .stats-grid { grid-template-columns: 1fr 1fr; } }
+.stat-cell { border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; background: var(--bg); }
+.stat-label { font-family: var(--mono); font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 4px; }
+.stat-value { font-family: var(--mono); font-size: 15px; color: #e8eaf2; }
+.stat-value small { font-size: 10px; color: var(--muted); }
+.stats-empty { color: var(--muted); font-family: var(--mono); font-size: 11.5px; padding: 6px 0; }
 
-/* ── Section label ── */
-.section-label { font-family: var(--mono); font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 18px 0 6px; }
+/* ── Stats type explorer ── */
+.type-filter-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 8px; }
+.type-btn { background: var(--surface2); border: 1px solid var(--border); color: var(--muted); font-family: var(--mono); font-size: 10.5px; padding: 4px 11px; border-radius: 20px; cursor: pointer; transition: all 0.15s; }
+.type-btn:hover   { border-color: var(--accent2); color: var(--accent2); }
+.type-btn.active  { background: rgba(167,139,250,0.12); border-color: var(--accent2); color: var(--accent2); }
+.type-btn:disabled { opacity: 0.35; cursor: not-allowed; }
 
-/* ── Raw stats dump ── */
-.raw-stats-wrap { margin-top: 8px; }
-.raw-stats-toggle { background: rgba(167,139,250,0.08); color: var(--accent2); border: 1px solid rgba(167,139,250,0.3); border-radius: 6px; padding: 5px 13px; font-size: 11px; font-weight: 500; font-family: var(--sans); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background 0.15s; }
-.raw-stats-toggle:hover { background: rgba(167,139,250,0.16); }
-.raw-stats-body { display: none; margin-top: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; max-height: 260px; overflow-y: auto; }
-.raw-stats-body.open { display: block; }
-pre.raw-stats-pre { font-family: var(--mono); font-size: 10px; color: #6a7a9a; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+/* Stats entry cards */
+.stats-entry-list { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.stats-entry { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.stats-entry-header { padding: 8px 13px; background: var(--surface2); border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 10.5px; display: flex; align-items: center; gap: 10px; }
+.stats-entry-id { color: var(--muted); font-size: 9.5px; word-break: break-all; }
+.stats-entry-body { padding: 0; }
+table.stats-fields { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.stats-fields td { padding: 5px 13px; border-bottom: 1px solid rgba(37,43,56,0.5); vertical-align: top; }
+table.stats-fields tr:last-child td { border-bottom: none; }
+.sf-key   { font-family: var(--mono); color: #93c5fd; width: 38%; font-size: 11px; }
+.sf-val   { font-family: var(--mono); color: var(--text); width: 28%; font-size: 11px; word-break: break-all; }
+.sf-desc  { color: var(--muted); font-size: 11px; }
+.sf-highlight { color: var(--green); font-weight: 500; }
+.stats-placeholder { color: var(--muted); font-family: var(--mono); font-size: 11.5px; padding: 10px 0; }
 
-/* ── Event log ── */
-.log-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-top: 20px; }
-.log-header { padding: 10px 16px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 11px; color: var(--muted); display: flex; align-items: center; justify-content: space-between; }
-.log-body { padding: 10px 14px; min-height: 120px; max-height: 240px; overflow-y: auto; font-family: var(--mono); font-size: 11.5px; line-height: 1.7; }
-.log-entry { padding: 1px 0; display: flex; gap: 10px; }
-.log-ts { color: var(--muted); flex-shrink: 0; user-select: none; }
+/* Raw JSON toggle */
+.raw-toggle { background: rgba(90,97,117,0.15); border: 1px solid var(--border); color: var(--muted); font-family: var(--mono); font-size: 10.5px; padding: 4px 12px; border-radius: 6px; cursor: pointer; transition: background 0.15s; }
+.raw-toggle:hover { background: rgba(90,97,117,0.25); }
+.raw-body { display: none; margin-top: 8px; background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; max-height: 280px; overflow-y: auto; }
+.raw-body.open { display: block; }
+pre.raw-pre { font-family: var(--mono); font-size: 10px; color: #6a7a9a; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+
+/* ── Collapsible log panels ── */
+.log-panel { border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-top: 12px; }
+.log-panel-header { padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 11px; color: var(--muted); display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+.log-panel-header:hover { background: var(--surface2); }
+.log-panel-title { display: flex; align-items: center; gap: 8px; }
+.log-count { background: rgba(79,156,249,0.1); color: var(--accent); border: 1px solid rgba(79,156,249,0.25); border-radius: 10px; font-size: 9px; padding: 1px 7px; }
+.log-chevron { color: var(--muted); font-size: 10px; transition: transform 0.2s; }
+.log-chevron.open { transform: rotate(0deg); }
+.log-body { display: none; padding: 12px 16px; background: var(--surface); max-height: 280px; overflow-y: auto; }
+.log-body.open { display: block; }
+/* event log entries */
+.log-entry { padding: 1px 0; display: flex; gap: 10px; font-family: var(--mono); font-size: 11.5px; line-height: 1.7; }
+.log-time { color: var(--muted); flex-shrink: 0; }
 .log-tag { font-size: 9.5px; font-weight: 600; padding: 1px 6px; border-radius: 3px; letter-spacing: 0.05em; flex-shrink: 0; align-self: flex-start; margin-top: 3px; }
 .tag-info  { background: rgba(90,97,117,0.25);  color: #8899bb; }
 .tag-sdp   { background: rgba(167,139,250,0.15); color: #c4b5fd; }
@@ -164,13 +192,8 @@ pre.raw-stats-pre { font-family: var(--mono); font-size: 10px; color: #6a7a9a; l
 .log-msg { color: var(--text); }
 .log-msg code { background: rgba(79,156,249,0.08); color: #93c5fd; font-size: 0.9em; padding: 0 4px; border-radius: 3px; }
 
-/* ── Pills ── */
-.pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
-.pill { display: inline-flex; align-items: center; padding: 5px 13px; border: 1px solid rgba(79,156,249,0.35); border-radius: 20px; text-decoration: none; font-weight: 500; font-size: 12px; color: var(--accent); background: rgba(79,156,249,0.06); font-family: var(--mono); transition: background 0.15s; }
-.pill:hover { background: rgba(79,156,249,0.13); }
-
 footer { border-top: 1px solid var(--border); padding: 24px 32px; margin-top: 60px; }
-.footer-inner { max-width: 1200px; margin: 0 auto; font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.footer-inner { max-width: 1100px; margin: 0 auto; font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 </style>
 </head>
 <body>
@@ -199,204 +222,339 @@ footer { border-top: 1px solid var(--border); padding: 24px 32px; margin-top: 60
 <main>
 
 <h1 class="demo-title">Demo 4 — ICE &amp; Stats Inspector</h1>
-<p class="demo-subtitle">04_mm_ice_stats.html · Loopback · Google STUN · Live ICE table, candidate pair, getStats() dashboard</p>
+<p class="demo-subtitle">04_mm_ice_stats.html · Loopback · Google STUN · Step-by-step ICE gathering, candidate pair selection, annotated getStats()</p>
 
 <p>
-  A <strong>loopback <code>RTCPeerConnection</code> on this single page</strong> — no camera, no second tab, no copy-pasting.
-  Both <strong>Peer A</strong> (offerer) and <strong>Peer B</strong> (answerer) live in this JavaScript runtime.
-  The only purpose is to watch ICE work: every candidate that is gathered appears in the table on the left
-  the moment it arrives, the <strong>nominated pair</strong> (the actual network path) is shown once
-  ICE connects, and a live <code>getStats()</code> dashboard ticks every second on the right.
+  Both <strong style="color:var(--col-a)">Peer A</strong> (offerer) and
+  <strong style="color:var(--col-b)">Peer B</strong> (answerer) live in this single page —
+  no camera, no second tab, no copy-pasting. The sole purpose is to watch
+  <strong>ICE work in slow motion</strong>: candidates gather one by one, the browser
+  selects a winning pair, and <code>getStats()</code> starts reporting live transport metrics.
+  Work through the steps below, reading each explanation before you click.
 </p>
 
 <div class="info-box">
-  <strong>No camera required.</strong> The connection carries no media tracks — only the ICE/DTLS handshake runs.
-  This is intentional: Demo 3 taught you signaling and SDP by making you copy-paste everything manually.
-  Demo 4 removes that ceremony so you can focus entirely on ICE and stats.
-  Demo 5 puts it all together with a real signaling server.
+  <strong>What's new compared to Demo 3.</strong>
+  Demo 3 taught signaling — you moved SDP manually between tabs to feel the friction a signaling
+  server removes. Demo 4 removes that friction entirely so you can focus on the layer below:
+  <em>how ICE actually finds a network path</em> and how you read what the browser reports about it.
+  Demo 5 puts everything together with a real WebSocket signaling server.
 </div>
 
 <div class="info-box">
-  <strong>Uses Google STUN (<code>stun.l.google.com:19302</code>).</strong>
-  In Demo 1 the loopback used no STUN server — only <code>host</code> candidates appeared.
-  Here STUN is added so you also see a <code>srflx</code> (server-reflexive) candidate:
-  your public IP:port as seen by the STUN server. That is what makes NAT traversal possible for real calls.
+  <strong>STUN is on.</strong> The ICE configuration here includes
+  <code>stun:stun.l.google.com:19302</code>. Unlike Demo 1 (which used no STUN and therefore only
+  produced <code>host</code> candidates), this demo also produces a <code>srflx</code>
+  (server-reflexive) candidate — your public IP:port as observed by the STUN server.
+  That srflx candidate is what enables NAT traversal in a real call.
 </div>
 
-<h2 class="sh">Controls</h2>
+<!-- ═══════════════════════════════════════════════════════════════════
+     OVERALL STATUS + RESET
+     ═══════════════════════════════════════════════════════════════════ -->
+<h2 class="section-heading">Step-by-Step Demo</h2>
 
-<div style="display:flex; flex-wrap:wrap; align-items:center; gap:14px; margin-bottom:8px;">
-  <button class="btn btn-primary" id="btnStart">▶ Start</button>
-  <button class="btn btn-danger"  id="btnReset" disabled>↺ Reset</button>
-  <span class="sbadge" id="badgeConn"><span class="dot"></span><span id="badgeConnText">Not started</span></span>
-  <span class="sbadge" id="badgeIce" ><span class="dot"></span><span id="badgeIceText">ICE: new</span></span>
-  <span class="sbadge" id="badgeSig" ><span class="dot"></span><span id="badgeSigText">Signaling: stable</span></span>
+<p>Each step runs exactly one part of the handshake. Read the explanation, click the button, then watch the event log and the ICE table update below.</p>
+
+<div style="display:flex;flex-wrap:wrap;align-items:center;gap:14px;margin:16px 0;">
+  <span class="status-badge" id="connStatus"><span class="status-dot"></span><span id="connStatusText">Not started</span></span>
+  <span class="status-badge" id="iceStatus"><span class="status-dot"></span><span id="iceStatusText">ICE: —</span></span>
+  <span class="status-badge" id="sigStatus"><span class="status-dot"></span><span id="sigStatusText">Signaling: —</span></span>
+  <button class="btn btn-danger btn-sm" id="btnReset" style="margin-left:auto;" disabled>↺ Reset</button>
 </div>
 
-<!-- ══════════════════════════════════════════════════════════════════════════
-     MAIN TWO-COLUMN LAYOUT
-     Left  — ICE candidate table for both peers, sorted by priority
-     Right — Selected candidate pair + live getStats() dashboard
-     ══════════════════════════════════════════════════════════════════════════ -->
-<div class="main-grid">
+<!-- ═══════════ STEPPER ═══════════ -->
 
-  <!-- ═══ LEFT: ICE Candidate Table ═══ -->
-  <div class="panel panel-a">
-    <div class="panel-header">
-      <div class="dot blue"></div>
-      <strong>ICE Candidates</strong>
-      <span style="margin-left:auto;font-size:10px;color:var(--muted)">both peers · sorted by priority ↓</span>
+<!-- STEP 1 -->
+<div class="stepper">
+  <div class="stepper-track">
+    <div class="step-circle active" id="c1">1</div>
+    <div class="step-line" id="l1"></div>
+  </div>
+  <div class="step-content">
+    <div class="step-header">
+      <span class="step-label active" id="lbl1">Step 1</span>
+      <span class="step-title">Create both RTCPeerConnections with Google STUN</span>
     </div>
-    <div class="panel-body">
-
-      <p style="font-size:13px;margin-bottom:10px;">
-        Every candidate gathered by <strong style="color:var(--col-a)">Peer A</strong> and
-        <strong style="color:var(--col-b)">Peer B</strong> appears here as soon as
-        <code>onicecandidate</code> fires. ICE collects candidates from all network interfaces
-        plus the STUN server, then tries every A↔B pair to find a working path.
+    <div class="step-body">
+      <p>
+        Two <code>RTCPeerConnection</code> objects are created — one for each peer — with the
+        same ICE configuration: a single STUN server. This is the only difference from Demo 1,
+        which used an empty <code>iceServers: []</code> array.
       </p>
-
-      <div class="ice-table-wrap">
-        <table class="ice-table">
-          <thead>
-            <tr>
-              <th>Peer</th>
-              <th>Type</th>
-              <th>Proto</th>
-              <th>Address : Port</th>
-              <th>Priority</th>
-            </tr>
-          </thead>
-          <tbody id="iceTableBody">
-            <tr><td class="ice-table-empty" colspan="5">Candidates appear here after Start…</td></tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="concept-box" style="margin-top:14px;">
-        <!-- CONCEPT: Candidate priority
-             The priority field is not arbitrary. RFC 8445 §5.1.2 defines the formula:
-               priority = (type_preference × 2²⁴) + (local_preference × 2⁸) + (256 − component)
-             Type preferences: host=126, srflx=100, prflx=110, relay=0.
-             So host candidates always outrank srflx, which always outranks relay.
-             ICE tries pairs in priority order, so a direct host-to-host path is
-             always preferred over a STUN-discovered public address, which is preferred
-             over a TURN relay. -->
-        <strong>// CONCEPT: Candidate priority formula</strong><br>
-        Priority = <code>(type_pref × 2²⁴) + (local_pref × 2⁸) + (256 − component)</code>.
-        Type preferences: <span class="type-pill host">host</span> 126 &gt;
-        <span class="type-pill srflx">srflx</span> 100 &gt;
-        <span class="type-pill relay">relay</span> 0.
-        ICE tries pairs highest-priority first, so a direct LAN path always beats a STUN-discovered
-        public address, which always beats a TURN relay.
-      </div>
-
-    </div>
-  </div><!-- /left panel -->
-
-  <!-- ═══ RIGHT: Selected Pair + getStats() Dashboard ═══ -->
-  <div class="panel panel-b">
-    <div class="panel-header">
-      <div class="dot purple"></div>
-      <strong>Selected Pair &amp; Live Stats</strong>
-      <span style="margin-left:auto;font-size:10px;color:var(--muted)">getStats() · 1 s interval</span>
-    </div>
-    <div class="panel-body">
-
-      <!-- Selected candidate pair box -->
-      <div class="section-label">Nominated Candidate Pair</div>
-      <div class="pair-box pending" id="pairBox">
-        Not connected yet — the winning pair appears here once ICE completes.
-      </div>
-
+      <p>
+        Adding the STUN server causes the browser to send a STUN Binding Request to
+        <code>stun.l.google.com:19302</code> during ICE gathering. The STUN server replies with
+        your public IP:port (the address your NAT router has assigned to this outbound connection).
+        That reply becomes a <strong>server-reflexive (srflx)</strong> ICE candidate.
+      </p>
       <div class="concept-box">
-        <!-- CONCEPT: nominated candidate pair
-             ICE runs connectivity checks on every local↔remote candidate pair.
-             When a pair succeeds and is chosen as the winner, the browser sets
-             nominated=true on that pair's stats entry. After nomination, all
-             media (and in this demo, DTLS keep-alive packets) travels on exactly
-             that one path. If the network changes (WiFi drops, VPN connects),
-             ICE can nominate a new pair without tearing down the session — this
-             is ICE restart, covered in Demo 7. -->
-        <strong>// CONCEPT: Nominated pair</strong><br>
-        ICE checks every local↔remote candidate combination. The winner —
-        the highest-priority pair that passes connectivity checks — is
-        <em>nominated</em>. <code>getStats()</code> identifies it with
-        <code>nominated === true</code> on a <code>candidate-pair</code> entry.
-        All traffic then flows on that single path until ICE restarts.
+        <strong>// CONCEPT: RTCConfiguration</strong><br>
+        The object passed to <code>new RTCPeerConnection(config)</code> controls ICE behaviour
+        for the lifetime of the connection. Key fields:
+        <br><code>iceServers</code> — array of <code>{urls}</code> objects. Can mix STUN and TURN.
+        <br><code>iceTransportPolicy</code> — <code>"all"</code> (default) tries every candidate type;
+        <code>"relay"</code> forces TURN-only (used in Demo 6 to verify TURN is working).
+        <br><code>bundlePolicy</code> — controls whether audio and video share one transport port.
       </div>
-
-      <!-- Live stats dashboard -->
-      <div class="section-label" style="margin-top:18px;">
-        Live Stats
-        <!-- WEB AUDIO EQUIVALENT: getStats() ↔ AnalyserNode
-             Both provide real-time pipeline metrics. AnalyserNode gives you
-             frequency bins of an audio signal; getStats() gives you byte counts,
-             packet loss, and RTT of the WebRTC transport. -->
-        <span style="font-size:10px;color:var(--muted);text-transform:none;letter-spacing:0;margin-left:8px;">// WEB AUDIO: getStats() ↔ AnalyserNode</span>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btnStep1">▶ Run Step 1 — Create peers</button>
       </div>
-      <div id="statsPanel">
-        <div class="stats-empty">Stats appear once connected (updates every 1 s).</div>
-      </div>
-
-      <!-- Raw stats dump — STEP 7 -->
-      <div class="section-label" style="margin-top:18px;">Full RTCStatsReport</div>
-      <div class="raw-stats-wrap">
-        <button class="raw-stats-toggle" id="btnToggleRaw" onclick="toggleRaw()">▸ Show raw JSON</button>
-        <div class="raw-stats-body" id="rawStatsBody">
-          <pre class="raw-stats-pre" id="rawStatsPre">Run the demo and expand this panel to see the full RTCStatsReport as JSON.
-Each entry has a different schema depending on its "type" field.
-See chrome://webrtc-internals for a richer visual version of the same data.</pre>
-        </div>
-      </div>
-
-      <div class="concept-box" style="margin-top:14px;">
-        <!-- CONCEPT: getStats() is a Map
-             RTCPeerConnection.getStats() returns a Promise<RTCStatsReport>.
-             RTCStatsReport is a Map: keys are opaque IDs, values are plain
-             objects whose fields depend on the "type" property.
-             Common types: candidate-pair, local-candidate, remote-candidate,
-             inbound-rtp, outbound-rtp, transport, codec.
-             Iterate with report.forEach(stats => { switch(stats.type) { … } }).
-             Each stats object also carries a "timestamp" (DOMHighResTimeStamp)
-             so you can compute rates by differencing two consecutive samples.
-             This is the same pattern used in Demo 6 and Demo 7 for bitrate. -->
-        <strong>// CONCEPT: getStats() is a Map</strong><br>
-        <code>await pc.getStats()</code> resolves to an <code>RTCStatsReport</code> — a <code>Map</code>
-        where each value's schema depends on its <code>type</code> field.
-        Iterate with <code>report.forEach(stats =&gt; { switch(stats.type) { … } })</code>.
-        Rates (bitrate, packet loss) must be computed by <em>differencing</em> two consecutive
-        cumulative samples — <code>getStats()</code> reports totals, not instantaneous values.
-      </div>
-
-    </div>
-  </div><!-- /right panel -->
-
-</div><!-- /main-grid -->
-
-<!-- ══════════════════════════════════════════════════════════════════════════
-     EVENT LOG
-     Every significant event logged here with a timestamp.
-     Students should not need DevTools to understand what is happening.
-     ══════════════════════════════════════════════════════════════════════════ -->
-<div class="log-wrap">
-  <div class="log-header">
-    <span>Event Log</span>
-    <button class="btn btn-sm" style="background:rgba(90,97,117,0.2);color:var(--muted);border:none;" onclick="clearLog()">Clear</button>
-  </div>
-  <div class="log-body" id="eventLog">
-    <div class="log-entry">
-      <span class="log-ts">  0.0s</span>
-      <span class="log-tag tag-info">INFO</span>
-      <span class="log-msg">Demo 4 ready. Click <strong>Start</strong> to run the loopback connection and watch ICE work.</span>
     </div>
   </div>
 </div>
 
-<h2 class="sh">References</h2>
-<div class="pills">
+<!-- STEP 2 -->
+<div class="stepper">
+  <div class="stepper-track">
+    <div class="step-circle" id="c2">2</div>
+    <div class="step-line" id="l2"></div>
+  </div>
+  <div class="step-content">
+    <div class="step-header">
+      <span class="step-label" id="lbl2">Step 2</span>
+      <span class="step-title">Peer A creates offer — ICE gathering starts</span>
+    </div>
+    <div class="step-body">
+      <p>
+        <code>pcA.addTransceiver('audio', {direction:'recvonly'})</code> adds a dummy media
+        section to the SDP. Without at least one <code>m=</code> line ICE has no reason to gather
+        candidates. Then <code>createOffer()</code> generates the SDP and
+        <code>setLocalDescription(offer)</code> stores it — this is the call that
+        <strong>triggers ICE gathering</strong> on Peer A.
+      </p>
+      <p>
+        Watch the ICE table below fill in as candidates arrive via <code>onicecandidate</code>.
+        Each candidate represents a different network path the browser found.
+        The <code>srflx</code> candidate may take a second longer — it requires the STUN
+        round-trip to complete before it appears.
+      </p>
+      <div class="concept-box">
+        <strong>// CONCEPT: ICE gathering is triggered by setLocalDescription, not createOffer</strong><br>
+        <code>createOffer()</code> merely generates the SDP text — it does not contact any network.
+        It is <code>setLocalDescription()</code> that locks in the local description and starts
+        the ICE agent. Candidates then fire asynchronously via <code>onicecandidate</code>,
+        one at a time, as the browser discovers them. A <code>null</code> candidate signals
+        end-of-gathering. In Demo 5 (WebSocket signaling) each candidate is forwarded to
+        the remote peer the moment it arrives — this is called <em>trickle ICE</em> (RFC 8838).
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btnStep2" disabled>▶ Run Step 2 — Create offer</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 3 -->
+<div class="stepper">
+  <div class="stepper-track">
+    <div class="step-circle" id="c3">3</div>
+    <div class="step-line" id="l3"></div>
+  </div>
+  <div class="step-content">
+    <div class="step-header">
+      <span class="step-label" id="lbl3">Step 3</span>
+      <span class="step-title">Exchange offer/answer — Peer B's ICE gathering starts</span>
+    </div>
+    <div class="step-body">
+      <p>
+        The offer is handed directly to Peer B (simulating the signaling server).
+        Peer B calls <code>setRemoteDescription(offer)</code>, then <code>createAnswer()</code>,
+        then <code>setLocalDescription(answer)</code> — which starts <em>Peer B's</em> ICE
+        gathering. Finally the answer goes back to Peer A via <code>setRemoteDescription(answer)</code>.
+      </p>
+      <p>
+        At this point both peers have a complete local and remote description.
+        ICE connectivity checks begin automatically — each peer sends STUN binding requests
+        to every candidate address the other peer has, trying to find a working path.
+      </p>
+      <div class="concept-box">
+        <strong>// CONCEPT: Offer/answer is not symmetric</strong><br>
+        Only the offerer calls <code>createOffer()</code>; only the answerer calls
+        <code>createAnswer()</code>. The offerer sets its description first (<code>setLocalDescription</code>),
+        then the answerer sets the offer as its remote description before answering.
+        After this step:
+        <code>pcA.localDescription</code> = offer &nbsp;·&nbsp; <code>pcA.remoteDescription</code> = answer<br>
+        <code>pcB.localDescription</code> = answer &nbsp;·&nbsp; <code>pcB.remoteDescription</code> = offer
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btnStep3" disabled>▶ Run Step 3 — Exchange SDP</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- STEP 4 (auto) -->
+<div class="stepper">
+  <div class="stepper-track">
+    <div class="step-circle" id="c4">4</div>
+    <!-- no line — last step -->
+  </div>
+  <div class="step-content">
+    <div class="step-header">
+      <span class="step-label" id="lbl4">Step 4</span>
+      <span class="step-title">ICE connects — explore the nominated pair and live stats</span>
+    </div>
+    <div class="step-body">
+      <p>
+        This step happens <strong>automatically</strong> — no button needed.
+        ICE runs connectivity checks on every A↔B candidate combination. When a
+        working pair is found and <em>nominated</em>, <code>iceConnectionState</code> becomes
+        <code>connected</code> and the DTLS handshake completes. Watch the status badges above
+        and the event log below.
+      </p>
+      <p>
+        Once connected, the <strong>Nominated Pair</strong> and <strong>Live Stats</strong>
+        sections below populate and update every second.
+      </p>
+      <div class="concept-box">
+        <strong>// CONCEPT: DTLS follows ICE</strong><br>
+        ICE finds the network path; DTLS secures it. After ICE nominates a candidate pair,
+        a TLS-like handshake runs on that path — the peers exchange certificates and verify
+        the fingerprints they committed to in the SDP (<code>a=fingerprint:</code>).
+        Only after DTLS completes can encrypted media or DataChannel data flow.
+        This is why WebRTC is end-to-end encrypted by design: the fingerprint in the SDP
+        ties the encryption keys to the signaling session.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     ICE CANDIDATE TABLE
+     ═══════════════════════════════════════════════════════════════════ -->
+<h2 class="section-heading">ICE Candidates — Both Peers</h2>
+
+<p>
+  Every candidate gathered by Peer A and Peer B appears here as
+  <code>onicecandidate</code> fires, sorted by priority descending.
+  Higher priority = preferred by ICE.
+  In a real call across the internet you would see <code>host</code> candidates
+  (local LAN addresses) and one or more <code>srflx</code> candidates
+  (public IP:port from the STUN server). A <code>relay</code> candidate requires a
+  TURN server — that is Demo 6.
+</p>
+
+<div class="ice-table-wrap">
+  <table class="ice-table">
+    <thead>
+      <tr>
+        <th>Peer</th><th>Type</th><th>Protocol</th><th>Address : Port</th><th>Priority</th><th>Foundation</th>
+      </tr>
+    </thead>
+    <tbody id="iceTableBody">
+      <tr><td class="ice-empty" colspan="6">Candidates appear after Step 2 and Step 3…</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<div class="concept-box">
+  <strong>// CONCEPT: Priority formula (RFC 8445 §5.1.2)</strong><br>
+  Priority = <code>(type_preference × 2²⁴) + (local_preference × 2⁸) + (256 − component)</code>.<br>
+  Type preferences assigned by the browser: <span class="type-pill host">host</span> 126 &nbsp;>&nbsp;
+  <span class="type-pill prflx">prflx</span> 110 &nbsp;>&nbsp;
+  <span class="type-pill srflx">srflx</span> 100 &nbsp;>&nbsp;
+  <span class="type-pill relay">relay</span> 0.<br>
+  Sorting by priority is therefore equivalent to sorting by candidate type — the table
+  you see above mirrors exactly the order in which ICE tries pairs.
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     NOMINATED PAIR + LIVE STATS
+     ═══════════════════════════════════════════════════════════════════ -->
+<h2 class="section-heading">Nominated Candidate Pair</h2>
+
+<p>
+  After ICE connectivity checks complete, exactly one candidate pair is
+  <em>nominated</em> — chosen as the winner. All subsequent traffic (DTLS keep-alive,
+  STUN consent checks, and in a real call, RTP media) travels on this path alone.
+  <code>getStats()</code> identifies the nominated pair with <code>nominated: true</code>
+  on a <code>candidate-pair</code> entry.
+</p>
+
+<div class="pair-box pending" id="pairBox">
+  Not connected yet — the winning pair appears here once ICE completes (Step 4).
+</div>
+
+<h2 class="section-heading">Live Stats Dashboard</h2>
+
+<p>
+  <code>RTCPeerConnection.getStats()</code> returns a <code>Promise&lt;RTCStatsReport&gt;</code>.
+  The report is polled every second here. The grid below shows the most useful fields;
+  the annotated explorer underneath lets you inspect every entry type in detail.
+</p>
+
+<div id="statsGrid">
+  <div class="stats-empty">Stats appear once connected (updates every 1 s).</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     ANNOTATED STATS EXPLORER
+     ═══════════════════════════════════════════════════════════════════ -->
+<h2 class="section-heading">Annotated Stats Explorer</h2>
+
+<p>
+  <code>RTCStatsReport</code> is a <code>Map</code> — each entry has a
+  <code>type</code> field that determines its schema. Click a type below to see
+  the matching entries from the most recent report, with every field explained.
+  The entry whose fields are most important for each type is highlighted.
+</p>
+<div class="warn-box">
+  <strong>chrome://webrtc-internals</strong> shows the same data with live graphs.
+  Open it in a separate tab while this demo is running — you will see the same
+  <code>candidate-pair</code>, <code>transport</code>, and <code>inbound-rtp</code>
+  entries rendered as time-series charts.
+</div>
+
+<div class="type-filter-row" id="typeFilterRow">
+  <button class="type-btn" id="tb-candidate-pair"  onclick="selectType('candidate-pair')"  disabled>candidate-pair</button>
+  <button class="type-btn" id="tb-local-candidate"  onclick="selectType('local-candidate')"  disabled>local-candidate</button>
+  <button class="type-btn" id="tb-remote-candidate" onclick="selectType('remote-candidate')" disabled>remote-candidate</button>
+  <button class="type-btn" id="tb-transport"        onclick="selectType('transport')"        disabled>transport</button>
+  <button class="type-btn" id="tb-certificate"      onclick="selectType('certificate')"      disabled>certificate</button>
+</div>
+
+<div id="statsEntryPanel">
+  <div class="stats-placeholder">Run the demo through Step 4, then select a type above to inspect the live report.</div>
+</div>
+
+<div style="margin-top:12px;display:flex;align-items:center;gap:10px;">
+  <button class="raw-toggle" id="btnRaw" onclick="toggleRaw()">▸ Show full raw JSON</button>
+  <span style="font-size:11px;color:var(--muted);font-family:var(--mono);">— all report entries, unfiltered</span>
+</div>
+<div class="raw-body" id="rawBody">
+  <pre class="raw-pre" id="rawPre">Run the demo first.</pre>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════
+     EVENT LOG
+     ═══════════════════════════════════════════════════════════════════ -->
+<h2 class="section-heading">Event Log</h2>
+<p>
+  Every significant event — ICE gathering, state transitions, stats polling — is logged
+  here with a timestamp. You should not need DevTools to follow the handshake.
+</p>
+
+<div class="log-panel">
+  <div class="log-panel-header" onclick="toggleLog()">
+    <div class="log-panel-title">
+      Event Log
+      <span class="log-count" id="logCount">0</span>
+    </div>
+    <span class="log-chevron open" id="logChevron">▼</span>
+  </div>
+  <div class="log-body open" id="eventLog">
+    <div class="log-entry">
+      <span class="log-time">0.0s</span>
+      <span class="log-tag tag-info">INFO</span>
+      <span class="log-msg">Demo 4 ready. Work through Steps 1–3 above. Step 4 completes automatically.</span>
+    </div>
+  </div>
+</div>
+
+<div class="pills" style="margin-top:32px;">
   <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/getStats" target="_blank" rel="noopener">MDN: getStats()</a>
-  <a class="pill" href="https://www.w3.org/TR/webrtc-stats/" target="_blank" rel="noopener">W3C: WebRTC Stats Spec</a>
+  <a class="pill" href="https://www.w3.org/TR/webrtc-stats/" target="_blank" rel="noopener">W3C: WebRTC Stats</a>
   <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/RTCIceCandidate" target="_blank" rel="noopener">MDN: RTCIceCandidate</a>
   <a class="pill" href="https://datatracker.ietf.org/doc/html/rfc8445" target="_blank" rel="noopener">RFC 8445: ICE</a>
   <a class="pill" href="https://datatracker.ietf.org/doc/html/rfc8489" target="_blank" rel="noopener">RFC 8489: STUN</a>
@@ -414,483 +572,659 @@ See chrome://webrtc-internals for a richer visual version of the same data.</pre
 <script>
 'use strict';
 
-// ── STEP 1: RTCConfiguration with Google STUN ────────────────────────────────
-//
-// This is the only difference from Demo 1's loopback: we add a STUN server.
-// STUN (RFC 8489) asks stun.l.google.com:19302 "what is my public IP:port?"
-// The answer comes back as a server-reflexive (srflx) ICE candidate alongside
-// the host candidates. Without STUN you only see host candidates; with it you
-// also see your public IP:port — which is what lets two peers behind different
-// NATs connect to each other in a real call.
-//
-// WEB AUDIO EQUIVALENT: RTCPeerConnection ↔ AudioContext
-// Both are the root of a media processing pipeline. Everything else connects to them.
-const ICE_CONFIG = {
-  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-};
+// ══════════════════════════════════════════════════════════════════════════════
+// STEP 1: RTCConfiguration — Google STUN added vs Demo 1's empty array.
+// Having a STUN server causes the browser to generate an srflx candidate
+// in addition to host candidates. See the concept box in Step 1 above.
+// ══════════════════════════════════════════════════════════════════════════════
+const ICE_CONFIG = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
 
-// ── State ─────────────────────────────────────────────────────────────────────
-//
-// Both peers own separate variables. This is the key architectural fix compared
-// to the previous two-tab demos (Demo 3, old Demo 4): there is no single global
-// `pc` or `iceCandidateList` that would be clobbered when the other peer initialises.
-// Each peer is fully independent — exactly the same isolation as two real browsers,
-// but simulated in one JS runtime.
-let pcA = null;   // RTCPeerConnection for Peer A (offerer)
-let pcB = null;   // RTCPeerConnection for Peer B (answerer)
+// ── Per-peer state — completely independent, no shared globals ────────────────
+// This is the key fix from the previous version that used a single `pc`.
+// Each peer owns its variables; neither can clobber the other's state.
+let pcA = null;
+let pcB = null;
+let candidatesA = [];   // parsed candidate objects for the table
+let candidatesB = [];
 
-// Each peer gets its own structured candidate list so the table can show both.
-let candidatesA = []; // [{peer:'A', type, protocol, address, port, priority}]
-let candidatesB = []; // [{peer:'B', type, protocol, address, port, priority}]
+// ── Stats polling state ───────────────────────────────────────────────────────
+let statsTimer   = null;
+let lastReport   = null;     // most recent RTCStatsReport (raw Map)
+let selectedType = null;     // which type the explorer is showing
+let rawOpen      = false;
+let prevBytes    = { sent: 0, recv: 0, ts: 0 };
 
-// STEP 5: getStats() polling state.
-// prevStats tracks the previous sample's cumulative byte counts so we can
-// compute a rate: bitrate = (Δbytes × 8) / Δtime_in_seconds.
-// We poll Peer A's stats (the offerer) as the authoritative source since it
-// sees both inbound-rtp and outbound-rtp in a real media call. In this no-media
-// loopback we read transport and candidate-pair stats instead.
-let statsTimer = null;
-let prevBytesA = { sent: 0, recv: 0, ts: 0 };
-let rawStatsOpen = false;
-
+// ── Misc ──────────────────────────────────────────────────────────────────────
 const startTime = Date.now();
+let logEntryCount = 0;
 
-// ── Start ─────────────────────────────────────────────────────────────────────
-document.getElementById('btnStart').addEventListener('click', start);
-document.getElementById('btnReset').addEventListener('click', reset);
-
-async function start() {
-  document.getElementById('btnStart').disabled = true;
+// ══════════════════════════════════════════════════════════════════════════════
+// STEP 1 HANDLER: Create both RTCPeerConnection objects
+// ══════════════════════════════════════════════════════════════════════════════
+document.getElementById('btnStep1').addEventListener('click', async () => {
+  document.getElementById('btnStep1').disabled = true;
   document.getElementById('btnReset').disabled = false;
-  logEvent('INFO', '── Loopback start ──', 'tag-info');
+  log('INFO', '── Step 1: Creating RTCPeerConnection objects ──', 'tag-info');
 
+  pcA = new RTCPeerConnection(ICE_CONFIG);
+  pcB = new RTCPeerConnection(ICE_CONFIG);
+  log('INFO', 'Created <code>pcA</code> (offerer) and <code>pcB</code> (answerer) with STUN config.', 'tag-info');
+
+  // ── STEP 3 (in plan): onicecandidate handlers ─────────────────────────────
+  // Each handler does two things:
+  //   1. Forward the candidate to the other peer — simulating the signaling server.
+  //      In Demo 5 this travels over a WebSocket as a JSON message.
+  //   2. Parse and store the candidate for the live table.
+  //
+  // Candidate fields we care about (all available on the RTCIceCandidate object):
+  //   type       — host | srflx | relay | prflx
+  //   protocol   — UDP | TCP
+  //   address    — IP address string
+  //   port       — port number (integer)
+  //   priority   — computed per RFC 8445 §5.1.2 (see concept box in HTML)
+  //   foundation — groups candidates from the same IP/protocol/server combination
+  //   component  — 1 = RTP, 2 = RTCP (usually only 1 with RTCP-mux)
+  pcA.onicecandidate = ev => {
+    if (ev.candidate) {
+      pcB.addIceCandidate(new RTCIceCandidate(ev.candidate))
+         .catch(e => log('ERR', `pcB.addIceCandidate: ${e.message}`, 'tag-err'));
+      const c = parseCandidate(ev.candidate, 'A');
+      if (c) { candidatesA.push(c); renderIceTable(); }
+      log('ICE', `Peer A [<strong>${c ? c.type : '?'}</strong>] ${c ? c.address+':'+c.port : ''} priority ${c ? c.priority.toLocaleString() : '?'}`, 'tag-ice');
+      if (ev.candidate.type === 'srflx')
+        log('ICE', '↑ <strong>srflx</strong>: STUN server revealed Peer A\'s public IP:port — this candidate enables NAT traversal.', 'tag-ice');
+    } else {
+      log('ICE', 'Peer A ICE gathering complete (<code>candidate === null</code> — end-of-gathering signal per RFC 8445 §14).', 'tag-ice');
+    }
+  };
+
+  pcB.onicecandidate = ev => {
+    if (ev.candidate) {
+      pcA.addIceCandidate(new RTCIceCandidate(ev.candidate))
+         .catch(e => log('ERR', `pcA.addIceCandidate: ${e.message}`, 'tag-err'));
+      const c = parseCandidate(ev.candidate, 'B');
+      if (c) { candidatesB.push(c); renderIceTable(); }
+      log('ICE', `Peer B [<strong>${c ? c.type : '?'}</strong>] ${c ? c.address+':'+c.port : ''} priority ${c ? c.priority.toLocaleString() : '?'}`, 'tag-ice');
+      if (ev.candidate.type === 'srflx')
+        log('ICE', '↑ <strong>srflx</strong>: STUN server revealed Peer B\'s public IP:port.', 'tag-ice');
+    } else {
+      log('ICE', 'Peer B ICE gathering complete.', 'tag-ice');
+    }
+  };
+
+  // ── STEP 8 (in plan): Connection state handlers ───────────────────────────
+  // WebRTC has three state machines per RTCPeerConnection:
+  //   iceConnectionState  — ICE: new → checking → connected → completed
+  //   connectionState     — aggregate: new → connecting → connected → failed/closed
+  //   signalingState      — SDP exchange: stable → have-local-offer → stable
+  // We log every transition from both peers so students can compare them side by side.
+  pcA.oniceconnectionstatechange = () => {
+    const s = pcA.iceConnectionState;
+    log('STATE', `Peer A ICE → <code>${s}</code>`, 'tag-state');
+    setBadge('iceStatus', 'iceStatusText', `ICE: ${s}`,
+      (s==='connected'||s==='completed') ? 'connected' :
+      (s==='checking') ? 'connecting' : s==='failed' ? 'failed' : '');
+  };
+  pcA.onconnectionstatechange = () => {
+    const s = pcA.connectionState;
+    log('STATE', `Peer A connection → <code>${s}</code>`, 'tag-state');
+    setBadge('connStatus','connStatusText', s,
+      s==='connected'?'connected': s==='connecting'?'connecting': s==='failed'?'failed':'');
+    if (s === 'connected') {
+      log('INFO', '✓ <strong>Loopback connected.</strong> ICE nominated a pair. DTLS complete. Starting getStats() polling.', 'tag-info');
+      markDone(4);
+      startStatsPolling();
+      enableTypeButtons();
+    }
+    if (s === 'failed' || s === 'closed') stopStatsPolling();
+  };
+  pcA.onsignalingstatechange = () => {
+    const s = pcA.signalingState;
+    log('STATE', `Peer A signaling → <code>${s}</code>`, 'tag-state');
+    setbadge('sigStatus','sigStatusText', `Signaling: ${s}`, s==='stable' ? '' : 'connecting');
+  };
+  pcB.oniceconnectionstatechange = () =>
+    log('STATE', `Peer B ICE → <code>${pcB.iceConnectionState}</code>`, 'tag-state');
+  pcB.onconnectionstatechange = () =>
+    log('STATE', `Peer B connection → <code>${pcB.connectionState}</code>`, 'tag-state');
+  pcB.onsignalingstatechange = () =>
+    log('STATE', `Peer B signaling → <code>${pcB.signalingState}</code>`, 'tag-state');
+
+  setBundle('connStatus','connStatusText','Peers created','connecting');
+  markDone(1);
+  markActive(2);
+  document.getElementById('btnStep2').disabled = false;
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// STEP 2 HANDLER: Peer A creates offer → ICE gathering starts
+// ══════════════════════════════════════════════════════════════════════════════
+document.getElementById('btnStep2').addEventListener('click', async () => {
+  document.getElementById('btnStep2').disabled = true;
+  log('INFO', '── Step 2: Creating offer on Peer A ──', 'tag-info');
   try {
-    // ── STEP 2: Create RTCPeerConnection objects ────────────────────────────
-    //
-    // Same pattern as Demo 1 but with STUN in the config.
-    // pcA is the offerer; pcB is the answerer.
-    // Both are created before any signaling begins so their onicecandidate
-    // handlers are in place before ICE gathering starts (which is triggered
-    // by setLocalDescription, not by createOffer/createAnswer alone).
-    //
-    // See Demo 1 for the full offer/answer explanation and step-by-step diagram.
-    pcA = new RTCPeerConnection(ICE_CONFIG);
-    pcB = new RTCPeerConnection(ICE_CONFIG);
-    logEvent('INFO', 'Created <code>RTCPeerConnection</code> for Peer A (offerer) and Peer B (answerer). STUN: <code>stun.l.google.com:19302</code>', 'tag-info');
-
-    // ── STEP 3: onicecandidate handlers ────────────────────────────────────
-    //
-    // onicecandidate fires once per local candidate as ICE gathering proceeds.
-    // In a real call these candidates travel to the remote peer via the
-    // signaling server (Demo 5). Here, because both peers are in the same
-    // runtime, we hand each candidate directly to the other peer's
-    // addIceCandidate() — simulating perfect, zero-latency signaling.
-    //
-    // Each candidate is ALSO parsed and pushed into the peer's own list so
-    // renderIceTable() can show it immediately. The table is the main visual
-    // output of this demo.
-    //
-    // Fields of RTCIceCandidate:
-    //   candidate   — the raw SDP "a=candidate:" line
-    //   sdpMid      — media section identifier (e.g. "0")
-    //   sdpMLineIndex — index of the m= line this candidate belongs to
-    //   type        — host | srflx | relay | prflx
-    //   protocol    — UDP | TCP
-    //   address     — IP address
-    //   port        — port number
-    //   priority    — computed by the browser per RFC 8445 §5.1.2
-    //   foundation  — groups candidates from the same server/interface
-    pcA.onicecandidate = ev => {
-      if (ev.candidate) {
-        // Forward to Peer B — this is exactly what a signaling server does.
-        pcB.addIceCandidate(new RTCIceCandidate(ev.candidate)).catch(e =>
-          logEvent('ERR', `Peer B addIceCandidate: ${e.message}`, 'tag-err'));
-
-        const c = parseCandidateObj(ev.candidate, 'A');
-        if (c) { candidatesA.push(c); renderIceTable(); }
-        logEvent('ICE', `Peer A local [<strong>${c ? c.type : '?'}</strong>]: ${ev.candidate.address}:${ev.candidate.port} (priority ${ev.candidate.priority})`, 'tag-ice');
-        if (ev.candidate.type === 'srflx')
-          logEvent('ICE', '↑ <strong>srflx</strong> — STUN revealed Peer A\'s public IP:port.', 'tag-ice');
-      } else {
-        logEvent('ICE', 'Peer A ICE gathering complete (<code>candidate === null</code>).', 'tag-ice');
-      }
-    };
-
-    pcB.onicecandidate = ev => {
-      if (ev.candidate) {
-        // Forward to Peer A.
-        pcA.addIceCandidate(new RTCIceCandidate(ev.candidate)).catch(e =>
-          logEvent('ERR', `Peer A addIceCandidate: ${e.message}`, 'tag-err'));
-
-        const c = parseCandidateObj(ev.candidate, 'B');
-        if (c) { candidatesB.push(c); renderIceTable(); }
-        logEvent('ICE', `Peer B local [<strong>${c ? c.type : '?'}</strong>]: ${ev.candidate.address}:${ev.candidate.port} (priority ${ev.candidate.priority})`, 'tag-ice');
-        if (ev.candidate.type === 'srflx')
-          logEvent('ICE', '↑ <strong>srflx</strong> — STUN revealed Peer B\'s public IP:port.', 'tag-ice');
-      } else {
-        logEvent('ICE', 'Peer B ICE gathering complete (<code>candidate === null</code>).', 'tag-ice');
-      }
-    };
-
-    // ── STEP 8: Connection state change handlers ────────────────────────────
-    //
-    // WebRTC has three parallel state machines on each RTCPeerConnection:
-    //   iceConnectionState — tracks ICE: new → checking → connected → completed
-    //   connectionState    — aggregate: new → connecting → connected → failed/closed
-    //   signalingState     — tracks SDP exchange: stable → have-local-offer → stable
-    //
-    // We log every transition so students can see the full lifecycle without
-    // needing to open DevTools. The state badges in the UI mirror these states.
-    pcA.oniceconnectionstatechange = () => {
-      const s = pcA.iceConnectionState;
-      logEvent('STATE', `Peer A ICE → <code>${s}</code>`, 'tag-state');
-      setBadge('badgeIce', `ICE: ${s}`,
-        (s==='connected'||s==='completed') ? 'connected' :
-        (s==='checking'||s==='new')        ? 'connecting' :
-        s==='failed'                       ? 'failed' : '');
-    };
-    pcA.onconnectionstatechange = () => {
-      const s = pcA.connectionState;
-      logEvent('STATE', `Peer A connection → <code>${s}</code>`, 'tag-state');
-      setBadge('badgeConn', s,
-        s==='connected'  ? 'connected'  :
-        s==='connecting' ? 'connecting' :
-        s==='failed'     ? 'failed' : '');
-      if (s === 'connected') {
-        logEvent('INFO', '✓ <strong>Loopback connected.</strong> Starting getStats() polling.', 'tag-info');
-        startStatsPolling();
-      }
-      if (s === 'failed' || s === 'closed') stopStatsPolling();
-    };
-    pcA.onsignalingstatechange = () => {
-      const s = pcA.signalingState;
-      logEvent('STATE', `Peer A signaling → <code>${s}</code>`, 'tag-state');
-      setBadge('badgeSig', `Signaling: ${s}`, s==='stable' ? '' : 'connecting');
-    };
-    // Log Peer B state too — in a real call these run on different machines,
-    // but here we can see both, which is instructive.
-    pcB.oniceconnectionstatechange = () =>
-      logEvent('STATE', `Peer B ICE → <code>${pcB.iceConnectionState}</code>`, 'tag-state');
-    pcB.onconnectionstatechange = () =>
-      logEvent('STATE', `Peer B connection → <code>${pcB.connectionState}</code>`, 'tag-state');
-    pcB.onsignalingstatechange = () =>
-      logEvent('STATE', `Peer B signaling → <code>${pcB.signalingState}</code>`, 'tag-state');
-
-    // ── STEP 2 (cont.): Loopback offer/answer exchange ─────────────────────
-    //
-    // This is identical to Demo 1's Steps 3 and 4, but without a DataChannel.
-    // The connection carries no media tracks — we only want the ICE/DTLS
-    // handshake to run so that ICE candidates are gathered and stats flow.
-    //
-    // Calling addTransceiver() with 'recvonly' gives the SDP an m= line to
-    // negotiate, which ICE needs to have a reason to gather candidates.
-    // Without at least one m= line the SDP is empty and ICE won't run.
+    // A dummy recvonly transceiver gives the SDP an m= section.
+    // Without it, createOffer() produces no m= lines and ICE won't gather.
+    // We use 'recvonly' because this loopback carries no real media tracks.
     pcA.addTransceiver('audio', { direction: 'recvonly' });
-    logEvent('SDP', 'Added dummy recvonly audio transceiver so the SDP has an m= line.', 'tag-sdp');
+    log('SDP', 'Added dummy <code>recvonly</code> audio transceiver — needed so the SDP has an m= line that triggers ICE.', 'tag-sdp');
 
-    // Peer A: createOffer → setLocalDescription → starts ICE gathering
     const offer = await pcA.createOffer();
-    logEvent('SDP', 'Peer A: <code>createOffer()</code> — SDP generated.', 'tag-sdp');
+    log('SDP', 'Peer A: <code>createOffer()</code> — SDP text generated by the browser.', 'tag-sdp');
+
+    // setLocalDescription starts ICE gathering. onicecandidate will fire
+    // asynchronously as the browser discovers each candidate.
     await pcA.setLocalDescription(offer);
-    logEvent('SDP', 'Peer A: <code>setLocalDescription(offer)</code> — ICE gathering started.', 'tag-sdp');
+    log('SDP', 'Peer A: <code>setLocalDescription(offer)</code> — ICE gathering started. Watch candidates appear in the table above.', 'tag-sdp');
 
-    // Hand the offer to Peer B — simulates the signaling server.
-    await pcB.setRemoteDescription(pcA.localDescription);
-    logEvent('SDP', 'Peer B: <code>setRemoteDescription(offer)</code>.', 'tag-sdp');
-
-    // Peer B: createAnswer → setLocalDescription → starts its own ICE gathering
-    const answer = await pcB.createAnswer();
-    logEvent('SDP', 'Peer B: <code>createAnswer()</code> — SDP answer generated.', 'tag-sdp');
-    await pcB.setLocalDescription(answer);
-    logEvent('SDP', 'Peer B: <code>setLocalDescription(answer)</code> — Peer B ICE gathering started.', 'tag-sdp');
-
-    // Complete the exchange: Peer A learns Peer B's description.
-    await pcA.setRemoteDescription(pcB.localDescription);
-    logEvent('SDP', 'Peer A: <code>setRemoteDescription(answer)</code> — offer/answer exchange complete. ICE checks running…', 'tag-sdp');
-
-    setBadge('badgeConn', 'connecting', 'connecting');
-
+    markDone(2);
+    markActive(3);
+    document.getElementById('btnStep3').disabled = false;
   } catch (err) {
-    logEvent('ERR', `Start failed: ${err.name}: ${err.message}`, 'tag-err');
-    document.getElementById('btnStart').disabled = false;
+    log('ERR', `Step 2 failed: ${err.name}: ${err.message}`, 'tag-err');
+    document.getElementById('btnStep2').disabled = false;
   }
-}
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// STEP 3 HANDLER: Exchange offer/answer — both ICE agents now active
+// ══════════════════════════════════════════════════════════════════════════════
+document.getElementById('btnStep3').addEventListener('click', async () => {
+  document.getElementById('btnStep3').disabled = true;
+  log('INFO', '── Step 3: Exchanging offer/answer ──', 'tag-info');
+  try {
+    // In Demo 3 you copy-pasted these SDP blobs between tabs manually.
+    // Here we assign them directly in JS — same data, zero friction.
+    // This is also exactly what the WebSocket signaling server does in Demo 5.
+    await pcB.setRemoteDescription(pcA.localDescription);
+    log('SDP', 'Peer B: <code>setRemoteDescription(offer)</code> — Peer B now knows what Peer A is offering.', 'tag-sdp');
+
+    const answer = await pcB.createAnswer();
+    log('SDP', 'Peer B: <code>createAnswer()</code> — answer SDP generated.', 'tag-sdp');
+
+    await pcB.setLocalDescription(answer);
+    log('SDP', 'Peer B: <code>setLocalDescription(answer)</code> — Peer B ICE gathering started.', 'tag-sdp');
+
+    await pcA.setRemoteDescription(pcB.localDescription);
+    log('SDP', 'Peer A: <code>setRemoteDescription(answer)</code> — offer/answer exchange complete. ICE connectivity checks running…', 'tag-sdp');
+
+    setBundle('connStatus','connStatusText','ICE checking…','connecting');
+    markDone(3);
+    markActive(4);
+    log('INFO', 'Step 4 is automatic — watch the status badges and event log for the connection to complete.', 'tag-info');
+  } catch (err) {
+    log('ERR', `Step 3 failed: ${err.name}: ${err.message}`, 'tag-err');
+    document.getElementById('btnStep3').disabled = false;
+  }
+});
 
 // ══════════════════════════════════════════════════════════════════════════════
 // ICE CANDIDATE TABLE
 // ══════════════════════════════════════════════════════════════════════════════
 
 // Parse the RTCIceCandidate object's structured fields.
-// The browser populates these directly on the RTCIceCandidate object
-// (unlike the old string-parsing approach). We prefer the object's own
-// fields over regex-parsing the raw candidate string.
-function parseCandidateObj(cand, peer) {
-  // cand.type is the cleanest source: 'host' | 'srflx' | 'relay' | 'prflx'
-  const type     = cand.type     || parseCandidateTypeFromString(cand.candidate);
-  const protocol = cand.protocol ? cand.protocol.toUpperCase() : '?';
-  const address  = cand.address  || cand.ip || '?';
-  const port     = cand.port     || '?';
-  // priority is a Number (can be very large — ICE priorities can exceed 2^24)
-  const priority = cand.priority != null ? cand.priority : parsePriorityFromString(cand.candidate);
-  return { peer, type, protocol, address, port, priority };
+// Modern browsers expose all fields directly on the object; we read them
+// rather than regex-parsing the raw candidate string.
+function parseCandidate(cand, peer) {
+  return {
+    peer,
+    type:      cand.type     || parseCandidateTypeFromStr(cand.candidate),
+    protocol:  cand.protocol ? cand.protocol.toUpperCase() : '?',
+    address:   cand.address  || cand.ip || '?',
+    port:      cand.port     || '?',
+    priority:  cand.priority != null ? Number(cand.priority) : 0,
+    foundation: cand.foundation || '?'
+  };
 }
-
-// Fallback: parse type from raw SDP candidate string if RTCIceCandidate.type is missing.
-function parseCandidateTypeFromString(s) {
+function parseCandidateTypeFromStr(s) {
   const m = s && s.match(/\btyp\s+(host|srflx|relay|prflx)\b/);
   return m ? m[1] : 'unknown';
 }
-function parsePriorityFromString(s) {
-  const m = s && s.match(/^candidate:\S+\s+\d+\s+\S+\s+(\d+)/);
-  return m ? Number(m[1]) : 0;
-}
 
-// Render the combined ICE table, sorted by priority descending.
-// All candidates from both peers go into one sorted list — this lets students
-// see directly which type (host > srflx > relay) dominates the top.
-// STEP 4: Candidate priority formula in action — the sort order IS the priority.
+// Render both peers' candidates in one table, sorted by priority descending.
+// STEP 4 priority concept: the sort order IS the order ICE tries pairs.
 function renderIceTable() {
-  const all = [
-    ...candidatesA.map(c => ({...c})),
-    ...candidatesB.map(c => ({...c}))
-  ].sort((a, b) => b.priority - a.priority);
-
+  const all = [...candidatesA, ...candidatesB].sort((a,b) => b.priority - a.priority);
   const tbody = document.getElementById('iceTableBody');
   if (!all.length) {
-    tbody.innerHTML = '<tr><td class="ice-table-empty" colspan="5">Candidates appear here after Start…</td></tr>';
+    tbody.innerHTML = '<tr><td class="ice-empty" colspan="6">Candidates appear after Step 2 and Step 3…</td></tr>';
     return;
   }
   tbody.innerHTML = all.map(c => `
     <tr>
-      <td><span class="peer-pill-${c.peer.toLowerCase()}">Peer ${c.peer}</span></td>
+      <td><span class="peer-lbl-${c.peer.toLowerCase()}">Peer ${c.peer}</span></td>
       <td><span class="type-pill ${c.type}">${c.type}</span></td>
       <td>${c.protocol}</td>
       <td>${c.address}:${c.port}</td>
       <td>${c.priority.toLocaleString()}</td>
+      <td style="color:var(--muted);font-size:10.5px;">${c.foundation}</td>
     </tr>
   `).join('');
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// STEP 5 & 6: getStats() polling — selected pair + live dashboard
+// STEP 5: getStats() polling — nominated pair + live dashboard + explorer
 // ══════════════════════════════════════════════════════════════════════════════
 
 function startStatsPolling() {
   stopStatsPolling();
-  prevBytesA = { sent: 0, recv: 0, ts: 0 };
+  prevBytes = { sent: 0, recv: 0, ts: 0 };
   statsTimer = setInterval(pollStats, 1000);
-  pollStats(); // first sample immediately
+  pollStats();
 }
-
 function stopStatsPolling() {
   if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
 }
 
+// STEP 6: Parse the RTCStatsReport.
+// RTCStatsReport is a Map — keys are opaque IDs, values are plain objects
+// whose schema depends on their `type` field.
+// We iterate with report.forEach() and switch on stats.type.
 async function pollStats() {
   if (!pcA) return;
-
-  // STEP 5: getStats() returns a Promise<RTCStatsReport>.
-  // RTCStatsReport is a Map: iterate with report.forEach(stats => { … }).
-  // Each entry has a different schema depending on stats.type.
   const report = await pcA.getStats();
+  lastReport = report;
 
-  // STEP 6: Find the nominated candidate pair.
-  // nominated=true identifies the pair actually carrying traffic (RFC 8445 §8.1.1).
-  // There is exactly one nominated pair per component once ICE completes.
-  let nominatedPair = null, localCand = null, remoteCand = null;
-  let transport = null;
+  // ── Find the nominated candidate pair ─────────────────────────────────────
+  // nominated: true means ICE chose this pair as the winner.
+  // There is exactly one nominated pair once ICE reaches 'completed'.
+  let nominated = null, localCand = null, remoteCand = null, transport = null;
 
-  report.forEach(stats => {
-    switch (stats.type) {
+  report.forEach(s => {
+    switch (s.type) {
       case 'candidate-pair':
         // CONCEPT: nominated candidate pair
-        // The browser may report multiple candidate pairs (one per combination
-        // tried). Only the one with nominated===true is the winner.
-        if (stats.nominated && stats.state === 'succeeded') nominatedPair = stats;
+        // ICE tests every local×remote combination. The pair that succeeds
+        // and is nominated carries all traffic from this point. Its ID links
+        // to the local-candidate and remote-candidate entries below.
+        if (s.nominated && s.state === 'succeeded') nominated = s;
         break;
       case 'transport':
-        transport = stats;
+        transport = s;
         break;
-      // local-candidate and remote-candidate are looked up by ID below.
     }
   });
 
-  if (nominatedPair) {
-    localCand  = report.get(nominatedPair.localCandidateId);
-    remoteCand = report.get(nominatedPair.remoteCandidateId);
+  if (nominated) {
+    localCand  = report.get(nominated.localCandidateId);
+    remoteCand = report.get(nominated.remoteCandidateId);
   }
 
-  // ── Selected pair box ────────────────────────────────────────────────────
+  // ── Nominated pair box ────────────────────────────────────────────────────
   const pairBox = document.getElementById('pairBox');
-  if (nominatedPair && localCand && remoteCand) {
+  if (nominated && localCand && remoteCand) {
     pairBox.classList.remove('pending');
-    const rtt = nominatedPair.currentRoundTripTime != null
-      ? `${(nominatedPair.currentRoundTripTime * 1000).toFixed(1)} ms`
-      : '—';
     // CONCEPT: RTT in the stats
-    // RTT is measured from ICE STUN binding requests that keep flowing after
-    // connection is established — they serve as keep-alive and consent checks
-    // (RFC 7675). currentRoundTripTime is the most recent single measurement;
-    // totalRoundTripTime / responsesSent gives the average over the session.
+    // currentRoundTripTime is measured from STUN binding requests that keep
+    // flowing after connection (keep-alive + consent checks per RFC 7675).
+    // It is the round-trip time of the STUN probe, not of media packets.
+    const rtt = nominated.currentRoundTripTime != null
+      ? `${(nominated.currentRoundTripTime * 1000).toFixed(1)} ms`
+      : '—';
     pairBox.innerHTML = `
       <div class="pair-row">
         <span class="pair-side">Local</span>
         <span class="type-pill ${localCand.candidateType}">${localCand.candidateType}</span>
-        <span>${localCand.address || localCand.ip}:${localCand.port}</span>
+        <span style="font-family:var(--mono);font-size:11.5px;">${localCand.address||localCand.ip}:${localCand.port}</span>
       </div>
-      <div class="pair-row" style="color:var(--border);padding:2px 0;">↕</div>
+      <div class="pair-row" style="color:var(--border);padding:2px 0 2px 54px;font-size:12px;">↕ ${nominated.state}</div>
       <div class="pair-row">
         <span class="pair-side">Remote</span>
         <span class="type-pill ${remoteCand.candidateType}">${remoteCand.candidateType}</span>
-        <span>${remoteCand.address || remoteCand.ip}:${remoteCand.port}</span>
+        <span style="font-family:var(--mono);font-size:11.5px;">${remoteCand.address||remoteCand.ip}:${remoteCand.port}</span>
       </div>
-      <div class="rtt">Round-trip time: ${rtt}</div>
+      <div class="rtt-line">
+        RTT: ${rtt} &nbsp;·&nbsp;
+        requests sent: ${nominated.requestsSent||0} &nbsp;·&nbsp;
+        responses received: ${nominated.responsesReceived||0}
+        ${remoteCand.candidateType==='relay' ? ' &nbsp;·&nbsp; <span style="color:var(--orange)">⚠ TURN relay in use</span>' : ''}
+      </div>
     `;
-  } else {
-    pairBox.classList.add('pending');
-    pairBox.textContent = 'Not connected yet — the winning pair appears here once ICE completes.';
+  } else if (!pairBox.classList.contains('pending')) {
+    // keep whatever was last shown while ICE is stabilising
   }
 
-  // ── Stats dashboard ───────────────────────────────────────────────────────
-  // In this no-media loopback we show transport-level bytes (DTLS/STUN traffic)
-  // rather than RTP bitrate (which would be zero with no media tracks).
-  // This still demonstrates the Δbytes pattern used for bitrate in Demo 6 and 7.
-  const statsBox = document.getElementById('statsPanel');
-  const now = transport ? transport.timestamp : 0;
-  const sent = transport ? (transport.bytesSent || 0) : 0;
-  const recv = transport ? (transport.bytesReceived || 0) : 0;
-
+  // ── Stats dashboard grid ──────────────────────────────────────────────────
+  // STEP 10 bitrate pattern: rates must be derived from delta of cumulative bytes.
+  // getStats() always reports totals, never instantaneous values.
+  const now  = transport ? transport.timestamp : 0;
+  const sent = transport ? (transport.bytesSent     || 0) : 0;
+  const recv = transport ? (transport.bytesReceived  || 0) : 0;
   let upKbps = null, downKbps = null;
-  if (prevBytesA.ts && now) {
-    const dt = (now - prevBytesA.ts) / 1000;
+  if (prevBytes.ts && now) {
+    const dt = (now - prevBytes.ts) / 1000;
     if (dt > 0) {
-      // STEP 10 pattern (Chapter §10): bitrate = (Δbytes × 8) / Δtime_seconds / 1000
-      // getStats() reports cumulative totals, never instantaneous rates.
-      // You always subtract the previous sample to get the delta.
-      upKbps   = ((sent - prevBytesA.sent) * 8 / dt / 1000);
-      downKbps = ((recv - prevBytesA.recv) * 8 / dt / 1000);
+      upKbps   = (sent - prevBytes.sent) * 8 / dt / 1000;
+      downKbps = (recv - prevBytes.recv) * 8 / dt / 1000;
     }
   }
-  prevBytesA = { sent, recv, ts: now };
+  prevBytes = { sent, recv, ts: now };
 
-  const iceState  = pcA ? pcA.iceConnectionState  : '—';
-  const connState = pcA ? pcA.connectionState      : '—';
-  const dtlsState = transport ? (transport.dtlsState || '—') : '—';
+  const iceState  = pcA.iceConnectionState;
+  const connState = pcA.connectionState;
+  const dtls      = transport ? (transport.dtlsState || '—') : '—';
+  const tlsVer    = transport ? (transport.tlsVersion || '—') : '—';
+  const cipher    = transport ? (transport.dtlsCipher || '—') : '—';
 
-  statsBox.innerHTML = `
+  document.getElementById('statsGrid').innerHTML = `
     <div class="stats-grid">
       <div class="stat-cell">
         <div class="stat-label">Transport ↑</div>
-        <div class="stat-value">${upKbps != null ? upKbps.toFixed(1) : '—'} <small>kbps</small></div>
+        <div class="stat-value">${upKbps!=null ? upKbps.toFixed(1) : '—'} <small>kbps</small></div>
       </div>
       <div class="stat-cell">
         <div class="stat-label">Transport ↓</div>
-        <div class="stat-value">${downKbps != null ? downKbps.toFixed(1) : '—'} <small>kbps</small></div>
+        <div class="stat-value">${downKbps!=null ? downKbps.toFixed(1) : '—'} <small>kbps</small></div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-label">Bytes Sent</div>
+        <div class="stat-value" style="font-size:13px;">${sent.toLocaleString()} <small>B</small></div>
       </div>
       <div class="stat-cell">
         <div class="stat-label">ICE State</div>
         <div class="stat-value" style="font-size:12px;">${iceState}</div>
       </div>
       <div class="stat-cell">
-        <div class="stat-label">Connection State</div>
-        <div class="stat-value" style="font-size:12px;">${connState}</div>
-      </div>
-      <div class="stat-cell">
         <div class="stat-label">DTLS State</div>
-        <div class="stat-value" style="font-size:12px;">${dtlsState}</div>
+        <div class="stat-value" style="font-size:12px;">${dtls}</div>
       </div>
       <div class="stat-cell">
-        <div class="stat-label">Bytes Sent</div>
-        <div class="stat-value" style="font-size:12px;">${sent.toLocaleString()} <small>B</small></div>
+        <div class="stat-label">DTLS Cipher</div>
+        <div class="stat-value" style="font-size:10px;line-height:1.4;">${cipher}</div>
       </div>
     </div>
   `;
 
-  // ── STEP 7: Raw stats dump ───────────────────────────────────────────────
-  // Serialize the entire RTCStatsReport to JSON so students can explore
-  // every available field. RTCStatsReport is a Map, which JSON.stringify
-  // ignores (Maps are not plain objects), so we convert it first.
-  // This is the same data visible in chrome://webrtc-internals → Stats graphs.
-  if (rawStatsOpen) {
+  // ── Refresh the explorer if a type is selected ────────────────────────────
+  if (selectedType) renderExplorer(selectedType);
+
+  // ── STEP 7: Raw JSON dump ─────────────────────────────────────────────────
+  // RTCStatsReport is a Map — JSON.stringify ignores Maps, so we convert first.
+  if (rawOpen) {
     const obj = {};
-    report.forEach((stats, id) => { obj[id] = stats; });
-    document.getElementById('rawStatsPre').textContent = JSON.stringify(obj, null, 2);
+    report.forEach((s, id) => { obj[id] = s; });
+    document.getElementById('rawPre').textContent = JSON.stringify(obj, null, 2);
   }
 }
 
-// ── Toggle raw stats panel ────────────────────────────────────────────────────
+// ══════════════════════════════════════════════════════════════════════════════
+// ANNOTATED STATS EXPLORER — Option A: field-by-field annotation per type
+// ══════════════════════════════════════════════════════════════════════════════
+
+// Schema annotations: for each stats type, what each field means.
+// Fields marked highlight:true are the most important for understanding the type.
+const SCHEMA = {
+  'candidate-pair': [
+    { key:'id',                   desc:'Opaque ID for this stats object. Used to cross-reference other report entries.' },
+    { key:'type',                 desc:'Always "candidate-pair" for this entry type.' },
+    { key:'timestamp',            desc:'DOMHighResTimeStamp when this sample was taken. Used to compute rates by differencing consecutive samples.' },
+    { key:'state',                desc:'"succeeded" = connectivity check passed. "waiting" = not yet tried. "in-progress" = check running. "failed" = all checks failed.', highlight:true },
+    { key:'nominated',            desc:'<strong>true</strong> = this pair was chosen as the winner. All traffic flows here. There is exactly one nominated pair once ICE completes.', highlight:true },
+    { key:'localCandidateId',     desc:'ID of the local-candidate entry describing this side of the pair. Look it up with report.get(localCandidateId).', highlight:true },
+    { key:'remoteCandidateId',    desc:'ID of the remote-candidate entry describing the other peer\'s side.', highlight:true },
+    { key:'currentRoundTripTime', desc:'Most recent RTT in seconds, measured from STUN consent/keep-alive probes (RFC 7675). Multiply by 1000 for milliseconds.', highlight:true },
+    { key:'totalRoundTripTime',   desc:'Cumulative sum of all RTT samples. Divide by responsesReceived to get the session average RTT.' },
+    { key:'requestsSent',         desc:'Total STUN binding requests sent on this pair (initial checks + keep-alives).' },
+    { key:'responsesReceived',    desc:'Total STUN binding responses received.' },
+    { key:'bytesSent',            desc:'Total bytes sent on this candidate pair.' },
+    { key:'bytesReceived',        desc:'Total bytes received on this candidate pair.' },
+    { key:'priority',             desc:'Combined priority of the pair: (2^32 − 1) × min(local, remote) + 2 × max(local, remote) + (local > remote ? 1 : 0).' },
+  ],
+  'local-candidate': [
+    { key:'id',            desc:'Opaque ID referenced by candidate-pair.localCandidateId.' },
+    { key:'type',          desc:'Always "local-candidate".' },
+    { key:'candidateType', desc:'"host" = local interface. "srflx" = public IP from STUN. "relay" = TURN address. "prflx" = discovered during connectivity checks.', highlight:true },
+    { key:'protocol',      desc:'"udp" or "tcp". UDP is preferred; TCP is a fallback when firewalls block UDP.', highlight:true },
+    { key:'address',       desc:'IP address of this candidate. For srflx: your public IP. For host: LAN IP.', highlight:true },
+    { key:'port',          desc:'Port number.', highlight:true },
+    { key:'priority',      desc:'Priority computed by the browser per RFC 8445 §5.1.2.', highlight:true },
+    { key:'foundation',    desc:'Groups candidates that share the same base IP, protocol, and STUN server. Used during ICE checks to avoid redundant work.' },
+    { key:'relatedAddress',desc:'For srflx: the local (host) address it was derived from. For relay: the srflx address at the TURN server.' },
+    { key:'relatedPort',   desc:'Port matching relatedAddress above.' },
+  ],
+  'remote-candidate': [
+    { key:'id',            desc:'Opaque ID referenced by candidate-pair.remoteCandidateId.' },
+    { key:'type',          desc:'Always "remote-candidate".' },
+    { key:'candidateType', desc:'Type as reported by the remote peer in its SDP / ICE candidate message.', highlight:true },
+    { key:'protocol',      desc:'"udp" or "tcp".', highlight:true },
+    { key:'address',       desc:'Remote peer\'s IP address for this candidate.', highlight:true },
+    { key:'port',          desc:'Remote peer\'s port.', highlight:true },
+    { key:'priority',      desc:'Priority value from the remote peer\'s candidate.' },
+    { key:'foundation',    desc:'Foundation value from the remote candidate.' },
+  ],
+  'transport': [
+    { key:'id',             desc:'Opaque ID for this transport entry.' },
+    { key:'type',           desc:'Always "transport".' },
+    { key:'timestamp',      desc:'Sample time — use to compute bitrate delta.' },
+    { key:'bytesSent',      desc:'Total bytes sent across this transport (STUN + DTLS + application data). Cumulative — subtract previous sample for a rate.', highlight:true },
+    { key:'bytesReceived',  desc:'Total bytes received. Cumulative.', highlight:true },
+    { key:'packetsSent',    desc:'Total packets sent.' },
+    { key:'packetsReceived',desc:'Total packets received.' },
+    { key:'dtlsState',      desc:'"connected" = DTLS handshake complete. "new" | "connecting" | "closed" | "failed".', highlight:true },
+    { key:'dtlsCipher',     desc:'TLS cipher suite negotiated (e.g. TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256). This is the encryption protecting all WebRTC media.', highlight:true },
+    { key:'tlsVersion',     desc:'TLS version (e.g. "FEFD" = DTLS 1.2). WebRTC mandates DTLS 1.2 or later.' },
+    { key:'srtpCipher',     desc:'SRTP cipher used to encrypt the media stream itself (separate from DTLS).' },
+    { key:'selectedCandidatePairId', desc:'ID of the active candidate-pair entry. Look it up: report.get(selectedCandidatePairId).', highlight:true },
+    { key:'localCertificateId',  desc:'ID of the local certificate entry (type: "certificate").' },
+    { key:'remoteCertificateId', desc:'ID of the remote certificate entry.' },
+  ],
+  'certificate': [
+    { key:'id',             desc:'Opaque ID, referenced from transport.localCertificateId / remoteCertificateId.' },
+    { key:'type',           desc:'Always "certificate".' },
+    { key:'fingerprint',    desc:'Hash of the DER-encoded certificate. This is the value committed to in the SDP "a=fingerprint:" line — verifying it prevents MITM attacks.', highlight:true },
+    { key:'fingerprintAlgorithm', desc:'Hash algorithm used (e.g. "sha-256"). Both sides must use the same algorithm.', highlight:true },
+    { key:'base64Certificate', desc:'The full DER certificate encoded as base64. Paste into an ASN.1 decoder to inspect the certificate fields.' },
+  ],
+};
+
+function selectType(type) {
+  selectedType = type;
+  document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('tb-' + type);
+  if (btn) btn.classList.add('active');
+  renderExplorer(type);
+}
+
+function renderExplorer(type) {
+  const panel = document.getElementById('statsEntryPanel');
+  if (!lastReport) {
+    panel.innerHTML = '<div class="stats-placeholder">No stats yet — run through Step 4 first.</div>';
+    return;
+  }
+  const schema = SCHEMA[type] || [];
+  const entries = [];
+  lastReport.forEach(s => { if (s.type === type) entries.push(s); });
+
+  if (!entries.length) {
+    panel.innerHTML = `<div class="stats-placeholder">No <code>${type}</code> entries in the current report.</div>`;
+    return;
+  }
+
+  // For candidate-pair, sort: nominated first, then succeeded, then the rest.
+  if (type === 'candidate-pair') {
+    entries.sort((a,b) => {
+      if (a.nominated && !b.nominated) return -1;
+      if (!a.nominated && b.nominated) return 1;
+      if (a.state === 'succeeded' && b.state !== 'succeeded') return -1;
+      if (a.state !== 'succeeded' && b.state === 'succeeded') return 1;
+      return 0;
+    });
+  }
+
+  panel.innerHTML = '<div class="stats-entry-list">' + entries.map(entry => {
+    // Determine label for the entry header
+    let headerLabel = `<code style="color:var(--accent2)">${type}</code>`;
+    if (type === 'candidate-pair') {
+      const nom = entry.nominated ? ' <span style="color:var(--green);font-size:10px;">★ nominated</span>' : '';
+      headerLabel += ` · state: <strong>${entry.state||'?'}</strong>${nom}`;
+    } else if (type === 'local-candidate' || type === 'remote-candidate') {
+      const ct = entry.candidateType || '?';
+      headerLabel += ` · <span class="type-pill ${ct}">${ct}</span> ${entry.address||entry.ip||''}:${entry.port||''}`;
+    } else if (type === 'transport') {
+      headerLabel += ` · DTLS: <strong>${entry.dtlsState||'?'}</strong>`;
+    } else if (type === 'certificate') {
+      headerLabel += ` · ${entry.fingerprintAlgorithm||'?'}`;
+    }
+
+    // Build field rows: show schema-known fields first (in schema order),
+    // then any extra fields the browser provides that aren't in our schema.
+    const schemaKeys = new Set(schema.map(s => s.key));
+    const extraFields = Object.keys(entry).filter(k => !schemaKeys.has(k));
+
+    const schemaRows = schema.filter(s => entry[s.key] !== undefined).map(s => {
+      let val = entry[s.key];
+      if (typeof val === 'number' && val > 1e6) val = val.toLocaleString();
+      else if (typeof val === 'number' && !Number.isInteger(val)) val = val.toPrecision(5);
+      else val = String(val);
+      const valClass = s.highlight ? 'sf-val sf-highlight' : 'sf-val';
+      return `<tr>
+        <td class="sf-key">${s.key}</td>
+        <td class="${valClass}">${val}</td>
+        <td class="sf-desc">${s.desc}</td>
+      </tr>`;
+    }).join('');
+
+    const extraRows = extraFields.map(k => {
+      let val = entry[k];
+      if (typeof val === 'object') val = JSON.stringify(val);
+      return `<tr>
+        <td class="sf-key" style="color:var(--muted);">${k}</td>
+        <td class="sf-val" style="color:var(--muted);">${String(val)}</td>
+        <td class="sf-desc" style="color:#3a4055;">Browser-specific field not in our schema. Check the W3C Stats spec for its definition.</td>
+      </tr>`;
+    }).join('');
+
+    return `<div class="stats-entry">
+      <div class="stats-entry-header">
+        ${headerLabel}
+        <span class="stats-entry-id">${entry.id}</span>
+      </div>
+      <div class="stats-entry-body">
+        <table class="stats-fields">
+          <thead><tr>
+            <th style="text-align:left;padding:5px 13px;font-size:9.5px;font-family:var(--mono);color:var(--muted);background:var(--surface2);border-bottom:1px solid var(--border);">Field</th>
+            <th style="text-align:left;padding:5px 13px;font-size:9.5px;font-family:var(--mono);color:var(--muted);background:var(--surface2);border-bottom:1px solid var(--border);">Value</th>
+            <th style="text-align:left;padding:5px 13px;font-size:9.5px;font-family:var(--mono);color:var(--muted);background:var(--surface2);border-bottom:1px solid var(--border);">What it means</th>
+          </tr></thead>
+          <tbody>${schemaRows}${extraRows}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function enableTypeButtons() {
+  document.querySelectorAll('.type-btn').forEach(b => { b.disabled = false; });
+  // Auto-select candidate-pair so students immediately see the nominated pair.
+  selectType('candidate-pair');
+}
+
+// ── Raw JSON toggle ───────────────────────────────────────────────────────────
 function toggleRaw() {
-  rawStatsOpen = !rawStatsOpen;
-  document.getElementById('rawStatsBody').classList.toggle('open', rawStatsOpen);
-  document.getElementById('btnToggleRaw').textContent = rawStatsOpen ? '▾ Hide raw JSON' : '▸ Show raw JSON';
-  if (rawStatsOpen && !pcA) {
-    document.getElementById('rawStatsPre').textContent =
-      'Run the demo first, then expand this panel to see the full RTCStatsReport.\nSee chrome://webrtc-internals for a richer visual version of the same data.';
+  rawOpen = !rawOpen;
+  document.getElementById('rawBody').classList.toggle('open', rawOpen);
+  document.getElementById('btnRaw').textContent = rawOpen ? '▾ Hide full raw JSON' : '▸ Show full raw JSON';
+  if (rawOpen && lastReport) {
+    const obj = {};
+    lastReport.forEach((s, id) => { obj[id] = s; });
+    document.getElementById('rawPre').textContent = JSON.stringify(obj, null, 2);
+  } else if (rawOpen) {
+    document.getElementById('rawPre').textContent = 'No report yet — run the demo first.';
   }
 }
 
 // ── Reset ─────────────────────────────────────────────────────────────────────
-function reset() {
+document.getElementById('btnReset').addEventListener('click', () => {
   stopStatsPolling();
-
   if (pcA) { pcA.close(); pcA = null; }
   if (pcB) { pcB.close(); pcB = null; }
-
-  // Reset per-peer candidate lists — no shared-global bug possible here
-  // because each peer owns its own array.
-  candidatesA = [];
-  candidatesB = [];
-  prevBytesA  = { sent: 0, recv: 0, ts: 0 };
+  candidatesA = []; candidatesB = [];
+  lastReport = null; selectedType = null;
+  prevBytes = { sent: 0, recv: 0, ts: 0 };
 
   renderIceTable();
-
   document.getElementById('pairBox').className = 'pair-box pending';
-  document.getElementById('pairBox').textContent = 'Not connected yet — the winning pair appears here once ICE completes.';
-  document.getElementById('statsPanel').innerHTML = '<div class="stats-empty">Stats appear once connected (updates every 1 s).</div>';
+  document.getElementById('pairBox').textContent = 'Not connected yet — the winning pair appears here once ICE completes (Step 4).';
+  document.getElementById('statsGrid').innerHTML = '<div class="stats-empty">Stats appear once connected (updates every 1 s).</div>';
+  document.getElementById('statsEntryPanel').innerHTML = '<div class="stats-placeholder">Run the demo through Step 4, then select a type above to inspect the live report.</div>';
+  document.querySelectorAll('.type-btn').forEach(b => { b.disabled = true; b.classList.remove('active'); });
+  if (rawOpen) { rawOpen = false; document.getElementById('rawBody').classList.remove('open'); document.getElementById('btnRaw').textContent = '▸ Show full raw JSON'; }
+  document.getElementById('rawPre').textContent = 'Run the demo first.';
 
-  if (rawStatsOpen) {
-    document.getElementById('rawStatsPre').textContent =
-      'Run the demo and expand this panel to see the full RTCStatsReport as JSON.\nEach entry has a different schema depending on its "type" field.\nSee chrome://webrtc-internals for a richer visual version of the same data.';
-  }
+  setBundle('connStatus','connStatusText','Not started','');
+  setBundle('iceStatus','iceStatusText','ICE: —','');
+  setBundle('sigStatus','sigStatusText','Signaling: —','');
 
-  setBadge('badgeConn', 'Not started', '');
-  setBadge('badgeIce',  'ICE: new',    '');
-  setBadge('badgeSig',  'Signaling: stable', '');
+  [1,2,3,4].forEach(n => {
+    const c = document.getElementById('c'+n);
+    const l = document.getElementById('l'+n);
+    const lbl = document.getElementById('lbl'+n);
+    c.className = 'step-circle';
+    c.textContent = n;
+    if (l) l.classList.remove('done');
+    if (lbl) lbl.className = 'step-label';
+  });
+  markActive(1);
 
-  document.getElementById('btnStart').disabled = false;
+  document.getElementById('btnStep1').disabled = false;
+  document.getElementById('btnStep2').disabled = true;
+  document.getElementById('btnStep3').disabled = true;
   document.getElementById('btnReset').disabled = true;
 
-  logEvent('INFO', 'Reset. Click <strong>Start</strong> to run again.', 'tag-info');
-}
+  log('INFO', 'Reset. Click Step 1 to start again.', 'tag-info');
+});
 
 // ── beforeunload cleanup ───────────────────────────────────────────────────────
-// Rule 10: always close peer connections when the page unloads.
-// No tracks to stop here (no getUserMedia), but RTCPeerConnection should still
-// be closed to free DTLS/ICE resources and signal the remote peer.
 window.addEventListener('beforeunload', () => {
   if (pcA) pcA.close();
   if (pcB) pcB.close();
 });
 
-// ── Utilities ─────────────────────────────────────────────────────────────────
-function setBadge(id, text, state) {
+// ── Stepper helpers ───────────────────────────────────────────────────────────
+function markActive(n) {
+  const c = document.getElementById('c'+n);
+  const lbl = document.getElementById('lbl'+n);
+  if (c) { c.className = 'step-circle active'; }
+  if (lbl) { lbl.className = 'step-label active'; }
+}
+function markDone(n) {
+  const c = document.getElementById('c'+n);
+  const l = document.getElementById('l'+n);
+  const lbl = document.getElementById('lbl'+n);
+  if (c) { c.className = 'step-circle done'; c.textContent = '✓'; }
+  if (l) l.classList.add('done');
+  if (lbl) { lbl.className = 'step-label done'; }
+}
+
+// ── Status badge helpers ──────────────────────────────────────────────────────
+function setBundle(id, textId, text, cls) {
   const el = document.getElementById(id);
-  el.className = 'sbadge' + (state ? ' ' + state : '');
-  el.querySelector('span:last-child').textContent = text;
+  el.className = 'status-badge' + (cls ? ' '+cls : '');
+  document.getElementById(textId).textContent = text;
+}
+// alias used in ice/signaling handlers
+function setBadge(id, textId, text, cls) { setBundle(id, textId, text, cls); }
+function setbadge(id, textId, text, cls) { setBundle(id, textId, text, cls); }
+
+// ── Event log ─────────────────────────────────────────────────────────────────
+function log(type, msg, tagClass) {
+  logEntryCount++;
+  document.getElementById('logCount').textContent = logEntryCount;
+  const t = ((Date.now() - startTime) / 1000).toFixed(1).padStart(5,' ');
+  const el = document.getElementById('eventLog');
+  const div = document.createElement('div');
+  div.className = 'log-entry';
+  div.innerHTML = `<span class="log-time">${t}s</span><span class="log-tag ${tagClass}">${type}</span><span class="log-msg">${msg}</span>`;
+  el.appendChild(div);
+  el.scrollTop = el.scrollHeight;
 }
 
-function logEvent(type, msg, tagClass) {
-  const log = document.getElementById('eventLog');
-  const t   = ((Date.now() - startTime) / 1000).toFixed(1).padStart(5, ' ');
-  const e   = document.createElement('div');
-  e.className = 'log-entry';
-  e.innerHTML = `<span class="log-ts">${t}s</span><span class="log-tag ${tagClass}">${type}</span><span class="log-msg">${msg}</span>`;
-  log.appendChild(e);
-  log.scrollTop = log.scrollHeight;
-}
-
-function clearLog() {
-  document.getElementById('eventLog').innerHTML = '';
+// ── Log panel toggle ──────────────────────────────────────────────────────────
+function toggleLog() {
+  const body = document.getElementById('eventLog');
+  const chevron = document.getElementById('logChevron');
+  const open = body.classList.toggle('open');
+  chevron.classList.toggle('open', open);
 }
 </script>
 </body>
