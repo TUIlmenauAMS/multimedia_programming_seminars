@@ -150,6 +150,44 @@ textarea.ice-area.out-b { color: #2ab47e; }
 
 footer { border-top: 1px solid var(--border); padding: 24px 32px; margin-top: 60px; }
 .footer-inner { max-width: 1200px; margin: 0 auto; font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+
+/* ── Background / tutorial explainers ── */
+.bg-wrap { border: 1px solid var(--border); border-radius: 8px; margin: 18px 0 28px; overflow: hidden; }
+.bg-wrap summary { list-style: none; cursor: pointer; padding: 13px 18px; background: var(--surface2); font-size: 13.5px; font-weight: 500; color: #e8eaf2; display: flex; align-items: center; gap: 8px; user-select: none; }
+.bg-wrap summary::-webkit-details-marker { display: none; }
+.bg-wrap summary::before { content: '▸'; color: var(--accent); font-size: 11px; transition: transform 0.15s; flex-shrink: 0; }
+.bg-wrap[open] summary::before { transform: rotate(90deg); }
+.bg-wrap .bg-body { padding: 4px 18px 16px; font-size: 13.5px; }
+.bg-sub { border-top: 1px solid var(--border); }
+.bg-sub summary { padding: 10px 0 10px 18px; background: none; font-size: 13px; font-weight: 400; color: var(--text); }
+.bg-sub summary::before { content: '›'; font-size: 13px; }
+.bg-sub .bg-body { padding: 0 18px 14px 36px; color: var(--muted); }
+.bg-sub .bg-body p { margin-bottom: 8px; }
+.bg-link { display: inline-flex; align-items: center; gap: 4px; font-family: var(--mono); font-size: 11.5px; color: var(--accent2); text-decoration: none; border-bottom: 1px dotted rgba(167,139,250,0.5); }
+.bg-link:hover { border-bottom-style: solid; }
+
+/* ── Live SDP / ICE explain panels ── */
+.explain-row { margin: 6px 0 2px; }
+.btn-explain { background: rgba(167,139,250,0.08); color: var(--accent2); border: 1px solid rgba(167,139,250,0.3); }
+.btn-explain:hover:not(:disabled) { background: rgba(167,139,250,0.16); }
+.explain-panel { display: none; background: var(--bg); border: 1px solid rgba(167,139,250,0.25); border-radius: 6px; padding: 12px 14px; margin: 8px 0 4px; font-size: 12px; }
+.explain-panel.open { display: block; }
+.explain-panel .ep-empty { color: var(--muted); font-family: var(--mono); font-size: 11.5px; }
+.explain-section { margin-bottom: 10px; }
+.explain-section:last-child { margin-bottom: 0; }
+.explain-section h4 { font-family: var(--mono); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent2); margin-bottom: 5px; }
+.explain-field { display: flex; gap: 8px; padding: 3px 0; border-bottom: 1px solid rgba(37,43,56,0.5); font-size: 12px; }
+.explain-field:last-child { border-bottom: none; }
+.explain-field .ef-key { font-family: var(--mono); color: #93c5fd; flex-shrink: 0; min-width: 120px; }
+.explain-field .ef-val { color: var(--text); }
+.explain-field .ef-hint { display: block; color: var(--muted); font-size: 11px; margin-top: 1px; }
+.ice-line-explain { padding: 4px 0; border-bottom: 1px solid rgba(37,43,56,0.5); font-size: 12px; }
+.ice-line-explain:last-child { border-bottom: none; }
+.ice-line-explain .il-type { display: inline-block; font-family: var(--mono); font-size: 9.5px; font-weight: 600; padding: 1px 6px; border-radius: 3px; margin-right: 6px; }
+.ice-line-explain .il-type.host { background: rgba(52,211,153,0.15); color: var(--green); }
+.ice-line-explain .il-type.srflx { background: rgba(79,156,249,0.15); color: var(--accent); }
+.ice-line-explain .il-type.relay { background: rgba(251,146,60,0.15); color: var(--orange); }
+.ice-line-explain .il-type.prflx { background: rgba(167,139,250,0.15); color: var(--accent2); }
 </style>
 </head>
 <body>
@@ -211,6 +249,80 @@ footer { border-top: 1px solid var(--border); padding: 24px 32px; margin-top: 60
   </ol>
 </div>
 
+<!-- Background / concept primer -->
+<details class="bg-wrap">
+  <summary>📖 New to signaling, SDP, or ICE? Read this first</summary>
+  <div class="bg-body">
+    <p style="margin-bottom:10px;">
+      This is Demo 3 of <a class="bg-link" href="04_multimediaprogrammierung_webrtc.html" target="_blank" rel="noopener">Chapter 04: WebRTC</a>,
+      which covers all of this in full depth with diagrams, tables and RFC references. The boxes below are short,
+      demo-specific recaps — click a link to jump to the full explanation.
+    </p>
+
+    <details class="bg-sub">
+      <summary>Why do we have to copy-paste at all? (Signaling)</summary>
+      <div class="bg-body">
+        <p><code>RTCPeerConnection</code> can encrypt and transport media between two browsers, but it has
+        <strong>no way for the two browsers to find each other first</strong>. Before any media can flow, they
+        need to exchange a small amount of setup text — an <em>offer</em>, an <em>answer</em>, and some
+        <em>ICE candidates</em> — over some separate channel. WebRTC deliberately does not define what that
+        channel is: it could be a WebSocket server, email, a chat message, or — as in this demo — you,
+        manually, copying text from one tab and pasting it into the other.</p>
+        <p>This demo makes that otherwise-invisible "signaling channel" completely visible. In
+        Demo 5 the same exact exchange happens automatically over a WebSocket.</p>
+        <a class="bg-link" href="04_multimediaprogrammierung_webrtc.html#signaling" target="_blank" rel="noopener">→ Full explanation: Chapter §10 Signaling</a>
+      </div>
+    </details>
+
+    <details class="bg-sub">
+      <summary>What is this SDP text? (SDP)</summary>
+      <div class="bg-body">
+        <p><strong>SDP</strong> (Session Description Protocol, RFC 8866) is a plain-text format — not
+        WebRTC-specific, it predates WebRTC by two decades and comes from VoIP/SIP — that describes a media
+        session: which codecs a peer supports, what security parameters to use, and (combined with ICE
+        candidates) where to send the traffic. It is a <em>description</em>, not a negotiation protocol by
+        itself: the offer/answer dance is what negotiates.</p>
+        <p>Once you click Start Call / Answer Call below, click the new <strong>"Explain this SDP"</strong>
+        button under each SDP box to see a plain-language breakdown of the exact text your browser generated,
+        field by field.</p>
+        <a class="bg-link" href="04_multimediaprogrammierung_webrtc.html#sdp" target="_blank" rel="noopener">→ Full explanation: Chapter §6 SDP (with full annotated example)</a>
+      </div>
+    </details>
+
+    <details class="bg-sub">
+      <summary>What are ICE candidates, and why "trickle"? (ICE / NAT)</summary>
+      <div class="bg-body">
+        <p>Most devices sit behind a router doing NAT (Network Address Translation), so they don't have a
+        public IP address reachable from outside. <strong>ICE</strong> (RFC 8445) is the process the browser
+        uses to find a network path that actually works between two such peers — it gathers a list of
+        candidate addresses (your local LAN address, your public address as seen by a STUN server, and
+        optionally a relay address from a TURN server) and tries all combinations until one connects.</p>
+        <p>"Trickle" means candidates are sent to the other peer <em>as they're discovered</em> rather than
+        waiting for the full list — that's why the ICE textareas below fill in gradually over a few seconds
+        instead of all at once.</p>
+        <a class="bg-link" href="04_multimediaprogrammierung_webrtc.html#ice" target="_blank" rel="noopener">→ Full explanation: Chapter §3 ICE</a>
+        &nbsp;·&nbsp;
+        <a class="bg-link" href="04_multimediaprogrammierung_webrtc.html#stun" target="_blank" rel="noopener">§4 STUN</a>
+        &nbsp;·&nbsp;
+        <a class="bg-link" href="04_multimediaprogrammierung_webrtc.html#nat" target="_blank" rel="noopener">§2 NAT</a>
+      </div>
+    </details>
+
+    <details class="bg-sub">
+      <summary>How does this compare to plain HTTP or WebSocket?</summary>
+      <div class="bg-body">
+        <p>HTTP and WebSocket are both <strong>client–server</strong>: every message goes through a server,
+        which adds a hop of latency and bandwidth cost. WebRTC is <strong>peer-to-peer</strong> — once the
+        connection in this demo is up, video flows directly between the two tabs (or two machines), with no
+        server in the path at all. The trade-off is exactly what this demo is showing you: without a server,
+        the two peers need another way to exchange that initial setup information, which is why you're doing
+        it by hand here.</p>
+        <a class="bg-link" href="04_multimediaprogrammierung_webrtc.html#what-is-webrtc" target="_blank" rel="noopener">→ Full explanation: Chapter §1, incl. WebRTC vs WebSocket vs HTTP table</a>
+      </div>
+    </details>
+  </div>
+</details>
+
 <!-- Role tab selector -->
 <div class="role-tabs">
   <button class="role-tab" id="tabNone" onclick="selectRole('none')">
@@ -269,7 +381,9 @@ footer { border-top: 1px solid var(--border); padding: 24px 32px; margin-top: 60
       <textarea class="sdp-area out-a" id="offerSdp" readonly placeholder="Offer SDP appears here after Start Call…"></textarea>
       <div class="btn-row">
         <button class="btn btn-a btn-sm" onclick="copyField('offerSdp')">⎘ Copy Offer SDP</button>
+        <button class="btn btn-explain btn-sm" onclick="toggleSdpExplain('explainOfferA','offerSdp')">🔍 Explain this SDP</button>
       </div>
+      <div class="explain-panel" id="explainOfferA"></div>
 
       <!-- Step 7 input: paste answer from Tab B -->
       <div class="sdp-label">
@@ -289,7 +403,9 @@ footer { border-top: 1px solid var(--border); padding: 24px 32px; margin-top: 60
       <textarea class="ice-area out-a" id="iceCandidatesA" readonly placeholder="ICE candidates trickle in after Start Call…"></textarea>
       <div class="btn-row">
         <button class="btn btn-a btn-sm" onclick="copyField('iceCandidatesA')">⎘ Copy ICE (Tab A)</button>
+        <button class="btn btn-explain btn-sm" onclick="toggleIceExplain('explainIceA','iceCandidatesA')">🔍 Explain candidates</button>
       </div>
+      <div class="explain-panel" id="explainIceA"></div>
 
       <!-- Step 8 input: paste Tab B's ICE candidates -->
       <div class="sdp-label">
@@ -344,7 +460,9 @@ footer { border-top: 1px solid var(--border); padding: 24px 32px; margin-top: 60
       <textarea class="sdp-area out-b" id="answerSdpB" readonly placeholder="Answer SDP appears here after Answer Call…"></textarea>
       <div class="btn-row">
         <button class="btn btn-b btn-sm" onclick="copyField('answerSdpB')">⎘ Copy Answer SDP</button>
+        <button class="btn btn-explain btn-sm" onclick="toggleSdpExplain('explainAnswerB','answerSdpB')">🔍 Explain this SDP</button>
       </div>
+      <div class="explain-panel" id="explainAnswerB"></div>
 
       <!-- Step 5B output: Tab B ICE candidates -->
       <div class="sdp-label">
@@ -354,7 +472,9 @@ footer { border-top: 1px solid var(--border); padding: 24px 32px; margin-top: 60
       <textarea class="ice-area out-b" id="iceCandidatesB" readonly placeholder="ICE candidates trickle in after Answer Call…"></textarea>
       <div class="btn-row">
         <button class="btn btn-b btn-sm" onclick="copyField('iceCandidatesB')">⎘ Copy ICE (Tab B)</button>
+        <button class="btn btn-explain btn-sm" onclick="toggleIceExplain('explainIceB','iceCandidatesB')">🔍 Explain candidates</button>
       </div>
+      <div class="explain-panel" id="explainIceB"></div>
 
       <!-- Step 8B input: paste Tab A's ICE candidates -->
       <div class="sdp-label">
@@ -619,9 +739,19 @@ async function callerStartCall() {
 
 // STEP 7: Tab A receives Tab B's answer and calls setRemoteDescription.
 async function callerSetAnswer() {
-  const sdp = document.getElementById('answerSdpA').value.trim();
-  if (!sdp)  { logEvent('ERR', 'Paste Tab B\'s answer SDP first.', 'tag-err'); return; }
+  const rawAnswer = document.getElementById('answerSdpA').value.trim();
+  if (!rawAnswer)  { logEvent('ERR', 'Paste Tab B\'s answer SDP first.', 'tag-err'); return; }
   if (!pc)   { logEvent('ERR', 'Start Call first.', 'tag-err'); return; }
+
+  // See sanitizeSdp() in UTILITIES — same pre-check as the Callee side.
+  const checked = sanitizeSdp(rawAnswer);
+  if (!checked.ok) {
+    logEvent('ERR', `Pasted answer looks malformed: ${checked.error}`, 'tag-err');
+    logEvent('INFO', 'Go back to Tab B, click "Copy Answer SDP" again, and paste it fresh — without going through another app in between.', 'tag-info');
+    return;
+  }
+  const sdp = checked.sdp;
+  logEvent('INFO', `Pasted answer looks valid: ${checked.lineCount} SDP lines.`, 'tag-info');
 
   logEvent('SDP', 'Setting remote description (answer from Tab B)…', 'tag-sdp');
   try {
@@ -641,8 +771,20 @@ async function callerSetAnswer() {
 // ════════════════════════════════════════════════════════════════════════════
 
 async function calleeAnswer() {
-  const offerSdp = document.getElementById('offerSdpB').value.trim();
-  if (!offerSdp) { logEvent('ERR', 'Paste Tab A\'s offer SDP first.', 'tag-err'); return; }
+  const rawOffer = document.getElementById('offerSdpB').value.trim();
+  if (!rawOffer) { logEvent('ERR', 'Paste Tab A\'s offer SDP first.', 'tag-err'); return; }
+
+  // STEP 6a (pre-check): clean up and validate the pasted text before handing it
+  // to the browser's SDP parser. Manual copy-paste is the #1 source of failures
+  // in this demo — see sanitizeSdp() in the UTILITIES section for what this catches.
+  const checked = sanitizeSdp(rawOffer);
+  if (!checked.ok) {
+    logEvent('ERR', `Pasted offer looks malformed: ${checked.error}`, 'tag-err');
+    logEvent('INFO', 'Go back to Tab A, click "Copy Offer SDP" again, and paste it fresh — without going through another app in between.', 'tag-info');
+    return;
+  }
+  const offerSdp = checked.sdp;
+  logEvent('INFO', `Pasted offer looks valid: ${checked.lineCount} SDP lines.`, 'tag-info');
 
   document.getElementById('btnAnswerB').disabled = true;
   logEvent('INFO', '── Callee: answering call ──', 'tag-info');
@@ -773,6 +915,213 @@ window.addEventListener('beforeunload', () => {
 // UTILITIES
 // ══════════════════════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════════════════════
+// SDP SANITIZATION — fix for the #1 cause of real-world failures in this demo
+// ══════════════════════════════════════════════════════════════════════════
+//
+// CONCEPT: Why manual copy-paste breaks
+// SDP is plain text where line breaks are meaningful (each line is a separate
+// "<letter>=<value>" record — see Chapter §6). Copy-pasting through different
+// apps, OSes, or clipboard managers can silently mangle that text:
+//   - CRLF vs LF line endings, or line endings stripped entirely
+//   - invisible/zero-width characters inserted by some editors
+//   - soft-wrapped visual lines copied as literal spaces instead of newlines
+//     (collapsing several real SDP lines into one — this produces exactly the
+//     "Invalid SDP line" error browsers throw when two 'a=' lines get merged)
+// setRemoteDescription() has no way to recover from this — it just rejects
+// the whole description. We catch what we can BEFORE calling it, so the
+// error message points at the actual problem instead of a cryptic parser
+// exception.
+function sanitizeSdp(raw) {
+  // 1) Normalize all line-ending styles to a single '\n'.
+  let text = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  // 2) Strip zero-width / invisible Unicode characters some editors or
+  //    messaging apps insert (zero-width space, BOM, soft hyphen, NBSP→space).
+  text = text.replace(/[\u200B-\u200D\uFEFF]/g, '').replace(/\u00A0/g, ' ');
+
+  // 3) Trim trailing whitespace from each line and drop empty lines.
+  let lines = text.split('\n').map(l => l.replace(/\s+$/,'')).filter(l => l.length);
+
+  // 4) Heuristic repair: if we don't see the SDP line types we expect on their
+  //    own lines, it's likely several lines got joined by spaces during copy.
+  //    Re-split by inserting a newline before any mid-string occurrence of a
+  //    known SDP line-start token ("a=", "m=", "o=", etc.) that isn't already
+  //    at the start of a line.
+  const lineTypes = '(?:v|o|s|i|u|e|p|c|b|t|r|z|k|a|m)=';
+  const looksUnsplit = lines.some(l => new RegExp('\\s' + lineTypes).test(l));
+  if (looksUnsplit) {
+    text = lines.join('\n');
+    text = text.replace(new RegExp('\\s(' + lineTypes + ')', 'g'), '\n$1');
+    lines = text.split('\n').map(l => l.replace(/\s+$/,'')).filter(l => l.length);
+  }
+
+  const sdp = lines.join('\n') + '\n';
+
+  // 5) Validate the basic shape of a WebRTC SDP: must start with v=0 and
+  //    contain at least one m= (media) line. This won't catch everything —
+  //    the browser's own parser is the real authority — but it catches the
+  //    common paste failures with a message that actually explains what's wrong.
+  if (!lines.length || !lines[0].startsWith('v=0')) {
+    return { ok: false, error: 'does not start with "v=0" — the very first line of the paste may be missing or cut off.' };
+  }
+  if (!lines.some(l => l.startsWith('m='))) {
+    return { ok: false, error: 'no "m=" (media) line found — the paste may be incomplete.' };
+  }
+  for (const l of lines) {
+    // A valid SDP line is "<single-letter>=<value>". If a line doesn't match
+    // that shape at all, two lines were likely merged into one during paste.
+    if (!/^[a-z]=/.test(l)) {
+      return { ok: false, error: `line doesn't look like valid SDP: "${truncate(l,60)}" — likely two lines got merged during paste.` };
+    }
+  }
+
+  return { ok: true, sdp, lineCount: lines.length };
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// LIVE SDP EXPLAINER — parses the real SDP this session generated and shows
+// it field-by-field in plain language, next to the raw text.
+// See Chapter §6 (SDP) for the full annotated reference this mirrors.
+// ══════════════════════════════════════════════════════════════════════════
+function parseSdpForExplain(sdpText) {
+  const lines = sdpText.split('\n').map(l => l.trim()).filter(Boolean);
+  const session = { origin: null, mLines: [] };
+  let current = null; // the m-line currently being filled in
+
+  for (const line of lines) {
+    if (line.startsWith('o=')) {
+      session.origin = line.slice(2);
+    } else if (line.startsWith('m=')) {
+      // m=<media> <port> <proto> <fmt> <fmt> ...
+      const parts = line.slice(2).split(' ');
+      current = { media: parts[0], proto: parts[2], fmts: parts.slice(3), codecs: {}, iceUfrag: null, icePwd: null, fingerprint: null, setup: null, mid: null };
+      session.mLines.push(current);
+    } else if (line.startsWith('a=rtpmap:') && current) {
+      // a=rtpmap:<payload type> <codec name>/<clock rate>[/<channels>]
+      const m = line.match(/^a=rtpmap:(\d+)\s+([^/]+)\/(\d+)(?:\/(\d+))?/);
+      if (m) current.codecs[m[1]] = { name: m[2], clock: m[3], channels: m[4] || null };
+    } else if (line.startsWith('a=ice-ufrag:')) {
+      const v = line.slice('a=ice-ufrag:'.length);
+      if (current) current.iceUfrag = v; else session.iceUfrag = v;
+    } else if (line.startsWith('a=ice-pwd:')) {
+      const v = line.slice('a=ice-pwd:'.length);
+      if (current) current.icePwd = v; else session.icePwd = v;
+    } else if (line.startsWith('a=fingerprint:')) {
+      const v = line.slice('a=fingerprint:'.length);
+      if (current) current.fingerprint = v; else session.fingerprint = v;
+    } else if (line.startsWith('a=setup:') && current) {
+      current.setup = line.slice('a=setup:'.length);
+    } else if (line.startsWith('a=mid:') && current) {
+      current.mid = line.slice('a=mid:'.length);
+    }
+  }
+  return session;
+}
+
+const SETUP_EXPLAIN = {
+  actpass: 'offers to be either side of the DTLS handshake — the answerer decides',
+  active:  'will act as the DTLS client (initiates the handshake)',
+  passive: 'will act as the DTLS server (waits for the handshake)'
+};
+
+function renderSdpExplanation(panelId, sdpText) {
+  const panel = document.getElementById(panelId);
+  if (!sdpText || !sdpText.trim()) {
+    panel.innerHTML = '<div class="ep-empty">Nothing to explain yet — this fills in after Start Call / Answer Call.</div>';
+    return;
+  }
+  const s = parseSdpForExplain(sdpText);
+  let html = '';
+
+  if (s.origin) {
+    html += `<div class="explain-section"><h4>Session</h4>
+      <div class="explain-field"><span class="ef-key">o= (origin)</span><span class="ef-val">${s.origin}<span class="ef-hint">Session ID + version — identifies this SDP session. Not a real IP; WebRTC ignores the address here, real addresses come from ICE candidates.</span></span></div>
+    </div>`;
+  }
+
+  s.mLines.forEach((m, i) => {
+    html += `<div class="explain-section"><h4>m= line ${i+1}: ${m.media}${m.mid ? ' (mid: '+m.mid+')' : ''}</h4>`;
+
+    const codecNames = Object.entries(m.codecs).map(([pt, c]) => `${c.name} (PT ${pt}, ${c.clock}Hz${c.channels ? '/'+c.channels+'ch' : ''})`);
+    if (codecNames.length) {
+      html += `<div class="explain-field"><span class="ef-key">Codecs offered</span><span class="ef-val">${codecNames.join(', ')}<span class="ef-hint">These are the codecs this peer is willing to send/receive for ${m.media}. The remote peer picks one it also supports.</span></span></div>`;
+    }
+    const ufrag = m.iceUfrag || s.iceUfrag;
+    const pwd   = m.icePwd   || s.icePwd;
+    if (ufrag) html += `<div class="explain-field"><span class="ef-key">a=ice-ufrag</span><span class="ef-val">${ufrag}<span class="ef-hint">ICE username fragment — half of this session's ICE credentials, used to authenticate connectivity checks.</span></span></div>`;
+    if (pwd)   html += `<div class="explain-field"><span class="ef-key">a=ice-pwd</span><span class="ef-val">${truncate(pwd, 24)}<span class="ef-hint">ICE password — the other half of the credentials above. Shared secret for this session only.</span></span></div>`;
+    const fp = m.fingerprint || s.fingerprint;
+    if (fp) html += `<div class="explain-field"><span class="ef-key">a=fingerprint</span><span class="ef-val">${truncate(fp, 40)}<span class="ef-hint">Hash of this peer's DTLS certificate. The other side verifies the certificate it receives during the handshake matches this — this is what stops a man-in-the-middle from swapping in a different certificate.</span></span></div>`;
+    if (m.setup) html += `<div class="explain-field"><span class="ef-key">a=setup</span><span class="ef-val">${m.setup}<span class="ef-hint">${SETUP_EXPLAIN[m.setup] || 'DTLS role negotiation.'}</span></span></div>`;
+
+    html += `</div>`;
+  });
+
+  panel.innerHTML = html || '<div class="ep-empty">Could not find any m= lines to explain.</div>';
+}
+
+function toggleSdpExplain(panelId, sourceTextareaId) {
+  const panel = document.getElementById(panelId);
+  const open = panel.classList.toggle('open');
+  if (open) {
+    renderSdpExplanation(panelId, document.getElementById(sourceTextareaId).value);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// LIVE ICE CANDIDATE EXPLAINER
+// See Chapter §3 (ICE) and §4 (STUN) for the full reference this mirrors.
+// ══════════════════════════════════════════════════════════════════════════
+const ICE_TYPE_EXPLAIN = {
+  host:  'a local network address of this device (e.g. your LAN IP)',
+  srflx: "this device's public IP:port, as seen by the STUN server — works when NAT allows simple hole-punching",
+  relay: 'an address on a TURN server that will relay all media — used only when no direct path works (not configured in this demo)',
+  prflx: 'discovered during connectivity checks themselves, not during initial gathering'
+};
+
+function parseIceCandidateForExplain(candidateStr) {
+  // candidate:<foundation> <component> <protocol> <priority> <address> <port> typ <type> [raddr <addr> rport <port>] ...
+  const m = candidateStr.match(/^candidate:(\S+)\s+(\d+)\s+(\S+)\s+(\d+)\s+(\S+)\s+(\d+)\s+typ\s+(\S+)(?:\s+raddr\s+(\S+)\s+rport\s+(\d+))?/);
+  if (!m) return null;
+  return {
+    foundation: m[1], component: m[2], protocol: m[3].toUpperCase(),
+    priority: m[4], address: m[5], port: m[6], type: m[7],
+    raddr: m[8] || null, rport: m[9] || null
+  };
+}
+
+function renderIceExplanation(panelId, iceAreaValue) {
+  const panel = document.getElementById(panelId);
+  const lines = iceAreaValue.split('\n').map(l => l.trim()).filter(Boolean);
+  if (!lines.length) {
+    panel.innerHTML = '<div class="ep-empty">No candidates gathered yet — wait a few seconds after Start Call / Answer Call.</div>';
+    return;
+  }
+  let html = '';
+  for (const line of lines) {
+    let obj;
+    try { obj = JSON.parse(line); } catch { continue; }
+    const p = parseIceCandidateForExplain(obj.candidate || '');
+    if (!p) continue;
+    let desc = `${p.protocol} ${p.type} candidate — ${p.address}:${p.port}`;
+    if (p.type === 'srflx' && p.raddr) desc += ` (behind local address ${p.raddr}:${p.rport})`;
+    html += `<div class="ice-line-explain">
+      <span class="il-type ${p.type}">${p.type}</span>${desc}
+      <span class="ef-hint">${ICE_TYPE_EXPLAIN[p.type] || ''} · priority ${p.priority}</span>
+    </div>`;
+  }
+  panel.innerHTML = html || '<div class="ep-empty">Could not parse any candidates.</div>';
+}
+
+function toggleIceExplain(panelId, sourceTextareaId) {
+  const panel = document.getElementById(panelId);
+  const open = panel.classList.toggle('open');
+  if (open) {
+    renderIceExplanation(panelId, document.getElementById(sourceTextareaId).value);
+  }
+}
+
 // Parse candidate type from the raw SDP candidate string.
 // Format: "candidate:<fnd> <comp> <proto> <prio> <addr> <port> typ <TYPE> …"
 function parseCandidateType(c) {
@@ -785,12 +1134,15 @@ function parseCandidateType(c) {
 function copyField(id) {
   const el = document.getElementById(id);
   if (!el.value.trim()) { logEvent('INFO', 'Nothing to copy yet — wait for the field to fill.', 'tag-info'); return; }
+  const lineCount = el.value.split('\n').filter(l => l.trim()).length;
   navigator.clipboard.writeText(el.value).then(() => {
-    logEvent('INFO', `Copied ${id} to clipboard.`, 'tag-info');
+    // Logged so you can sanity-check after pasting: if the other tab reports
+    // a very different line/char count, the paste likely got mangled in transit.
+    logEvent('INFO', `Copied ${id} to clipboard (${el.value.length} chars, ${lineCount} lines).`, 'tag-info');
   }).catch(() => {
     // Clipboard API requires HTTPS. On plain HTTP, select the text manually.
     el.select();
-    logEvent('INFO', 'Clipboard API unavailable — text selected, press Ctrl+C / Cmd+C.', 'tag-info');
+    logEvent('INFO', `Clipboard API unavailable — text selected (${el.value.length} chars, ${lineCount} lines), press Ctrl+C / Cmd+C.`, 'tag-info');
   });
 }
 

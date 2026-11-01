@@ -421,7 +421,7 @@
 <!-- ═══════════════════════════════════════════════════════════ -->
 <div class="nb-cell">
 <hr>
-<h2>1. What is WebRTC and Why Does It Exist</h2>
+<h2 id="what-is-webrtc">1. What is WebRTC and Why Does It Exist</h2>
 <p>Before WebRTC, real-time communication in the browser required Flash, Java applets, or proprietary browser plugins. These were slow to install, insecure, and unavailable on mobile. In 2010, Google acquired two companies — GIPS (audio/video processing) and On2 Technologies (video codecs) — and open-sourced the combined technology stack. The W3C and IETF standardised the browser API and the underlying protocols. By 2012, Chrome and Firefox shipped the first implementations. Today, WebRTC is built into every major browser with no installation required.</p>
 
 <h3>Where WebRTC is used in industry</h3>
@@ -473,7 +473,7 @@
 <!-- ═══════════════════════════════════════════════════════════ -->
 <div class="nb-cell">
 <hr>
-<h2>2. NAT and the Peer Connectivity Problem</h2>
+<h2 id="nat">2. NAT and the Peer Connectivity Problem</h2>
 <p>The fundamental networking challenge WebRTC must solve is that most devices on the internet do not have a publicly reachable IP address. They sit behind a <strong>Network Address Translator (NAT)</strong> — typically a home router or corporate firewall — that shares a single public IP address among many private devices.</p>
 
 <h3>How NAT works</h3>
@@ -509,7 +509,7 @@
 <!-- ═══════════════════════════════════════════════════════════ -->
 <div class="nb-cell">
 <hr>
-<h2>3. ICE — Interactive Connectivity Establishment</h2>
+<h2 id="ice">3. ICE — Interactive Connectivity Establishment</h2>
 <p>ICE (RFC 8445) is the framework WebRTC uses to find a working network path between two peers. Rather than guessing, ICE takes a systematic approach: it gathers <em>every possible address</em> a peer might be reachable at, exchanges that list with the remote peer, and then tries every combination until one works.</p>
 
 <h3>ICE candidate types</h3>
@@ -583,7 +583,7 @@ peerConnection.onicecandidate = (event) => {
 <!-- ═══════════════════════════════════════════════════════════ -->
 <div class="nb-cell">
 <hr>
-<h2>4. STUN — Session Traversal Utilities for NAT</h2>
+<h2 id="stun">4. STUN — Session Traversal Utilities for NAT</h2>
 <p>STUN (RFC 8489) is a lightweight request-response protocol with one job: tell a client what its public IP address and port look like from outside its NAT. A STUN server is a simple UDP/TCP server on a public IP that reads the source address of incoming packets and echoes it back in the response.</p>
 
 <h3>How a STUN binding request works</h3>
@@ -629,7 +629,7 @@ const peerConnection = new RTCPeerConnection(configuration);</code></pre>
 <!-- ═══════════════════════════════════════════════════════════ -->
 <div class="nb-cell">
 <hr>
-<h2>5. TURN — Traversal Using Relays around NAT</h2>
+<h2 id="turn">5. TURN — Traversal Using Relays around NAT</h2>
 <p>When ICE cannot find a direct path between peers — because both are behind symmetric NAT, or because a firewall blocks all inbound UDP — it falls back to a <strong>TURN relay</strong>. The TURN server (RFC 8656) sits on a public IP, allocates a relay address for each peer, and forwards all traffic between them. From the perspective of each peer's NAT, the traffic looks like an outbound connection to the TURN server — which is always permitted.</p>
 
 <h3>How TURN works</h3>
@@ -712,7 +712,7 @@ const configuration_force_relay = {
 <!-- ═══════════════════════════════════════════════════════════ -->
 <div class="nb-cell">
 <hr>
-<h2>6. SDP — Session Description Protocol</h2>
+<h2 id="sdp">6. SDP — Session Description Protocol</h2>
 <p>SDP (RFC 8866) is the text format that peers use to describe what they want to send and receive: which codecs they support, which network addresses they are reachable at, which security parameters to use. It is not a negotiation protocol — it is a description format. The negotiation (the offer/answer exchange) is defined separately in the JavaScript Session Establishment Protocol (JSEP, RFC 8829).</p>
 
 <h3>Anatomy of a WebRTC SDP offer</h3>
@@ -814,7 +814,7 @@ signalingChannel.send(JSON.stringify({ type: 'answer', sdp: answer.sdp }));</cod
 <!-- ═══════════════════════════════════════════════════════════ -->
 <div class="nb-cell">
 <hr>
-<h2>7. RTCPeerConnection — The Core API</h2>
+<h2 id="rtcpeerconnection">7. RTCPeerConnection — The Core API</h2>
 <p><code>RTCPeerConnection</code> is the central object in the WebRTC browser API. It encapsulates the entire connection lifecycle: ICE negotiation, DTLS handshake, codec selection, RTP media transport, RTCP feedback, and DataChannel SCTP transport. You interact with it through a set of methods and event handlers.</p>
 
 <h3>Key events</h3>
@@ -1082,7 +1082,7 @@ dataChannel.send(buffer);</code></pre>
 <!-- ═══════════════════════════════════════════════════════════ -->
 <div class="nb-cell">
 <hr>
-<h2>10. Signaling — The Missing Piece</h2>
+<h2 id="signaling">10. Signaling — The Missing Piece</h2>
 <p>Before two peers can establish a WebRTC connection, they must exchange three things:</p>
 <ol>
   <li>The <strong>offer SDP</strong> from the caller to the callee.</li>
