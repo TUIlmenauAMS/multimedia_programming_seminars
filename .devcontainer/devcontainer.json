@@ -1,45 +1,29 @@
 {
-  // Base image: Ubuntu 24.04 with common dev tools pre-installed.
-  // mcr.microsoft.com/devcontainers/base images are maintained by Microsoft
-  // and include git, curl, openssh, sudo, and other essentials.
   "name": "WebRTC Seminar 04",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
 
   // Install Python 3.12 via the devcontainers feature registry.
-  // Features are reusable, versioned install scripts — this one installs
-  // Python, pip, and pyenv into the container cleanly.
   "features": {
     "ghcr.io/devcontainers/features/python:1": { "version": "3.12" }
   },
 
-  // onCreateCommand runs once when the Codespace is first created (not on restart).
-  // - apt-get installs coturn, the open-source TURN server (used by Jitsi, Matrix, etc.)
-  // - pip installs the Python websockets library used by signaling_server.py
-  "onCreateCommand": "apt-get update && apt-get install -y coturn && pip install websockets",
+  // onCreateCommand runs once when the Codespace is first created.
+  // Runs as root (before remoteUser takes effect) so apt-get and
+  // directory creation under /etc/ and /var/ work without sudo.
+  // --break-system-packages is required on Python 3.12 / Ubuntu 24.04
+  // (PEP 668 blocks pip installs into the system Python without it).
+  "onCreateCommand": "apt-get update && apt-get install -y coturn && pip install websockets --break-system-packages && mkdir -p /etc/coturn /var/log/coturn && chmod 777 /etc/coturn /var/log/coturn",
 
   // postStartCommand runs every time the Codespace starts (including after resume).
-  // start.sh generates the TLS certificate (if absent), starts coturn and the
-  // signaling server in the background, and keeps the script alive with `wait`.
+  // By this point remoteUser (vscode) is active, but /etc/coturn and
+  // /var/log/coturn are world-writable (set above) so start.sh can write there.
   "postStartCommand": "bash codespace/start.sh",
 
-  // Ports to forward publicly. GitHub Codespaces assigns a unique
-  // *.app.github.dev HTTPS/WSS URL to each forwarded port automatically.
-  // Both URLs are TLS-terminated by GitHub's infrastructure — this is why
-  // getUserMedia (which requires a secure context) works without any cert setup
-  // on the client side.
   "forwardPorts": [8765, 5349],
   "portsAttributes": {
-    // Port 8765: WebSocket signaling server (signaling_server.py).
-    // Clients connect via WSS. Replace the https:// prefix with wss:// when
-    // pasting the URL into the demo pages.
     "8765": { "label": "Signaling Server (WSS)", "protocol": "https" },
-    // Port 5349: coturn TURN server (TURNS = TURN over TLS over TCP).
-    // Codespaces forwards TCP/TLS but not raw UDP, so TURNS/TCP is the only
-    // TURN transport that works here. This is also valid in production for
-    // environments that block UDP entirely.
     "5349": { "label": "TURN Server (TURNS/TCP)", "protocol": "https" }
   },
 
-  // Run as the default non-root devcontainer user.
   "remoteUser": "vscode"
 }
