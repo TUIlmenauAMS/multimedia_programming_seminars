@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo 5: Automatic Signaling Call — Multimediaprogrammierung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  /* ── STEP 0: Design system — exact match to the course CSS variables ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0d0f14;
+    --surface: #161a22;
+    --border:  #252b38;
+    --text:    #d8dce6;
+    --muted:   #5a6175;
+    --accent:  #4f9cf9;
+    --accent2: #a78bfa;
+    --green:   #34d399;
+    --orange:  #fb923c;
+    --red:     #f87171;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* ── header ── */
+  header {
+    border-bottom: 2px solid var(--border);
+    padding: 24px 0 20px;
+  }
+  .header-inner {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .header-logo img { width: 100px; border-radius: 10px; display: block; }
+  .header-info h1 { font-size: clamp(16px,2.5vw,22px); font-weight: 500; color: #f0f2f7; line-height: 1.2; margin-bottom: 4px; }
+  .header-info h2 { font-size: 13px; font-weight: 400; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; }
+  .header-meta { font-size: 13px; color: var(--text); line-height: 1.6; }
+  .header-meta a { color: var(--accent); text-decoration: none; }
+  .header-meta a:hover { text-decoration: underline; }
+  /* New dedicated author line */
+  .header-author {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .header-author span { color: var(--text); font-weight: 500; }
+  .header-author .linkedin-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(79,156,249,0.1);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 2px 9px;
+    border-radius: 20px;
+    border: 1px solid rgba(79,156,249,0.25);
+    text-decoration: none;
+    transition: background 0.15s;
+  }
+  .header-author .linkedin-badge:hover { background: rgba(79,156,249,0.2); }
+
+  /* ── breadcrumb ── */
+  .breadcrumb {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 14px 32px 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .breadcrumb a { color: var(--accent); text-decoration: none; }
+  .breadcrumb a:hover { text-decoration: underline; }
+  .breadcrumb span { margin: 0 6px; }
+
+  /* ── main ── */
+  main {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 36px 32px 80px;
+  }
+
+  /* ── demo intro ── */
+  .demo-intro {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 24px 28px;
+    margin-bottom: 32px;
+  }
+  .demo-intro h1 {
+    font-size: clamp(18px, 2.5vw, 26px);
+    font-weight: 500;
+    color: #f0f2f7;
+    margin-bottom: 8px;
+  }
+  .demo-intro .demo-badge {
+    display: inline-block;
+    background: rgba(52,211,153,0.12);
+    color: var(--green);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 2px 10px;
+    border-radius: 20px;
+    border: 1px solid rgba(52,211,153,0.3);
+    margin-bottom: 12px;
+  }
+  .demo-intro p { color: var(--text); margin-bottom: 8px; }
+  .demo-intro p:last-child { margin-bottom: 0; }
+
+  /* ── panels ── */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 20px;
+  }
+  .panel-header {
+    padding: 12px 18px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel-header .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+  }
+  .panel-header .dot.green  { background: var(--green); }
+  .panel-header .dot.blue   { background: var(--accent); }
+  .panel-header .dot.orange { background: var(--orange); }
+  .panel-header .dot.purple { background: var(--accent2); }
+  .panel-body { padding: 18px; }
+
+  /* ── URL input row ── */
+  .url-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .url-row input[type="text"] {
+    flex: 1;
+    min-width: 220px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 13px;
+    padding: 8px 12px;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .url-row input[type="text"]:focus { border-color: var(--accent); }
+  .url-row input[type="text"]::placeholder { color: var(--muted); }
+
+  /* ── status indicators ── */
+  .status-bar {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    background: var(--bg);
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .status-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .status-label { color: var(--muted); }
+  .status-val   { color: var(--text); }
+  .status-val.ok     { color: var(--green); }
+  .status-val.warn   { color: var(--orange); }
+  .status-val.error  { color: var(--red); }
+  .status-val.info   { color: var(--accent); }
+
+  /* ── video grid ── */
+  .video-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 620px) { .video-grid { grid-template-columns: 1fr; } }
+
+  .video-wrap {
+    position: relative;
+    background: #0a0c11;
+    border-radius: 8px;
+    overflow: hidden;
+    aspect-ratio: 16/9;
+  }
+  .video-wrap video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .video-label {
+    position: absolute;
+    top: 8px; left: 8px;
+    background: rgba(0,0,0,0.6);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .video-placeholder {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 12px;
+    gap: 8px;
+  }
+  .video-placeholder svg { opacity: 0.3; }
+
+  /* ── buttons ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 18px;
+    border-radius: 6px;
+    border: none;
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s, filter 0.15s;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-primary  { background: var(--accent);  color: #0d0f14; }
+  .btn-primary:hover:not(:disabled)  { filter: brightness(1.12); }
+  .btn-success  { background: var(--green);   color: #0d0f14; }
+  .btn-success:hover:not(:disabled)  { filter: brightness(1.1); }
+  .btn-danger   { background: rgba(248,113,113,0.15); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
+  .btn-danger:hover:not(:disabled)   { background: rgba(248,113,113,0.25); }
+  .btn-muted    { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-muted:hover:not(:disabled)    { border-color: var(--accent); color: var(--accent); }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  /* ── event log ── */
+  #eventLog {
+    background: var(--bg);
+    border-radius: 6px;
+    padding: 12px;
+    height: 260px;
+    overflow-y: auto;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
+  }
+  .log-entry {
+    display: flex;
+    gap: 10px;
+    padding: 2px 0;
+    border-bottom: 1px solid rgba(37,43,56,0.4);
+  }
+  .log-entry:last-child { border-bottom: none; }
+  .log-time { color: var(--muted); flex-shrink: 0; }
+  .log-msg          { color: var(--text); }
+  .log-msg.info     { color: var(--accent); }
+  .log-msg.ok       { color: var(--green); }
+  .log-msg.warn     { color: var(--orange); }
+  .log-msg.error    { color: var(--red); }
+  .log-msg.signal   { color: var(--accent2); }
+
+  /* ── info / concept boxes ── */
+  .info-box {
+    border-left: 4px solid var(--accent);
+    background: rgba(79,156,249,0.06);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 16px 0;
+    font-size: 14px;
+  }
+  .info-box strong { color: var(--accent); }
+  .concept-box {
+    border-left: 4px solid var(--accent2);
+    background: rgba(167,139,250,0.06);
+    border-radius: 6px;
+    padding: 14px 18px;
+    margin: 16px 0;
+    font-size: 13px;
+  }
+  .concept-box strong { color: var(--accent2); }
+
+  /* ── error box ── */
+  .error-box {
+    display: none;
+    background: rgba(248,113,113,0.08);
+    border: 1px solid rgba(248,113,113,0.3);
+    border-left: 4px solid var(--red);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-top: 12px;
+    font-family: var(--mono);
+    font-size: 13px;
+    color: var(--red);
+  }
+  .error-box.visible { display: block; }
+
+  /* ── footer ── */
+  .nb-footer-cell {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 2px solid var(--border);
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .nb-footer-cell b { color: var(--text); }
+  .nb-footer-cell a { color: var(--accent); text-decoration: none; }
+  .nb-footer-cell a:hover { text-decoration: underline; }
+
+  footer {
+    border-top: 2px solid var(--border);
+    padding: 18px 32px 24px;
+    max-width: 960px;
+    margin: 0 auto;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.7;
+  }
+  footer p + p { margin-top: 4px; font-size: 12px; color: var(--muted); }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 600px) {
+    .header-inner, main, footer, .breadcrumb { padding-left: 20px; padding-right: 20px; }
+    .header-inner { flex-direction: column; align-items: flex-start; gap: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<!-- ── Header — matches course design system exactly ── -->
+<header>
+  <div class="header-inner">
+    <div class="header-logo">
+      <img src="ams_group_tui.png" alt="AMS Group – TU Ilmenau">
+    </div>
+    <div class="header-info">
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 04: WebRTC — Demo 5</h2>
+      <p class="header-meta">
+        <strong>Institut für Medientechnik –
+          <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme"
+             target="_blank" rel="noopener">AMS Group</a>
+          – Technische Universität Ilmenau</strong><br>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller &nbsp;·&nbsp;
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+      </p>
+      <!-- Dedicated author line — new in Demo 5 onward -->
+      <div class="header-author">
+        <span>Demo created by Renato Fera P.</span>
+        <a class="linkedin-badge"
+           href="https://www.linkedin.com/in/renato-profeta/"
+           target="_blank" rel="noopener">
+          <!-- LinkedIn icon -->
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+          </svg>
+          LinkedIn
+        </a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="breadcrumb">
+  <a href="index.html">Seminar Materials</a>
+  <span>›</span>
+  <a href="04_multimediaprogrammierung_webrtc.html">Chapter 04: WebRTC</a>
+  <span>›</span>
+  Demo 5: Automatic Signaling Call
+</nav>
+
+<main>
+
+  <!-- ── Demo intro ── -->
+  <div class="demo-intro">
+    <div class="demo-badge">⚡ Requires Codespace</div>
+    <h1>Demo 5: Automatic Signaling Call</h1>
+    <p>
+      A real two-tab video call using a <strong>WebSocket signaling server</strong> running in a
+      GitHub Codespace. No copy-paste — offers, answers, and ICE candidates are exchanged
+      automatically over WSS. Open this page in two browser tabs, paste the same Codespace URL,
+      join the same room, and the call connects by itself.
+    </p>
+    <p>
+      Compare the event log below with Demo 3 (manual SDP copy-paste): every message you copied
+      by hand there is sent automatically here. The signaling server is a <strong>dumb router</strong>
+      — it has no knowledge of SDP or WebRTC. It simply forwards JSON between two peers in a room.
+    </p>
+  </div>
+
+  <!-- ── STEP 1: Codespace connection ── -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="dot blue"></div>
+      Step 1 — Connect to Codespace Signaling Server
+    </div>
+    <div class="panel-body">
+      <div class="info-box">
+        <strong>Before you start:</strong> Launch the Codespace from the repository
+        (Code → Codespaces → Create codespace on main), wait for <code>start.sh</code>
+        to run, then open the Ports tab and copy the forwarded URL for port 8765.
+        Replace <code>https://</code> with <code>wss://</code> before pasting it below.
+      </div>
+      <div class="url-row">
+        <input type="text" id="wsUrl"
+               placeholder="wss://yourname-random-8765.app.github.dev"
+               autocomplete="off" spellcheck="false">
+        <button class="btn btn-primary" id="btnConnect" onclick="connectSignaling()">Connect</button>
+        <button class="btn btn-danger"  id="btnDisconnect" onclick="disconnectAll()" disabled>Disconnect</button>
+      </div>
+      <div class="url-row" style="margin-top:8px;">
+        <input type="text" id="roomId" value="room1"
+               placeholder="Room ID (e.g. room1)"
+               style="max-width:180px;"
+               autocomplete="off" spellcheck="false">
+        <button class="btn btn-success" id="btnJoin" onclick="joinRoom()" disabled>Join Room</button>
+      </div>
+      <div id="connectError" class="error-box"></div>
+    </div>
+  </div>
+
+  <!-- ── Status bar ── -->
+  <div class="status-bar">
+    <div class="status-item">
+      <span class="status-label">Signaling:</span>
+      <span class="status-val" id="stSignaling">disconnected</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Room:</span>
+      <span class="status-val" id="stRoom">—</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Role:</span>
+      <span class="status-val" id="stRole">—</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">ICE:</span>
+      <span class="status-val" id="stIce">—</span>
+    </div>
+    <div class="status-item">
+      <span class="status-label">Connection:</span>
+      <span class="status-val" id="stConn">—</span>
+    </div>
+  </div>
+
+  <!-- ── Video ── -->
+  <div class="video-grid">
+    <div class="video-wrap">
+      <video id="localVideo" autoplay muted playsinline></video>
+      <div class="video-label">Local</div>
+      <!-- Placeholder shown before camera starts -->
+      <div class="video-placeholder" id="localPlaceholder">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.888L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/>
+        </svg>
+        Waiting for camera…
+      </div>
+    </div>
+    <div class="video-wrap">
+      <video id="remoteVideo" autoplay playsinline></video>
+      <div class="video-label">Remote</div>
+      <div class="video-placeholder" id="remotePlaceholder">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path d="M15 10l4.553-2.069A1 1 0 0121 8.82v6.36a1 1 0 01-1.447.888L15 14M3 8a2 2 0 012-2h10a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z"/>
+        </svg>
+        Waiting for remote peer…
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Event log ── -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="dot purple"></div>
+      Event Log — Signaling Messages &amp; WebRTC State Changes
+    </div>
+    <div class="panel-body" style="padding:0;">
+      <div id="eventLog"></div>
+    </div>
+  </div>
+
+  <!-- ── Concept callouts ── -->
+  <div class="concept-box">
+    <strong>CONCEPT: Signaling server as a dumb router.</strong>
+    The server has no knowledge of SDP, ICE, or WebRTC. It receives a JSON message from one
+    peer and forwards it to the other peer in the same room — that is all it does.
+    Open <code>codespace/signaling_server.py</code> and count the lines: the core routing logic
+    fits in under 20 lines of Python. The intelligence is entirely in the browser.
+  </div>
+
+  <div class="concept-box">
+    <strong>CONCEPT: Caller vs callee asymmetry.</strong>
+    One peer must create the offer. In this demo, the <em>first</em> peer to join the room
+    becomes the caller — the server sends it a <code>peer-joined</code> message when the second
+    peer arrives, which triggers <code>createOffer()</code>. The second peer (callee) waits for
+    the offer, then answers. This asymmetry is fundamental to WebRTC's offer/answer model.
+  </div>
+
+  <div class="concept-box">
+    <strong>CONCEPT: Trickle ICE over WebSocket.</strong>
+    ICE candidates are sent to the remote peer as they are discovered — not bundled into the SDP.
+    Watch the event log: you will see <code>ice →</code> entries arriving after the offer/answer
+    exchange. Trickle ICE reduces call setup time because connectivity checks begin before
+    the slowest candidate (TURN allocation) has even arrived.
+  </div>
+
+  <div class="concept-box">
+    <strong>CONCEPT: ICE candidate queueing.</strong>
+    ICE candidates from the remote peer may arrive via the signaling channel
+    <em>before</em> <code>setRemoteDescription()</code> has been called. Calling
+    <code>addIceCandidate()</code> before <code>setRemoteDescription()</code> throws an error.
+    The solution is to queue incoming candidates and add them after
+    <code>setRemoteDescription()</code> completes. See <code>pendingCandidates</code> in the
+    JavaScript below.
+  </div>
+
+  <!-- ── Footer credit cell ── -->
+  <div class="nb-footer-cell">
+    <p><b>Demo 5: Automatic Signaling Call</b> &middot; Chapter 04: WebRTC &middot; Multimediaprogrammierung<br>
+    Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+    <p>Demo created by <b>Renato Fera P.</b> &middot;
+    <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+    &middot;
+    <a href="04_multimediaprogrammierung_webrtc.html">← Back to Chapter 04</a></p>
+  </div>
+
+</main>
+
+<footer>
+  <p><strong>Multimediaprogrammierung</strong> &middot; Seminar Materials<br>
+  Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+  <p>
+    Demo created by <strong>Renato Fera P.</strong> &middot;
+    <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+    &nbsp;&middot;&nbsp;
+    <a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars" target="_blank" rel="noopener">github.com/TUIlmenauAMS/multimedia_programming_seminars</a>
+  </p>
+</footer>
+
+<script>
+/*
+ * Demo 5: Automatic Signaling Call
+ * Course:  Multimediaprogrammierung — Chapter 04: WebRTC
+ * Author:  Renato Fera P. — TU Ilmenau AMS Group
+ *
+ * What this demo teaches:
+ *   - WebSocket signaling: how offers, answers, and ICE candidates are
+ *     exchanged automatically over a WSS connection
+ *   - The signaling server as a dumb router
+ *   - Room-based connection: two peers join the same room
+ *   - Trickle ICE over a signaling channel
+ *   - ICE candidate queueing (candidates that arrive before setRemoteDescription)
+ *
+ * Compare with Demo 3 (04_mm_manual_sdp_video.html): every step you did
+ * manually there (copy SDP, paste SDP, copy ICE candidate, paste ICE candidate)
+ * is automated here by the WebSocket signaling channel.
+ */
+
+'use strict';
+
+// ── STEP 1: State variables ──────────────────────────────────────────────────
+
+// The WebSocket connection to the signaling server.
+// null until connectSignaling() is called.
+let ws = null;
+
+// The RTCPeerConnection for this tab's call.
+// null until the room has two peers and the offer/answer exchange begins.
+let pc = null;
+
+// The local MediaStream (camera + microphone).
+// null until getUserMedia() succeeds.
+let localStream = null;
+
+// Whether this tab is the caller (first peer) or callee (second peer).
+// Set when the signaling server sends 'peer-joined' (caller) or 'offer' (callee).
+let isCallerRole = false;
+
+// ICE candidates received from the remote peer before setRemoteDescription()
+// has been called. These must be queued and added afterwards.
+// See CONCEPT: ICE candidate queueing above.
+let pendingCandidates = [];
+
+// Whether setRemoteDescription() has been called on this peer connection.
+// Used to decide whether to add an incoming ICE candidate immediately
+// or queue it in pendingCandidates.
+let remoteDescSet = false;
+
+// RTCConfiguration — Google STUN only for this demo.
+// Demo 6 adds TURN (coturn) to this configuration.
+// See Section 4 of the theory HTML for the full STUN explanation.
+const RTC_CONFIG = {
+  iceServers: [
+    {
+      // Google's free public STUN server.
+      // Used to discover this peer's public IP:port (srflx candidate).
+      urls: 'stun:stun.l.google.com:19302'
+    }
+  ]
+};
+
+
+// ── STEP 2: Logging utility ──────────────────────────────────────────────────
+
+/**
+ * Append a timestamped entry to the visible event log panel.
+ * @param {string} msg   - The message text.
+ * @param {string} level - CSS class: 'info' | 'ok' | 'warn' | 'error' | 'signal'
+ */
+function log(msg, level = '') {
+  const el = document.getElementById('eventLog');
+  const now = new Date();
+  const ts  = now.toTimeString().slice(0, 8); // HH:MM:SS
+
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML =
+    `<span class="log-time">${ts}</span>` +
+    `<span class="log-msg ${level}">${msg}</span>`;
+
+  el.appendChild(entry);
+  // Auto-scroll to the latest entry so students always see what just happened.
+  el.scrollTop = el.scrollHeight;
+}
+
+/**
+ * Update a status badge in the status bar.
+ * @param {string} id    - Element id (stSignaling, stRoom, etc.)
+ * @param {string} text  - Display text.
+ * @param {string} cls   - CSS class: 'ok' | 'warn' | 'error' | 'info' | ''
+ */
+function setStatus(id, text, cls = '') {
+  const el = document.getElementById(id);
+  el.textContent = text;
+  el.className = 'status-val' + (cls ? ' ' + cls : '');
+}
+
+
+// ── STEP 3: WebSocket signaling connection ───────────────────────────────────
+
+/**
+ * Connect to the WebSocket signaling server at the URL entered by the student.
+ *
+ * CONCEPT: WSS URL format
+ * The Codespace forwards port 8765 as an HTTPS URL:
+ *   https://yourname-random-8765.app.github.dev
+ * WebSocket requires the wss:// scheme:
+ *   wss://yourname-random-8765.app.github.dev
+ * The student replaces https:// with wss:// before pasting.
+ */
+function connectSignaling() {
+  const url = document.getElementById('wsUrl').value.trim();
+
+  if (!url) {
+    showError('connectError', 'Please enter the Codespace WSS URL.');
+    return;
+  }
+  if (!url.startsWith('wss://') && !url.startsWith('ws://')) {
+    showError('connectError', 'URL must start with wss:// (replace https:// with wss://).');
+    return;
+  }
+
+  hideError('connectError');
+  log(`Connecting to signaling server: ${url}`, 'info');
+  setStatus('stSignaling', 'connecting…', 'warn');
+
+  // Create the WebSocket connection.
+  // The browser performs the TLS handshake automatically for wss:// URLs.
+  ws = new WebSocket(url);
+
+  ws.onopen = () => {
+    // Connection established — enable the Join Room button.
+    log('WebSocket connected to signaling server ✓', 'ok');
+    setStatus('stSignaling', 'connected', 'ok');
+    document.getElementById('btnConnect').disabled    = true;
+    document.getElementById('btnDisconnect').disabled = false;
+    document.getElementById('btnJoin').disabled       = false;
+  };
+
+  ws.onclose = (event) => {
+    // Connection closed — could be normal (student clicked Disconnect)
+    // or unexpected (Codespace stopped, network error).
+    log(`WebSocket closed (code ${event.code})`, event.wasClean ? 'warn' : 'error');
+    setStatus('stSignaling', 'disconnected');
+    document.getElementById('btnConnect').disabled    = false;
+    document.getElementById('btnDisconnect').disabled = true;
+    document.getElementById('btnJoin').disabled       = true;
+    ws = null;
+  };
+
+  ws.onerror = () => {
+    // WebSocket error events carry no useful detail in the browser for
+    // security reasons. The onclose event that follows will have the code.
+    log('WebSocket error — check the URL and Codespace status', 'error');
+    showError('connectError', 'Connection failed. Is the Codespace running? Is the URL correct?');
+  };
+
+  // ── STEP 4: Signaling message dispatcher ──────────────────────────────────
+  ws.onmessage = async (event) => {
+    // All messages from the signaling server are JSON.
+    // Parse and dispatch by type.
+    let message;
+    try {
+      message = JSON.parse(event.data);
+    } catch (e) {
+      log(`Received invalid JSON from server: ${event.data}`, 'error');
+      return;
+    }
+
+    const { type, data } = message;
+
+    // Log every received signaling message so students can see the exchange.
+    // 'signal' level uses the purple colour defined in the CSS.
+    log(`← received: ${type}${data ? '' : ''}`, 'signal');
+
+    switch (type) {
+
+      case 'joined':
+        // Server confirmed we are in the room as the first peer.
+        // We become the caller only when the second peer arrives (peer-joined).
+        log('Joined room as first peer — waiting for second peer…', 'info');
+        setStatus('stRoom', document.getElementById('roomId').value, 'ok');
+        setStatus('stRole', 'waiting…');
+        break;
+
+      case 'peer-joined':
+        // CONCEPT: Caller vs callee asymmetry
+        // The server tells the FIRST peer that a second peer has arrived.
+        // The first peer becomes the CALLER and initiates the offer.
+        log('Second peer joined — I am the Caller. Starting offer…', 'ok');
+        setStatus('stRole', 'Caller', 'ok');
+        isCallerRole = true;
+        await startCall();   // getUserMedia → addTrack → createOffer → send offer
+        break;
+
+      case 'offer':
+        // We are the CALLEE — we received the offer from the caller.
+        log('Received offer from Caller — I am the Callee. Answering…', 'ok');
+        setStatus('stRole', 'Callee', 'info');
+        isCallerRole = false;
+        await handleOffer(data);  // setRemoteDescription → getUserMedia → createAnswer → send answer
+        break;
+
+      case 'answer':
+        // We are the CALLER — we received the answer from the callee.
+        log('Received answer from Callee', 'signal');
+        await handleAnswer(data);  // setRemoteDescription on the caller's pc
+        break;
+
+      case 'ice':
+        // Remote ICE candidate received via trickle ICE.
+        // CONCEPT: ICE candidate queueing — may arrive before setRemoteDescription.
+        log(`Received ICE candidate from remote peer`, 'signal');
+        await handleRemoteIce(data);
+        break;
+
+      case 'error':
+        log(`Server error: ${message.message}`, 'error');
+        showError('connectError', `Server: ${message.message}`);
+        break;
+
+      default:
+        log(`Unknown message type: ${type}`, 'warn');
+    }
+  };
+}
+
+
+// ── STEP 5: Room management ──────────────────────────────────────────────────
+
+/**
+ * Send a join message to the signaling server to enter the room.
+ * The server will respond with 'joined' (first peer) or nothing visible
+ * to the second peer — instead, the first peer gets 'peer-joined'.
+ */
+function joinRoom() {
+  const room = document.getElementById('roomId').value.trim() || 'room1';
+
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    showError('connectError', 'Not connected to the signaling server.');
+    return;
+  }
+
+  // Send the join message. The server adds us to the room.
+  sendSignal('join', null, room);
+  log(`Joining room: "${room}"`, 'info');
+  document.getElementById('btnJoin').disabled = true;
+}
+
+/**
+ * Send a JSON message to the signaling server.
+ * All messages follow the same schema:
+ *   { type, room, data }
+ *
+ * @param {string} type - Message type: 'join' | 'offer' | 'answer' | 'ice'
+ * @param {*}      data - The payload (SDP object, ICE candidate object, or null)
+ * @param {string} room - Room ID (defaults to the input field value)
+ */
+function sendSignal(type, data, room) {
+  room = room || document.getElementById('roomId').value.trim() || 'room1';
+
+  if (!ws || ws.readyState !== WebSocket.OPEN) {
+    log('Cannot send — WebSocket is not open', 'error');
+    return;
+  }
+
+  const message = JSON.stringify({ type, room, data });
+  ws.send(message);
+
+  // Log every sent message so students see both sides of the exchange.
+  log(`→ sent: ${type}`, 'signal');
+}
+
+
+// ── STEP 6: Caller path — getUserMedia → addTrack → createOffer ──────────────
+
+/**
+ * Called on the CALLER side when 'peer-joined' is received.
+ * Acquires camera/mic, adds tracks to the peer connection, creates the offer,
+ * and sends it to the callee via the signaling server.
+ */
+async function startCall() {
+  try {
+    await setupPeerConnection(); // Create RTCPeerConnection and attach handlers
+    await acquireMedia();        // getUserMedia → attach to local video element
+
+    // addTrack() must be called BEFORE createOffer() so the tracks are
+    // included in the SDP m= sections.
+    // See CONCEPT in Demo 3: addTrack before createOffer.
+    for (const track of localStream.getTracks()) {
+      pc.addTrack(track, localStream);
+      log(`Added local ${track.kind} track to peer connection`, 'info');
+    }
+
+    // createOffer() triggers ICE gathering to begin.
+    // The SDP offer describes our media capabilities and ICE credentials.
+    const offer = await pc.createOffer();
+    log('Created SDP offer', 'info');
+
+    // setLocalDescription() officially starts ICE gathering.
+    // The onicecandidate handler will fire as candidates are discovered.
+    await pc.setLocalDescription(offer);
+    log('Set local description (offer) — ICE gathering started', 'info');
+
+    // Send the offer SDP to the callee via the signaling server.
+    // The server routes this JSON to the other peer in the room.
+    sendSignal('offer', pc.localDescription);
+
+  } catch (err) {
+    log(`Error starting call: ${err.message}`, 'error');
+    showError('connectError', `Call setup failed: ${err.message}`);
+  }
+}
+
+
+// ── STEP 7: Callee path — setRemoteDescription → createAnswer ────────────────
+
+/**
+ * Called on the CALLEE side when an 'offer' message is received.
+ * Sets the remote description (the caller's offer), acquires camera/mic,
+ * adds tracks, creates the answer, and sends it back via signaling.
+ *
+ * @param {RTCSessionDescriptionInit} offerSdp - The SDP offer from the caller.
+ */
+async function handleOffer(offerSdp) {
+  try {
+    await setupPeerConnection(); // Create RTCPeerConnection and attach handlers
+    await acquireMedia();        // getUserMedia → attach to local video element
+
+    // setRemoteDescription() stores the caller's offer in the peer connection.
+    // After this call, any queued ICE candidates can be added.
+    await pc.setRemoteDescription(new RTCSessionDescription(offerSdp));
+    log('Set remote description (offer) ✓', 'info');
+
+    // Mark that the remote description is now set so incoming ICE candidates
+    // are added immediately rather than queued.
+    remoteDescSet = true;
+    await flushPendingCandidates();
+
+    // addTrack() must be called before createAnswer() for the same reason as
+    // the caller side — tracks must be in the SDP.
+    for (const track of localStream.getTracks()) {
+      pc.addTrack(track, localStream);
+      log(`Added local ${track.kind} track to peer connection`, 'info');
+    }
+
+    // createAnswer() generates an SDP that describes our capabilities
+    // and confirms the parameters from the offer.
+    const answer = await pc.createAnswer();
+    log('Created SDP answer', 'info');
+
+    await pc.setLocalDescription(answer);
+    log('Set local description (answer) — ICE gathering started', 'info');
+
+    // Send the answer back to the caller via the signaling server.
+    sendSignal('answer', pc.localDescription);
+
+  } catch (err) {
+    log(`Error handling offer: ${err.message}`, 'error');
+    showError('connectError', `Answer failed: ${err.message}`);
+  }
+}
+
+
+// ── STEP 8: Caller receives answer ───────────────────────────────────────────
+
+/**
+ * Called on the CALLER side when an 'answer' message is received.
+ * Sets the callee's answer as the remote description, completing the
+ * offer/answer exchange. ICE connectivity checks can now proceed.
+ *
+ * @param {RTCSessionDescriptionInit} answerSdp - The SDP answer from the callee.
+ */
+async function handleAnswer(answerSdp) {
+  if (!pc) {
+    log('Received answer but no peer connection exists', 'error');
+    return;
+  }
+
+  try {
+    await pc.setRemoteDescription(new RTCSessionDescription(answerSdp));
+    log('Set remote description (answer) ✓ — offer/answer exchange complete', 'ok');
+
+    // Mark remote description as set so future ICE candidates are added immediately.
+    remoteDescSet = true;
+    await flushPendingCandidates();
+
+  } catch (err) {
+    log(`Error setting remote description (answer): ${err.message}`, 'error');
+  }
+}
+
+
+// ── STEP 9: ICE candidate exchange (trickle ICE) ─────────────────────────────
+
+/**
+ * Called on the CALLEE or CALLER side when an 'ice' message is received.
+ *
+ * CONCEPT: ICE candidate queueing
+ * Candidates may arrive before setRemoteDescription() has been called.
+ * addIceCandidate() throws if called before setRemoteDescription().
+ * Solution: buffer candidates in pendingCandidates and flush after
+ * setRemoteDescription() completes (see flushPendingCandidates()).
+ *
+ * @param {RTCIceCandidateInit} candidateInit - The ICE candidate from the remote peer.
+ */
+async function handleRemoteIce(candidateInit) {
+  if (!pc) {
+    log('Received ICE candidate but no peer connection — queuing', 'warn');
+    pendingCandidates.push(candidateInit);
+    return;
+  }
+
+  if (!remoteDescSet) {
+    // setRemoteDescription() has not been called yet — queue the candidate.
+    // flushPendingCandidates() will add it once the remote description is set.
+    pendingCandidates.push(candidateInit);
+    log(`ICE candidate queued (remote description not yet set, queue length: ${pendingCandidates.length})`, 'warn');
+    return;
+  }
+
+  // Remote description is set — add the candidate immediately.
+  await addIceCandidate(candidateInit);
+}
+
+/**
+ * Add a single ICE candidate to the peer connection.
+ * Handles the end-of-candidates signal (null candidate).
+ *
+ * @param {RTCIceCandidateInit|null} candidateInit
+ */
+async function addIceCandidate(candidateInit) {
+  try {
+    // null candidate means gathering is complete (end-of-candidates indication).
+    // addIceCandidate(null) is valid and signals the end of trickle ICE.
+    await pc.addIceCandidate(candidateInit ? new RTCIceCandidate(candidateInit) : null);
+    if (candidateInit) {
+      log(`Added remote ICE candidate: ${candidateInit.candidate?.split(' ')[7] || 'unknown type'}`, 'info');
+    } else {
+      log('Remote ICE gathering complete (null candidate received)', 'info');
+    }
+  } catch (err) {
+    log(`Failed to add ICE candidate: ${err.message}`, 'error');
+  }
+}
+
+/**
+ * Add all queued ICE candidates that arrived before setRemoteDescription().
+ * Called after setRemoteDescription() completes on both the caller and callee side.
+ */
+async function flushPendingCandidates() {
+  if (pendingCandidates.length === 0) return;
+
+  log(`Flushing ${pendingCandidates.length} queued ICE candidate(s)`, 'info');
+  for (const candidate of pendingCandidates) {
+    await addIceCandidate(candidate);
+  }
+  pendingCandidates = [];
+}
+
+
+// ── STEP 10: RTCPeerConnection setup ─────────────────────────────────────────
+
+/**
+ * Create the RTCPeerConnection and attach all event handlers.
+ * Called once per call, before createOffer() or setRemoteDescription().
+ *
+ * CONCEPT: RTCPeerConnection state machine
+ * The connection goes through states: new → connecting → connected → …
+ * Each state transition fires onconnectionstatechange.
+ * See Section 7 of the theory HTML for the full state machine.
+ */
+async function setupPeerConnection() {
+  if (pc) return; // Already set up — do not create a second connection.
+
+  // Create the peer connection with the STUN server configuration.
+  pc = new RTCPeerConnection(RTC_CONFIG);
+  log('RTCPeerConnection created', 'info');
+
+  // ── onicecandidate: fired each time ICE discovers a new candidate ──────────
+  // CONCEPT: Trickle ICE
+  // Send each candidate to the remote peer via the signaling server as it
+  // arrives — do not wait for gathering to complete. This allows connectivity
+  // checks to begin sooner, reducing call setup time.
+  pc.onicecandidate = (event) => {
+    if (event.candidate) {
+      // A new local ICE candidate was discovered. Send it to the remote peer.
+      // The candidate object contains: type (host/srflx/relay), protocol, address, port.
+      const c = event.candidate;
+      const candidateType = c.candidate.split(' ')[7] || '?'; // parse type from candidate string
+      log(`Local ICE candidate: ${candidateType} — sending to remote peer`, 'info');
+      sendSignal('ice', c.toJSON());
+    } else {
+      // null candidate = end of gathering. In trickle ICE this is informational —
+      // we have already been sending candidates as they arrived.
+      log('Local ICE gathering complete', 'info');
+      sendSignal('ice', null); // Inform the remote peer that gathering is complete.
+    }
+  };
+
+  // ── oniceconnectionstatechange: ICE layer connectivity status ──────────────
+  pc.oniceconnectionstatechange = () => {
+    const state = pc.iceConnectionState;
+    log(`ICE connection state: ${state}`, stateLevel(state));
+    setStatus('stIce', state, stateLevel(state));
+  };
+
+  // ── onconnectionstatechange: overall DTLS + ICE + SCTP status ──────────────
+  // CONCEPT: RTCPeerConnection state machine
+  // 'connected' means DTLS is established and at least one ICE candidate pair
+  // is nominated. This is the state students should look for to confirm the call is live.
+  pc.onconnectionstatechange = () => {
+    const state = pc.connectionState;
+    log(`Connection state: ${state}`, stateLevel(state));
+    setStatus('stConn', state, stateLevel(state));
+
+    if (state === 'connected') {
+      log('🎉 Peer connection established — call is live!', 'ok');
+    }
+    if (state === 'failed') {
+      log('Connection failed. Check that both peers are using the same room ID.', 'error');
+    }
+  };
+
+  // ── onsignalingstatechange: offer/answer negotiation status ────────────────
+  pc.onsignalingstatechange = () => {
+    log(`Signaling state: ${pc.signalingState}`, 'info');
+  };
+
+  // ── ontrack: fired when a remote media track arrives ───────────────────────
+  // STEP 10: Attach the remote stream to the remote video element.
+  // event.streams[0] is the MediaStream that contains the arriving track.
+  // Using event.streams[0] (rather than event.track alone) ensures both audio
+  // and video tracks end up in the same stream on the video element.
+  pc.ontrack = (event) => {
+    log(`Remote ${event.track.kind} track received ✓`, 'ok');
+
+    const remoteVideo = document.getElementById('remoteVideo');
+
+    if (!remoteVideo.srcObject) {
+      // First track — set the stream on the video element.
+      remoteVideo.srcObject = event.streams[0];
+      document.getElementById('remotePlaceholder').style.display = 'none';
+      log('Remote stream attached to video element', 'ok');
+    }
+    // Subsequent tracks (audio after video, or vice versa) are automatically
+    // added to event.streams[0], which is already set on the video element.
+  };
+}
+
+
+// ── STEP 11: Media capture ───────────────────────────────────────────────────
+
+/**
+ * Request camera and microphone access and attach the stream to the local
+ * video element for preview. The stream is stored in localStream for use
+ * with addTrack() later.
+ *
+ * CONCEPT: getUserMedia requires a secure context (HTTPS or localhost).
+ * The Codespace forwarded port URL provides HTTPS automatically.
+ * See Section 8 of the theory HTML for the full getUserMedia explanation.
+ */
+async function acquireMedia() {
+  if (localStream) return; // Already acquired — do not request again.
+
+  try {
+    // Request 720p video and stereo audio.
+    // The browser applies best-effort matching — actual resolution may differ.
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: true
+    });
+
+    log('Camera and microphone access granted ✓', 'ok');
+
+    // Attach to the local preview video element.
+    // IMPORTANT: always mute the local preview to avoid echo feedback.
+    // 'muted' is set in the HTML attribute; srcObject assignment enables playback.
+    const localVideo = document.getElementById('localVideo');
+    localVideo.srcObject = localStream;
+    document.getElementById('localPlaceholder').style.display = 'none';
+
+  } catch (err) {
+    // Common errors:
+    //   NotAllowedError  — user denied permission
+    //   NotFoundError    — no camera/microphone found
+    //   NotReadableError — device is already in use by another app
+    log(`getUserMedia failed: ${err.name} — ${err.message}`, 'error');
+    showError('connectError', `Camera/mic error: ${err.name}. ${
+      err.name === 'NotAllowedError'
+        ? 'Grant camera and microphone permission and try again.'
+        : err.message
+    }`);
+    throw err; // Re-throw so the calling function knows acquisition failed.
+  }
+}
+
+
+// ── STEP 12: Cleanup ──────────────────────────────────────────────────────────
+
+/**
+ * Disconnect the WebSocket and close the peer connection.
+ * Always stop media tracks to release the camera LED and free the device.
+ *
+ * CONCEPT: track.stop() releases the hardware.
+ * Without explicit track.stop(), the camera LED stays on even after the
+ * call ends, and the device remains unavailable to other applications.
+ */
+function disconnectAll() {
+  // Stop all local media tracks — releases camera and microphone hardware.
+  if (localStream) {
+    for (const track of localStream.getTracks()) {
+      track.stop();
+      log(`Stopped local ${track.kind} track`, 'warn');
+    }
+    localStream = null;
+  }
+
+  // Close the peer connection — terminates ICE, DTLS, and RTP sessions.
+  if (pc) {
+    pc.close();
+    pc = null;
+    log('RTCPeerConnection closed', 'warn');
+  }
+
+  // Close the WebSocket — sends a close frame to the signaling server,
+  // which removes this peer from its room.
+  if (ws) {
+    ws.close();
+    ws = null;
+  }
+
+  // Reset state.
+  remoteDescSet     = false;
+  pendingCandidates = [];
+  isCallerRole      = false;
+
+  // Reset video elements.
+  const localVideo  = document.getElementById('localVideo');
+  const remoteVideo = document.getElementById('remoteVideo');
+  localVideo.srcObject  = null;
+  remoteVideo.srcObject = null;
+  document.getElementById('localPlaceholder').style.display  = 'flex';
+  document.getElementById('remotePlaceholder').style.display = 'flex';
+
+  // Reset status bar.
+  setStatus('stSignaling', 'disconnected');
+  setStatus('stRoom', '—');
+  setStatus('stRole', '—');
+  setStatus('stIce',  '—');
+  setStatus('stConn', '—');
+
+  // Reset buttons.
+  document.getElementById('btnConnect').disabled    = false;
+  document.getElementById('btnDisconnect').disabled = true;
+  document.getElementById('btnJoin').disabled       = true;
+
+  log('Disconnected — all resources released', 'warn');
+}
+
+// Clean up on page unload so the camera LED turns off if the student
+// closes the tab without clicking Disconnect.
+window.addEventListener('beforeunload', disconnectAll);
+
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Map a WebRTC state string to a log/status CSS class.
+ * @param {string} state
+ * @returns {'ok'|'warn'|'error'|'info'|''}
+ */
+function stateLevel(state) {
+  if (['connected', 'completed', 'stable'].includes(state)) return 'ok';
+  if (['connecting', 'checking', 'have-local-offer', 'have-remote-offer'].includes(state)) return 'info';
+  if (['disconnected', 'closed'].includes(state)) return 'warn';
+  if (['failed'].includes(state)) return 'error';
+  return '';
+}
+
+function showError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.classList.add('visible');
+}
+
+function hideError(id) {
+  const el = document.getElementById(id);
+  el.textContent = '';
+  el.classList.remove('visible');
+}
+</script>
+
+</body>
+</html>
