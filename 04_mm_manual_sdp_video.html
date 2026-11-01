@@ -8,7 +8,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-/* ── STEP 0: Design system — exact match to the course CSS variables ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
@@ -18,160 +17,82 @@
   --border:   #252b38;
   --text:     #d8dce6;
   --muted:    #5a6175;
-  --accent:   #4f9cf9;   /* Tab A — blue (Caller) */
+  --accent:   #4f9cf9;
   --accent2:  #a78bfa;
-  --green:    #34d399;   /* Tab B — green (Callee) */
+  --green:    #34d399;
   --orange:   #fb923c;
   --red:      #f87171;
   --mono: 'IBM Plex Mono', monospace;
   --sans: 'IBM Plex Sans', sans-serif;
-  --radius: 8px;
-  --col-a: #4f9cf9;   /* Caller colour */
-  --col-b: #34d399;   /* Callee colour */
+  --col-a: #4f9cf9;
+  --col-b: #34d399;
 }
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--sans);
-  font-size: 15px;
-  line-height: 1.7;
-  min-height: 100vh;
-}
+body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 15px; line-height: 1.7; min-height: 100vh; }
 
-/* ── Header ── */
 header { border-bottom: 2px solid var(--border); padding: 24px 0 20px; }
-.header-inner {
-  max-width: 1200px; margin: 0 auto; padding: 0 32px;
-  display: flex; align-items: center; gap: 24px;
-}
+.header-inner { max-width: 1200px; margin: 0 auto; padding: 0 32px; display: flex; align-items: center; gap: 24px; }
 .header-logo img { width: 100px; border-radius: 10px; display: block; }
 .header-info h1 { font-size: clamp(16px,3vw,22px); font-weight: 500; color: #f0f2f7; line-height: 1.2; margin-bottom: 4px; }
 .header-info h2 { font-size: 12px; font-weight: 400; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; }
-.header-meta { font-size: 13px; color: var(--text); line-height: 1.6; }
+.header-meta { font-size: 13px; color: var(--text); }
 .header-meta a { color: var(--accent); text-decoration: none; }
-.header-meta a:hover { text-decoration: underline; }
 
-/* ── Breadcrumb ── */
 .breadcrumb { max-width: 1200px; margin: 0 auto; padding: 14px 32px 0; font-family: var(--mono); font-size: 12px; color: var(--muted); }
 .breadcrumb a { color: var(--accent); text-decoration: none; }
-.breadcrumb a:hover { text-decoration: underline; }
 .breadcrumb span { margin: 0 6px; }
 
-/* ── Main ── */
 main { max-width: 1200px; margin: 0 auto; padding: 36px 32px 80px; }
 
-/* ── Typography ── */
 h1.demo-title { font-size: clamp(20px,3vw,26px); font-weight: 500; color: #f0f2f7; margin: 0 0 6px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
 .demo-subtitle { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-bottom: 18px; }
-h2.section-heading { font-size: 16px; font-weight: 500; color: #e8eaf2; margin: 32px 0 10px; padding-bottom: 7px; border-bottom: 1px solid var(--border); }
 p { margin-bottom: 10px; }
 code { background: rgba(79,156,249,0.08); color: #93c5fd; font-family: var(--mono); font-size: 0.87em; padding: 1px 6px; border-radius: 4px; }
 strong { color: #eef0f6; font-weight: 500; }
+h2.sh { font-size: 16px; font-weight: 500; color: #e8eaf2; margin: 32px 0 10px; padding-bottom: 7px; border-bottom: 1px solid var(--border); }
 
-/* ── Info / concept / warn boxes ── */
-.info-box {
-  border-left: 3px solid var(--accent);
-  background: rgba(79,156,249,0.05);
-  border-radius: 6px; padding: 13px 16px; margin: 14px 0;
-  font-size: 13.5px;
-}
+.info-box { border-left: 3px solid var(--accent); background: rgba(79,156,249,0.05); border-radius: 6px; padding: 13px 16px; margin: 14px 0; font-size: 13.5px; }
 .info-box strong { color: #c3dafe; }
-.concept-box {
-  border-left: 3px solid var(--accent2);
-  background: rgba(167,139,250,0.05);
-  border-radius: 6px; padding: 13px 16px; margin: 14px 0;
-  font-size: 13.5px;
-}
+.concept-box { border-left: 3px solid var(--accent2); background: rgba(167,139,250,0.05); border-radius: 6px; padding: 13px 16px; margin: 14px 0; font-size: 13.5px; }
 .concept-box strong { color: #c4b5fd; }
-.warn-box {
-  border-left: 3px solid var(--orange);
-  background: rgba(251,146,60,0.05);
-  border-radius: 6px; padding: 13px 16px; margin: 14px 0;
-  font-size: 13.5px;
-}
+.warn-box { border-left: 3px solid var(--orange); background: rgba(251,146,60,0.05); border-radius: 6px; padding: 13px 16px; margin: 14px 0; font-size: 13.5px; }
 .warn-box strong { color: var(--orange); }
 
-/* ── Role tab selector ── */
-.role-tabs {
-  display: flex; gap: 0; margin: 24px 0 28px;
-  border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
-}
-.role-tab {
-  flex: 1; padding: 12px 20px; background: var(--surface2);
-  border: none; cursor: pointer; font-size: 14px; font-weight: 500;
-  font-family: var(--sans); color: var(--muted);
-  border-right: 1px solid var(--border);
-  transition: background 0.15s, color 0.15s;
-  display: flex; align-items: center; gap: 8px; justify-content: center;
-}
+/* Role tabs */
+.role-tabs { display: flex; gap: 0; margin: 24px 0 28px; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.role-tab { flex: 1; padding: 12px 20px; background: var(--surface2); border: none; cursor: pointer; font-size: 14px; font-weight: 500; font-family: var(--sans); color: var(--muted); border-right: 1px solid var(--border); transition: background 0.15s, color 0.15s; display: flex; align-items: center; gap: 8px; justify-content: center; }
 .role-tab:last-child { border-right: none; }
 .role-tab.active-a { background: rgba(79,156,249,0.1); color: var(--col-a); }
 .role-tab.active-b { background: rgba(52,211,153,0.08); color: var(--col-b); }
-.role-tab .role-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.role-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
 
-/* ── Two-column peer grid ── */
-.peer-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 20px;
-  margin-bottom: 20px;
-}
+/* Peer grid */
+.peer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
 @media (max-width: 800px) { .peer-grid { grid-template-columns: 1fr; } }
 
-/* ── Panel ── */
-.panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-}
+.panel { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; }
 .panel.caller-panel { border-top: 2px solid var(--col-a); }
 .panel.callee-panel { border-top: 2px solid var(--col-b); }
-.panel-header {
-  padding: 12px 18px;
-  border-bottom: 1px solid var(--border);
-  font-family: var(--mono); font-size: 12px;
-  color: var(--muted);
-  display: flex; align-items: center; gap: 8px;
-}
+.panel.role-active { box-shadow: 0 0 0 1px rgba(79,156,249,0.3); }
+.panel.role-active.callee-panel { box-shadow: 0 0 0 1px rgba(52,211,153,0.25); }
+.panel-header { padding: 12px 18px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 8px; }
 .panel-header .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.panel-header .dot.blue  { background: var(--col-a); }
+.panel-header .dot.blue { background: var(--col-a); }
 .panel-header .dot.green { background: var(--col-b); }
 .panel-header strong { color: var(--text); }
 .panel-body { padding: 16px 18px; }
 
-/* ── Video elements ── */
-.video-wrap {
-  position: relative; background: #07090d; border-radius: 8px;
-  overflow: hidden; aspect-ratio: 16/9; margin-bottom: 12px;
-}
+/* Video */
+.video-wrap { position: relative; background: #07090d; border-radius: 8px; overflow: hidden; aspect-ratio: 16/9; margin-bottom: 12px; }
 video { width: 100%; height: 100%; object-fit: cover; display: block; }
-.video-label {
-  position: absolute; bottom: 8px; left: 8px;
-  background: rgba(0,0,0,0.65); color: var(--muted);
-  font-family: var(--mono); font-size: 10px; padding: 2px 8px; border-radius: 4px;
-}
-.local-preview-wrap {
-  position: absolute; bottom: 8px; right: 8px;
-  width: 100px; aspect-ratio: 16/9;
-  background: #07090d; border-radius: 4px; overflow: hidden;
-  border: 1px solid rgba(255,255,255,0.1);
-}
+.video-label { position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.65); color: var(--muted); font-family: var(--mono); font-size: 10px; padding: 2px 8px; border-radius: 4px; }
+.local-preview-wrap { position: absolute; bottom: 8px; right: 8px; width: 90px; aspect-ratio: 16/9; background: #07090d; border-radius: 4px; overflow: hidden; border: 1px solid rgba(255,255,255,0.12); display: none; }
 .local-preview-wrap video { width: 100%; height: 100%; object-fit: cover; }
-.video-offline {
-  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  flex-direction: column; gap: 6px; color: var(--muted); font-family: var(--mono); font-size: 12px;
-}
-.video-offline .cam-icon { font-size: 28px; opacity: 0.3; }
+.video-offline { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 6px; color: var(--muted); font-family: var(--mono); font-size: 12px; }
+.cam-icon { font-size: 28px; opacity: 0.3; }
 
-/* ── Buttons ── */
-.btn {
-  display: inline-flex; align-items: center; gap: 7px;
-  padding: 9px 18px; border: none; border-radius: 6px;
-  font-size: 13px; font-weight: 500; font-family: var(--sans);
-  cursor: pointer; transition: opacity 0.15s, background 0.15s; white-space: nowrap;
-}
+/* Buttons */
+.btn { display: inline-flex; align-items: center; gap: 7px; padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 500; font-family: var(--sans); cursor: pointer; transition: opacity 0.15s, background 0.15s; white-space: nowrap; }
 .btn:disabled { opacity: 0.3; cursor: not-allowed; }
 .btn-a    { background: rgba(79,156,249,0.12); color: var(--col-a); border: 1px solid rgba(79,156,249,0.3); }
 .btn-a:hover:not(:disabled) { background: rgba(79,156,249,0.2); }
@@ -179,76 +100,38 @@ video { width: 100%; height: 100%; object-fit: cover; display: block; }
 .btn-b:hover:not(:disabled) { background: rgba(52,211,153,0.18); }
 .btn-danger { background: rgba(248,113,113,0.1); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
 .btn-danger:hover:not(:disabled) { background: rgba(248,113,113,0.18); }
-.btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0; }
+.btn-sm { font-size: 11px; padding: 4px 11px; }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
 
-/* ── SDP / ICE textareas ── */
-.sdp-label {
-  font-family: var(--mono); font-size: 11px; color: var(--muted);
-  text-transform: uppercase; letter-spacing: 0.06em;
-  margin: 14px 0 5px; display: flex; align-items: center; gap: 6px;
-}
-.sdp-label .badge {
-  background: rgba(79,156,249,0.1); color: var(--accent);
-  border: 1px solid rgba(79,156,249,0.3); border-radius: 10px;
-  font-size: 9px; padding: 1px 7px;
-}
-.sdp-label .badge.green {
-  background: rgba(52,211,153,0.08); color: var(--green);
-  border-color: rgba(52,211,153,0.3);
-}
-textarea.sdp-area {
-  width: 100%; min-height: 100px; max-height: 160px;
-  background: var(--bg); border: 1px solid var(--border);
-  color: #a5b0c8; font-family: var(--mono); font-size: 11px;
-  border-radius: 6px; padding: 10px 12px; resize: vertical;
-  outline: none; line-height: 1.5; transition: border-color 0.15s;
-}
+/* SDP areas */
+.sdp-label { font-family: var(--mono); font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin: 14px 0 4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.sdp-label .hint { margin-left: auto; color: var(--text); font-size: 11px; text-transform: none; letter-spacing: 0; }
+.badge { background: rgba(79,156,249,0.1); color: var(--accent); border: 1px solid rgba(79,156,249,0.3); border-radius: 10px; font-size: 9px; padding: 1px 7px; }
+.badge.g { background: rgba(52,211,153,0.08); color: var(--green); border-color: rgba(52,211,153,0.3); }
+
+textarea.sdp-area { width: 100%; min-height: 90px; max-height: 150px; background: var(--bg); border: 1px solid var(--border); color: #a5b0c8; font-family: var(--mono); font-size: 11px; border-radius: 6px; padding: 10px 12px; resize: vertical; outline: none; line-height: 1.5; transition: border-color 0.15s; }
 textarea.sdp-area:focus { border-color: var(--accent); }
-textarea.sdp-area.output-area { color: var(--green); }
-textarea.sdp-area[readonly] { color: #6a7a9a; cursor: default; }
+textarea.sdp-area.out-a { color: #6aadfa; }
+textarea.sdp-area.out-b { color: var(--green); }
+textarea.sdp-area[readonly] { cursor: default; }
 
-/* ICE candidates list */
-.ice-list {
-  background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
-  padding: 10px 12px; min-height: 60px; max-height: 120px; overflow-y: auto;
-  font-family: var(--mono); font-size: 11px; line-height: 1.6; color: #6a7a9a;
-}
-.ice-item { padding: 2px 0; border-bottom: 1px solid rgba(37,43,56,0.5); }
-.ice-item:last-child { border-bottom: none; }
-.ice-item .ice-type-host  { color: var(--green); }
-.ice-item .ice-type-srflx { color: var(--accent); }
-.ice-item .ice-type-relay { color: var(--orange); }
+/* ICE candidate textarea (output) */
+textarea.ice-area { width: 100%; min-height: 70px; max-height: 110px; background: var(--bg); border: 1px solid var(--border); color: #6a7a9a; font-family: var(--mono); font-size: 10.5px; border-radius: 6px; padding: 8px 12px; resize: vertical; outline: none; line-height: 1.6; cursor: default; }
+textarea.ice-area.out-a { color: #5b9fea; }
+textarea.ice-area.out-b { color: #2ab47e; }
 
-/* ── Status badges ── */
-.status-row {
-  display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0 8px;
-}
-.sbadge {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 4px 12px; border-radius: 20px; font-family: var(--mono);
-  font-size: 10.5px; font-weight: 500;
-  background: rgba(90,97,117,0.15); border: 1px solid var(--border); color: var(--muted);
-  transition: all 0.25s;
-}
+/* Status badges */
+.status-row { display: flex; flex-wrap: wrap; gap: 10px; margin: 20px 0 8px; }
+.sbadge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 20px; font-family: var(--mono); font-size: 10.5px; font-weight: 500; background: rgba(90,97,117,0.15); border: 1px solid var(--border); color: var(--muted); transition: all 0.25s; }
 .sbadge .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
-.sbadge.connected   { background: rgba(52,211,153,0.1);  border-color: rgba(52,211,153,0.3);  color: var(--green); }
-.sbadge.connecting  { background: rgba(251,146,60,0.1);  border-color: rgba(251,146,60,0.3);  color: var(--orange); }
-.sbadge.failed      { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.3); color: var(--red); }
+.sbadge.connected  { background: rgba(52,211,153,0.1);  border-color: rgba(52,211,153,0.3);  color: var(--green); }
+.sbadge.connecting { background: rgba(251,146,60,0.1);  border-color: rgba(251,146,60,0.3);  color: var(--orange); }
+.sbadge.failed     { background: rgba(248,113,113,0.1); border-color: rgba(248,113,113,0.3); color: var(--red); }
 
-/* ── Event log ── */
-.log-wrap {
-  background: var(--surface); border: 1px solid var(--border);
-  border-radius: 10px; overflow: hidden; margin-top: 20px;
-}
-.log-header {
-  padding: 10px 16px; border-bottom: 1px solid var(--border);
-  font-family: var(--mono); font-size: 11px; color: var(--muted);
-  display: flex; align-items: center; justify-content: space-between;
-}
-.log-body {
-  padding: 10px 14px; min-height: 120px; max-height: 240px;
-  overflow-y: auto; font-family: var(--mono); font-size: 11.5px; line-height: 1.7;
-}
+/* Log */
+.log-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; overflow: hidden; margin-top: 20px; }
+.log-header { padding: 10px 16px; border-bottom: 1px solid var(--border); font-family: var(--mono); font-size: 11px; color: var(--muted); display: flex; align-items: center; justify-content: space-between; }
+.log-body { padding: 10px 14px; min-height: 120px; max-height: 220px; overflow-y: auto; font-family: var(--mono); font-size: 11.5px; line-height: 1.7; }
 .log-entry { padding: 1px 0; display: flex; gap: 10px; }
 .log-ts { color: var(--muted); flex-shrink: 0; user-select: none; }
 .log-tag { font-size: 9.5px; font-weight: 600; padding: 1px 6px; border-radius: 3px; letter-spacing: 0.05em; flex-shrink: 0; align-self: flex-start; margin-top: 3px; }
@@ -261,43 +144,19 @@ textarea.sdp-area[readonly] { color: #6a7a9a; cursor: default; }
 .log-msg { color: var(--text); }
 .log-msg code { background: rgba(79,156,249,0.08); color: #93c5fd; font-size: 0.9em; padding: 0 4px; border-radius: 3px; }
 
-/* ── Pills ── */
 .pills { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0; }
-.pill {
-  display: inline-flex; align-items: center; padding: 5px 13px;
-  border: 1px solid rgba(79,156,249,0.35); border-radius: 20px;
-  text-decoration: none; font-weight: 500; font-size: 12px;
-  color: var(--accent); background: rgba(79,156,249,0.06); font-family: var(--mono);
-  transition: background 0.15s;
-}
+.pill { display: inline-flex; align-items: center; padding: 5px 13px; border: 1px solid rgba(79,156,249,0.35); border-radius: 20px; text-decoration: none; font-weight: 500; font-size: 12px; color: var(--accent); background: rgba(79,156,249,0.06); font-family: var(--mono); transition: background 0.15s; }
 .pill:hover { background: rgba(79,156,249,0.13); }
 
-/* ── Instruction steps ── */
-.instruction {
-  background: var(--surface2); border: 1px solid var(--border);
-  border-radius: 8px; padding: 14px 18px; margin: 16px 0;
-  font-size: 13.5px;
-}
-.instruction ol { margin-left: 20px; }
-.instruction li { margin-bottom: 6px; color: var(--text); }
-
-/* ── Highlight for active role panel ── */
-.panel.role-active { box-shadow: 0 0 0 1px rgba(79,156,249,0.25); }
-.panel.role-active.callee-panel { box-shadow: 0 0 0 1px rgba(52,211,153,0.2); }
-
-/* ── Footer ── */
 footer { border-top: 1px solid var(--border); padding: 24px 32px; margin-top: 60px; }
 .footer-inner { max-width: 1200px; margin: 0 auto; font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
 </style>
 </head>
 <body>
 
-<!-- ── Header ─────────────────────────────────────────────────────────── -->
 <header>
   <div class="header-inner">
-    <div class="header-logo">
-      <img src="ams_group_tui.png" alt="AMS Group TU Ilmenau">
-    </div>
+    <div class="header-logo"><img src="ams_group_tui.png" alt="AMS Group TU Ilmenau"></div>
     <div class="header-info">
       <h1>Multimediaprogrammierung</h1>
       <h2>Chapter 04: WebRTC — Demo 3: Manual SDP Video Call</h2>
@@ -310,298 +169,249 @@ footer { border-top: 1px solid var(--border); padding: 24px 32px; margin-top: 60
   </div>
 </header>
 
-<!-- ── Breadcrumb ─────────────────────────────────────────────────────── -->
-<nav class="breadcrumb" aria-label="breadcrumb">
-  <a href="index.html">index.html</a>
-  <span>›</span>
-  <a href="04_multimediaprogrammierung_webrtc.html">Chapter 04: WebRTC</a>
-  <span>›</span>
+<nav class="breadcrumb">
+  <a href="index.html">index.html</a><span>›</span>
+  <a href="04_multimediaprogrammierung_webrtc.html">Chapter 04: WebRTC</a><span>›</span>
   Demo 3: Manual SDP Video Call
 </nav>
 
-<!-- ── Main ──────────────────────────────────────────────────────────── -->
 <main>
 
-  <h1 class="demo-title">Demo 3 — Manual SDP Video Call</h1>
-  <p class="demo-subtitle">04_mm_manual_sdp_video.html · No server required · Google STUN · P2P video</p>
+<h1 class="demo-title">Demo 3 — Manual SDP Video Call</h1>
+<p class="demo-subtitle">04_mm_manual_sdp_video.html · No server · Google STUN · P2P video via copy-paste signaling</p>
 
-  <!-- ── Intro ── -->
-  <p>
-    This demo makes a <strong>real P2P video call between two browser tabs</strong> using
-    manual SDP copy-paste as the signaling channel. You will perform the signaling yourself —
-    copying the offer SDP from the Caller tab into the Callee tab, then copying the answer
-    back. This makes the normally-invisible signaling process completely transparent.
-  </p>
+<p>
+  A <strong>real P2P video call between two browser tabs</strong> using manual SDP copy-paste as
+  the signaling channel. You perform the signaling yourself — copying text between tabs.
+  This makes the normally-invisible signaling process completely transparent.
+</p>
 
-  <div class="info-box">
-    <strong>What you are doing manually here is exactly what a signaling server automates in Demo 5.</strong>
-    The data is the same — an SDP offer, an SDP answer, and a stream of ICE candidates.
-    The only difference is the transport: here you copy-paste; in Demo 5, WebSocket sends it automatically.
-  </div>
+<div class="info-box">
+  <strong>What you do manually here is exactly what a signaling server automates in Demo 5.</strong>
+  The data is identical — an SDP offer, an SDP answer, and ICE candidates.
+  The only difference is the transport: here you copy-paste; in Demo 5, WebSocket does it automatically.
+</div>
 
-  <!-- ── Concept box: Manual signaling ── -->
-  <div class="concept-box">
-    <strong>// CONCEPT: Manual signaling</strong><br>
-    A signaling server is just a message relay. It takes the offer from Peer A and delivers
-    it to Peer B, then takes the answer and delivers it back. Nothing about the SDP or ICE
-    data changes — only the transport. This demo uses <em>you</em> as the signaling transport.
-  </div>
+<div class="warn-box">
+  <strong>Requires camera + microphone.</strong> Open this file in two browser tabs on the same machine,
+  or on two different machines sharing SDP text via any channel (chat, notes, email).
+  On the same machine you call yourself — use headphones to avoid feedback echo.
+</div>
 
-  <div class="warn-box">
-    <strong>Requires camera + microphone.</strong>
-    The browser will ask for permission when you click Start Call.
-    Both tabs must grant access. For a real cross-network call, open each tab on a different
-    machine. On the same machine, you will call yourself — you will see your own video in the
-    remote pane (and your microphone and speaker may create echo; use headphones).
-  </div>
+<!-- How to use -->
+<h2 class="sh">Instructions</h2>
+<div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:16px 20px; margin:14px 0; font-size:13.5px;">
+  <ol style="margin-left:20px;">
+    <li style="margin-bottom:6px;">Open this file in <strong>two tabs</strong>. In Tab 1, select <strong>Tab A — Caller</strong>. In Tab 2, select <strong>Tab B — Callee</strong>.</li>
+    <li style="margin-bottom:6px;"><strong>Tab A:</strong> Click <em>Start Call</em>. Wait for the Offer SDP to appear, then copy it.</li>
+    <li style="margin-bottom:6px;"><strong>Tab B:</strong> Paste the offer into <em>Remote Offer</em>, click <em>Answer Call</em>. Copy the Answer SDP that appears.</li>
+    <li style="margin-bottom:6px;"><strong>Tab A:</strong> Paste the answer into <em>Remote Answer</em>, click <em>Set Answer</em>.</li>
+    <li style="margin-bottom:6px;"><strong>Both tabs:</strong> Wait for ICE candidates to finish gathering (a few seconds). Click <em>Copy ICE</em> in each tab and paste into the other tab, then click <em>Add ICE</em>.</li>
+    <li>Video should appear in both tabs. The connection state badge turns green.</li>
+  </ol>
+</div>
 
-  <!-- How to use this demo -->
-  <h2 class="section-heading">How to use this demo</h2>
-  <div class="instruction">
-    <ol>
-      <li>Open this file in <strong>two browser tabs</strong>.</li>
-      <li>In Tab 1, click <strong>"I am the Caller (Tab A)"</strong> and follow the Caller steps.</li>
-      <li>In Tab 2, click <strong>"I am the Callee (Tab B)"</strong> and follow the Callee steps.</li>
-      <li>Copy-paste SDP and ICE candidates between tabs as each step instructs.</li>
-      <li>Watch the video appear and the connection state turn green.</li>
-    </ol>
-    <p style="margin-top:10px; color: var(--muted); font-size:13px;">
-      For a cross-network call: open Tab A on one machine, Tab B on another machine,
-      and share the textareas contents via any text channel (chat, email, notes).
-    </p>
-  </div>
+<!-- Role tab selector -->
+<div class="role-tabs">
+  <button class="role-tab" id="tabNone" onclick="selectRole('none')">
+    <span class="role-dot" style="background:var(--muted)"></span>Choose your role…
+  </button>
+  <button class="role-tab" id="tabA" onclick="selectRole('A')">
+    <span class="role-dot" style="background:var(--col-a)"></span>Tab A — Caller
+  </button>
+  <button class="role-tab" id="tabB" onclick="selectRole('B')">
+    <span class="role-dot" style="background:var(--col-b)"></span>Tab B — Callee
+  </button>
+</div>
 
-  <!-- ── Role tab selector ── -->
-  <!-- STEP 0: Tab selector — one HTML file, two roles. The student chooses which
-       peer they are. Both roles share the same page; the other peer's panels are
-       always visible for reference, but the active role is highlighted. -->
-  <div class="role-tabs" role="tablist" aria-label="Select your role">
-    <button class="role-tab" id="tabNone" role="tab" onclick="selectRole('none')">
-      <span class="role-dot" style="background: var(--muted);"></span>
-      Choose your role…
-    </button>
-    <button class="role-tab" id="tabA" role="tab" onclick="selectRole('A')">
-      <span class="role-dot" style="background: var(--col-a);"></span>
-      Tab A — Caller
-    </button>
-    <button class="role-tab" id="tabB" role="tab" onclick="selectRole('B')">
-      <span class="role-dot" style="background: var(--col-b);"></span>
-      Tab B — Callee
-    </button>
-  </div>
+<!-- Status badges -->
+<div class="status-row">
+  <div class="sbadge" id="badgeConn"><div class="dot"></div><span id="connStateText">Not started</span></div>
+  <div class="sbadge" id="badgeIce"><div class="dot"></div><span id="iceStateText">ICE: —</span></div>
+  <div class="sbadge" id="badgeSignal"><div class="dot"></div><span id="signalStateText">Signaling: —</span></div>
+</div>
 
-  <!-- ── Connection status badges ── -->
-  <div class="status-row" id="statusRow">
-    <div class="sbadge" id="badgeConn">
-      <div class="dot"></div><span id="connStateText">Not started</span>
+<!-- Two-column peer grid -->
+<div class="peer-grid">
+
+  <!-- ═══════════════ TAB A — CALLER ═══════════════ -->
+  <div class="panel caller-panel" id="panelA">
+    <div class="panel-header">
+      <div class="dot blue"></div>
+      <strong>Tab A — Caller</strong>
+      <span style="margin-left:auto;font-size:10px">(creates the offer)</span>
     </div>
-    <div class="sbadge" id="badgeIce">
-      <div class="dot"></div><span id="iceStateText">ICE: —</span>
-    </div>
-    <div class="sbadge" id="badgeSignal">
-      <div class="dot"></div><span id="signalStateText">Signaling: —</span>
-    </div>
-  </div>
+    <div class="panel-body">
 
-  <!-- ════════════════════════════════════════════════════════════════════
-       TWO-COLUMN PEER GRID
-       Left  = Tab A (Caller)  — creates offer, sends it, receives answer
-       Right = Tab B (Callee)  — receives offer, creates answer, sends it back
-       ════════════════════════════════════════════════════════════════════ -->
-  <div class="peer-grid">
-
-    <!-- ══════════════════════════════════════
-         CALLER PANEL (Tab A)
-         ══════════════════════════════════════ -->
-    <div class="panel caller-panel" id="panelA">
-
-      <div class="panel-header">
-        <div class="dot blue"></div>
-        <strong>Tab A — Caller</strong>
-        <span style="margin-left:auto; font-size:10px;">(creates the offer)</span>
+      <!-- Remote video -->
+      <div class="video-wrap">
+        <video id="remoteVideoA" autoplay playsinline></video>
+        <div class="video-label">Remote — from Tab B</div>
+        <div class="local-preview-wrap" id="localPreviewA">
+          <video id="localVideoA" autoplay muted playsinline></video>
+        </div>
+        <div class="video-offline" id="offlineA">
+          <div class="cam-icon">📹</div><div>Remote video will appear here</div>
+        </div>
       </div>
 
-      <div class="panel-body">
-
-        <!-- Remote video: what Tab A receives from Tab B -->
-        <div class="video-wrap" id="videoWrapA">
-          <video id="remoteVideoA" autoplay playsinline></video>
-          <div class="video-label">Remote (from Tab B)</div>
-          <!-- Local camera preview inset -->
-          <div class="local-preview-wrap" id="localPreviewA" style="display:none;">
-            <video id="localVideoA" autoplay muted playsinline></video>
-          </div>
-          <div class="video-offline" id="offlineA">
-            <div class="cam-icon">📹</div>
-            <div>Remote video will appear here</div>
-          </div>
-        </div>
-
-        <!-- STEP 2 + 3: Start Call — getUserMedia + addTrack + createOffer -->
-        <div class="btn-row">
-          <button class="btn btn-a" id="btnStartA" onclick="callerStartCall()">▶ Start Call (Tab A)</button>
-          <button class="btn btn-danger" id="btnHangupA" onclick="hangup()" disabled>■ Hang Up</button>
-        </div>
-
-        <!-- STEP 4: SDP offer output -->
-        <div class="sdp-label">
-          SDP Offer <span class="badge">auto-filled</span>
-          <span style="margin-left:auto; color:var(--text); font-size:11px;">① Copy this → paste in Tab B</span>
-        </div>
-        <textarea class="sdp-area output-area" id="offerSdp" readonly placeholder="Offer SDP will appear here after clicking Start Call…"></textarea>
-
-        <!-- STEP 5: ICE candidates output (trickle) -->
-        <div class="sdp-label">
-          ICE Candidates <span class="badge">auto-filled as they arrive</span>
-          <span style="margin-left:auto; color:var(--text); font-size:11px;">③ Copy each → paste in Tab B</span>
-        </div>
-        <div class="ice-list" id="iceCandidatesA">
-          ICE candidates will trickle in after the offer is created…
-        </div>
-        <div class="btn-row">
-          <button class="btn btn-a" style="font-size:11px; padding:5px 12px;" onclick="copyIceA()">⎘ Copy all candidates (Tab A)</button>
-        </div>
-
-        <!-- STEP 7: Paste answer from Tab B -->
-        <div class="sdp-label">
-          Remote Answer <span style="margin-left:auto; color:var(--text); font-size:11px;">② Paste from Tab B</span>
-        </div>
-        <textarea class="sdp-area" id="answerSdpA" placeholder="Paste Tab B's answer SDP here…"></textarea>
-        <div class="btn-row">
-          <button class="btn btn-a" id="btnSetAnswerA" onclick="callerSetAnswer()" disabled>Set Remote Description (answer)</button>
-        </div>
-
-        <!-- STEP 8: Paste Tab B's ICE candidates -->
-        <div class="sdp-label">
-          Remote ICE Candidates <span style="margin-left:auto; color:var(--text); font-size:11px;">④ Paste from Tab B</span>
-        </div>
-        <textarea class="sdp-area" id="remoteIceA" placeholder='Paste Tab B ICE candidates here, one JSON per line…&#10;{"candidate":"...","sdpMid":"0","sdpMLineIndex":0}'></textarea>
-        <div class="btn-row">
-          <button class="btn btn-a" id="btnAddIceA" onclick="addRemoteIce('A')" disabled>Add Remote ICE Candidates</button>
-        </div>
-
-      </div><!-- /panel-body -->
-    </div><!-- /panelA -->
-
-    <!-- ══════════════════════════════════════
-         CALLEE PANEL (Tab B)
-         ══════════════════════════════════════ -->
-    <div class="panel callee-panel" id="panelB">
-
-      <div class="panel-header">
-        <div class="dot green"></div>
-        <strong>Tab B — Callee</strong>
-        <span style="margin-left:auto; font-size:10px;">(creates the answer)</span>
+      <!-- Step 1: Start call -->
+      <div class="btn-row">
+        <button class="btn btn-a" id="btnStartA" onclick="callerStartCall()">▶ Start Call</button>
+        <button class="btn btn-danger" id="btnHangupA" onclick="hangup('A')" disabled>■ Hang Up</button>
       </div>
 
-      <div class="panel-body">
-
-        <!-- Remote video: what Tab B receives from Tab A -->
-        <div class="video-wrap" id="videoWrapB">
-          <video id="remoteVideoB" autoplay playsinline></video>
-          <div class="video-label">Remote (from Tab A)</div>
-          <div class="local-preview-wrap" id="localPreviewB" style="display:none;">
-            <video id="localVideoB" autoplay muted playsinline></video>
-          </div>
-          <div class="video-offline" id="offlineB">
-            <div class="cam-icon">📹</div>
-            <div>Remote video will appear here</div>
-          </div>
-        </div>
-
-        <!-- STEP 6: Paste offer from Tab A, getUserMedia, createAnswer -->
-        <div class="sdp-label">
-          Remote Offer <span style="margin-left:auto; color:var(--text); font-size:11px;">① Paste from Tab A</span>
-        </div>
-        <textarea class="sdp-area" id="offerSdpB" placeholder="Paste Tab A's offer SDP here…"></textarea>
-        <div class="btn-row">
-          <button class="btn btn-b" id="btnAnswerB" onclick="calleeAnswer()">Answer Call (Tab B)</button>
-          <button class="btn btn-danger" id="btnHangupB" onclick="hangup()" disabled>■ Hang Up</button>
-        </div>
-
-        <!-- STEP 6 output: SDP answer for Tab A -->
-        <div class="sdp-label">
-          SDP Answer <span class="badge green">auto-filled</span>
-          <span style="margin-left:auto; color:var(--text); font-size:11px;">② Copy this → paste in Tab A</span>
-        </div>
-        <textarea class="sdp-area output-area" id="answerSdpB" readonly placeholder="Answer SDP will appear here after clicking Answer Call…" style="color: var(--col-b);"></textarea>
-
-        <!-- STEP 5 / 8: Tab B's ICE candidates output -->
-        <div class="sdp-label">
-          ICE Candidates <span class="badge green">auto-filled as they arrive</span>
-          <span style="margin-left:auto; color:var(--text); font-size:11px;">③ Copy each → paste in Tab A</span>
-        </div>
-        <div class="ice-list" id="iceCandidatesB">
-          ICE candidates will trickle in after the answer is created…
-        </div>
-        <div class="btn-row">
-          <button class="btn btn-b" style="font-size:11px; padding:5px 12px;" onclick="copyIceB()">⎘ Copy all candidates (Tab B)</button>
-        </div>
-
-        <!-- STEP 8: Paste Tab A's ICE candidates -->
-        <div class="sdp-label">
-          Remote ICE Candidates <span style="margin-left:auto; color:var(--text); font-size:11px;">④ Paste from Tab A</span>
-        </div>
-        <textarea class="sdp-area" id="remoteIceB" placeholder='Paste Tab A ICE candidates here, one JSON per line…&#10;{"candidate":"...","sdpMid":"0","sdpMLineIndex":0}'></textarea>
-        <div class="btn-row">
-          <button class="btn btn-b" id="btnAddIceB" onclick="addRemoteIce('B')" disabled>Add Remote ICE Candidates</button>
-        </div>
-
-      </div><!-- /panel-body -->
-    </div><!-- /panelB -->
-
-  </div><!-- /peer-grid -->
-
-  <!-- ── Trickle ICE concept explainer ── -->
-  <div class="concept-box">
-    <strong>// CONCEPT: Trickle ICE</strong><br>
-    ICE candidates do <em>not</em> all arrive before the offer/answer exchange.
-    They <strong>trickle in asynchronously</strong> after <code>setLocalDescription()</code> triggers
-    ICE gathering. You will see the candidate list grow over a few seconds. Each new candidate
-    must be sent to the remote peer and added via <code>addIceCandidate()</code>.
-    The null candidate (end-of-gathering signal) fires when all candidates have been gathered —
-    but with trickle ICE you do not need to wait for it.
-  </div>
-
-  <div class="concept-box">
-    <strong>// CONCEPT: srflx candidate — STUN at work</strong><br>
-    Look at the ICE candidates that appear. You will see candidates of type <code>host</code>
-    (your local LAN IP) and, if you are behind NAT, candidates of type <code>srflx</code>
-    (server-reflexive — your public IP as seen by the Google STUN server). The STUN server did
-    exactly one thing: it told you what your public IP:port looks like from the outside.
-    On the same LAN you will only see <code>host</code> candidates. <code>relay</code> candidates
-    would require a TURN server (see Demo 6).
-  </div>
-
-  <!-- ── Event log ── -->
-  <div class="log-wrap">
-    <div class="log-header">
-      <span>Event Log</span>
-      <button class="btn" style="padding:3px 10px; font-size:11px; background: rgba(90,97,117,0.2); color:var(--muted); border:none;" onclick="clearLog()">Clear</button>
-    </div>
-    <div class="log-body" id="eventLog">
-      <div class="log-entry">
-        <span class="log-ts">00:00</span>
-        <span class="log-tag tag-info">INFO</span>
-        <span class="log-msg">Demo 3 ready. Select your role (Tab A or Tab B) and follow the steps.</span>
+      <!-- Step 4 output: Offer SDP -->
+      <div class="sdp-label">
+        ① SDP Offer <span class="badge">auto-filled</span>
+        <span class="hint">→ copy and paste into Tab B</span>
       </div>
+      <textarea class="sdp-area out-a" id="offerSdp" readonly placeholder="Offer SDP appears here after Start Call…"></textarea>
+      <div class="btn-row">
+        <button class="btn btn-a btn-sm" onclick="copyField('offerSdp')">⎘ Copy Offer SDP</button>
+      </div>
+
+      <!-- Step 7 input: paste answer from Tab B -->
+      <div class="sdp-label">
+        ② Remote Answer
+        <span class="hint">← paste from Tab B</span>
+      </div>
+      <textarea class="sdp-area" id="answerSdpA" placeholder="Paste Tab B's answer SDP here…"></textarea>
+      <div class="btn-row">
+        <button class="btn btn-a" id="btnSetAnswerA" onclick="callerSetAnswer()" disabled>Set Answer</button>
+      </div>
+
+      <!-- Step 5 output: Tab A ICE candidates -->
+      <div class="sdp-label">
+        ③ My ICE Candidates <span class="badge">auto-filled</span>
+        <span class="hint">→ copy and paste into Tab B</span>
+      </div>
+      <textarea class="ice-area out-a" id="iceCandidatesA" readonly placeholder="ICE candidates trickle in after Start Call…"></textarea>
+      <div class="btn-row">
+        <button class="btn btn-a btn-sm" onclick="copyField('iceCandidatesA')">⎘ Copy ICE (Tab A)</button>
+      </div>
+
+      <!-- Step 8 input: paste Tab B's ICE candidates -->
+      <div class="sdp-label">
+        ④ Remote ICE Candidates
+        <span class="hint">← paste from Tab B</span>
+      </div>
+      <textarea class="sdp-area" id="remoteIceA" placeholder="Paste Tab B's ICE candidates here, then click Add ICE…"></textarea>
+      <div class="btn-row">
+        <button class="btn btn-a" id="btnAddIceA" onclick="addRemoteIce('A')" disabled>Add Remote ICE</button>
+      </div>
+
+    </div>
+  </div><!-- /panelA -->
+
+  <!-- ═══════════════ TAB B — CALLEE ═══════════════ -->
+  <div class="panel callee-panel" id="panelB">
+    <div class="panel-header">
+      <div class="dot green"></div>
+      <strong>Tab B — Callee</strong>
+      <span style="margin-left:auto;font-size:10px">(creates the answer)</span>
+    </div>
+    <div class="panel-body">
+
+      <!-- Remote video -->
+      <div class="video-wrap">
+        <video id="remoteVideoB" autoplay playsinline></video>
+        <div class="video-label">Remote — from Tab A</div>
+        <div class="local-preview-wrap" id="localPreviewB">
+          <video id="localVideoB" autoplay muted playsinline></video>
+        </div>
+        <div class="video-offline" id="offlineB">
+          <div class="cam-icon">📹</div><div>Remote video will appear here</div>
+        </div>
+      </div>
+
+      <!-- Step 6 input: paste offer from Tab A -->
+      <div class="sdp-label">
+        ① Remote Offer
+        <span class="hint">← paste from Tab A</span>
+      </div>
+      <textarea class="sdp-area" id="offerSdpB" placeholder="Paste Tab A's offer SDP here, then click Answer Call…"></textarea>
+      <div class="btn-row">
+        <button class="btn btn-b" id="btnAnswerB" onclick="calleeAnswer()">Answer Call</button>
+        <button class="btn btn-danger" id="btnHangupB" onclick="hangup('B')" disabled>■ Hang Up</button>
+      </div>
+
+      <!-- Step 6 output: Answer SDP -->
+      <div class="sdp-label">
+        ② SDP Answer <span class="badge g">auto-filled</span>
+        <span class="hint">→ copy and paste into Tab A</span>
+      </div>
+      <textarea class="sdp-area out-b" id="answerSdpB" readonly placeholder="Answer SDP appears here after Answer Call…"></textarea>
+      <div class="btn-row">
+        <button class="btn btn-b btn-sm" onclick="copyField('answerSdpB')">⎘ Copy Answer SDP</button>
+      </div>
+
+      <!-- Step 5B output: Tab B ICE candidates -->
+      <div class="sdp-label">
+        ③ My ICE Candidates <span class="badge g">auto-filled</span>
+        <span class="hint">→ copy and paste into Tab A</span>
+      </div>
+      <textarea class="ice-area out-b" id="iceCandidatesB" readonly placeholder="ICE candidates trickle in after Answer Call…"></textarea>
+      <div class="btn-row">
+        <button class="btn btn-b btn-sm" onclick="copyField('iceCandidatesB')">⎘ Copy ICE (Tab B)</button>
+      </div>
+
+      <!-- Step 8B input: paste Tab A's ICE candidates -->
+      <div class="sdp-label">
+        ④ Remote ICE Candidates
+        <span class="hint">← paste from Tab A</span>
+      </div>
+      <textarea class="sdp-area" id="remoteIceB" placeholder="Paste Tab A's ICE candidates here, then click Add ICE…"></textarea>
+      <div class="btn-row">
+        <button class="btn btn-b" id="btnAddIceB" onclick="addRemoteIce('B')" disabled>Add Remote ICE</button>
+      </div>
+
+    </div>
+  </div><!-- /panelB -->
+
+</div><!-- /peer-grid -->
+
+<div class="concept-box">
+  <strong>// CONCEPT: Trickle ICE</strong><br>
+  ICE candidates arrive <em>asynchronously</em> after <code>setLocalDescription()</code> triggers ICE gathering.
+  Wait a few seconds after Start Call / Answer Call for the ICE textarea to fill up before copying.
+  The null candidate (end-of-gathering signal) is not included — only real candidates are shown.
+</div>
+
+<div class="concept-box">
+  <strong>// CONCEPT: srflx candidate — STUN at work</strong><br>
+  If you are behind NAT, you will see a candidate of type <code>srflx</code> alongside <code>host</code> candidates.
+  The Google STUN server (<code>stun.l.google.com:19302</code>) told you your public IP:port.
+  On the same LAN you will only see <code>host</code>. <code>relay</code> requires a TURN server (Demo 6).
+</div>
+
+<!-- Event log -->
+<div class="log-wrap">
+  <div class="log-header">
+    <span>Event Log</span>
+    <button class="btn" style="padding:3px 10px;font-size:11px;background:rgba(90,97,117,0.2);color:var(--muted);border:none;" onclick="clearLog()">Clear</button>
+  </div>
+  <div class="log-body" id="eventLog">
+    <div class="log-entry">
+      <span class="log-ts">  0.0s</span>
+      <span class="log-tag tag-info">INFO</span>
+      <span class="log-msg">Demo 3 ready. Select Tab A or Tab B and follow the steps.</span>
     </div>
   </div>
+</div>
 
-  <!-- ── Reference links ── -->
-  <h2 class="section-heading">References</h2>
-  <div class="pills">
-    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection" target="_blank" rel="noopener">MDN: RTCPeerConnection</a>
-    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/createOffer" target="_blank" rel="noopener">MDN: createOffer()</a>
-    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/ontrack" target="_blank" rel="noopener">MDN: ontrack</a>
-    <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/RTCIceCandidate" target="_blank" rel="noopener">MDN: RTCIceCandidate</a>
-    <a class="pill" href="https://datatracker.ietf.org/doc/html/rfc8445" target="_blank" rel="noopener">RFC 8445: ICE</a>
-    <a class="pill" href="https://datatracker.ietf.org/doc/html/rfc8489" target="_blank" rel="noopener">RFC 8489: STUN</a>
-  </div>
+<h2 class="sh">References</h2>
+<div class="pills">
+  <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection" target="_blank" rel="noopener">MDN: RTCPeerConnection</a>
+  <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/createOffer" target="_blank" rel="noopener">MDN: createOffer()</a>
+  <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/ontrack" target="_blank" rel="noopener">MDN: ontrack</a>
+  <a class="pill" href="https://developer.mozilla.org/en-US/docs/Web/API/RTCIceCandidate" target="_blank" rel="noopener">MDN: RTCIceCandidate</a>
+  <a class="pill" href="https://datatracker.ietf.org/doc/html/rfc8445" target="_blank" rel="noopener">RFC 8445: ICE</a>
+  <a class="pill" href="https://datatracker.ietf.org/doc/html/rfc8489" target="_blank" rel="noopener">RFC 8489: STUN</a>
+</div>
 
 </main>
 
-<!-- ── Footer ── -->
 <footer>
   <div class="footer-inner">
     <span>Multimediaprogrammierung · Chapter 04: WebRTC · Demo 3: Manual SDP Video Call</span>
@@ -609,443 +419,351 @@ footer { border-top: 1px solid var(--border); padding: 24px 32px; margin-top: 60
   </div>
 </footer>
 
-<!-- ══════════════════════════════════════════════════════════════════════
-     JAVASCRIPT
-     ══════════════════════════════════════════════════════════════════════ -->
 <script>
 'use strict';
 
 // ── STEP 1: RTCConfiguration with Google STUN ─────────────────────────────
 //
-// STUN = Session Traversal Utilities for NAT (RFC 8489)
-// The STUN server does ONE thing: it tells you your public IP:port mapping.
-// It does NOT relay your media — it only helps you discover your srflx candidate.
-//
-// stun.l.google.com:19302 is a free, reliable STUN server run by Google.
-// It is the industry standard for development. Do not use it in production at scale.
-//
-// CONCEPT: RTCConfiguration
-// This object is passed to the RTCPeerConnection constructor. The iceServers array
-// tells the browser which STUN/TURN servers to contact during ICE gathering.
-// An empty array [] would skip STUN — fine on a LAN, broken across the internet.
+// STUN (RFC 8489) tells us our public IP:port — that's it.
+// It does NOT relay media. It only helps us discover a srflx ICE candidate.
+// stun.l.google.com:19302 is the industry-standard free STUN server for dev.
 //
 // WEB AUDIO EQUIVALENT: RTCPeerConnection ↔ AudioContext
-// Both represent the root of a processing pipeline. RTCPeerConnection manages
-// the entire RTP/ICE/DTLS stack, just as AudioContext manages the Web Audio graph.
-
+// Both are the root of a media processing pipeline.
 const ICE_CONFIG = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' }
-    // CONCEPT: Multiple STUN servers can be listed. The browser tries them in order.
-    // A real app also adds TURN servers here — see Demo 6.
-  ]
+  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
 };
 
-// ── State ────────────────────────────────────────────────────────────────────
-let pc = null;          // The local RTCPeerConnection for this tab
-let localStream = null; // MediaStream from getUserMedia
-let role = 'none';      // 'A' (Caller) or 'B' (Callee)
-let startTime = Date.now();
-let iceCountLocal = 0;  // How many local candidates we have gathered
+// ── State ─────────────────────────────────────────────────────────────────
+let pc          = null;   // RTCPeerConnection for this tab
+let localStream = null;   // MediaStream from getUserMedia
+let role        = 'none'; // 'A' | 'B'
+const startTime = Date.now();
 
-// ── STEP 0: Role selection ────────────────────────────────────────────────────
-//
-// One HTML file, two roles. The student selects which tab they are.
-// This highlights the active panel and gives contextual instructions.
-// Functionally, Tab A creates the offer; Tab B creates the answer.
-
+// ── STEP 0: Role selection ────────────────────────────────────────────────
 function selectRole(r) {
   role = r;
-  document.getElementById('tabNone').classList.remove('active-a','active-b');
-  document.getElementById('tabA').classList.remove('active-a','active-b');
-  document.getElementById('tabB').classList.remove('active-a','active-b');
-  document.getElementById('panelA').classList.remove('role-active');
-  document.getElementById('panelB').classList.remove('role-active');
+  ['tabNone','tabA','tabB'].forEach(id =>
+    document.getElementById(id).classList.remove('active-a','active-b'));
+  ['panelA','panelB'].forEach(id =>
+    document.getElementById(id).classList.remove('role-active'));
 
   if (r === 'A') {
     document.getElementById('tabA').classList.add('active-a');
     document.getElementById('panelA').classList.add('role-active');
-    logEvent('INFO', 'You selected <strong>Tab A — Caller</strong>. Click "Start Call" to begin.', 'tag-info');
+    logEvent('INFO', 'Role: <strong>Tab A — Caller</strong>. Click "Start Call" to begin.', 'tag-info');
   } else if (r === 'B') {
     document.getElementById('tabB').classList.add('active-b');
     document.getElementById('panelB').classList.add('role-active');
-    logEvent('INFO', 'You selected <strong>Tab B — Callee</strong>. Wait for Tab A to send you the offer SDP, then paste it and click "Answer Call".', 'tag-info');
+    logEvent('INFO', 'Role: <strong>Tab B — Callee</strong>. Paste Tab A\'s offer SDP and click "Answer Call".', 'tag-info');
   }
 }
 
-// ── Shared: create RTCPeerConnection ─────────────────────────────────────────
+// ── Shared: create RTCPeerConnection ─────────────────────────────────────
 //
-// STEP 1 (shared): Both Caller and Callee create an RTCPeerConnection with the
-// same ICE configuration. The difference is WHO calls createOffer() vs createAnswer().
-
-function createPeerConnection() {
+// Both Caller and Callee create an RTCPeerConnection.
+// The difference: Caller calls createOffer(), Callee calls createAnswer().
+//
+// iceOutputId: the ID of the textarea where local ICE candidates are written.
+// Passing it explicitly avoids any dependency on the `role` variable, which
+// may not be set if the student skips the role-selector tab.
+function createPeerConnection(iceOutputId, remoteVideoId, offlineId) {
   pc = new RTCPeerConnection(ICE_CONFIG);
+  logEvent('INFO', 'RTCPeerConnection created. STUN: <code>stun.l.google.com:19302</code>', 'tag-info');
 
-  // STEP 5/5B: onicecandidate fires each time the browser discovers a new
-  // local ICE candidate. We log it to the visible list on the page.
-  // In a real app, this candidate is sent to the remote peer via the signaling server.
-  // CONCEPT: ICE gathering starts when setLocalDescription() is called.
-  // createOffer() does NOT start gathering — only setLocalDescription() does.
+  // STEP 5: onicecandidate fires each time a local ICE candidate is discovered.
+  // We append each candidate as a JSON line to the output textarea.
+  //
+  // CONCEPT: ICE gathering begins when setLocalDescription() is called.
+  // createOffer() / createAnswer() alone do NOT start gathering.
+  //
+  // CONCEPT: Trickle ICE — candidates arrive asynchronously, one at a time.
+  // We append them as they arrive so the student can copy them incrementally
+  // or wait for null (end-of-gathering) and copy them all at once.
   pc.onicecandidate = ev => {
     if (ev.candidate) {
-      // A real candidate has arrived — stringify it for copy-paste transport.
-      // JSON.stringify makes all fields readable: candidate string, sdpMid, sdpMLineIndex.
-      const candidateJson = JSON.stringify({
-        candidate:        ev.candidate.candidate,
-        sdpMid:           ev.candidate.sdpMid,
-        sdpMLineIndex:    ev.candidate.sdpMLineIndex,
-        usernameFragment: ev.candidate.usernameFragment
+      // Serialize to JSON — includes all three fields addIceCandidate() needs.
+      const json = JSON.stringify({
+        candidate:     ev.candidate.candidate,
+        sdpMid:        ev.candidate.sdpMid,
+        sdpMLineIndex: ev.candidate.sdpMLineIndex
       });
 
-      iceCountLocal++;
-      const type = parseCandidateType(ev.candidate.candidate); // 'host', 'srflx', or 'relay'
+      const type = parseCandidateType(ev.candidate.candidate);
 
-      logEvent('ICE', `Local candidate #${iceCountLocal} [<span class="ice-type-${type}">${type}</span>]: ${truncate(ev.candidate.candidate, 60)}`, 'tag-ice');
+      // Write directly to the output textarea by the id we were given.
+      // Each candidate goes on its own line for easy copy-paste.
+      const area = document.getElementById(iceOutputId);
+      area.value = area.value ? area.value + '\n' + json : json;
 
-      // Append to the visible ICE list for this tab's role
-      appendIceCandidate(role === 'A' ? 'iceCandidatesA' : 'iceCandidatesB', candidateJson, type, iceCountLocal);
-
-      // CONCEPT: srflx candidates only appear if a STUN server is configured.
-      // If you see srflx, STUN worked and your public IP:port is now known.
-      if (type === 'srflx') {
-        logEvent('ICE', '⬆ <strong>srflx candidate</strong> — STUN server revealed your public IP:port.', 'tag-ice');
-      }
+      logEvent('ICE', `Local [${type}]: ${truncate(ev.candidate.candidate, 55)}`, 'tag-ice');
+      if (type === 'srflx')
+        logEvent('ICE', '↑ <strong>srflx</strong> — STUN revealed your public IP:port.', 'tag-ice');
 
     } else {
-      // CONCEPT: null candidate = end-of-candidates indication (RFC 8445 §14)
-      // ev.candidate === null means ICE gathering is COMPLETE for this peer.
-      // No more candidates will arrive. With trickle ICE you don't need to wait
-      // for this — you can send candidates to the remote peer as they arrive.
-      logEvent('ICE', 'ICE gathering complete (<code>candidate === null</code>). All local candidates have been found.', 'tag-ice');
+      // CONCEPT: null candidate = end-of-gathering (RFC 8445 §14).
+      // No more candidates will arrive after this point.
+      logEvent('ICE', 'Gathering complete (<code>candidate === null</code>). Copy your ICE candidates now.', 'tag-ice');
     }
   };
 
-  // STEP 10: iceconnectionstatechange — tracks the ICE state machine.
-  // States: new → checking → connected/completed/failed/disconnected/closed
+  // STEP 10: State change handlers — log every state transition visibly.
   pc.oniceconnectionstatechange = () => {
     const s = pc.iceConnectionState;
-    logEvent('STATE', `ICE connection state: <strong>${s}</strong>`, 'tag-state');
-    setBadge('badgeIce', `ICE: ${s}`, s === 'connected' || s === 'completed' ? 'connected' : (s === 'checking' || s === 'new' ? 'connecting' : (s === 'failed' ? 'failed' : '')));
+    logEvent('STATE', `ICE state: <strong>${s}</strong>`, 'tag-state');
+    setBadge('badgeIce', `ICE: ${s}`,
+      (s==='connected'||s==='completed') ? 'connected' :
+      (s==='checking'||s==='new')        ? 'connecting' :
+      (s==='failed')                     ? 'failed' : '');
   };
 
-  // STEP 10: connectionstatechange — the high-level connection state.
-  // This aggregates ICE + DTLS states. 'connected' = both ICE and DTLS succeeded.
-  // DTLS = Datagram Transport Layer Security — WebRTC encrypts all media.
   pc.onconnectionstatechange = () => {
     const s = pc.connectionState;
     logEvent('STATE', `Connection state: <strong>${s}</strong>`, 'tag-state');
-    setBadge('badgeConn', s, s === 'connected' ? 'connected' : (s === 'connecting' ? 'connecting' : (s === 'failed' ? 'failed' : '')));
-
-    if (s === 'connected') {
-      logEvent('INFO', '✓ <strong>Peer connection established!</strong> Media is flowing P2P.', 'tag-info');
-    }
+    setBadge('badgeConn', s,
+      s==='connected'  ? 'connected'  :
+      s==='connecting' ? 'connecting' :
+      s==='failed'     ? 'failed' : '');
+    if (s === 'connected')
+      logEvent('INFO', '✓ <strong>P2P connection established!</strong> Media is flowing.', 'tag-info');
   };
 
-  // STEP 10: signalingStatechange — tracks the offer/answer state machine.
-  // States: stable → have-local-offer → have-remote-offer → stable (after answer)
   pc.onsignalingstatechange = () => {
     const s = pc.signalingState;
     logEvent('STATE', `Signaling state: <strong>${s}</strong>`, 'tag-state');
-    setBadge('badgeSignal', `Signaling: ${s}`, s === 'stable' ? '' : 'connecting');
+    setBadge('badgeSignal', `Signaling: ${s}`, s==='stable' ? '' : 'connecting');
   };
 
-  // STEP 9: ontrack — fires when the remote peer's media tracks arrive.
+  // STEP 9: ontrack fires when the remote peer's tracks arrive.
   //
   // CONCEPT: ontrack vs onaddstream (deprecated)
-  // ontrack fires ONCE PER TRACK (one for video, one for audio).
-  // The old onaddstream fired once per stream — it is deprecated.
-  // Always use ontrack. The event gives you both the track and the stream it belongs to.
+  // ontrack fires once per track (video, audio separately).
+  // onaddstream is deprecated — never use it.
+  // ev.streams[0] contains all tracks grouped into one MediaStream.
   //
   // WEB AUDIO EQUIVALENT: MediaStreamTrack ↔ AudioNode output
-  // Both represent a stream of media data flowing through a pipeline.
+  // Both represent a flowing media stream inside a pipeline.
   pc.ontrack = ev => {
-    logEvent('TRACK', `Remote track received: kind=<strong>${ev.track.kind}</strong>, id=${ev.track.id.slice(0,12)}…`, 'tag-track');
-
-    // Attach the remote stream to the correct video element.
-    // ev.streams[0] contains the full remote MediaStream (all tracks grouped).
-    // Prefer streams[0] over constructing a new MediaStream from the track.
+    logEvent('TRACK', `Remote track received: kind=<strong>${ev.track.kind}</strong>`, 'tag-track');
     if (ev.streams && ev.streams[0]) {
-      const videoEl = role === 'A' ? document.getElementById('remoteVideoA') : document.getElementById('remoteVideoB');
-      const offlineEl = role === 'A' ? document.getElementById('offlineA') : document.getElementById('offlineB');
-
-      videoEl.srcObject = ev.streams[0];
-      offlineEl.style.display = 'none'; // Hide the placeholder
-      logEvent('TRACK', `Remote stream attached to video element (${ev.streams[0].getTracks().length} tracks).`, 'tag-track');
+      // Use the video/offline element ids passed in at construction time —
+      // no dependency on the `role` variable.
+      document.getElementById(remoteVideoId).srcObject = ev.streams[0];
+      document.getElementById(offlineId).style.display = 'none';
+      logEvent('TRACK', 'Remote stream attached to video element.', 'tag-track');
     }
   };
-
-  logEvent('INFO', `RTCPeerConnection created with STUN: <code>stun.l.google.com:19302</code>`, 'tag-info');
-  return pc;
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// TAB A — CALLER FLOW
+// TAB A — CALLER
 // ════════════════════════════════════════════════════════════════════════════
-
-// STEP 2: getUserMedia — request camera and microphone access.
-// STEP 3: addTrack — add each local track to the peer connection.
-// STEP 4: createOffer — generate the SDP offer.
 
 async function callerStartCall() {
   document.getElementById('btnStartA').disabled = true;
   logEvent('INFO', '── Caller: starting call ──', 'tag-info');
 
   try {
-    // STEP 2: getUserMedia asks the user for camera + microphone permission.
-    // Returning a MediaStream with at least one video and one audio track.
-    // CONCEPT: Permission model — the browser controls access, not the page.
-    logEvent('INFO', 'Requesting camera + microphone via <code>getUserMedia()</code>…', 'tag-info');
+    // STEP 2: getUserMedia — request camera + mic.
+    // CONCEPT: Permission model — the browser asks the user. The page cannot
+    // access the camera without explicit user consent.
+    logEvent('INFO', 'Requesting camera + microphone…', 'tag-info');
     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    logEvent('TRACK', `<code>getUserMedia</code> granted. Tracks: ${localStream.getTracks().map(t => t.kind).join(', ')}`, 'tag-track');
+    logEvent('TRACK', `getUserMedia granted: ${localStream.getTracks().map(t=>t.kind).join(', ')}`, 'tag-track');
 
-    // Show local preview (muted — avoids echo on the same machine)
-    // playsinline is required for autoplay on iOS Safari
-    const localVideoA = document.getElementById('localVideoA');
-    localVideoA.srcObject = localStream;
+    // Show local preview (muted to avoid echo — we hear ourselves via speakers).
+    // playsinline is required for autoplay on iOS.
+    document.getElementById('localVideoA').srcObject = localStream;
     document.getElementById('localPreviewA').style.display = 'block';
 
-    // STEP 1: Create the peer connection with Google STUN
-    createPeerConnection();
+    // Pass all element ids explicitly — no dependency on the `role` variable.
+    createPeerConnection('iceCandidatesA', 'remoteVideoA', 'offlineA');
 
-    // STEP 3: addTrack — add each local track to the peer connection.
+    // STEP 3: addTrack — add each local track BEFORE createOffer.
     //
     // CONCEPT: addTrack before createOffer
-    // Tracks MUST be added BEFORE createOffer() is called. This is because
-    // createOffer() reads the track list to build the SDP 'm=' media sections.
-    // If you add tracks after createOffer, the SDP will not include them —
-    // the remote peer will not know to expect them, and ontrack will never fire.
-    //
-    // addTrack returns an RTCRtpSender. Store it if you need to replaceTrack() later
-    // (e.g. switching camera). We do not need that here.
+    // Tracks must be registered on the connection before the offer is created.
+    // createOffer() reads the track list to generate the SDP 'm=' sections.
+    // If you add tracks after createOffer, the remote peer won't know to expect them.
     //
     // WEB AUDIO EQUIVALENT: addTrack ↔ AudioNode.connect()
-    // Both wire a source into the processing pipeline.
+    // Both wire a media source into the processing pipeline.
     localStream.getTracks().forEach(track => {
       pc.addTrack(track, localStream);
-      logEvent('TRACK', `<code>addTrack()</code>: added ${track.kind} track to peer connection.`, 'tag-track');
+      logEvent('TRACK', `addTrack(): ${track.kind}`, 'tag-track');
     });
 
-    // STEP 4: createOffer — generate the SDP offer.
-    //
-    // createOffer() asks the browser to produce an SDP that describes:
-    //   - The media codecs this peer supports (video: H.264/VP8/VP9/AV1, audio: Opus)
-    //   - The ICE credentials (username fragment + password) for this session
-    //   - The DTLS fingerprint (for encryption setup)
-    //   - The m= sections for each track we just added
-    logEvent('SDP', 'Calling <code>createOffer()</code>…', 'tag-sdp');
+    // STEP 4: createOffer — generates the SDP offer describing our capabilities.
+    // The SDP includes: codecs, ICE credentials, DTLS fingerprint, m= sections.
+    logEvent('SDP', 'Calling createOffer()…', 'tag-sdp');
     const offer = await pc.createOffer();
-    logEvent('SDP', '<code>createOffer()</code> succeeded — SDP generated by the browser.', 'tag-sdp');
+    logEvent('SDP', 'createOffer() done — SDP generated.', 'tag-sdp');
 
     // setLocalDescription stores the offer AND starts ICE gathering.
-    // ICE candidates will now start firing via onicecandidate (see STEP 5).
+    // Candidates will now fire via onicecandidate (STEP 5).
     await pc.setLocalDescription(offer);
-    logEvent('SDP', '<code>setLocalDescription(offer)</code> — ICE gathering has started.', 'tag-sdp');
+    logEvent('SDP', 'setLocalDescription(offer) — ICE gathering started.', 'tag-sdp');
 
-    // Display the full SDP in the textarea for copy-paste signaling.
+    // Fill the output textarea with the offer SDP.
     document.getElementById('offerSdp').value = pc.localDescription.sdp;
-    logEvent('INFO', '① Copy the Offer SDP above and paste it into Tab B\'s "Remote Offer" field.', 'tag-info');
+    logEvent('INFO', '① Copy the Offer SDP and paste it into Tab B.', 'tag-info');
 
-    // Enable the answer input (the student will paste Tab B's answer here)
     document.getElementById('btnSetAnswerA').disabled = false;
     document.getElementById('btnHangupA').disabled = false;
 
   } catch (err) {
-    showError(`Caller start failed: ${err.name}: ${err.message}`);
+    logEvent('ERR', `Start failed: ${err.name}: ${err.message}`, 'tag-err');
     document.getElementById('btnStartA').disabled = false;
   }
 }
 
-// STEP 7: Tab A receives Tab B's answer SDP and calls setRemoteDescription.
-
+// STEP 7: Tab A receives Tab B's answer and calls setRemoteDescription.
 async function callerSetAnswer() {
-  const sdpText = document.getElementById('answerSdpA').value.trim();
-  if (!sdpText) { showError('Paste Tab B\'s answer SDP first.'); return; }
-  if (!pc) { showError('Start Call first.'); return; }
+  const sdp = document.getElementById('answerSdpA').value.trim();
+  if (!sdp)  { logEvent('ERR', 'Paste Tab B\'s answer SDP first.', 'tag-err'); return; }
+  if (!pc)   { logEvent('ERR', 'Start Call first.', 'tag-err'); return; }
 
   logEvent('SDP', 'Setting remote description (answer from Tab B)…', 'tag-sdp');
-
   try {
     // setRemoteDescription with the answer completes the offer/answer exchange.
-    // Both peers now have complete descriptions and ICE connectivity checks begin.
-    await pc.setRemoteDescription({ type: 'answer', sdp: sdpText });
-    logEvent('SDP', '<code>setRemoteDescription(answer)</code> — offer/answer exchange complete. ICE connectivity checks running.', 'tag-sdp');
-    logEvent('INFO', '④ Now paste Tab B\'s ICE candidates and click "Add Remote ICE Candidates".', 'tag-info');
-
+    // Both peers now have full descriptions. ICE connectivity checks begin.
+    await pc.setRemoteDescription({ type: 'answer', sdp });
+    logEvent('SDP', 'setRemoteDescription(answer) — exchange complete. ICE checks running.', 'tag-sdp');
+    logEvent('INFO', '④ Now paste Tab B\'s ICE candidates and click "Add Remote ICE".', 'tag-info');
     document.getElementById('btnAddIceA').disabled = false;
   } catch (err) {
-    showError(`setRemoteDescription failed: ${err.name}: ${err.message}`);
+    logEvent('ERR', `setRemoteDescription failed: ${err.name}: ${err.message}`, 'tag-err');
   }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// TAB B — CALLEE FLOW
+// TAB B — CALLEE
 // ════════════════════════════════════════════════════════════════════════════
-
-// STEP 6: Tab B pastes the offer, calls getUserMedia, creates the answer.
 
 async function calleeAnswer() {
   const offerSdp = document.getElementById('offerSdpB').value.trim();
-  if (!offerSdp) { showError('Paste Tab A\'s offer SDP first.'); return; }
+  if (!offerSdp) { logEvent('ERR', 'Paste Tab A\'s offer SDP first.', 'tag-err'); return; }
 
   document.getElementById('btnAnswerB').disabled = true;
   logEvent('INFO', '── Callee: answering call ──', 'tag-info');
 
   try {
-    // STEP 2 (Callee): getUserMedia — Callee also needs camera + microphone
-    // for a bidirectional call. Both peers must call getUserMedia independently.
-    logEvent('INFO', 'Requesting camera + microphone via <code>getUserMedia()</code>…', 'tag-info');
+    // STEP 2 (Callee): getUserMedia — Callee also needs camera + mic.
+    logEvent('INFO', 'Requesting camera + microphone…', 'tag-info');
     localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    logEvent('TRACK', `<code>getUserMedia</code> granted. Tracks: ${localStream.getTracks().map(t => t.kind).join(', ')}`, 'tag-track');
+    logEvent('TRACK', `getUserMedia granted: ${localStream.getTracks().map(t=>t.kind).join(', ')}`, 'tag-track');
 
-    const localVideoB = document.getElementById('localVideoB');
-    localVideoB.srcObject = localStream;
+    document.getElementById('localVideoB').srcObject = localStream;
     document.getElementById('localPreviewB').style.display = 'block';
 
-    // STEP 1 (Callee): Create peer connection with Google STUN
-    createPeerConnection();
+    // Pass all element ids explicitly — no dependency on the `role` variable.
+    createPeerConnection('iceCandidatesB', 'remoteVideoB', 'offlineB');
 
-    // STEP 3 (Callee): addTrack — same as Caller. Both peers add tracks.
+    // STEP 3 (Callee): addTrack before createAnswer — same reason as Caller.
     localStream.getTracks().forEach(track => {
       pc.addTrack(track, localStream);
-      logEvent('TRACK', `<code>addTrack()</code>: added ${track.kind} track to peer connection.`, 'tag-track');
+      logEvent('TRACK', `addTrack(): ${track.kind}`, 'tag-track');
     });
 
-    // STEP 6a: setRemoteDescription with the Caller's offer.
+    // STEP 6a: setRemoteDescription with Caller's offer.
     //
-    // CONCEPT: setRemoteDescription before addIceCandidate
-    // The remote description MUST be set before you call addIceCandidate().
-    // ICE candidates reference the session described in the SDP (via sdpMid / sdpMLineIndex).
-    // Without a remote description, the browser does not know which m= section
-    // the candidate belongs to and will throw an error.
+    // CONCEPT: setRemoteDescription BEFORE addIceCandidate.
+    // Remote ICE candidates reference m= sections by sdpMid / sdpMLineIndex.
+    // Without a remote description, the browser cannot resolve those references
+    // and addIceCandidate() will throw. Always set remote description first.
     logEvent('SDP', 'Setting remote description (offer from Tab A)…', 'tag-sdp');
     await pc.setRemoteDescription({ type: 'offer', sdp: offerSdp });
-    logEvent('SDP', '<code>setRemoteDescription(offer)</code> — Callee now knows Caller\'s media capabilities.', 'tag-sdp');
+    logEvent('SDP', 'setRemoteDescription(offer) — Callee knows Caller\'s capabilities.', 'tag-sdp');
 
-    // STEP 6b: createAnswer — generate a matching SDP answer.
-    // The answer contains the codecs Callee chose from the offered list
-    // plus Callee's ICE credentials and DTLS fingerprint.
-    logEvent('SDP', 'Calling <code>createAnswer()</code>…', 'tag-sdp');
+    // STEP 6b: createAnswer — Callee's SDP response.
+    // Contains: chosen codecs, Callee's ICE credentials, Callee's DTLS fingerprint.
+    logEvent('SDP', 'Calling createAnswer()…', 'tag-sdp');
     const answer = await pc.createAnswer();
-    logEvent('SDP', '<code>createAnswer()</code> succeeded.', 'tag-sdp');
+    logEvent('SDP', 'createAnswer() done.', 'tag-sdp');
 
+    // setLocalDescription starts Callee's ICE gathering.
     await pc.setLocalDescription(answer);
-    logEvent('SDP', '<code>setLocalDescription(answer)</code> — Callee ICE gathering started.', 'tag-sdp');
+    logEvent('SDP', 'setLocalDescription(answer) — Callee ICE gathering started.', 'tag-sdp');
 
-    // Display the answer SDP for Tab B to copy back to Tab A
+    // Fill the answer output textarea.
     document.getElementById('answerSdpB').value = pc.localDescription.sdp;
-    logEvent('INFO', '② Copy the Answer SDP above and paste it into Tab A\'s "Remote Answer" field.', 'tag-info');
-    logEvent('INFO', '③ Also copy Tab B\'s ICE candidates (they will appear below) and paste them in Tab A.', 'tag-info');
+    logEvent('INFO', '② Copy the Answer SDP and paste it into Tab A.', 'tag-info');
+    logEvent('INFO', '③ Also wait for Tab B\'s ICE candidates to appear, then copy them to Tab A.', 'tag-info');
 
     document.getElementById('btnHangupB').disabled = false;
     document.getElementById('btnAddIceB').disabled = false;
 
   } catch (err) {
-    showError(`Callee answer failed: ${err.name}: ${err.message}`);
+    logEvent('ERR', `Answer failed: ${err.name}: ${err.message}`, 'tag-err');
     document.getElementById('btnAnswerB').disabled = false;
   }
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// STEP 8: ICE CANDIDATE EXCHANGE
+// STEP 8: addIceCandidate — add the remote peer's ICE candidates
 // ════════════════════════════════════════════════════════════════════════════
 //
-// CONCEPT: addIceCandidate — the manual relay
-// In a real call, ICE candidates are sent via the signaling server the moment
-// onicecandidate fires (trickle ICE). Here, we collect them all, copy-paste
-// them as a batch, then add them with addIceCandidate.
-//
-// Each candidate JSON was produced by onicecandidate → appendIceCandidate().
-// We parse it back into an RTCIceCandidate and hand it to addIceCandidate().
-//
-// CONCEPT: addTrack before setRemoteDescription is NOT required here.
-// The remote ICE candidates can be added any time AFTER setRemoteDescription
-// has been called. The browser queues them if necessary.
-
+// CONCEPT: Manual signaling
+// In a real app, onicecandidate sends each candidate to the remote peer via
+// the signaling server the moment it arrives (trickle ICE). Here, we batch
+// them into a textarea, copy-paste, and call addIceCandidate manually.
+// Demo 5 automates this with WebSocket.
 async function addRemoteIce(myRole) {
-  const textareaId = myRole === 'A' ? 'remoteIceA' : 'remoteIceB';
-  const rawText = document.getElementById(textareaId).value.trim();
-  if (!rawText) { showError('Paste the remote ICE candidates first.'); return; }
-  if (!pc) { showError('Create the peer connection first.'); return; }
+  const areaId  = myRole === 'A' ? 'remoteIceA' : 'remoteIceB';
+  const rawText = document.getElementById(areaId).value.trim();
+  if (!rawText) { logEvent('ERR', 'Paste the remote ICE candidates first.', 'tag-err'); return; }
+  if (!pc)      { logEvent('ERR', 'Create the peer connection first.', 'tag-err'); return; }
 
-  // Candidates may be pasted one per line (our format) or as a single JSON blob.
   const lines = rawText.split('\n').map(l => l.trim()).filter(Boolean);
   let added = 0;
 
   for (const line of lines) {
     try {
       const obj = JSON.parse(line);
-
-      // Construct RTCIceCandidate using the full object form (not the deprecated string form).
-      // This is the current W3C API — always use the object constructor.
-      const candidate = new RTCIceCandidate({
+      // Use the full RTCIceCandidate object constructor — the current W3C API.
+      // Never pass a raw string; the object form is explicit and unambiguous.
+      await pc.addIceCandidate(new RTCIceCandidate({
         candidate:     obj.candidate,
         sdpMid:        obj.sdpMid,
         sdpMLineIndex: obj.sdpMLineIndex
-      });
-
-      await pc.addIceCandidate(candidate);
-      const type = parseCandidateType(obj.candidate);
-      logEvent('ICE', `<code>addIceCandidate()</code> — added remote [<span class="ice-type-${type}">${type}</span>] candidate.`, 'tag-ice');
+      }));
+      logEvent('ICE', `addIceCandidate() — added [${parseCandidateType(obj.candidate)}]`, 'tag-ice');
       added++;
-
     } catch (err) {
-      logEvent('ERR', `addIceCandidate failed for line: ${truncate(line, 40)} — ${err.message}`, 'tag-err');
+      logEvent('ERR', `addIceCandidate failed: ${err.message} — line: ${truncate(line, 40)}`, 'tag-err');
     }
   }
-
   logEvent('INFO', `Added ${added} remote ICE candidate(s). ICE connectivity checks running.`, 'tag-info');
 }
 
-// ── Hang up ────────────────────────────────────────────────────────────────
-
-function hangup() {
-  // STEP 10 / Rule 10: Explicit cleanup.
-  // Stop all tracks to release the camera and microphone hardware.
-  // Close the peer connection to free browser resources.
+// ── Hang up ───────────────────────────────────────────────────────────────
+// Rule 10: stop all tracks (releases camera/mic hardware) and close the connection.
+function hangup(myRole) {
   if (localStream) {
-    localStream.getTracks().forEach(track => {
-      track.stop(); // Releases the hardware — camera LED turns off
-      logEvent('TRACK', `Track stopped: ${track.kind}`, 'tag-state');
-    });
+    localStream.getTracks().forEach(t => { t.stop(); logEvent('TRACK', `Track stopped: ${t.kind}`, 'tag-state'); });
     localStream = null;
   }
-
   if (pc) {
-    pc.close(); // Closes DTLS/ICE transport, stops all RTP
+    pc.close();
     pc = null;
-    logEvent('STATE', '<code>RTCPeerConnection.close()</code> — connection torn down.', 'tag-state');
+    logEvent('STATE', 'RTCPeerConnection.close() — connection torn down.', 'tag-state');
   }
-
-  // Clear video elements
-  ['remoteVideoA', 'localVideoA', 'remoteVideoB', 'localVideoB'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.srcObject = null;
+  ['remoteVideoA','localVideoA','remoteVideoB','localVideoB'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.srcObject = null;
   });
-
-  ['offlineA', 'offlineB'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = '';
-  });
-
-  ['localPreviewA', 'localPreviewB'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) el.style.display = 'none';
-  });
-
-  setBadge('badgeConn', 'Disconnected', '');
-  setBadge('badgeIce', 'ICE: closed', '');
-  setBadge('badgeSignal', 'Signaling: closed', '');
-
+  ['offlineA','offlineB'].forEach(id => { document.getElementById(id).style.display = ''; });
+  ['localPreviewA','localPreviewB'].forEach(id => { document.getElementById(id).style.display = 'none'; });
+  setBadge('badgeConn','Disconnected',''); setBadge('badgeIce','ICE: closed',''); setBadge('badgeSignal','Signaling: closed','');
   document.getElementById('btnStartA').disabled = false;
   document.getElementById('btnHangupA').disabled = true;
   document.getElementById('btnAnswerB').disabled = false;
   document.getElementById('btnHangupB').disabled = true;
-
-  logEvent('INFO', 'Call ended. All tracks stopped, connection closed.', 'tag-info');
+  logEvent('INFO','Call ended. All hardware released.','tag-info');
 }
 
-// ── Cleanup on page unload ─────────────────────────────────────────────────
-// Rule 10: always stop tracks when the page unloads.
+// ── beforeunload cleanup ──────────────────────────────────────────────────
+// Rule 10: always stop tracks when the student navigates away.
+// This turns off the camera LED and frees the device for other applications.
 window.addEventListener('beforeunload', () => {
   if (localStream) localStream.getTracks().forEach(t => t.stop());
   if (pc) pc.close();
@@ -1056,81 +774,37 @@ window.addEventListener('beforeunload', () => {
 // ══════════════════════════════════════════════════════════════════════════
 
 // Parse candidate type from the raw SDP candidate string.
-// Format: "candidate:<foundation> <component> <protocol> <priority> <address> <port> typ <type> …"
-// We only care about the value after "typ ".
-function parseCandidateType(candidateStr) {
-  const m = candidateStr.match(/\btyp\s+(host|srflx|relay|prflx)\b/);
+// Format: "candidate:<fnd> <comp> <proto> <prio> <addr> <port> typ <TYPE> …"
+function parseCandidateType(c) {
+  const m = c && c.match(/\btyp\s+(host|srflx|relay|prflx)\b/);
   return m ? m[1] : 'unknown';
 }
 
-// Append a formatted ICE candidate entry to the visible list.
-function appendIceCandidate(listId, json, type, count) {
-  const list = document.getElementById(listId);
-  if (count === 1) list.innerHTML = ''; // Clear placeholder on first candidate
-  const item = document.createElement('div');
-  item.className = 'ice-item';
-  item.innerHTML = `#${count} [<span class="ice-type-${type}">${type}</span>] ${truncate(JSON.parse(json).candidate, 70)}`;
-  list.appendChild(item);
-}
-
-// Copy all ICE candidates from Tab A's list (raw JSON lines).
-function copyIceA() {
-  const items = document.querySelectorAll('#iceCandidatesA .ice-item');
-  // We stored the JSON in the panel's textarea-equivalent. Re-read from the
-  // raw text by collecting data from the rendered items' data attributes isn't
-  // straightforward — instead we maintain a side buffer.
-  copyIce('A');
-}
-function copyIceB() { copyIce('B'); }
-
-// We buffer the raw candidate JSON lines as they arrive so we can copy them cleanly.
-const iceCandidateBuffer = { A: [], B: [] };
-
-// Override appendIceCandidate to also buffer the raw JSON.
-(function() {
-  const orig = appendIceCandidate;
-  window.appendIceCandidate = function(listId, json, type, count) {
-    orig(listId, json, type, count);
-    const r = listId === 'iceCandidatesA' ? 'A' : 'B';
-    iceCandidateBuffer[r].push(json);
-  };
-})();
-
-function copyIce(r) {
-  const buf = iceCandidateBuffer[r];
-  if (!buf.length) { logEvent('INFO', 'No ICE candidates to copy yet — wait for gathering.', 'tag-info'); return; }
-  const text = buf.join('\n');
-  navigator.clipboard.writeText(text).then(() => {
-    logEvent('INFO', `Copied ${buf.length} ICE candidate(s) to clipboard (Tab ${r}).`, 'tag-info');
+// Copy a textarea's contents to the clipboard.
+// Falls back gracefully if the Clipboard API is unavailable (plain HTTP).
+function copyField(id) {
+  const el = document.getElementById(id);
+  if (!el.value.trim()) { logEvent('INFO', 'Nothing to copy yet — wait for the field to fill.', 'tag-info'); return; }
+  navigator.clipboard.writeText(el.value).then(() => {
+    logEvent('INFO', `Copied ${id} to clipboard.`, 'tag-info');
   }).catch(() => {
-    // Clipboard API may fail without HTTPS. Show a fallback.
-    logEvent('INFO', 'Clipboard write failed — select the ICE list text manually.', 'tag-err');
+    // Clipboard API requires HTTPS. On plain HTTP, select the text manually.
+    el.select();
+    logEvent('INFO', 'Clipboard API unavailable — text selected, press Ctrl+C / Cmd+C.', 'tag-info');
   });
 }
 
 // ── Event log ─────────────────────────────────────────────────────────────
-let eventCount = 0;
-
 function logEvent(type, msg, tagClass) {
-  eventCount++;
   const log = document.getElementById('eventLog');
-  const elapsed = ((Date.now() - startTime) / 1000).toFixed(1).padStart(5, ' ');
-
-  const entry = document.createElement('div');
-  entry.className = 'log-entry';
-  entry.innerHTML = `
-    <span class="log-ts">${elapsed}s</span>
-    <span class="log-tag ${tagClass}">${type}</span>
-    <span class="log-msg">${msg}</span>
-  `;
-  log.appendChild(entry);
-  log.scrollTop = log.scrollHeight; // Auto-scroll to latest entry
+  const t   = ((Date.now() - startTime) / 1000).toFixed(1).padStart(5,' ');
+  const e   = document.createElement('div');
+  e.className = 'log-entry';
+  e.innerHTML = `<span class="log-ts">${t}s</span><span class="log-tag ${tagClass}">${type}</span><span class="log-msg">${msg}</span>`;
+  log.appendChild(e);
+  log.scrollTop = log.scrollHeight;
 }
-
-function clearLog() {
-  document.getElementById('eventLog').innerHTML = '';
-  eventCount = 0;
-}
+function clearLog() { document.getElementById('eventLog').innerHTML = ''; }
 
 // ── Status badges ──────────────────────────────────────────────────────────
 function setBadge(id, text, state) {
@@ -1139,20 +813,12 @@ function setBadge(id, text, state) {
   el.querySelector('span').textContent = text;
 }
 
-// ── Error display ──────────────────────────────────────────────────────────
-function showError(msg) {
-  logEvent('ERR', msg, 'tag-err');
-}
-
-// ── Truncate utility ───────────────────────────────────────────────────────
-function truncate(str, n) {
-  return str && str.length > n ? str.slice(0, n) + '…' : str;
-}
+// ── Truncate ───────────────────────────────────────────────────────────────
+function truncate(s, n) { return s && s.length > n ? s.slice(0,n) + '…' : s; }
 
 // ── Secure context warning ─────────────────────────────────────────────────
-// getUserMedia requires HTTPS or localhost. Warn if the page is served over HTTP.
 if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-  logEvent('ERR', 'getUserMedia requires a secure context (HTTPS or localhost). Camera access will be blocked by the browser.', 'tag-err');
+  logEvent('ERR', 'getUserMedia requires HTTPS or localhost. Camera access will be blocked.', 'tag-err');
 }
 </script>
 </body>
