@@ -1,0 +1,1469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo 6: TURN Relay Verification — Multimediaprogrammierung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  /* ── STEP 0: Design system — exact match to course CSS variables ── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0d0f14;
+    --surface: #161a22;
+    --border:  #252b38;
+    --text:    #d8dce6;
+    --muted:   #5a6175;
+    --accent:  #4f9cf9;
+    --accent2: #a78bfa;
+    --green:   #34d399;
+    --orange:  #fb923c;
+    --red:     #f87171;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* ── header ── */
+  header { border-bottom: 2px solid var(--border); padding: 24px 0 20px; }
+  .header-inner {
+    max-width: 960px; margin: 0 auto; padding: 0 32px;
+    display: flex; align-items: center; gap: 24px;
+  }
+  .header-logo img { width: 100px; border-radius: 10px; display: block; }
+  .header-info h1 { font-size: clamp(16px,2.5vw,22px); font-weight: 500; color: #f0f2f7; line-height: 1.2; margin-bottom: 4px; }
+  .header-info h2 { font-size: 13px; font-weight: 400; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; }
+  .header-meta { font-size: 13px; color: var(--text); line-height: 1.6; }
+  .header-meta a { color: var(--accent); text-decoration: none; }
+  .header-meta a:hover { text-decoration: underline; }
+
+  /* ── breadcrumb ── */
+  .breadcrumb {
+    max-width: 960px; margin: 0 auto; padding: 14px 32px 0;
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+  }
+  .breadcrumb a { color: var(--accent); text-decoration: none; }
+  .breadcrumb a:hover { text-decoration: underline; }
+  .breadcrumb span { margin: 0 6px; }
+
+  /* ── main ── */
+  main { max-width: 960px; margin: 0 auto; padding: 36px 32px 80px; }
+
+  /* ── demo intro ── */
+  .demo-intro {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 24px 28px; margin-bottom: 28px;
+  }
+  .demo-intro h1 { font-size: clamp(18px,2.5vw,26px); font-weight: 500; color: #f0f2f7; margin-bottom: 8px; }
+  .demo-badge {
+    display: inline-block;
+    background: rgba(251,146,60,0.12); color: var(--orange);
+    font-family: var(--mono); font-size: 11px; padding: 2px 10px;
+    border-radius: 20px; border: 1px solid rgba(251,146,60,0.3); margin-bottom: 12px;
+  }
+  .demo-intro p { color: var(--text); margin-bottom: 8px; }
+  .demo-intro p:last-child { margin-bottom: 0; }
+
+  /* ── panels ── */
+  .panel {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden;
+  }
+  .panel-header {
+    padding: 12px 18px; border-bottom: 1px solid var(--border);
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.06em;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel-header .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted); flex-shrink: 0;
+  }
+  .panel-header .dot.green  { background: var(--green); }
+  .panel-header .dot.blue   { background: var(--accent); }
+  .panel-header .dot.orange { background: var(--orange); }
+  .panel-header .dot.purple { background: var(--accent2); }
+  .panel-body { padding: 18px; }
+
+  /* ── config section (server URL inputs) ── */
+  .config-section {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 10px; padding: 20px 24px; margin-bottom: 20px;
+  }
+  .config-section h3 {
+    font-size: 13px; font-family: var(--mono); color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 14px;
+  }
+  .config-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px;
+  }
+  @media (max-width: 720px) { .config-grid { grid-template-columns: 1fr; } }
+  .config-field { display: flex; flex-direction: column; gap: 4px; }
+  .config-field label {
+    font-size: 11px; font-family: var(--mono); color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  input[type="text"] {
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); border-radius: 6px; font-family: var(--mono);
+    font-size: 13px; padding: 7px 10px; outline: none;
+    transition: border-color 0.15s; width: 100%;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+  input[type="text"]::placeholder { color: var(--muted); }
+
+  /* ── policy toggle ── */
+  .policy-row {
+    margin-top: 14px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  }
+  .policy-row label {
+    font-size: 12px; font-family: var(--mono); color: var(--muted);
+    text-transform: uppercase; letter-spacing: 0.05em;
+  }
+  .policy-toggle {
+    display: flex; background: var(--bg); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden;
+  }
+  .policy-toggle button {
+    padding: 6px 16px; border: none; background: transparent;
+    font-family: var(--mono); font-size: 12px; color: var(--muted);
+    cursor: pointer; transition: background 0.15s, color 0.15s;
+  }
+  .policy-toggle button.active-all    { background: rgba(79,156,249,0.15); color: var(--accent); }
+  .policy-toggle button.active-relay  { background: rgba(251,146,60,0.15); color: var(--orange); }
+
+  /* ── candidate type badge (the hero element) ── */
+  .candidate-badge-wrap {
+    display: flex; align-items: center; justify-content: center;
+    gap: 20px; padding: 16px 0 4px;
+  }
+  .candidate-badge {
+    padding: 8px 22px; border-radius: 8px; font-family: var(--mono);
+    font-size: 13px; font-weight: 500; letter-spacing: 0.08em;
+    border: 1px solid transparent; transition: all 0.3s;
+  }
+  .badge-label { font-size: 11px; font-family: var(--mono); color: var(--muted); text-align: center; }
+
+  .badge-host   { background: rgba(52,211,153,0.12);  color: var(--green);  border-color: rgba(52,211,153,0.3); }
+  .badge-srflx  { background: rgba(79,156,249,0.12);  color: var(--accent); border-color: rgba(79,156,249,0.3); }
+  .badge-relay  { background: rgba(251,146,60,0.15);  color: var(--orange); border-color: rgba(251,146,60,0.4);
+                  box-shadow: 0 0 12px rgba(251,146,60,0.2); }
+  .badge-unknown{ background: rgba(90,97,117,0.15);   color: var(--muted);  border-color: var(--border); }
+
+  /* ── video grid ── */
+  .video-grid {
+    display: grid; grid-template-columns: 1fr 280px;
+    gap: 16px; margin-bottom: 20px; align-items: start;
+  }
+  @media (max-width: 700px) { .video-grid { grid-template-columns: 1fr; } }
+
+  video {
+    width: 100%; border-radius: 8px; background: #0a0c11;
+    display: block; object-fit: cover;
+  }
+  #remoteVideo { aspect-ratio: 16/9; }
+  #localVideo  { aspect-ratio: 16/9; }
+  .video-wrap { position: relative; }
+  .video-label {
+    position: absolute; top: 8px; left: 10px;
+    background: rgba(0,0,0,0.65); color: var(--muted);
+    font-family: var(--mono); font-size: 11px;
+    padding: 2px 8px; border-radius: 4px;
+  }
+  .video-label.live { color: var(--green); }
+
+  /* ── bottom grid ── */
+  .bottom-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 16px; margin-bottom: 20px;
+  }
+  @media (max-width: 700px) { .bottom-grid { grid-template-columns: 1fr; } }
+
+  /* ── stats table ── */
+  .stats-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .stats-table th {
+    text-align: left; padding: 6px 10px;
+    font-family: var(--mono); font-size: 10px; color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .stats-table td {
+    padding: 6px 10px; border-bottom: 1px solid rgba(37,43,56,0.5);
+    font-family: var(--mono); font-size: 12px; vertical-align: middle;
+  }
+  .stats-table tr:last-child td { border-bottom: none; }
+  .stats-table .key { color: var(--muted); }
+  .stats-table .val { color: var(--text); }
+  .stats-table .val.green  { color: var(--green); }
+  .stats-table .val.blue   { color: var(--accent); }
+  .stats-table .val.orange { color: var(--orange); }
+  .stats-table .val.red    { color: var(--red); }
+  .stats-table .val.purple { color: var(--accent2); }
+
+  /* ── event log ── */
+  #eventLog {
+    background: var(--bg); border-radius: 6px; padding: 12px;
+    height: 260px; overflow-y: auto;
+    font-family: var(--mono); font-size: 12px; line-height: 1.6;
+  }
+  .log-entry { display: flex; gap: 10px; padding: 2px 0; border-bottom: 1px solid rgba(37,43,56,0.4); }
+  .log-entry:last-child { border-bottom: none; }
+  .log-time { color: var(--muted); flex-shrink: 0; }
+  .log-msg          { color: var(--text); }
+  .log-msg.info     { color: var(--accent); }
+  .log-msg.ok       { color: var(--green); }
+  .log-msg.warn     { color: var(--orange); }
+  .log-msg.error    { color: var(--red); }
+  .log-msg.signal   { color: var(--accent2); }
+
+  /* ── buttons ── */
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 18px; border-radius: 6px; border: none;
+    font-family: var(--mono); font-size: 13px; font-weight: 500;
+    cursor: pointer; transition: opacity 0.15s, filter 0.15s;
+  }
+  .btn:disabled { opacity: 0.38; cursor: not-allowed; }
+  .btn-primary { background: var(--accent); color: #0d0f14; }
+  .btn-primary:hover:not(:disabled) { filter: brightness(1.12); }
+  .btn-success { background: var(--green); color: #0d0f14; }
+  .btn-success:hover:not(:disabled) { filter: brightness(1.1); }
+  .btn-danger  { background: rgba(248,113,113,0.15); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
+  .btn-danger:hover:not(:disabled)  { background: rgba(248,113,113,0.25); }
+  .btn-muted   { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+  .btn-muted:hover:not(:disabled)   { border-color: var(--accent); color: var(--accent); }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; }
+
+  /* ── info / concept boxes ── */
+  .info-box {
+    border-left: 4px solid var(--accent); background: rgba(79,156,249,0.06);
+    border-radius: 6px; padding: 14px 18px; margin: 16px 0; font-size: 14px;
+  }
+  .info-box strong { color: var(--accent); }
+  .concept-box {
+    border-left: 4px solid var(--accent2); background: rgba(167,139,250,0.06);
+    border-radius: 6px; padding: 14px 18px; margin: 16px 0; font-size: 13px;
+  }
+  .concept-box strong { color: var(--accent2); }
+  .warn-box {
+    border-left: 4px solid var(--orange); background: rgba(251,146,60,0.06);
+    border-radius: 6px; padding: 14px 18px; margin: 16px 0; font-size: 13px;
+  }
+  .warn-box strong { color: var(--orange); }
+
+  /* ── error box ── */
+  .error-box {
+    display: none; background: rgba(248,113,113,0.08);
+    border: 1px solid rgba(248,113,113,0.3); border-left: 4px solid var(--red);
+    border-radius: 6px; padding: 12px 16px; margin-top: 12px;
+    font-family: var(--mono); font-size: 13px; color: var(--red);
+  }
+  .error-box.visible { display: block; }
+
+  /* ── connection state bar ── */
+  .state-bar {
+    display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+    margin-bottom: 14px;
+  }
+  .state-pill {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 4px 12px; border-radius: 20px;
+    font-family: var(--mono); font-size: 11px;
+    background: var(--bg); border: 1px solid var(--border); color: var(--muted);
+    transition: all 0.3s;
+  }
+  .state-pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .state-pill.connected    { border-color: rgba(52,211,153,0.4); color: var(--green); }
+  .state-pill.connected .dot { background: var(--green); box-shadow: 0 0 5px rgba(52,211,153,0.5); }
+  .state-pill.connecting   { border-color: rgba(79,156,249,0.4); color: var(--accent); }
+  .state-pill.connecting .dot { background: var(--accent); }
+  .state-pill.failed       { border-color: rgba(248,113,113,0.4); color: var(--red); }
+  .state-pill.failed .dot  { background: var(--red); }
+
+  /* ── footer ── */
+  .nb-footer-cell {
+    margin-top: 48px; padding-top: 24px; border-top: 2px solid var(--border);
+    text-align: center; font-size: 13px; color: var(--muted); line-height: 1.7;
+  }
+  .nb-footer-cell b { color: var(--text); }
+  .nb-footer-cell a { color: var(--accent); text-decoration: none; }
+  .nb-footer-cell a:hover { text-decoration: underline; }
+  footer {
+    border-top: 2px solid var(--border); padding: 18px 32px 24px;
+    max-width: 960px; margin: 0 auto; text-align: center;
+    font-size: 13px; color: var(--text); line-height: 1.7;
+  }
+  footer p + p { margin-top: 4px; font-size: 12px; color: var(--muted); }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 600px) {
+    .header-inner, main, footer, .breadcrumb { padding-left: 20px; padding-right: 20px; }
+    .header-inner { flex-direction: column; align-items: flex-start; gap: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<!-- ── Header — matches course design system exactly ── -->
+<header>
+  <div class="header-inner">
+    <div class="header-logo">
+      <img src="ams_group_tui.png" alt="AMS Group – TU Ilmenau">
+    </div>
+    <div class="header-info">
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 04: WebRTC — Demo 6</h2>
+      <p class="header-meta">
+        <strong>Institut für Medientechnik –
+          <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme"
+             target="_blank" rel="noopener">AMS Group</a>
+          – Technische Universität Ilmenau</strong><br>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller &nbsp;·&nbsp;
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+      </p>
+    </div>
+  </div>
+</header>
+
+<nav class="breadcrumb">
+  <a href="index.html">Seminar Materials</a>
+  <span>›</span>
+  <a href="04_multimediaprogrammierung_webrtc.html">Chapter 04: WebRTC</a>
+  <span>›</span>
+  Demo 6: TURN Relay Verification
+</nav>
+
+<main>
+
+  <!-- ── Demo intro ── -->
+  <div class="demo-intro">
+    <div class="demo-badge">Demo 6 of 7 — Requires Codespace (WSS + TURNS)</div>
+    <h1>TURN Relay Verification</h1>
+    <p>
+      This demo adds a <strong>TURN relay server (coturn)</strong> to the ICE configuration from Demo 5.
+      The central question is: <em>is traffic going direct (srflx) or through the TURN relay?</em>
+      The candidate type badge below answers that live, updated every second from <code>getStats()</code>.
+    </p>
+    <p>
+      <strong>Teaching focus:</strong>
+      TURNS URL format · <code>iceTransportPolicy: "relay"</code> · verifying relay via <code>getStats()</code> ·
+      long-term vs time-limited credentials · bandwidth cost of TURN.
+    </p>
+    <p style="font-size:13px; color: var(--muted);">
+      See Sections 12–13 of the theory HTML for the full TURN and coturn explanation.<br>
+      <!-- WEB AUDIO EQUIVALENT: The TURN server acts like an AudioContext running on a remote
+           host — it processes and re-routes the stream through itself when a direct path is unavailable. -->
+    </p>
+  </div>
+
+  <!-- ── STEP 0–1: Server configuration inputs ── -->
+  <!-- STEP 0: Collect both server URLs and TURN credentials before connecting.
+       The signaling server URL (WSS) is the same as Demo 5.
+       The TURN server hostname comes from port 5349 in the Codespace Ports tab.
+       Credentials are defined in codespace/coturn.conf: user=webrtc:seminar04 -->
+  <div class="config-section">
+    <h3>Codespace Server Configuration</h3>
+
+    <div class="info-box" style="margin-bottom: 14px; margin-top: 0;">
+      <strong>Prerequisites:</strong> Your Codespace must be running with <code>start.sh</code> active.
+      Open the <strong>Ports tab</strong> in the Codespace terminal panel. Copy the URL for port
+      <strong>8765</strong> (replace <code>https://</code> with <code>wss://</code>) and paste it below.
+      For TURN, copy the <em>hostname only</em> (everything after <code>https://</code>) from the port
+      <strong>5349</strong> URL.
+    </div>
+
+    <div class="config-grid">
+      <!-- Signaling server URL — same as Demo 5 -->
+      <div class="config-field">
+        <label>Signaling Server (WSS URL)</label>
+        <input type="text" id="wssUrl" placeholder="wss://yourname-random-8765.app.github.dev">
+      </div>
+
+      <!-- Room ID — both tabs must use the same value -->
+      <div class="config-field">
+        <label>Room ID</label>
+        <input type="text" id="roomId" value="room1">
+      </div>
+
+      <!--
+        STEP 1: TURN server configuration.
+        The TURNS URL format is: turns:hostname:port?transport=tcp
+        CONCEPT: TURNS URL format
+          - "turns:" prefix means TURN over TLS over TCP (as opposed to "turn:" for plain TURN)
+          - The hostname is the Codespace forwarded port URL for port 5349 (without https://)
+          - Port 5349 is the standard TURNS/TLS port (RFC 8656)
+          - "?transport=tcp" is REQUIRED — without it, the browser first tries UDP,
+            which will fail because Codespaces port forwarding cannot proxy raw UDP datagrams.
+            TURNS always uses TCP (because it runs over TLS, which requires TCP).
+      -->
+      <div class="config-field">
+        <label>TURN Server Hostname (port 5349, no https://)</label>
+        <input type="text" id="turnHost" placeholder="yourname-random-5349.app.github.dev">
+      </div>
+
+      <div class="config-grid" style="grid-template-columns: 1fr 1fr; gap: 8px;">
+        <!--
+          CONCEPT: Long-term credentials (demo) vs time-limited credentials (production).
+          These credentials are configured statically in codespace/coturn.conf:
+            lt-cred-mech
+            user=webrtc:seminar04
+          In production, the backend generates per-session credentials using HMAC-SHA1:
+            username = timestamp (Unix epoch when the credentials expire)
+            credential = HMAC-SHA1(secret, username)
+          This means production credentials expire automatically after the timestamp passes,
+          preventing credential reuse. See the theory HTML Section 12 for the full comparison.
+        -->
+        <div class="config-field">
+          <label>TURN Username</label>
+          <input type="text" id="turnUser" value="webrtc">
+        </div>
+        <div class="config-field">
+          <label>TURN Credential</label>
+          <input type="text" id="turnCred" value="seminar04">
+        </div>
+      </div>
+    </div>
+
+    <!--
+      STEP 6: iceTransportPolicy toggle.
+      CONCEPT: iceTransportPolicy: "relay"
+        "all" (default): the browser gathers all candidate types (host, srflx, relay) and
+          runs ICE connectivity checks on all of them. It will choose the highest-priority
+          working pair — usually host or srflx (direct connection), falling back to relay only
+          if direct paths fail.
+        "relay": the browser ONLY considers relay candidates. It ignores host and srflx
+          entirely. This forces all media traffic through the TURN server.
+        
+        Production use cases for "relay":
+          1. TURN testing: verify your TURN server works before users hit the fallback
+          2. Privacy: relay candidates hide the user's real IP address (host/srflx reveal it)
+          3. Corporate networks: some deployments require all traffic to pass through the server
+             for compliance, auditing, or DLP (data loss prevention) reasons.
+        
+        In this demo, "relay" mode is used to prove that coturn is working correctly.
+        After switching to "relay", the candidate badge should show RELAY in orange.
+    -->
+    <div class="policy-row">
+      <label>ICE Transport Policy:</label>
+      <div class="policy-toggle">
+        <button id="policyAll"   class="active-all"  onclick="setPolicy('all')">all (prefer direct)</button>
+        <button id="policyRelay" class=""             onclick="setPolicy('relay')">relay (force TURN)</button>
+      </div>
+      <span style="font-size:12px; font-family: var(--mono); color: var(--muted);" id="policyNote">
+        Browser will prefer direct paths; TURN is fallback.
+      </span>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="btnConnect" onclick="connect()">▶ Connect &amp; Join Room</button>
+      <button class="btn btn-danger"  id="btnHangup"  onclick="hangup()" disabled>■ Hang Up</button>
+    </div>
+    <div class="error-box" id="errorBox"></div>
+  </div>
+
+  <!-- ── Connection state bar ── -->
+  <div class="state-bar">
+    <div class="state-pill" id="pillSignaling">
+      <span class="dot"></span>Signaling: <span id="stSignaling">idle</span>
+    </div>
+    <div class="state-pill" id="pillIce">
+      <span class="dot"></span>ICE: <span id="stIce">—</span>
+    </div>
+    <div class="state-pill" id="pillConn">
+      <span class="dot"></span>Connection: <span id="stConn">—</span>
+    </div>
+  </div>
+
+  <!-- ── STEP 11 (hero): Live candidate type badge ── -->
+  <!--
+    STEP 11: getStats() dashboard — the central teaching element.
+    Every second we call pc.getStats(), iterate the RTCStatsReport, and find
+    the nominated candidate pair. From it we read the local and remote candidate
+    types. "relay" in orange means coturn is actively relaying our media.
+
+    CONCEPT: Finding the selected candidate pair in getStats()
+      getStats() returns a Map<string, RTCStats>. Each entry has a "type" field.
+      Relevant types:
+        "candidate-pair"    — a connectivity check pair (local cand + remote cand)
+        "local-candidate"   — one of our local ICE candidates
+        "remote-candidate"  — one of the remote peer's ICE candidates
+      The SELECTED (winning) pair is the one with: nominated === true AND state === "succeeded".
+      From the selected pair we get localCandidateId and remoteCandidateId.
+      We then look those up in the report to read their candidateType fields:
+        "host"   — direct local interface candidate
+        "srflx"  — server-reflexive (STUN discovered our public IP)
+        "relay"  — relay (traffic going through coturn)
+  -->
+  <div class="panel" style="margin-bottom: 20px;">
+    <div class="panel-header">
+      <div class="dot orange" id="badgeDot"></div>
+      Live ICE Candidate Type — updated from getStats() every second
+    </div>
+    <div class="panel-body">
+      <div class="candidate-badge-wrap">
+        <div>
+          <div class="badge-label">LOCAL</div>
+          <div class="candidate-badge badge-unknown" id="badgeLocal">—</div>
+        </div>
+        <div style="color: var(--muted); font-family: var(--mono); font-size: 18px;">⟷</div>
+        <div>
+          <div class="badge-label">REMOTE</div>
+          <div class="candidate-badge badge-unknown" id="badgeRemote">—</div>
+        </div>
+      </div>
+      <div style="text-align:center; font-size:12px; font-family: var(--mono); color: var(--muted); margin-top: 10px;" id="badgeDetail">
+        Waiting for connection…
+      </div>
+
+      <div class="concept-box" style="margin-top: 16px;">
+        <strong>How to read this:</strong>
+        <span style="color: var(--green);">HOST</span> = direct path (same LAN or no NAT) ·
+        <span style="color: var(--accent);">SRFLX</span> = STUN found your public IP, peers connected directly ·
+        <span style="color: var(--orange);">RELAY</span> = all media is flowing through the coturn TURN server.
+        Switch to <em>relay</em> policy above and reconnect to force orange. Switch back to <em>all</em> to let
+        ICE choose the best path.
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Video grid ── -->
+  <div class="video-grid">
+    <!-- Remote video — the far end -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="dot blue" id="remoteDot"></div>
+        Remote Peer
+      </div>
+      <div class="panel-body" style="padding: 12px;">
+        <!--
+          STEP 10: ontrack — attach remote stream to this element.
+          autoplay: start playing immediately when srcObject is set.
+          playsinline: required on iOS to prevent fullscreen takeover.
+          NOT muted: we want to hear the remote peer's audio.
+        -->
+        <div class="video-wrap">
+          <video id="remoteVideo" autoplay playsinline></video>
+          <div class="video-label" id="remoteLbl">Waiting for remote…</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Local video + stats dashboard (right column) -->
+    <div style="display: flex; flex-direction: column; gap: 16px;">
+      <!-- Local preview -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="dot green" id="localDot"></div>
+          Local Preview (muted)
+        </div>
+        <div class="panel-body" style="padding: 12px;">
+          <div class="video-wrap">
+            <!--
+              STEP 7: Local video preview.
+              muted: REQUIRED — playing our own mic back would cause echo feedback.
+              playsinline: required for iOS, good practice everywhere.
+            -->
+            <video id="localVideo" autoplay muted playsinline></video>
+            <div class="video-label" id="localLbl">No camera</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live stats dashboard -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="dot purple"></div>
+          Stats Dashboard (getStats)
+        </div>
+        <div class="panel-body" style="padding: 12px;">
+          <table class="stats-table">
+            <tr><td class="key">Bytes sent</td>    <td class="val blue"   id="stBytesSent">—</td></tr>
+            <tr><td class="key">Bytes received</td><td class="val blue"   id="stBytesRecv">—</td></tr>
+            <tr><td class="key">RTT</td>            <td class="val green"  id="stRtt">—</td></tr>
+            <tr><td class="key">Local type</td>     <td class="val"        id="stLocalType">—</td></tr>
+            <tr><td class="key">Remote type</td>    <td class="val"        id="stRemoteType">—</td></tr>
+            <tr><td class="key">Relay address</td>  <td class="val orange" id="stRelayAddr">—</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Bottom grid: ICE candidates + event log ── -->
+  <div class="bottom-grid">
+
+    <!-- ICE candidate log -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="dot blue"></div>
+        ICE Candidates Gathered
+      </div>
+      <div class="panel-body" style="padding: 10px;">
+        <!--
+          ICE candidate type colour coding:
+            host  = green  (local interface — fastest, works on same LAN)
+            srflx = blue   (STUN-discovered public address — works across NAT)
+            relay = orange (TURN relay — last resort, all traffic via server)
+          The browser always prefers the highest-priority working pair:
+          host > srflx > relay (priority formula: RFC 8445 §5.1.2.1)
+        -->
+        <div id="iceCandLog" style="
+          height: 220px; overflow-y: auto; font-family: var(--mono);
+          font-size: 11px; line-height: 1.6; background: var(--bg);
+          border-radius: 6px; padding: 10px;">
+          <span style="color: var(--muted);">Candidates will appear here as ICE gathers…</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Event log -->
+    <div class="panel">
+      <div class="panel-header">
+        <div class="dot blue"></div>
+        Event Log
+        <button class="btn btn-muted" style="margin-left:auto; padding: 2px 10px; font-size: 11px;"
+                onclick="document.getElementById('eventLog').innerHTML=''">Clear</button>
+      </div>
+      <div class="panel-body" style="padding: 10px;">
+        <div id="eventLog"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Teaching callout: why TURN bandwidth costs matter ── -->
+  <div class="warn-box">
+    <strong>CONCEPT: TURN bandwidth cost.</strong>
+    When the selected candidate type is <code>relay</code>, <em>every byte of media passes
+    through the coturn server</em>: Peer A → coturn → Peer B, and back. This doubles the
+    bandwidth consumed on the TURN server and adds at least one extra network hop of latency.
+    The stats dashboard above shows bytes sent/received so you can see the cost directly.
+    This is why relay candidates have the lowest ICE priority — they are the last resort,
+    used only when no direct path is available.
+  </div>
+
+  <div class="concept-box">
+    <strong>CONCEPT: Credential security — long-term vs time-limited.</strong>
+    The credentials in this demo (<code>webrtc</code> / <code>seminar04</code>) are
+    <em>long-term credentials</em>: a static username and password in <code>coturn.conf</code>.
+    Simple, but they cannot be revoked per-session and are valid indefinitely. In production,
+    backends generate <em>time-limited credentials</em>: the username encodes a Unix timestamp
+    (the expiry), and the password is <code>HMAC-SHA1(shared_secret, username)</code>. Once the
+    timestamp passes, the credential is invalid. coturn verifies the HMAC against the shared secret,
+    so a leaked credential becomes useless after it expires. This is the production standard (RFC 8656 §9.2).
+  </div>
+
+  <!-- ── Footer ── -->
+  <div class="nb-footer-cell">
+    <b>Demo 6 of 7</b> — TURN Relay Verification<br>
+    Course: <b>Multimediaprogrammierung</b> · Chapter 04: WebRTC<br>
+    TU Ilmenau · Institut für Medientechnik ·
+    <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme"
+       target="_blank" rel="noopener">AMS Group</a>
+  </div>
+
+</main>
+
+<footer>
+  <p>
+    Multimediaprogrammierung · Chapter 04: WebRTC ·
+    <a href="04_multimediaprogrammierung_webrtc.html">Back to theory</a>
+  </p>
+  <p>TU Ilmenau · AMS Group · Prof. Dr.-Ing. Gerald Schuller · Renato Fera P.</p>
+</footer>
+
+<script>
+'use strict';
+
+// ═══════════════════════════════════════════════════════════════════
+// STEP 1: Module-level state
+// All mutable state lives here. Keeping it explicit makes the code
+// easier to read and avoids accidental sharing between call attempts.
+// ═══════════════════════════════════════════════════════════════════
+
+let ws  = null;   // WebSocket connection to the signaling server
+let pc  = null;   // RTCPeerConnection — the WebRTC peer connection object
+let localStream = null;   // MediaStream from getUserMedia
+let isPolite    = false;  // Are we the second peer (polite peer)?
+let room        = 'room1';
+let icePolicy   = 'all';  // "all" | "relay"
+
+// For getStats() bitrate calculation:
+// getStats() returns cumulative byte counts, not instantaneous rate.
+// To compute bitrate we difference two consecutive samples over a known interval.
+// CONCEPT: Bitrate from cumulative bytes
+//   bitrate (bps) = (bytesNow - bytesBefore) * 8 / intervalSeconds
+let prevBytesSent = 0;
+let prevBytesRecv = 0;
+let statsInterval  = null;
+
+// ICE candidate queue — candidates received before setRemoteDescription
+// is called cannot be added immediately. Queue them and flush after.
+// CONCEPT: ICE candidate queueing
+//   When trickle ICE is used, the remote peer starts sending ICE candidates
+//   as soon as its gathering begins, which may be before we have called
+//   setRemoteDescription (which is required before addIceCandidate).
+//   Queuing prevents the "InvalidStateError: remote description not set" error.
+let iceCandidateQueue = [];
+let remoteDescSet     = false;
+
+
+// ═══════════════════════════════════════════════════════════════════
+// STEP 2: Logging utilities
+// Every significant event is logged to the visible panel — students
+// should not need DevTools to understand what the demo is doing.
+// ═══════════════════════════════════════════════════════════════════
+
+function ts() {
+  // Zero-padded HH:MM:SS timestamp for log entries
+  const d = new Date();
+  return [d.getHours(), d.getMinutes(), d.getSeconds()]
+    .map(n => String(n).padStart(2, '0')).join(':');
+}
+
+function log(msg, type = '') {
+  const div = document.getElementById('eventLog');
+  const entry = document.createElement('div');
+  entry.className = 'log-entry';
+  entry.innerHTML = `<span class="log-time">${ts()}</span><span class="log-msg ${type}">${msg}</span>`;
+  div.appendChild(entry);
+  // Auto-scroll to the latest entry
+  div.scrollTop = div.scrollHeight;
+}
+
+function showError(msg) {
+  const box = document.getElementById('errorBox');
+  box.textContent = msg;
+  box.classList.add('visible');
+  log(msg, 'error');
+}
+
+function clearError() {
+  document.getElementById('errorBox').classList.remove('visible');
+}
+
+// Log an ICE candidate to the candidate panel with colour coding by type
+function logCandidate(prefix, candidate) {
+  // Candidates from the end-of-candidates event have candidate === ""
+  if (!candidate || candidate.candidate === '') return;
+
+  // Parse the candidate string to extract type, protocol, address, port
+  // Format: "candidate:foundation component protocol priority address port typ type ..."
+  const parts = candidate.candidate.split(' ');
+  const type     = parts[7] || '?';  // "host", "srflx", or "relay"
+  const proto    = parts[2] || '?';  // "udp" or "tcp"
+  const addr     = parts[4] || '?';
+  const port     = parts[5] || '?';
+
+  const colorMap = { host: 'var(--green)', srflx: 'var(--accent)', relay: 'var(--orange)' };
+  const color    = colorMap[type] || 'var(--text)';
+
+  const row = document.createElement('div');
+  row.style.cssText = `padding: 3px 0; border-bottom: 1px solid rgba(37,43,56,0.4);`;
+  row.innerHTML =
+    `<span style="color:var(--muted)">${ts()} ${prefix} </span>` +
+    `<span style="color:${color}; font-weight:500;">[${type.toUpperCase()}]</span> ` +
+    `<span style="color:var(--text)">${proto.toUpperCase()} ${addr}:${port}</span>`;
+
+  const log = document.getElementById('iceCandLog');
+  // Clear placeholder text on first real candidate
+  if (log.querySelector('span')) log.innerHTML = '';
+  log.appendChild(row);
+  log.scrollTop = log.scrollHeight;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// STEP 3: Connection state pill updater
+// ═══════════════════════════════════════════════════════════════════
+
+function setStatePill(id, stateEl, val) {
+  const pill = document.getElementById(id);
+  document.getElementById(stateEl).textContent = val;
+  // Remove all state classes then apply the matching one
+  pill.classList.remove('connected', 'connecting', 'failed');
+  if (['connected', 'completed'].includes(val)) pill.classList.add('connected');
+  else if (['connecting', 'checking', 'new'].includes(val)) pill.classList.add('connecting');
+  else if (['failed', 'disconnected', 'closed'].includes(val)) pill.classList.add('failed');
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// STEP 4: iceTransportPolicy toggle
+// ═══════════════════════════════════════════════════════════════════
+
+function setPolicy(val) {
+  icePolicy = val;
+  document.getElementById('policyAll').className   = val === 'all'   ? 'active-all'   : '';
+  document.getElementById('policyRelay').className = val === 'relay' ? 'active-relay'  : '';
+  document.getElementById('policyNote').textContent = val === 'relay'
+    ? 'Only relay candidates — all traffic will go through coturn.'
+    : 'Browser will prefer direct paths; TURN is fallback.';
+  log(`iceTransportPolicy set to "${val}"`, 'warn');
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// STEP 5: Build RTCConfiguration with STUN + TURN
+// ═══════════════════════════════════════════════════════════════════
+
+function buildConfig() {
+  const host = document.getElementById('turnHost').value.trim();
+  const user = document.getElementById('turnUser').value.trim();
+  const cred = document.getElementById('turnCred').value.trim();
+
+  if (!host) {
+    showError('TURN hostname is required for Demo 6. Copy the hostname from port 5349 in the Codespace Ports tab.');
+    return null;
+  }
+
+  // CONCEPT: RTCConfiguration
+  //   iceServers is an array; the browser tries all entries during ICE gathering.
+  //   Adding multiple servers increases the chance of finding a working path.
+  //   The browser runs STUN and TURN contacts in parallel — whichever responds
+  //   first contributes its candidates first.
+  const config = {
+    iceServers: [
+      {
+        // STUN — no credentials needed.
+        // The browser sends a STUN Binding Request; the server reflects back
+        // the source IP:port it sees, which is our public (NAT-translated) address.
+        // This gives us a "srflx" (server-reflexive) ICE candidate.
+        urls: 'stun:stun.l.google.com:19302'
+      },
+      {
+        // TURN over TLS over TCP ("turns:" scheme).
+        // CONCEPT: TURNS URL format
+        //   "turns:" = TURN + TLS + TCP (RFC 8656 §3.1)
+        //   Port 5349 is the IANA-assigned port for TURNS.
+        //   "?transport=tcp" explicitly requests the TCP transport.
+        //   This is required here because Codespaces port forwarding is
+        //   HTTP-proxy-based and cannot forward raw UDP datagrams.
+        //   Without it, the browser's first TURN attempt would be UDP,
+        //   which would silently fail through the proxy.
+        urls: `turns:${host}:5349?transport=tcp`,
+
+        // Long-term credentials configured in codespace/coturn.conf.
+        // In production: replace with dynamically generated time-limited credentials.
+        // See the "Credential security" concept box in the theory HTML (Section 12).
+        username:   user,
+        credential: cred
+      }
+    ],
+
+    // CONCEPT: iceTransportPolicy
+    //   "all": gather host + srflx + relay candidates; prefer direct paths.
+    //   "relay": gather ONLY relay candidates; forces all media through TURN.
+    //   The policy cannot be changed on a live RTCPeerConnection — you must
+    //   close and recreate the connection to change it, which is what our
+    //   "Hang Up + reconnect" flow does.
+    iceTransportPolicy: icePolicy
+  };
+
+  log(`ICE config: STUN (google) + TURNS (${host}:5349) + policy=${icePolicy}`, 'info');
+  return config;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// STEP 6: WebSocket signaling — same protocol as Demo 5
+//
+// Message schema (JSON):
+//   { type: "join",    room: "<id>" }
+//   { type: "offer",   room: "<id>", data: <RTCSessionDescriptionInit> }
+//   { type: "answer",  room: "<id>", data: <RTCSessionDescriptionInit> }
+//   { type: "ice",     room: "<id>", data: <RTCIceCandidateInit> }
+//
+// Server → client:
+//   { type: "joined" }      — first peer acknowledged
+//   { type: "peer-joined" } — second peer arrived; first peer becomes caller
+//   { type: "error",  message: "Room is full" }
+// ═══════════════════════════════════════════════════════════════════
+
+function send(msg) {
+  // Only send if the WebSocket is open (readyState 1 = OPEN).
+  // Silently dropping messages on a non-open socket would be a debugging nightmare,
+  // so we log a warning if it happens.
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify(msg));
+    log(`→ signal [${msg.type}]`, 'signal');
+  } else {
+    log(`Cannot send [${msg.type}] — WebSocket not open`, 'warn');
+  }
+}
+
+async function connect() {
+  clearError();
+  const wssUrl = document.getElementById('wssUrl').value.trim();
+  room         = document.getElementById('roomId').value.trim() || 'room1';
+
+  if (!wssUrl.startsWith('wss://')) {
+    showError('WSS URL must start with wss:// — copy from the Codespace Ports tab and replace https:// with wss://');
+    return;
+  }
+
+  document.getElementById('btnConnect').disabled = true;
+  document.getElementById('btnHangup').disabled  = false;
+  log(`Connecting to signaling server: ${wssUrl}`, 'info');
+  setStatePill('pillSignaling', 'stSignaling', 'connecting');
+
+  // Open WebSocket to the signaling server
+  ws = new WebSocket(wssUrl);
+
+  ws.onopen = () => {
+    log('WebSocket connected', 'ok');
+    setStatePill('pillSignaling', 'stSignaling', 'connected');
+    // STEP 4: Join room — tell the signaling server which room we want.
+    // Server responds with "joined" (first peer) or "peer-joined" is sent to first peer.
+    send({ type: 'join', room });
+    log(`Joined room "${room}"`, 'info');
+  };
+
+  ws.onerror = (e) => {
+    showError('WebSocket error — check the WSS URL and that your Codespace is running.');
+    log('WebSocket error', 'error');
+  };
+
+  ws.onclose = (e) => {
+    log(`WebSocket closed (code ${e.code})`, e.wasClean ? '' : 'warn');
+    setStatePill('pillSignaling', 'stSignaling', 'closed');
+  };
+
+  // ── STEP 3: Signaling message dispatcher ──────────────────────────────────
+  // This is the client-side signaling state machine.
+  // Incoming messages are dispatched to specific handlers by their "type" field.
+  ws.onmessage = async (event) => {
+    const msg = JSON.parse(event.data);
+    log(`← signal [${msg.type}]`, 'signal');
+
+    switch (msg.type) {
+
+      case 'joined':
+        // We are the first peer — wait for a second peer to arrive.
+        // The server will send "peer-joined" when they do.
+        isPolite = false;
+        log('We are Peer 1 (caller) — waiting for second peer', 'info');
+        break;
+
+      case 'peer-joined':
+        // STEP 7: We are the first peer and a second peer has joined.
+        // Start the offer/answer exchange: capture media, add tracks, create offer.
+        isPolite = false;
+        log('Peer 2 has joined — starting call as caller', 'ok');
+        await startCall();
+        break;
+
+      case 'offer':
+        // STEP 8: We received an offer — we are the callee (second peer).
+        isPolite = true;
+        log('Received offer — we are callee (Peer 2)', 'info');
+        await handleOffer(msg.data);
+        break;
+
+      case 'answer':
+        // STEP 9: Our offer was answered — apply the remote description.
+        await handleAnswer(msg.data);
+        break;
+
+      case 'ice':
+        // STEP 9: A remote ICE candidate arrived via trickle ICE.
+        // Queue it if we have not set the remote description yet.
+        await handleRemoteIce(msg.data);
+        break;
+
+      case 'error':
+        showError(`Signaling error: ${msg.message}`);
+        break;
+
+      default:
+        log(`Unknown message type: ${msg.type}`, 'warn');
+    }
+  };
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// STEP 7: Media capture and peer connection setup
+// Called by the caller (first peer) when Peer 2 joins.
+// ═══════════════════════════════════════════════════════════════════
+
+async function startCall() {
+  try {
+    await captureMedia();
+    createPeerConnection();
+
+    // CONCEPT: addTrack before createOffer
+    //   Tracks must be added to the RTCPeerConnection BEFORE createOffer() is called.
+    //   Adding a track after the offer would trigger onnegotiationneeded and require
+    //   renegotiation. Adding before ensures the media is described in the initial SDP.
+    //   (See Demo 7 for onnegotiationneeded / renegotiation handling.)
+    localStream.getTracks().forEach(track => {
+      pc.addTrack(track, localStream);
+      log(`Added ${track.kind} track to peer connection`, 'info');
+    });
+
+    // STEP 8: Create and send the offer
+    const offer = await pc.createOffer();
+
+    // setLocalDescription triggers ICE gathering — candidates will start
+    // arriving via pc.onicecandidate and be sent to the remote peer via WebSocket.
+    await pc.setLocalDescription(offer);
+    log('Created offer and set local description', 'info');
+
+    send({ type: 'offer', room, data: pc.localDescription });
+  } catch (err) {
+    showError(`startCall failed: ${err.message}`);
+  }
+}
+
+async function handleOffer(sdp) {
+  try {
+    await captureMedia();
+    createPeerConnection();
+
+    localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+    // setRemoteDescription with the offer — after this we can add ICE candidates
+    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    remoteDescSet = true;
+    log('Set remote description (offer)', 'info');
+
+    // Flush any ICE candidates that arrived before setRemoteDescription
+    await flushIceQueue();
+
+    const answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+    log('Created answer and set local description', 'info');
+
+    send({ type: 'answer', room, data: pc.localDescription });
+  } catch (err) {
+    showError(`handleOffer failed: ${err.message}`);
+  }
+}
+
+async function handleAnswer(sdp) {
+  try {
+    await pc.setRemoteDescription(new RTCSessionDescription(sdp));
+    remoteDescSet = true;
+    log('Set remote description (answer)', 'ok');
+    await flushIceQueue();
+  } catch (err) {
+    showError(`handleAnswer failed: ${err.message}`);
+  }
+}
+
+async function handleRemoteIce(candidateInit) {
+  if (!candidateInit || !candidateInit.candidate) return;
+
+  logCandidate('remote', candidateInit);
+
+  if (!remoteDescSet) {
+    // Queue the candidate — we cannot add it until setRemoteDescription is done.
+    // CONCEPT: ICE candidate queueing (see state declaration at top)
+    iceCandidateQueue.push(candidateInit);
+    log(`Queued remote ICE candidate (remote desc not yet set)`, 'warn');
+    return;
+  }
+  try {
+    await pc.addIceCandidate(new RTCIceCandidate(candidateInit));
+  } catch (err) {
+    // Benign: can happen if the connection is closed while candidates are in flight.
+    log(`addIceCandidate error: ${err.message}`, 'warn');
+  }
+}
+
+async function flushIceQueue() {
+  // Drain the queue: add all candidates that arrived early.
+  while (iceCandidateQueue.length > 0) {
+    const c = iceCandidateQueue.shift();
+    try {
+      await pc.addIceCandidate(new RTCIceCandidate(c));
+      log('Applied queued ICE candidate', 'info');
+    } catch (err) {
+      log(`Queued addIceCandidate error: ${err.message}`, 'warn');
+    }
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// STEP 7: getUserMedia — capture local camera and microphone
+// ═══════════════════════════════════════════════════════════════════
+
+async function captureMedia() {
+  if (localStream) return; // Already captured — do not re-request
+
+  try {
+    // Request camera and microphone access.
+    // The browser shows a permission prompt if not already granted.
+    // getUserMedia requires a secure context (HTTPS or localhost).
+    // Codespaces forwarded port URLs are always HTTPS.
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: true,
+      audio: true
+    });
+
+    // Attach local stream to the local preview video element.
+    // muted is set on the element (HTML attribute) — not here.
+    const localVid = document.getElementById('localVideo');
+    localVid.srcObject = localStream;
+    document.getElementById('localLbl').textContent = '● LIVE';
+    document.getElementById('localLbl').classList.add('live');
+    document.getElementById('localDot').classList.add('green');
+    log('getUserMedia granted — camera and microphone active', 'ok');
+  } catch (err) {
+    // Common errors:
+    //   NotAllowedError — user denied permission
+    //   NotFoundError   — no camera/mic available
+    //   NotReadableError — device in use by another application
+    throw new Error(`getUserMedia failed: ${err.name} — ${err.message}`);
+  }
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// STEP 5: Create RTCPeerConnection with STUN + TURN configuration
+// ═══════════════════════════════════════════════════════════════════
+
+function createPeerConnection() {
+  if (pc) return; // Already created
+
+  const config = buildConfig();
+  if (!config) throw new Error('Failed to build ICE configuration');
+
+  // WEB AUDIO EQUIVALENT: RTCPeerConnection is to WebRTC what AudioContext is
+  // to Web Audio — the central object that owns and manages the entire processing
+  // pipeline (ICE agent, DTLS handshake, RTP sessions, codec negotiation).
+  pc = new RTCPeerConnection(config);
+
+  // ── ICE event handlers ──────────────────────────────────────────────────────
+
+  // STEP 8: onicecandidate — called for each local ICE candidate gathered.
+  // We forward each candidate to the remote peer via WebSocket (trickle ICE).
+  // CONCEPT: Trickle ICE
+  //   Instead of waiting for ALL candidates before sending the offer
+  //   (vanilla ICE), we send each candidate as it arrives. The remote peer
+  //   can start connectivity checks immediately, reducing call setup time.
+  pc.onicecandidate = (event) => {
+    if (event.candidate) {
+      // A new candidate has been gathered — send it to the remote peer.
+      logCandidate('local', event.candidate);
+      send({ type: 'ice', room, data: event.candidate });
+    } else {
+      // candidate === null means ICE gathering is complete (end-of-candidates).
+      // In trickle ICE, this is informational — all candidates were already sent.
+      log('ICE gathering complete (end-of-candidates)', 'info');
+    }
+  };
+
+  pc.onicegatheringstatechange = () => {
+    log(`ICE gathering state: ${pc.iceGatheringState}`, 'info');
+  };
+
+  // STEP 3 (connection state management): track ICE connection state transitions.
+  pc.oniceconnectionstatechange = () => {
+    const s = pc.iceConnectionState;
+    log(`ICE connection state: ${s}`, s === 'connected' || s === 'completed' ? 'ok' : '');
+    setStatePill('pillIce', 'stIce', s);
+  };
+
+  // Overall connection state — this is what application code should watch.
+  // "connected" means DTLS is up and media can flow.
+  // "failed" means ICE gave up — no working path found.
+  pc.onconnectionstatechange = () => {
+    const s = pc.connectionState;
+    log(`Connection state: ${s}`, s === 'connected' ? 'ok' : s === 'failed' ? 'error' : '');
+    setStatePill('pillConn', 'stConn', s);
+
+    if (s === 'connected') {
+      // Start the getStats() polling loop
+      startStatsPolling();
+    }
+    if (s === 'failed') {
+      log('Connection failed — hang up and reconnect, or try iceTransportPolicy="relay"', 'error');
+    }
+  };
+
+  // STEP 10: ontrack — called when a remote media track is received.
+  // This fires once per track; for a getUserMedia stream with video+audio,
+  // it fires twice. We use event.streams[0] to get the full MediaStream —
+  // this ensures audio and video tracks are grouped together on the video element.
+  pc.ontrack = (event) => {
+    log(`Remote track received: ${event.track.kind}`, 'ok');
+    const remoteVid = document.getElementById('remoteVideo');
+    if (remoteVid.srcObject !== event.streams[0]) {
+      remoteVid.srcObject = event.streams[0];
+      document.getElementById('remoteLbl').textContent = '● LIVE';
+      document.getElementById('remoteLbl').classList.add('live');
+      document.getElementById('remoteDot').classList.add('green');
+      log('Remote stream attached to video element', 'ok');
+    }
+  };
+
+  pc.onsignalingstatechange = () => {
+    log(`Signaling state: ${pc.signalingState}`, 'info');
+  };
+
+  log('RTCPeerConnection created', 'info');
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// STEP 11: getStats() dashboard — live candidate type display
+//
+// Called every second once the connection is "connected".
+// Finds the nominated (winning) candidate pair and reads:
+//   - local candidateType  (host / srflx / relay)
+//   - remote candidateType (host / srflx / relay)
+//   - relay-related address info (if relay)
+//   - RTT
+//   - cumulative bytes sent/received
+// ═══════════════════════════════════════════════════════════════════
+
+function startStatsPolling() {
+  if (statsInterval) return; // Already polling
+  statsInterval = setInterval(pollStats, 1000);
+  log('getStats() polling started (1 s interval)', 'info');
+}
+
+async function pollStats() {
+  if (!pc) return;
+
+  let report;
+  try {
+    // pc.getStats() returns a Promise<RTCStatsReport>.
+    // RTCStatsReport is a Map-like object: id (string) → RTCStats (object).
+    // Each entry has a "type" field identifying its schema.
+    // See: https://www.w3.org/TR/webrtc-stats/
+    report = await pc.getStats();
+  } catch (e) {
+    return;
+  }
+
+  // Build lookup maps for candidates by id — we will need them to resolve
+  // localCandidateId / remoteCandidateId from the selected candidate-pair entry.
+  const localCands  = new Map();  // id → RTCIceCandidateStats
+  const remoteCands = new Map();  // id → RTCIceCandidateStats
+
+  let selectedPair  = null;  // The winning candidate pair (nominated === true)
+  let bytesSent     = 0;
+  let bytesReceived = 0;
+
+  report.forEach((stats) => {
+    switch (stats.type) {
+      case 'local-candidate':
+        localCands.set(stats.id, stats);
+        break;
+      case 'remote-candidate':
+        remoteCands.set(stats.id, stats);
+        break;
+      case 'candidate-pair':
+        // CONCEPT: nominated candidate pair
+        //   ICE connectivity checks run on all candidate pairs.
+        //   The browser selects the highest-priority pair that passes all checks.
+        //   That pair is "nominated" — nominated === true identifies it here.
+        //   state === "succeeded" confirms the checks completed successfully.
+        if (stats.nominated && stats.state === 'succeeded') {
+          selectedPair = stats;
+          bytesSent     = stats.bytesSent     || 0;
+          bytesReceived = stats.bytesReceived  || 0;
+        }
+        break;
+    }
+  });
+
+  if (!selectedPair) return; // No nominated pair yet — ICE still running
+
+  // Resolve candidate types from the selected pair's candidate IDs
+  const localCand  = localCands.get(selectedPair.localCandidateId);
+  const remoteCand = remoteCands.get(selectedPair.remoteCandidateId);
+
+  const localType  = localCand  ? localCand.candidateType  : 'unknown';
+  const remoteType = remoteCand ? remoteCand.candidateType : 'unknown';
+
+  // ── Update candidate type badges ─────────────────────────────────────────
+
+  function updateBadge(id, type) {
+    const el = document.getElementById(id);
+    el.textContent = type.toUpperCase();
+    el.className = 'candidate-badge';
+    if (type === 'relay')  el.classList.add('badge-relay');
+    else if (type === 'srflx') el.classList.add('badge-srflx');
+    else if (type === 'host')  el.classList.add('badge-host');
+    else                       el.classList.add('badge-unknown');
+  }
+
+  updateBadge('badgeLocal',  localType);
+  updateBadge('badgeRemote', remoteType);
+
+  // Detail line: show the relay server address if TURN is active
+  let detail = `Selected pair: local=${localType} ↔ remote=${remoteType}`;
+  if (localType === 'relay' && localCand && localCand.relatedAddress) {
+    detail += ` | relay via ${localCand.relatedAddress}:${localCand.relatedPort || '?'}`;
+  }
+  document.getElementById('badgeDetail').textContent = detail;
+
+  // ── Update stats table ──────────────────────────────────────────────────
+
+  function fmt(bytes) {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1048576) return `${(bytes/1024).toFixed(1)} KB`;
+    return `${(bytes/1048576).toFixed(2)} MB`;
+  }
+
+  // RTT is in seconds in the stats API — convert to milliseconds for display.
+  const rttMs = selectedPair.currentRoundTripTime != null
+    ? `${(selectedPair.currentRoundTripTime * 1000).toFixed(1)} ms`
+    : '—';
+
+  document.getElementById('stBytesSent').textContent = fmt(bytesSent);
+  document.getElementById('stBytesRecv').textContent = fmt(bytesReceived);
+  document.getElementById('stRtt').textContent       = rttMs;
+  document.getElementById('stLocalType').textContent  = localType.toUpperCase();
+  document.getElementById('stRemoteType').textContent = remoteType.toUpperCase();
+
+  // Colour the type cells by candidate type
+  function typeColor(el, type) {
+    el.className = 'val';
+    if (type === 'relay')  el.classList.add('orange');
+    else if (type === 'srflx') el.classList.add('blue');
+    else if (type === 'host')  el.classList.add('green');
+  }
+  typeColor(document.getElementById('stLocalType'),  localType);
+  typeColor(document.getElementById('stRemoteType'), remoteType);
+
+  // Relay address — show where coturn is relaying from
+  let relayAddr = '—';
+  if (localType === 'relay' && localCand) {
+    relayAddr = `${localCand.ip || localCand.address || '?'}:${localCand.port || '?'}`;
+  }
+  document.getElementById('stRelayAddr').textContent = relayAddr;
+
+  // Update badge dot colour
+  const dot = document.getElementById('badgeDot');
+  if (localType === 'relay') {
+    dot.className = 'dot orange';
+  } else if (localType === 'srflx') {
+    dot.className = 'dot blue';
+  } else {
+    dot.className = 'dot green';
+  }
+
+  prevBytesSent = bytesSent;
+  prevBytesRecv = bytesReceived;
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// STEP 12: Hang up — clean up all resources
+//
+// CONCEPT: Explicit cleanup is essential.
+//   - Stopping tracks releases the camera and microphone hardware.
+//     Without this, the camera LED stays on after the call ends.
+//   - Closing the RTCPeerConnection releases ICE agent resources and
+//     stops all RTP/RTCP activity.
+//   - Closing the WebSocket cleanly closes the signaling channel.
+// ═══════════════════════════════════════════════════════════════════
+
+function hangup() {
+  log('Hanging up — cleaning up resources', 'warn');
+
+  // Stop getStats() polling
+  if (statsInterval) { clearInterval(statsInterval); statsInterval = null; }
+
+  // Stop all local media tracks — releases camera and microphone
+  if (localStream) {
+    localStream.getTracks().forEach(t => { t.stop(); log(`Stopped ${t.kind} track`); });
+    localStream = null;
+  }
+
+  // Close the peer connection — terminates ICE, DTLS, RTP sessions
+  if (pc) { pc.close(); pc = null; }
+
+  // Close the WebSocket signaling channel
+  if (ws) { ws.close(); ws = null; }
+
+  // Reset ICE queue state for next call
+  iceCandidateQueue = [];
+  remoteDescSet     = false;
+  prevBytesSent     = 0;
+  prevBytesRecv     = 0;
+
+  // Reset video elements
+  document.getElementById('localVideo').srcObject  = null;
+  document.getElementById('remoteVideo').srcObject = null;
+  document.getElementById('localLbl').textContent  = 'No camera';
+  document.getElementById('localLbl').classList.remove('live');
+  document.getElementById('remoteLbl').textContent = 'Waiting for remote…';
+  document.getElementById('remoteLbl').classList.remove('live');
+
+  // Reset badges
+  ['badgeLocal', 'badgeRemote'].forEach(id => {
+    const el = document.getElementById(id);
+    el.textContent = '—';
+    el.className = 'candidate-badge badge-unknown';
+  });
+  document.getElementById('badgeDetail').textContent = 'Waiting for connection…';
+
+  // Reset stats table
+  ['stBytesSent','stBytesRecv','stRtt','stLocalType','stRemoteType','stRelayAddr']
+    .forEach(id => { document.getElementById(id).textContent = '—'; });
+
+  // Reset state pills
+  setStatePill('pillSignaling', 'stSignaling', 'idle');
+  setStatePill('pillIce',       'stIce',       '—');
+  setStatePill('pillConn',      'stConn',      '—');
+
+  // Re-enable connect button
+  document.getElementById('btnConnect').disabled = false;
+  document.getElementById('btnHangup').disabled  = true;
+
+  log('Hung up — all resources released', 'ok');
+}
+
+
+// ═══════════════════════════════════════════════════════════════════
+// Page lifecycle: clean up on unload
+// ═══════════════════════════════════════════════════════════════════
+
+window.addEventListener('beforeunload', () => {
+  // Always stop tracks when the page unloads — this turns off the camera LED
+  // and releases the microphone for other applications.
+  if (localStream) localStream.getTracks().forEach(t => t.stop());
+  if (pc) pc.close();
+  if (ws) ws.close();
+});
+
+
+// ═══════════════════════════════════════════════════════════════════
+// Startup checks
+// ═══════════════════════════════════════════════════════════════════
+
+log('Demo 6 ready — TURN Relay Verification');
+log(`WebRTC API: ${window.RTCPeerConnection ? '✓ available' : '✗ NOT available'}`, 'info');
+
+// Warn if running on plain HTTP — getUserMedia will be blocked
+if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+  showError(
+    'getUserMedia requires HTTPS or localhost. This page is served over plain HTTP. ' +
+    'Open it from GitHub Pages or the Codespace forwarded URL.'
+  );
+  log('Insecure context — getUserMedia will be blocked by the browser', 'error');
+}
+</script>
+</body>
+</html>

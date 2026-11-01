@@ -1238,30 +1238,27 @@ const configuration_force_relay = {
 <div class="nb-cell">
 <hr>
 <h2>13. The Codespace Infrastructure</h2>
-<p>Demos 5–7 require two servers running in the Codespace: a WebSocket signaling server and a TURN server (coturn). This section explains every file in the <code>codespace/</code> folder.</p>
+<p>Demos 5–7 require two servers running in the Codespace: a WebSocket signaling server and a TURN server (coturn). This section explains every file involved, in the <code>.devcontainer/</code> and <code>codespace/</code> folders.</p>
 
-<h3>codespace/devcontainer.json</h3>
-<p>The <code>devcontainer.json</code> file tells GitHub Codespaces how to provision the VM. It specifies the base image, packages to install, ports to forward, and the command to run on startup.</p>
+<h3>.devcontainer/devcontainer.json</h3>
+<p>The <code>devcontainer.json</code> file tells GitHub Codespaces how to provision the VM. It specifies the base image, packages to install, ports to forward, and the command(s) to run on startup. GitHub Codespaces auto-detects this file only at <code>.devcontainer/devcontainer.json</code> (or <code>.devcontainer.json</code> at the repo root) — placing it in the <code>codespace/</code> folder with the other infrastructure files would not work, since Codespaces would never find it.</p>
 <pre><code>{
-  // Base image: Ubuntu 24.04 with common dev tools
   "name": "WebRTC Seminar 04",
   "image": "mcr.microsoft.com/devcontainers/base:ubuntu-24.04",
 
-  // Install Python 3.12 via the devcontainers feature registry
+  // Install Python 3.12 via the devcontainers feature registry.
   "features": {
     "ghcr.io/devcontainers/features/python:1": { "version": "3.12" }
   },
 
-  // Commands run once when the Codespace is first created.
-  // apt-get installs coturn (the TURN server).
-  // pip installs the Python websockets library for the signaling server.
-  "onCreateCommand": "apt-get update && apt-get install -y coturn && pip install websockets",
+  // postCreateCommand runs once after the container is created.
+  // Uses sudo for system-level operations (apt-get, mkdir under /etc/, /var/).
+  // The vscode user has passwordless sudo in devcontainer base images.
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y coturn && pip install websockets --break-system-packages && sudo mkdir -p /etc/coturn /var/log/coturn && sudo chmod 777 /etc/coturn /var/log/coturn",
 
-  // Command run every time the Codespace starts (after creation).
-  // Starts the signaling server and coturn in the background.
+  // postStartCommand runs every time the Codespace starts (including after resume).
   "postStartCommand": "bash codespace/start.sh",
 
-  // Ports to forward publicly. GitHub assigns a *.app.github.dev URL to each.
   "forwardPorts": [8765, 5349],
   "portsAttributes": {
     "8765": { "label": "Signaling Server (WSS)", "protocol": "https" },
@@ -1271,26 +1268,56 @@ const configuration_force_relay = {
   "remoteUser": "vscode"
 }</code></pre>
 
+<div style="border-left:5px solid #1a73e8; background:rgba(79,156,249,0.06); border-radius:6px; padding:16px 20px; margin:20px 0;">
+  <strong>Why <code>postCreateCommand</code>, not <code>onCreateCommand</code>?</strong> <code>onCreateCommand</code> runs earlier in the container lifecycle — while dev container <em>features</em> (such as the Python 3.12 feature declared above) are still being installed. A <code>pip install</code> there risks running before Python 3.12 is actually in place. <code>postCreateCommand</code> runs after all features have finished installing, which is what this setup needs.
+</div>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(79,156,249,0.06); border-radius:6px; padding:16px 20px; margin:20px 0;">
+  <strong>Why <code>--break-system-packages</code>?</strong> Ubuntu 24.04 ships an "externally managed" system Python (<a href="https://peps.python.org/pep-0668/" target="_blank" rel="noopener">PEP 668</a>): a plain <code>pip install</code> is refused to protect the OS's own Python packages from being overwritten. <code>--break-system-packages</code> tells pip to install anyway — acceptable here because the Codespace VM is disposable and nothing else depends on its system Python. Without this flag, the <code>postCreateCommand</code> fails outright and <code>websockets</code> is never installed.
+</div>
+
+<div style="border-left:5px solid #1a73e8; background:rgba(79,156,249,0.06); border-radius:6px; padding:16px 20px; margin:20px 0;">
+  <strong>Why <code>mkdir</code> and <code>chmod 777</code> on <code>/etc/coturn</code> and <code>/var/log/coturn</code>?</strong> Neither directory exists by default after <code>apt-get install coturn</code>. <code>start.sh</code> (below) writes the self-signed TLS certificate into <code>/etc/coturn/</code> and coturn writes its log to <code>/var/log/coturn/</code> — both as the unprivileged <code>vscode</code> user, without <code>sudo</code>. These directories are created and made world-writable here, once, as root, specifically so that later step can succeed without needing root itself.
+</div>
+
 <h3>codespace/signaling_server.py</h3>
-<p>The signaling server is a minimal Python WebSocket server. It maintains a dictionary of rooms, each holding at most two connections. When a message arrives, it is forwarded to the other peer in the same room.</p>
+<p>The signaling server is a minimal Python WebSocket server. It is intentionally "dumb": it has no knowledge of SDP or ICE, it just routes JSON messages between the (at most two) peers in a room. All WebRTC intelligence stays in the browser.</p>
 <pre><code>"""Minimal WebSocket signaling server for WebRTC demos.
 
 Course: Multimediaprogrammierung — Chapter 04: WebRTC
 Author: Renato Fera P. — TU Ilmenau AMS Group
 
+This server is intentionally minimal: it routes JSON messages between two
+peers in the same room. It has no knowledge of SDP or ICE — it is a dumb
+router. All the intelligence is in the browser-side WebRTC code.
+
+Message format (JSON):
+  { "type": "join",       "room": "&lt;room_id&gt;" }
+  { "type": "offer",      "room": "&lt;room_id&gt;", "data": &lt;SDP object&gt; }
+  { "type": "answer",     "room": "&lt;room_id&gt;", "data": &lt;SDP object&gt; }
+  { "type": "ice",        "room": "&lt;room_id&gt;", "data": &lt;ICE candidate object&gt; }
+
+Server → client messages:
+  { "type": "joined" }       — sent to the first peer when it joins
+  { "type": "peer-joined" }  — sent to the first peer when the second joins
+
 Run with: python codespace/signaling_server.py
 """
 
 from __future__ import annotations
+
 import asyncio
 import json
 import logging
 import ssl
 from pathlib import Path
+
 import websockets
 from websockets.asyncio.server import ServerConnection
 
-# ── Logging ─────────────────────────────────────────────────────────────────
+# ── Logging ──────────────────────────────────────────────────────────────────
+# Structured logging to stdout. The Codespace terminal shows these messages
+# in real time so you can watch the signaling exchange as it happens.
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s [%(levelname)s] %(message)s',
@@ -1298,148 +1325,275 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-# ── Room registry ────────────────────────────────────────────────────────────
-# rooms maps a room_id (str) to a list of at most 2 WebSocket connections.
-# When a peer disconnects, it is removed from its room.
+# ── Room registry ─────────────────────────────────────────────────────────────
+# rooms maps a room_id (str) to a list of at most 2 active WebSocket connections.
+# dict[str, list[ServerConnection]]:
+#   key   — room identifier string (e.g. "room1", "lecture")
+#   value — list of 1 or 2 WebSocket connections currently in that room
+#
+# Rooms are created on first join and deleted when the last peer disconnects.
+# This server supports only two peers per room (one caller, one callee).
+# A production signaling server would add authentication, room capacity limits,
+# and persistent room state.
 rooms: dict[str, list[ServerConnection]] = {}
 
-# ── Message handler ──────────────────────────────────────────────────────────
-async def handler(websocket: ServerConnection) -> None:
-    """Handle one WebSocket connection for its lifetime.
 
-    Receives JSON messages from the client, routes them to the other peer
-    in the same room, and cleans up when the connection closes.
+# ── Connection handler ────────────────────────────────────────────────────────
+async def handler(websocket: ServerConnection) -> None:
+    """Handle one WebSocket connection for its entire lifetime.
+
+    This coroutine is called once per incoming connection. It loops over all
+    messages from that client, routes them to the other peer in the same room,
+    and cleans up when the connection closes (normally or on error).
+
+    Args:
+        websocket: The WebSocket connection object for this client.
     """
+    # Track which room this peer belongs to so we can clean up on disconnect.
     room_id: str | None = None
 
     try:
+        # Iterate over all messages from this WebSocket.
+        # This loop runs until the connection closes.
         async for raw in websocket:
-            message = json.loads(raw)
-            msg_type = message.get('type')
-            room_id  = message.get('room', 'default')
+            # Parse the JSON message. All messages from the client must be
+            # valid JSON — if parsing fails, the exception propagates and
+            # the connection is closed with an error.
+            message: dict = json.loads(raw)
+            msg_type: str = message.get('type', '')
+            room_id = message.get('room', 'default')
 
             if msg_type == 'join':
-                # Add this peer to the room (create the room if it does not exist).
+                # ── JOIN: Add this peer to the room ──────────────────────────
+                # Create the room entry if it does not exist yet.
                 if room_id not in rooms:
                     rooms[room_id] = []
-                rooms[room_id].append(websocket)
-                log.info(f"Peer joined room '{room_id}' ({len(rooms[room_id])}/2 peers)")
 
-                if len(rooms[room_id]) == 2:
-                    # Two peers are now in the room — tell the first peer
-                    # that a second peer has joined so it can start the offer.
+                # Reject a third peer — this server supports exactly 2 per room.
+                if len(rooms[room_id]) >= 2:
+                    await websocket.send(json.dumps({'type': 'error', 'message': 'Room is full'}))
+                    log.warning(f"Room '{room_id}' is full — rejecting third peer")
+                    continue
+
+                rooms[room_id].append(websocket)
+                peer_count = len(rooms[room_id])
+                log.info(f"Peer joined room '{room_id}' ({peer_count}/2 peers)")
+
+                if peer_count == 1:
+                    # First peer — acknowledge the join and wait for a second peer.
+                    await websocket.send(json.dumps({'type': 'joined'}))
+
+                elif peer_count == 2:
+                    # Second peer has arrived — tell the FIRST peer (the caller)
+                    # so it can start the WebRTC offer/answer exchange.
+                    # The second peer (callee) will receive the offer via the
+                    # normal message routing below.
                     first_peer = rooms[room_id][0]
                     await first_peer.send(json.dumps({'type': 'peer-joined'}))
+                    log.info(f"Room '{room_id}' is now full — notified first peer")
 
             else:
-                # For all other message types (offer, answer, ice),
-                # forward the message to the OTHER peer in the room.
+                # ── ROUTE: Forward the message to the OTHER peer ──────────────
+                # For offer, answer, and ice messages, find every peer in the
+                # room that is NOT the sender and forward the raw JSON string.
+                # We forward the raw string (not re-serialised) to avoid any
+                # accidental modification of the SDP or ICE candidate data.
                 peers = rooms.get(room_id, [])
+                forwarded = False
                 for peer in peers:
                     if peer is not websocket:
-                        await peer.send(raw)  # forward the raw JSON string unchanged
+                        await peer.send(raw)
+                        forwarded = True
                         log.info(f"Routed '{msg_type}' in room '{room_id}'")
 
+                if not forwarded:
+                    # No other peer in the room yet — the message cannot be delivered.
+                    log.warning(f"No peer to route '{msg_type}' in room '{room_id}'")
+
     except websockets.exceptions.ConnectionClosedOK:
-        pass  # Normal disconnect — no error logging needed
+        # Normal disconnect (client closed the connection cleanly).
+        # No error logging needed — this is expected behaviour.
+        pass
+    except websockets.exceptions.ConnectionClosedError as e:
+        log.warning(f"Connection closed with error in room '{room_id}': {e}")
+    except json.JSONDecodeError as e:
+        log.error(f"Invalid JSON from client in room '{room_id}': {e}")
     except Exception as e:
-        log.error(f"Handler error: {e}")
+        log.error(f"Unexpected handler error in room '{room_id}': {e}")
     finally:
-        # Remove this peer from its room on disconnect.
+        # ── CLEANUP: Remove this peer from its room on disconnect ─────────────
+        # This runs whether the connection closed normally, with an error,
+        # or due to an exception — the finally block always executes.
         if room_id and room_id in rooms:
             rooms[room_id] = [p for p in rooms[room_id] if p is not websocket]
-            log.info(f"Peer left room '{room_id}' ({len(rooms[room_id])} remaining)")
+            remaining = len(rooms[room_id])
+            log.info(f"Peer left room '{room_id}' ({remaining} remaining)")
+            # Delete the room entry when it is empty to keep the dict clean.
             if not rooms[room_id]:
                 del rooms[room_id]
+                log.info(f"Room '{room_id}' deleted (empty)")
 
-# ── TLS context ─────────────────────────────────────────────────────────────
+
+# ── TLS context ───────────────────────────────────────────────────────────────
 def make_ssl_context() -> ssl.SSLContext:
-    """Create an SSL context using the self-signed certificate generated by start.sh."""
+    """Create a TLS server context using the self-signed certificate.
+
+    The certificate is generated by start.sh using openssl req -x509.
+    Both coturn and this signaling server share the same certificate/key pair,
+    stored at /etc/coturn/turn_server_{cert,pkey}.pem.
+
+    In production, replace these with a certificate from Let's Encrypt or
+    your organisation's CA. The paths are the only thing that changes.
+
+    Returns:
+        An ssl.SSLContext configured for TLS server use.
+
+    Raises:
+        FileNotFoundError: If the certificate or key file does not exist.
+            Run start.sh first to generate the certificate.
+    """
+    cert = Path('/etc/coturn/turn_server_cert.pem')
+    key  = Path('/etc/coturn/turn_server_pkey.pem')
+
+    if not cert.exists() or not key.exists():
+        raise FileNotFoundError(
+            "TLS certificate not found. Run 'bash codespace/start.sh' first "
+            "to generate the self-signed certificate."
+        )
+
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    ctx.load_cert_chain(
-        certfile='/etc/coturn/turn_server_cert.pem',
-        keyfile='/etc/coturn/turn_server_pkey.pem'
-    )
+    ctx.load_cert_chain(certfile=str(cert), keyfile=str(key))
     return ctx
 
-# ── Entry point ──────────────────────────────────────────────────────────────
+
+# ── Entry point ───────────────────────────────────────────────────────────────
 async def main() -> None:
-    """Start the WSS signaling server on port 8765."""
+    """Start the WSS signaling server and run until interrupted."""
     ssl_context = make_ssl_context()
     log.info("Signaling server starting on wss://0.0.0.0:8765")
+    log.info("Waiting for connections...")
+
+    # websockets.serve() creates an async context manager that runs the server.
+    # `handler` is called once for each new WebSocket connection.
+    # Listening on 0.0.0.0 makes the server reachable on all network interfaces,
+    # including the Codespace's forwarded port interface.
     async with websockets.serve(handler, '0.0.0.0', 8765, ssl=ssl_context):
-        await asyncio.get_running_loop().create_future()  # run forever
+        # create_future() returns a Future that never completes — this keeps
+        # the server running until the process receives a signal (Ctrl-C, SIGTERM).
+        await asyncio.get_running_loop().create_future()
+
 
 if __name__ == '__main__':
     asyncio.run(main())</code></pre>
 
+<div style="border-left:5px solid #1a73e8; background:rgba(79,156,249,0.06); border-radius:6px; padding:16px 20px; margin:20px 0;">
+  <strong>Robustness details worth noticing.</strong> A third peer trying to join a full room gets an explicit <code>{"type": "error", "message": "Room is full"}</code> rather than being silently accepted and breaking the 1-to-1 routing logic. <code>make_ssl_context()</code> checks that the certificate files actually exist before trying to load them, and raises a message pointing you at <code>start.sh</code> instead of a confusing low-level <code>FileNotFoundError</code> traceback. <code>ConnectionClosedError</code> (abnormal disconnect) and <code>json.JSONDecodeError</code> (malformed client message) are each logged with their own message rather than falling into one generic <code>except Exception</code> — which makes the Codespace terminal log far easier to read while debugging Demos 5–7.
+</div>
+
 <h3>codespace/coturn.conf</h3>
 <p>coturn is configured with the following directives. Each is explained below:</p>
-<pre><code># Listening ports
-listening-port=3478        # Standard TURN/UDP port (not reachable via Codespaces forwarding)
-tls-listening-port=5349   # TURNS/TLS port — this is what Codespaces forwards
+<pre><code># coturn.conf — TURN server configuration for WebRTC Seminar 04
+# Course: Multimediaprogrammierung — Chapter 04: WebRTC
+# Author: Renato Fera P. — TU Ilmenau AMS Group
 
-# Listen on all network interfaces
+# ── Listening ports ───────────────────────────────────────────────────────────
+listening-port=3478
+tls-listening-port=5349
+
+# ── Network interfaces ────────────────────────────────────────────────────────
 listening-ip=0.0.0.0
 relay-ip=0.0.0.0
 
-# Realm: an arbitrary string that identifies this TURN server.
-# Must match the realm used in the RTCConfiguration in the demo pages.
+# ── Realm ─────────────────────────────────────────────────────────────────────
 realm=codespace.local
 
-# Long-term credential — username:password for demo use.
-# In production, use --lt-cred-mech with time-limited HMAC credentials.
-user=webrtc:seminar04
+# ── Long-term credentials (demo use only) ─────────────────────────────────────
 lt-cred-mech
+user=webrtc:seminar04
 
-# Transport: disable UDP and plain TCP; enable TLS only.
-# Codespaces can forward TCP/TLS (port 5349) but not raw UDP.
+# ── Transport: TLS/TCP only ───────────────────────────────────────────────────
+# Codespaces port forwarding is HTTP-based and cannot proxy raw UDP.
+# We disable UDP and plain TCP and use TURNS (TURN over TLS over TCP) only.
 no-udp
 no-tcp
-no-dtls=true   # disable DTLS (used for TURN over DTLS, not needed here)
+no-dtls=true
 
-# TLS certificate — self-signed, generated by start.sh
+# ── TLS certificate ───────────────────────────────────────────────────────────
+# Generated by start.sh. Directory made writable by postCreateCommand.
 cert=/etc/coturn/turn_server_cert.pem
 pkey=/etc/coturn/turn_server_pkey.pem
 
-# Logging
+# ── Logging ───────────────────────────────────────────────────────────────────
 log-file=/var/log/coturn/turnserver.log
-verbose   # log every allocation and permission for debugging</code></pre>
+verbose</code></pre>
+<p><strong>listening-port</strong> (3478) is the standard plain TURN/UDP port — it is configured but not reachable through Codespaces port forwarding, since <code>no-udp</code> disables it anyway; it is left in the file for documentation purposes and would be the port to forward in a non-Codespaces deployment. <strong>tls-listening-port</strong> (5349) is what Codespaces actually forwards. <strong>realm</strong> is an arbitrary string identifying this TURN server; it does not need to match anything in the demo pages' <code>RTCConfiguration</code> — only <code>username</code>/<code>credential</code> do. <strong>lt-cred-mech</strong> enables the long-term credential mechanism, paired with the static <code>user=webrtc:seminar04</code> entry below it.</p>
 
 <h3>codespace/start.sh</h3>
 <pre><code>#!/bin/bash
-# start.sh — starts coturn and the signaling server inside the Codespace.
-# Runs automatically via devcontainer.json postStartCommand.
+# start.sh — starts coturn and the WebSocket signaling server inside the Codespace.
+#
+# Course: Multimediaprogrammierung — Chapter 04: WebRTC
+# Author: Renato Fera P. — TU Ilmenau AMS Group
+#
+# Called automatically via postStartCommand in devcontainer.json.
+# Runs as the 'vscode' user. /etc/coturn and /var/log/coturn are
+# made world-writable by postCreateCommand (which runs as root) so
+# this script can write there without sudo.
 
-set -e  # exit immediately on any error
+set -e
 
+# ── TLS certificate paths ─────────────────────────────────────────────────────
+# Stored under /etc/coturn/ (made writable by postCreateCommand).
+# Both coturn and signaling_server.py share this certificate.
 CERT=/etc/coturn/turn_server_cert.pem
 KEY=/etc/coturn/turn_server_pkey.pem
 
-# Generate a self-signed TLS certificate if one does not already exist.
-# Both coturn and the signaling server share this certificate.
+# ── Generate self-signed TLS certificate (once per Codespace lifetime) ────────
 if [ ! -f "$CERT" ]; then
   echo "Generating self-signed TLS certificate..."
-  mkdir -p /etc/coturn
-  openssl req -x509 -newkey rsa:2048 -keyout "$KEY" -out "$CERT" \
-    -days 365 -nodes -subj "/CN=codespace.local"
-  echo "Certificate generated."
+  openssl req -x509 -newkey rsa:2048 \
+    -keyout "$KEY" -out "$CERT" \
+    -days 365 -nodes \
+    -subj "/CN=codespace.local"
+  echo "Certificate generated at $CERT"
+else
+  echo "TLS certificate already exists — skipping generation."
 fi
 
-# Start coturn in the background.
-turnserver -c /workspaces/multimedia_programming_seminars/codespace/coturn.conf &
-echo "coturn started (TURNS on port 5349)"
+# ── Resolve the repo root ─────────────────────────────────────────────────────
+# The Codespace mounts the repo at /workspaces/<repo-name>.
+# BASH_SOURCE[0] is this script; its parent is the repo root.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(dirname "$SCRIPT_DIR")"
+echo "Repo root: $REPO_ROOT"
 
-# Start the WebSocket signaling server in the background.
-python /workspaces/multimedia_programming_seminars/codespace/signaling_server.py &
-echo "Signaling server started (WSS on port 8765)"
+# ── Start coturn ──────────────────────────────────────────────────────────────
+turnserver -c "$REPO_ROOT/codespace/coturn.conf" &
+COTURN_PID=$!
+echo "coturn started (TURNS/TCP on port 5349) — PID $COTURN_PID"
+
+# ── Start the WebSocket signaling server ──────────────────────────────────────
+python "$REPO_ROOT/codespace/signaling_server.py" &
+SIG_PID=$!
+echo "Signaling server started (WSS on port 8765) — PID $SIG_PID"
 
 echo ""
-echo "Both servers are running. Find the public URLs in the Codespace Ports tab."
-echo "Replace 'https://' with 'wss://' for the signaling server URL."
+echo "════════════════════════════════════════════════════════════"
+echo "  WebRTC Seminar 04 — Servers Running"
+echo "════════════════════════════════════════════════════════════"
+echo ""
+echo "  1. Open the Ports tab in the terminal panel."
+echo "  2. Find port 8765 — copy its URL and replace https:// with wss://"
+echo "     Paste that wss:// URL into the demo page."
+echo ""
+echo "  Open Demo 5 in two browser tabs and use the same Room ID."
+echo "════════════════════════════════════════════════════════════"
+echo ""
 
-# Keep this script alive so the Codespace postStartCommand does not exit.
+# Keep this script alive so postStartCommand does not exit.
+# If this script exits, background processes may be orphaned.
 wait</code></pre>
+<p>Notice <code>start.sh</code> resolves <code>REPO_ROOT</code> dynamically from its own location (<code>BASH_SOURCE[0]</code>) instead of hardcoding <code>/workspaces/multimedia_programming_seminars/...</code>. This matters because the repo folder name under <code>/workspaces/</code> is derived from the repository name — if a student forks the repository under a different name, a hardcoded path would silently point at a directory that does not exist and the script would fail with <code>set -e</code>. Resolving the path relative to the script itself makes <code>start.sh</code> work regardless of what the repository (or fork) is named.</p>
 <div class="demo-box">
   <strong>Demo 7 — Production Pattern.</strong> <code>04_mm_production.html</code> is the capstone: it combines everything from this chapter into one page — perfect negotiation (glare-free renegotiation), multiple tracks, an <code>RTCDataChannel</code> chat alongside the video, a live <code>getStats()</code> dashboard, and an ICE restart button for recovering a connection after a network change. This is the shape a real production call screen takes.
   <p style="margin:10px 0 0 0;"><a href="04_mm_production.html" target="_blank" style="display:inline-block; padding:6px 14px; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Open Demo 7 &#8599;</a></p>
