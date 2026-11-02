@@ -52,6 +52,45 @@
   .header-meta a { color: var(--accent); text-decoration: none; }
   .header-meta a:hover { text-decoration: underline; }
 
+  /* author credit line */
+  .author-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+  }
+  .author-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: #f0f2f7;
+  }
+  .author-role {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .linkedin-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    text-decoration: none;
+    background: rgba(10, 102, 194, 0.15);
+    color: #5aacf5;
+    border: 1px solid rgba(10, 102, 194, 0.35);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .linkedin-badge:hover {
+    background: rgba(10, 102, 194, 0.25);
+    border-color: rgba(10, 102, 194, 0.55);
+    text-decoration: none;
+  }
+  .linkedin-badge svg { width: 11px; height: 11px; fill: currentColor; flex-shrink: 0; }
+
   /* ── breadcrumb ── */
   .breadcrumb {
     max-width: 860px;
@@ -64,33 +103,6 @@
   .breadcrumb a { color: var(--accent); text-decoration: none; }
   .breadcrumb a:hover { text-decoration: underline; }
   .breadcrumb span { margin: 0 6px; }
-
-  /* ── notebook badges ── */
-  .nb-badges {
-    max-width: 860px;
-    margin: 0 auto;
-    padding: 18px 32px 0;
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 12px;
-    border-radius: 5px;
-    font-size: 12px;
-    font-weight: 500;
-    text-decoration: none;
-    border: 1px solid transparent;
-    transition: opacity 0.15s;
-    white-space: nowrap;
-    font-family: var(--mono);
-  }
-  .badge:hover { opacity: 0.8; }
-  .badge-colab { background: rgba(242,142,33,0.1); color: #f2a23c; border-color: rgba(242,142,33,0.25); }
-  .badge-nb    { background: rgba(79,156,249,0.1); color: var(--accent); border-color: rgba(79,156,249,0.25); }
 
   /* ── main ── */
   main {
@@ -328,10 +340,20 @@
           <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme"
              target="_blank" rel="noopener">AMS Group</a>
           – Technische Universität Ilmenau</strong><br>
-        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller &nbsp;·&nbsp;
-        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
-        <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller
       </p>
+      <div class="author-line">
+        <span class="author-role">Wissenschaftlicher Mitarbeiter &amp; Author</span>
+        <span class="author-name">Renato Fera P.</span>
+        <a class="linkedin-badge"
+           href="https://www.linkedin.com/in/renato-profeta/"
+           target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+          </svg>
+          LinkedIn
+        </a>
+      </div>
     </div>
   </div>
 </header>
@@ -341,15 +363,6 @@
   <span>›</span>
   Chapter 01: Web Audio API
 </nav>
-
-<div class="nb-badges">
-  <a class="badge badge-colab"
-     href="https://colab.research.google.com/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/01_multimediaprogrammierung_webaudio.ipynb"
-     target="_blank" rel="noopener">▶ Open in Colab</a>
-  <a class="badge badge-nb"
-     href="https://nbview.org/github/TUIlmenauAMS/multimedia_programming_seminars/blob/main/01_multimediaprogrammierung_webaudio.ipynb"
-     target="_blank" rel="noopener">⬡ NBView</a>
-</div>
 
 <main>
 <div class="nb-content">
@@ -728,8 +741,18 @@ source.start();  // play immediately</code></pre>
 <div class="nb-footer-cell">
   <p><strong>Multimediaprogrammierung</strong> &middot; Chapter 01: Web Audio API<br>
   Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
-  <p>Notebook created by <strong>Renato Fera P.</strong> &middot;
-  <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a></p>
+  <div class="footer-author-line">
+    <span>Chapter authored by</span>
+    <strong>Renato Fera P.</strong>
+    <span>&middot;</span>
+    <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width:13px;height:13px;fill:var(--accent);vertical-align:middle;margin-right:3px;">
+        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+      </svg>LinkedIn
+    </a>
+    <span>&middot;</span>
+    <a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars" target="_blank" rel="noopener">GitHub</a>
+  </div>
 </div>
 
 </div>
