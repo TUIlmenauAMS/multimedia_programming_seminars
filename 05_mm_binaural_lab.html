@@ -142,9 +142,16 @@ main { max-width: 960px; margin: 0 auto; padding: 36px 32px 80px; }
 .start-label { font-family: var(--sans); font-size: 18px; font-weight: 500; color: #f0f2f7; }
 .start-sub { font-family: var(--mono); font-size: 12px; color: var(--muted); }
 
-#fileProtocolWarning { display:none; background: rgba(251,146,60,0.1); border: 1px solid rgba(251,146,60,0.4); border-left: 4px solid var(--orange); border-radius: 8px; padding: 16px 20px; margin-bottom: 20px; font-size: 13px; line-height: 1.7; }
-#fileProtocolWarning strong { color: var(--orange); }
-#fileProtocolWarning code { background: rgba(255,255,255,0.08); border-radius: 4px; padding: 1px 7px; font-family: var(--mono); font-size: 12px; color: var(--text); }
+/* Upload trigger inside source cards */
+.card-upload { display:none; margin-top:7px; }
+.file-protocol .card-upload { display:block; }
+.card-upload label { display:inline-flex; align-items:center; gap:4px; font-family:var(--mono); font-size:10px; color:var(--muted); background:var(--bg); border:1px solid var(--border); border-radius:4px; padding:3px 8px; cursor:pointer; transition:border-color .15s, color .15s; white-space:nowrap; position:relative; z-index:2; }
+.card-upload label:hover { border-color:var(--accent); color:var(--accent); }
+.card-upload label.loaded { border-color:var(--green); color:var(--green); }
+.card-upload input[type=file] { display:none; }
+/* Load warning strip below source grid */
+#mp3LoadWarning { display:none; margin-top:10px; background:rgba(248,113,113,0.08); border:1px solid rgba(248,113,113,0.3); border-left:3px solid var(--red); border-radius:6px; padding:9px 14px; font-family:var(--mono); font-size:11px; color:var(--red); }
+#mp3LoadWarning.visible { display:block; }
 .concept-box { border-left: 4px solid var(--accent2); background: rgba(167,139,250,0.06); border-radius: 6px; padding: 14px 18px; margin: 16px 0; font-size: 13px; }
 .concept-box strong { color: var(--accent2); }
 .info-box { border-left: 4px solid var(--accent); background: rgba(79,156,249,0.06); border-radius: 6px; padding: 14px 18px; margin: 16px 0; font-size: 14px; }
@@ -218,18 +225,6 @@ footer a:hover { text-decoration: underline; }
     stack</strong> (tonal, good for timbre changes with elevation).</p>
   </div>
 
-  <!-- file:// protocol warning — shown by JS when window.location.protocol === 'file:' -->
-  <div id="fileProtocolWarning">
-    <strong>⚠ Local server required for MP3 sources (Alarm &amp; Beep)</strong><br>
-    Chrome blocks Web Audio access to local files when the page is opened directly from disk
-    (<code>file://</code>). Pink Noise and Harmonic work fine. To use the MP3 sources, serve
-    the folder with a local HTTP server — one-liners:<br><br>
-    <strong>Python&nbsp;3:</strong> <code>python -m http.server 8000</code> → open
-    <code>http://localhost:8000/05_mm_binaural_lab.html</code><br>
-    <strong>Node / npx:</strong> <code>npx serve .</code><br>
-    <strong>VS Code:</strong> install the <em>Live Server</em> extension → click <em>Go Live</em>
-  </div>
-
   <!-- Controls panel -->
   <div class="panel">
     <div class="panel-header"><div class="dot purple"></div>Demo Controls</div>
@@ -237,7 +232,7 @@ footer a:hover { text-decoration: underline; }
 
       <!-- Row 1: start/stop + HRTF toggle -->
       <div class="btn-row">
-        <button class="btn btn-success" id="btnStart" onclick="startDemo()">▶ Start Demo</button>
+        <button class="btn btn-success" id="btnStart" onclick="startDemo()" disabled>▶ Start Demo</button>
         <button class="btn btn-danger"  id="btnStop"  onclick="stopDemo()" disabled>■ Stop</button>
         <span style="flex:1"></span>
         <div style="display:flex;align-items:center;gap:10px;">
@@ -253,19 +248,28 @@ footer a:hover { text-decoration: underline; }
       <div style="margin-top:16px;">
         <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:6px;">Audio source</div>
         <div class="source-grid">
-          <div class="mode-card active" id="src-alarm"    onclick="setSource('alarm')">
+          <div class="mode-card active" id="src-alarm" onclick="setSource('alarm')">
             <span class="mode-icon">🚨</span><span class="mode-name">Alarm</span>
+            <div class="card-upload">
+              <label id="lbl-alarm-upload" for="file-alarm" onclick="event.stopPropagation()">📂 3411.mp3</label>
+              <input type="file" id="file-alarm" accept=".mp3,audio/*" onchange="handleUpload(event,'alarm')" onclick="event.stopPropagation()">
+            </div>
           </div>
-          <div class="mode-card"        id="src-beep"     onclick="setSource('beep')">
+          <div class="mode-card" id="src-beep" onclick="setSource('beep')">
             <span class="mode-icon">🔔</span><span class="mode-name">Beep</span>
+            <div class="card-upload">
+              <label id="lbl-beep-upload" for="file-beep" onclick="event.stopPropagation()">📂 1298.mp3</label>
+              <input type="file" id="file-beep" accept=".mp3,audio/*" onchange="handleUpload(event,'beep')" onclick="event.stopPropagation()">
+            </div>
           </div>
-          <div class="mode-card"        id="src-noise"    onclick="setSource('noise')">
+          <div class="mode-card" id="src-noise" onclick="setSource('noise')">
             <span class="mode-icon">〰️</span><span class="mode-name">Pink Noise</span>
           </div>
-          <div class="mode-card"        id="src-harmonic" onclick="setSource('harmonic')">
+          <div class="mode-card" id="src-harmonic" onclick="setSource('harmonic')">
             <span class="mode-icon">🎵</span><span class="mode-name">Harmonic</span>
           </div>
         </div>
+        <div id="mp3LoadWarning">⚠ Load both MP3 files above before starting the demo.</div>
       </div>
 
       <!-- Row 3: trajectory selector -->
@@ -495,7 +499,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   await tick();
   await initPostProcessing();
 
-  setProgress(90, 'Pre-loading audio files…');
+  setProgress(90, isFileProtocol ? 'Setting up audio…' : 'Pre-loading audio files…');
   await tick();
   await preloadAlarm();   // non-fatal — individual files fall back to noise if missing
 
@@ -510,44 +514,88 @@ window.addEventListener('DOMContentLoaded', async () => {
 function tick() { return new Promise(r => setTimeout(r, 60)); }
 
 // ── Pre-load MP3 files ────────────────────────────────────────────────────────
-// fetch() + decodeAudioData() is the correct approach and works on any HTTP
-// server (including localhost).  Chrome blocks both fetch() AND
-// createMediaElementSource() for local files opened via file://, so we detect
-// that early, show the warning banner, and dim the MP3 cards without trying.
+// On HTTP(S): fetch() + decodeAudioData() — works on any server incl. localhost.
+// On file://: Chrome blocks fetch() for local files, so we show upload buttons
+//             inside the Alarm and Beep cards and read via FileReader instead.
 const isFileProtocol = (location.protocol === 'file:');
+
+// Tracks which MP3 ArrayBuffers are ready { alarm: bool, beep: bool }
+const mp3Ready = { alarm: false, beep: false };
 
 async function preloadAlarm() {
   if (isFileProtocol) {
-    document.getElementById('fileProtocolWarning').style.display = 'block';
-    dimMp3Card('src-alarm', 'alarm', '3411.mp3 — needs local server (see warning above)');
-    dimMp3Card('src-beep',  'beep',  '1298.mp3 — needs local server (see warning above)');
+    // Activate upload UI: add class to body so .card-upload blocks appear,
+    // show the warning banner, block Start, and show the load warning.
+    document.body.classList.add('file-protocol');
+    updateStartReadiness();
     return;
   }
+  // HTTP path — fetch both in parallel; missing files fall back gracefully
   await Promise.all([
-    fetchAndStore('3411.mp3', '_alarmArrayBuffer', 'src-alarm', 'alarm'),
-    fetchAndStore('1298.mp3', '_beepArrayBuffer',  'src-beep',  'beep'),
+    fetchAndStore('3411.mp3', 'alarm'),
+    fetchAndStore('1298.mp3', 'beep'),
   ]);
+  updateStartReadiness();
 }
 
-function dimMp3Card(cardId, key, tooltip) {
-  const card = document.getElementById(cardId);
-  if (card) { card.style.opacity = '0.4'; card.title = tooltip; }
-  if (sourceType === key) {
-    sourceType = 'noise';
-    if (card) card.classList.remove('active');
-    document.getElementById('src-noise').classList.add('active');
-    document.getElementById('hudSourceName').textContent = 'Pink Noise';
-  }
-}
-
-async function fetchAndStore(filename, bufKey, cardId, key) {
+async function fetchAndStore(filename, key) {
+  const bufKey  = key === 'alarm' ? '_alarmArrayBuffer' : '_beepArrayBuffer';
+  const cardId  = 'src-' + key;
   try {
     const resp = await fetch('./' + filename);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     window[bufKey] = await resp.arrayBuffer();
+    mp3Ready[key] = true;
   } catch(e) {
     console.warn(filename + ' could not be fetched:', e.message);
-    dimMp3Card(cardId, key, filename + ' not found in the same directory');
+    // Dim card and fall back to noise if that source was selected
+    const card = document.getElementById(cardId);
+    if (card) { card.style.opacity = '0.4'; card.title = filename + ' not found in same directory'; }
+    if (sourceType === key) {
+      sourceType = 'noise';
+      if (card) card.classList.remove('active');
+      document.getElementById('src-noise').classList.add('active');
+      document.getElementById('hudSourceName').textContent = 'Pink Noise';
+    }
+  }
+}
+
+// Called from the hidden file inputs inside the Alarm / Beep cards
+function handleUpload(event, key) {
+  const file = event.target.files[0];
+  if (!file) return;
+  // Stop click from also toggling the card selection
+  event.stopPropagation();
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    const bufKey = key === 'alarm' ? '_alarmArrayBuffer' : '_beepArrayBuffer';
+    window[bufKey] = e.target.result;
+    mp3Ready[key] = true;
+    // Update the label to confirm loaded
+    const lbl = document.getElementById('lbl-' + key + '-upload');
+    if (lbl) { lbl.textContent = '✓ ' + file.name; lbl.classList.add('loaded'); }
+    // Restore card opacity if it was dimmed
+    const card = document.getElementById('src-' + key);
+    if (card) card.style.opacity = '';
+    updateStartReadiness();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// Enable/disable Start and show/hide the load warning based on what's ready.
+// Pink Noise and Harmonic are always ready. MP3 sources require their file
+// to be uploaded first (on file://) or fetched (on HTTP).
+function updateStartReadiness() {
+  const selectedNeedsFile = isFileProtocol && (sourceType === 'alarm' || sourceType === 'beep');
+  const ready = !selectedNeedsFile || mp3Ready[sourceType];
+  document.getElementById('btnStart').disabled = !ready;
+  const warn = document.getElementById('mp3LoadWarning');
+  if (selectedNeedsFile && !ready) {
+    const filename = sourceType === 'alarm' ? '3411.mp3' : '1298.mp3';
+    warn.textContent = '⚠ Load ' + filename + ' above, or select Pink Noise / Harmonic to start immediately.';
+    warn.classList.add('visible');
+  } else {
+    warn.classList.remove('visible');
   }
 }
 
@@ -764,7 +812,10 @@ async function initPostProcessing() {
 }
 
 // ── AudioContext gate ─────────────────────────────────────────────────────────
-document.getElementById('startOverlay').addEventListener('click', startDemo);
+document.getElementById('startOverlay').addEventListener('click', () => {
+  if (isFileProtocol && (!mp3Ready.alarm || !mp3Ready.beep)) return;
+  startDemo();
+});
 
 async function startDemo() {
   if (isRunning) return;
@@ -944,6 +995,7 @@ function setSource(type) {
   document.getElementById('src-' + type).classList.add('active');
   const names = { alarm: 'Alarm', beep: 'Beep', noise: 'Pink Noise', harmonic: 'Harmonic' };
   document.getElementById('hudSourceName').textContent = names[type] || type;
+  if (isFileProtocol && !isRunning) updateStartReadiness();
   if (!isRunning) return;
   buildSourceNode(type);
   connectSourceNode();
