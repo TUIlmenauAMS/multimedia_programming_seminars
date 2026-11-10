@@ -179,28 +179,27 @@ html, body {
 }
 /* identity block — logo + author */
 .sb-identity {
-  display: flex; align-items: center; gap: 10px;
-  padding: 12px 18px 10px;
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 18px 12px;
   border-bottom: 1px solid var(--panel-border);
 }
 .sb-identity img {
-  width: 36px; height: 36px; border-radius: 6px; flex-shrink: 0; display: block;
+  width: 30px; height: 30px; border-radius: 5px; flex-shrink: 0; display: block; margin-top: 2px;
 }
-.sb-identity-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sb-identity-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
 .sb-identity-course {
   font-family: var(--mono); font-size: 9px; color: var(--muted);
-  text-transform: uppercase; letter-spacing: 0.1em; white-space: nowrap;
-  overflow: hidden; text-overflow: ellipsis;
+  text-transform: uppercase; letter-spacing: 0.08em; line-height: 1.4;
 }
-.sb-identity-author {
-  font-family: var(--sans); font-size: 11px; color: var(--text); font-weight: 500;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+.sb-identity-created {
+  font-family: var(--mono); font-size: 9px; color: var(--muted); line-height: 1.4;
 }
+.sb-identity-created span { color: var(--text); font-weight: 500; }
 .sb-identity-link {
   display: inline-flex; align-items: center; gap: 3px;
   font-family: var(--mono); font-size: 9px;
   color: var(--accent); text-decoration: none;
-  opacity: 0.8; transition: opacity 0.15s;
+  opacity: 0.8; transition: opacity 0.15s; margin-top: 1px;
 }
 .sb-identity-link:hover { opacity: 1; }
 
@@ -512,8 +511,8 @@ html, body {
     <div class="sb-identity">
       <img src="ams_group_tui.png" alt="AMS Group – TU Ilmenau">
       <div class="sb-identity-text">
-        <span class="sb-identity-course">Multimediaprogrammierung · TU Ilmenau</span>
-        <span class="sb-identity-author">Renato Fera P.</span>
+        <span class="sb-identity-course">Multimediaprogrammierung<br>Technische Universität Ilmenau</span>
+        <span class="sb-identity-created">Demo created by <span>Renato Fera P.</span></span>
         <a class="sb-identity-link"
            href="https://www.linkedin.com/in/renato-profeta/"
            target="_blank" rel="noopener">
