@@ -435,16 +435,18 @@ html, body {
 
 <!-- ── Start / pointer-lock overlay ── -->
 <div id="startOverlay" class="hidden">
-  <div class="so-icon">▶</div>
+  <div class="so-icon">🎧</div>
   <div class="so-title">Click to enter the room</div>
-  <div class="so-sub">AudioContext requires a user gesture · Pointer Lock for free-look</div>
+  <div class="so-sub">Press <strong>Start</strong> in the sidebar to begin audio playback</div>
   <div class="so-keys">
     <span class="key-badge">W A S D</span>
     <span class="hint-sep">move</span>
-    <span class="key-badge">Mouse</span>
+    <span class="key-badge">L-drag</span>
     <span class="hint-sep">look</span>
-    <span class="key-badge">ESC</span>
-    <span class="hint-sep">pause &amp; settings</span>
+    <span class="key-badge">R-drag</span>
+    <span class="hint-sep">pan</span>
+    <span class="key-badge">Scroll</span>
+    <span class="hint-sep">fwd / back</span>
   </div>
 </div>
 
@@ -593,11 +595,16 @@ html, body {
 <!-- ── Navigation hint ── -->
 <div id="navHint">
   <span class="hint-key">W A S D</span>
+  <span class="hint-sep">move</span>
   <span class="hint-sep">·</span>
-  <span class="hint-key">Mouse</span>
+  <span class="hint-key">L-drag</span>
+  <span class="hint-sep">look</span>
   <span class="hint-sep">·</span>
-  <span class="hint-key">ESC</span>
-  <span class="hint-sep">settings</span>
+  <span class="hint-key">R-drag</span>
+  <span class="hint-sep">pan</span>
+  <span class="hint-sep">·</span>
+  <span class="hint-key">Scroll</span>
+  <span class="hint-sep">fwd/back</span>
 </div>
 
 <!-- Resonance Audio UMD -->
@@ -657,6 +664,11 @@ const WALLS = [
 // Current material state
 const currentMaterials = {};
 WALLS.forEach(w => { currentMaterials[w.key] = w.default; });
+
+// Track last materials sent to Resonance so we skip redundant setRoomProperties calls
+let lastResonanceMaterials = null;
+// Track which preset is currently active (null = custom)
+let activePresetName = 'Anechoic';
 
 // Room presets — spaced across the full RT60 spectrum for clearly audible differences
 const PRESETS = {
@@ -910,36 +922,94 @@ function initThree() {
 
   clock = new THREE.Clock();
 
-  // Drag-to-look: hold mouse button on canvas to look around
+  // ── Mouse navigation ──────────────────────────────────────────────
+  // Left-drag   : look / rotate camera
+  // Right-drag  : strafe (pan) left/right + move forward/back
+  // Middle-drag : strafe (pan) — same as right
+  // Scroll      : move forward / back
   const euler = new THREE.Euler(0, 0, 0, 'YXZ');
-  let isDragging = false;
+  const LOOK_SENS  = 0.002;
+  const PAN_SENS   = 0.008; // m per pixel
+  const SCROLL_SPD = 0.012; // m per wheel delta unit
+
+  // Which buttons are currently held: 0=left, 1=middle, 2=right
+  const mouseBtn = { look: false, pan: false };
   let lastX = 0, lastY = 0;
-  const SENSITIVITY = 0.002;
+
+  // Suppress browser context menu on right-click inside the canvas
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
 
   canvas.addEventListener('mousedown', e => {
     if (e.target !== canvas) return;
-    isDragging = true;
     lastX = e.clientX; lastY = e.clientY;
-    canvas.style.cursor = 'grabbing';
-    document.getElementById('crosshair').classList.add('visible');
+    if (e.button === 0) {
+      mouseBtn.look = true;
+      canvas.style.cursor = 'grabbing';
+      document.getElementById('crosshair').classList.add('visible');
+    } else if (e.button === 1 || e.button === 2) {
+      mouseBtn.pan = true;
+      canvas.style.cursor = 'move';
+      e.preventDefault(); // prevent autoscroll on middle button
+    }
   });
-  window.addEventListener('mouseup', () => {
-    if (!isDragging) return;
-    isDragging = false;
-    canvas.style.cursor = 'grab';
-    document.getElementById('crosshair').classList.remove('visible');
+
+  window.addEventListener('mouseup', e => {
+    if (e.button === 0) {
+      mouseBtn.look = false;
+      canvas.style.cursor = mouseBtn.pan ? 'move' : 'grab';
+      if (!mouseBtn.pan) document.getElementById('crosshair').classList.remove('visible');
+    } else if (e.button === 1 || e.button === 2) {
+      mouseBtn.pan = false;
+      canvas.style.cursor = mouseBtn.look ? 'grabbing' : 'grab';
+    }
   });
+
   window.addEventListener('mousemove', e => {
-    if (!isDragging) return;
+    if (!mouseBtn.look && !mouseBtn.pan) return;
     const dx = e.clientX - lastX;
     const dy = e.clientY - lastY;
     lastX = e.clientX; lastY = e.clientY;
-    euler.setFromQuaternion(camera.quaternion);
-    euler.y -= dx * SENSITIVITY;
-    euler.x -= dy * SENSITIVITY;
-    euler.x  = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, euler.x));
-    camera.quaternion.setFromEuler(euler);
+
+    if (mouseBtn.look) {
+      // Rotate camera
+      euler.setFromQuaternion(camera.quaternion);
+      euler.y -= dx * LOOK_SENS;
+      euler.x -= dy * LOOK_SENS;
+      euler.x  = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, euler.x));
+      camera.quaternion.setFromEuler(euler);
+    }
+
+    if (mouseBtn.pan) {
+      // Strafe right/left with dx, move forward/back with dy
+      const right = new THREE.Vector3();
+      right.crossVectors(camera.getWorldDirection(new THREE.Vector3()), camera.up).normalize();
+      camera.position.addScaledVector(right, dx * PAN_SENS);
+
+      const fwd = new THREE.Vector3();
+      camera.getWorldDirection(fwd);
+      fwd.y = 0; fwd.normalize();
+      camera.position.addScaledVector(fwd, -dy * PAN_SENS);
+
+      // Clamp to room bounds
+      camera.position.x = Math.max(BOUNDS.xMin, Math.min(BOUNDS.xMax, camera.position.x));
+      camera.position.z = Math.max(BOUNDS.zMin, Math.min(BOUNDS.zMax, camera.position.z));
+      camera.position.y = CAM_START.y;
+    }
   });
+
+  // Scroll wheel → move forward / backward
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const fwd = new THREE.Vector3();
+    camera.getWorldDirection(fwd);
+    fwd.y = 0; fwd.normalize();
+    // e.deltaY > 0 = scroll down = move backward; < 0 = scroll up = move forward
+    camera.position.addScaledVector(fwd, -e.deltaY * SCROLL_SPD);
+    camera.position.x = Math.max(BOUNDS.xMin, Math.min(BOUNDS.xMax, camera.position.x));
+    camera.position.z = Math.max(BOUNDS.zMin, Math.min(BOUNDS.zMax, camera.position.z));
+    camera.position.y = CAM_START.y;
+  }, { passive: false });
+
   canvas.style.cursor = 'grab';
 
   controls = {
@@ -1094,12 +1164,8 @@ async function initPostProcessing() {
 // POINTER LOCK CONTROLS
 // ════════════════════════════════════════════════════════════════════
 document.getElementById('startOverlay').addEventListener('click', () => {
-  // If the selected source needs an MP3 that isn't loaded yet, fall back to
-  // noise so the demo always starts rather than silently doing nothing.
-  if (isFileProtocol && sourceType !== 'noise' && sourceType !== 'harmonic' && !mp3Ready[sourceType]) {
-    setSource('noise');
-  }
-  startDemo();
+  // Just dismiss the overlay — audio starts only when the user presses Start
+  document.getElementById('startOverlay').classList.add('hidden');
 });
 document.getElementById('pauseOverlay').addEventListener('click', () => { controls.lock(); });
 
@@ -1118,7 +1184,6 @@ function onPointerUnlock() {
 async function startDemo() {
   if (isRunning) return;
 
-  document.getElementById('startOverlay').classList.add('hidden');
   document.getElementById('btnStart').disabled = true;
   document.getElementById('btnStop').disabled  = false;
 
@@ -1158,7 +1223,6 @@ function stopDemo() {
   document.getElementById('btnStop').disabled  = true;
   document.getElementById('hudCtxState').textContent = 'inactive';
   document.getElementById('pauseOverlay').classList.remove('visible');
-  document.getElementById('startOverlay').classList.remove('hidden');
   controls.unlock();
   document.removeEventListener('visibilitychange', onVisibilityChange);
 }
@@ -1174,6 +1238,7 @@ function teardownAudio() {
   if (audioContext) { audioContext.close(); audioContext = null; }
   resonanceAudio = null; resonanceSource = null;
   alarmBuffer = null; beepBuffer = null;
+  lastResonanceMaterials = null;
 }
 
 async function onVisibilityChange() {
@@ -1202,6 +1267,10 @@ function applyResonanceRoom() {
     const v = currentMaterials[k];
     remapped[k] = RESONANCE_MAT_REMAP[v] || v;
   });
+  // Skip if nothing has changed — avoids resetting Resonance's reverb engine
+  const remappedStr = JSON.stringify(remapped);
+  if (remappedStr === lastResonanceMaterials) return;
+  lastResonanceMaterials = remappedStr;
   resonanceAudio.setRoomProperties(
     { width: ROOM.width, height: ROOM.height, depth: ROOM.depth },
     remapped
@@ -1343,6 +1412,7 @@ function onWallChange(wallKey, materialKey) {
   applyResonanceRoom();
 
   // Deactivate all preset buttons (custom state now)
+  activePresetName = null;
   document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
 
   // Update RT60 readout
@@ -1352,6 +1422,9 @@ function onWallChange(wallKey, materialKey) {
 function applyPreset(presetName) {
   const preset = PRESETS[presetName];
   if (!preset) return;
+  // If this preset is already active, do nothing — avoids audio glitch on repeated clicks
+  if (activePresetName === presetName) return;
+  activePresetName = presetName;
 
   WALLS.forEach(wall => {
     const matKey = preset[wall.key];
