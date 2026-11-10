@@ -297,6 +297,22 @@ html, body {
   flex-shrink: 0;
 }
 #uploadStrip.visible { display: block; }
+
+/* file:// warning toast */
+#fileProtocolWarn {
+  display: none;
+  margin: 0 18px 8px;
+  padding: 8px 10px;
+  background: rgba(251,146,60,0.1);
+  border: 1px solid rgba(251,146,60,0.35);
+  border-radius: 6px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--orange);
+  line-height: 1.5;
+  flex-shrink: 0;
+}
+#fileProtocolWarn.visible { display: block; }
 .upload-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
 .upload-label {
   font-family: var(--mono); font-size: 10px; color: var(--muted); min-width: 40px;
@@ -479,7 +495,13 @@ html, body {
     </div>
   </div>
 
-  <!-- File upload (file:// protocol only) -->
+  <!-- File:// protocol warning + upload strip -->
+  <div id="fileProtocolWarn">
+    ⚠ Running locally (file://)<br>
+    Alarm &amp; Beep need MP3 files uploaded below.<br>
+    Noise &amp; Harmonic work without files.<br>
+    Served via GitHub Pages? No upload needed.
+  </div>
   <div id="uploadStrip">
     <div class="upload-row">
       <span class="upload-label">Alarm</span>
@@ -636,14 +658,28 @@ const WALLS = [
 const currentMaterials = {};
 WALLS.forEach(w => { currentMaterials[w.key] = w.default; });
 
-// Room presets
+// Room presets — spaced across the full RT60 spectrum for clearly audible differences
 const PRESETS = {
-  'Anechoic': { left:'transparent', right:'transparent', front:'transparent', back:'transparent', down:'transparent', up:'transparent' },
-  'Wood Studio': { left:'wood_panel', right:'wood_panel', front:'plywood_panel', back:'curtain_heavy', down:'parquet_on_concrete', up:'acoustic_ceiling_tiles' },
-  'Concrete Loft': { left:'concrete_block_coarse', right:'concrete_block_coarse', front:'concrete_block_painted', back:'concrete_block_painted', down:'polished_concrete_or_tile', up:'concrete_block_painted' },
-  'Marble Hall': { left:'marble', right:'marble', front:'marble', back:'marble', down:'marble', up:'plaster_smooth' },
-  'Curtained Room': { left:'curtain_heavy', right:'curtain_heavy', front:'curtain_heavy', back:'curtain_heavy', down:'linoleum_on_concrete', up:'acoustic_ceiling_tiles' },
+  // ~∞ — perfectly dead, no reflections
+  'Anechoic':        { left:'transparent',            right:'transparent',            front:'transparent',            back:'transparent',            down:'transparent',            up:'transparent'            },
+  // ~0.2 s — heavily treated recording booth: thick absorbers everywhere
+  'Vocal Booth':     { left:'fiber_glass_insulation', right:'fiber_glass_insulation', front:'curtain_heavy',          back:'fiber_glass_insulation', down:'carpet',                 up:'acoustic_ceiling_tiles'  },
+  // ~0.6 s — typical treated studio with wood and soft furnishings
+  'Wood Studio':     { left:'wood_panel',             right:'curtain_heavy',          front:'plywood_panel',          back:'curtain_heavy',           down:'parquet_on_concrete',   up:'acoustic_ceiling_tiles'  },
+  // ~1.5 s — mid-size lecture hall: plaster walls, lino floor, some ceiling treatment
+  'Lecture Hall':    { left:'plaster_rough',          right:'plaster_rough',          front:'concrete_block_painted', back:'plaster_smooth',          down:'linoleum_on_concrete',  up:'acoustic_ceiling_tiles'  },
+  // ~3.0 s — reverberant brick church: hard surfaces, wooden pews implied by floor
+  'Brick Church':    { left:'brick_bare',             right:'brick_bare',             front:'brick_painted',          back:'brick_bare',              down:'parquet_on_concrete',   up:'plaster_rough'           },
+  // ~6+ s — massive stone cathedral / marble palace: extremely live
+  'Cathedral':       { left:'marble',                 right:'marble',                 front:'marble',                 back:'marble',                  down:'polished_concrete_or_tile', up:'marble'              },
 };
+
+// Carpet is not in Resonance presets by name — map to closest available
+// (using uniform_average_absorption as a stand-in for carpet: α≈0.35)
+// We patch this after the fact in applyResonanceRoom via a material remap.
+const RESONANCE_MAT_REMAP = { 'carpet': 'uniform_average_absorption' };
+// And add a visual-only carpet entry so the wall selector shows it nicely
+MATERIALS['carpet'] = { label: 'Carpet', alpha: 0.35, roughness: 0.98, metalness: 0.0, color: 0x5a4a3a };
 
 // Room dimensions (metres)
 const ROOM = { width: 8, height: 3.2, depth: 10 };
@@ -810,11 +846,25 @@ function handleUpload(event, key) {
   const file = event.target.files[0]; if (!file) return;
   event.stopPropagation();
   const reader = new FileReader();
-  reader.onload = e => {
-    window['_' + key + 'AB'] = e.target.result;
+  reader.onload = async e => {
+    const ab = e.target.result;
+    window['_' + key + 'AB'] = ab;
     mp3Ready[key] = true;
     const lbl = document.getElementById('lbl-' + key);
     if (lbl) { lbl.textContent = '✓ ' + file.name; lbl.classList.add('loaded'); }
+    // If audio is already running, decode immediately so switching source works
+    if (audioContext) {
+      try {
+        const decoded = await audioContext.decodeAudioData(ab.slice(0));
+        if (key === 'alarm') alarmBuffer = decoded;
+        if (key === 'beep')  beepBuffer  = decoded;
+        // If this source is already selected, restart it now
+        if (isRunning && sourceType === key) {
+          buildSourceNode(key);
+          connectSourceNode();
+        }
+      } catch(err) { console.warn('decode on upload:', err); }
+    }
     updateStartReadiness();
   };
   reader.readAsArrayBuffer(file);
@@ -1008,6 +1058,7 @@ function buildRoom() {
       color: matDef.color,
       roughness: matDef.roughness,
       metalness: matDef.metalness,
+      side: THREE.DoubleSide,
     });
     const mesh = new THREE.Mesh(geo, mat);
     mesh.rotation.set(def.rx, def.ry, 0);
@@ -1145,9 +1196,15 @@ function initResonance() {
 
 function applyResonanceRoom() {
   if (!resonanceAudio) return;
+  // Remap any visual-only materials to the closest Resonance Audio preset string
+  const remapped = {};
+  Object.keys(currentMaterials).forEach(k => {
+    const v = currentMaterials[k];
+    remapped[k] = RESONANCE_MAT_REMAP[v] || v;
+  });
   resonanceAudio.setRoomProperties(
     { width: ROOM.width, height: ROOM.height, depth: ROOM.depth },
-    { ...currentMaterials }
+    remapped
   );
 }
 
@@ -1191,9 +1248,22 @@ function buildSourceNode(type) {
   if (type === 'alarm' && alarmBuffer) {
     const bs = audioContext.createBufferSource();
     bs.buffer = alarmBuffer; bs.loop = true; sourceNode = bs;
+  } else if (type === 'alarm' && window._alarmAB) {
+    // Buffer not yet decoded — decode now (async), fall back to noise meanwhile
+    audioContext.decodeAudioData(window._alarmAB.slice(0)).then(buf => {
+      alarmBuffer = buf;
+      if (isRunning && sourceType === 'alarm') { buildSourceNode('alarm'); connectSourceNode(); }
+    }).catch(e => console.warn('alarm decode:', e));
+    sourceNode = buildNoiseSource(); // temporary
   } else if (type === 'beep' && beepBuffer) {
     const bs = audioContext.createBufferSource();
     bs.buffer = beepBuffer; bs.loop = true; sourceNode = bs;
+  } else if (type === 'beep' && window._beepAB) {
+    audioContext.decodeAudioData(window._beepAB.slice(0)).then(buf => {
+      beepBuffer = buf;
+      if (isRunning && sourceType === 'beep') { buildSourceNode('beep'); connectSourceNode(); }
+    }).catch(e => console.warn('beep decode:', e));
+    sourceNode = buildNoiseSource(); // temporary
   } else if (type === 'harmonic') {
     sourceNode = buildHarmonicSource();
   } else {
@@ -1265,6 +1335,7 @@ function onWallChange(wallKey, materialKey) {
     mesh.material.color.setHex(matDef.color);
     mesh.material.roughness = matDef.roughness;
     mesh.material.metalness = matDef.metalness;
+    mesh.material.side = THREE.DoubleSide;
     mesh.material.needsUpdate = true;
   }
 
@@ -1295,6 +1366,7 @@ function applyPreset(presetName) {
       mesh.material.color.setHex(matDef.color);
       mesh.material.roughness = matDef.roughness;
       mesh.material.metalness = matDef.metalness;
+      mesh.material.side = THREE.DoubleSide;
       mesh.material.needsUpdate = true;
     }
   });
@@ -1325,7 +1397,8 @@ function computeRT60() {
   const V = ROOM.width * ROOM.height * ROOM.depth; // 256 m³
   let A = 0;
   WALLS.forEach(wall => {
-    const alpha = MATERIALS[currentMaterials[wall.key]]?.alpha ?? 0.05;
+    const matKey = currentMaterials[wall.key];
+    const alpha = MATERIALS[matKey]?.alpha ?? 0.05;
     A += alpha * SURFACE_AREAS[wall.key];
   });
   if (A < 0.001) return 999;
@@ -1354,11 +1427,16 @@ function setAudioMode(mode) {
   if (!audioContext || !hrtfGain) return;
   const now = audioContext.currentTime;
   const F = 0.3;
+  // Cancel any scheduled ramps before setting new ones
+  hrtfGain.gain.cancelScheduledValues(now);
+  stereoGain.gain.cancelScheduledValues(now);
   hrtfGain.gain.setValueAtTime(hrtfGain.gain.value, now);
   stereoGain.gain.setValueAtTime(stereoGain.gain.value, now);
   if (mode === 'hrtf') {
     hrtfGain.gain.linearRampToValueAtTime(1.0, now + F);
     stereoGain.gain.linearRampToValueAtTime(0.0, now + F);
+    // Reset panner to centre when going back to HRTF
+    if (stereoPanner) stereoPanner.pan.setTargetAtTime(0, now, 0.1);
   } else {
     hrtfGain.gain.linearRampToValueAtTime(0.0, now + F);
     stereoGain.gain.linearRampToValueAtTime(1.0, now + F);
@@ -1454,10 +1532,22 @@ function startRenderLoop() {
       document.getElementById('hudDist').textContent = dist.toFixed(2) + ' m';
 
       // Update stereo pan to match source azimuth (stereo mode)
-      if (stereoPanner && audioContext) {
+      // We compute the horizontal angle from listener to source in the XZ plane,
+      // relative to the listener's current facing direction (camera yaw).
+      if (stereoPanner && audioContext && audioMode === 'stereo') {
+        // World-space vector from listener to source
         const rel = SRC_POS.clone().sub(p);
-        const az  = Math.atan2(rel.x, -rel.z);
-        stereoPanner.pan.setTargetAtTime(Math.sin(az) * 0.8, audioContext.currentTime, 0.016);
+        // Listener forward direction (camera -Z in world space, flattened to XZ)
+        const fwd = new THREE.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+        fwd.y = 0; fwd.normalize();
+        // Right vector
+        const right = new THREE.Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+        right.y = 0; right.normalize();
+        // Project relative vector onto forward/right
+        const relFlat = new THREE.Vector3(rel.x, 0, rel.z).normalize();
+        // Dot with right gives sin(az): +1 = full right, -1 = full left
+        const panVal = THREE.MathUtils.clamp(relFlat.dot(right), -1, 1);
+        stereoPanner.pan.setTargetAtTime(panVal, audioContext.currentTime, 0.016);
       }
     }
 
