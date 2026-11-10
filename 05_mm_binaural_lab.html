@@ -107,7 +107,7 @@ main { max-width: 960px; margin: 0 auto; padding: 36px 32px 80px; }
 .slider-row .slider-val { font-family: var(--jb); font-size: 12px; color: var(--accent2); min-width: 32px; text-align: right; }
 
 /* ── Source selector ── */
-.source-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
+.source-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
 
 /* ── Canvas wrapper — no HUD overlays inside ── */
 .canvas-wrapper { position: relative; width: 100%; aspect-ratio: 16 / 9; background: #07080d; border-radius: 10px; overflow: hidden; margin-bottom: 0; border: 1px solid var(--border); }
@@ -158,7 +158,7 @@ footer a:hover { text-decoration: underline; }
   .header-inner, main, footer, .breadcrumb { padding-left: 20px; padding-right: 20px; }
   .header-inner { flex-direction: column; align-items: flex-start; gap: 12px; }
   .mode-grid { grid-template-columns: repeat(2, 1fr); }
-  .source-grid { grid-template-columns: repeat(2, 1fr); }
+  .source-grid { grid-template-columns: repeat(2, 1fr); }  /* 4 cards → 2×2 on mobile */
   .hud-cell { min-width: 80px; padding: 6px 10px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -210,7 +210,8 @@ footer a:hover { text-decoration: underline; }
     spatial audio with ITD, ILD and pinna cues) and <strong>Stereo Pan</strong> (flat amplitude-only panning) —
     the perceptual difference, especially on the Elevation Sweep, is immediately audible with headphones.</p>
     <p>Choose the audio source: a real <strong>evacuation alarm</strong> (broadband, strong transients — optimal
-    for HRTF perception), <strong>pink noise</strong> (continuous broadband reference), or a <strong>harmonic
+    for HRTF perception), a <strong>beep</strong> (short periodic tone, good for ITD onset cues),
+    <strong>pink noise</strong> (continuous broadband reference), or a <strong>harmonic
     stack</strong> (tonal, good for timbre changes with elevation).</p>
   </div>
 
@@ -239,6 +240,9 @@ footer a:hover { text-decoration: underline; }
         <div class="source-grid">
           <div class="mode-card active" id="src-alarm"    onclick="setSource('alarm')">
             <span class="mode-icon">🚨</span><span class="mode-name">Alarm</span>
+          </div>
+          <div class="mode-card"        id="src-beep"     onclick="setSource('beep')">
+            <span class="mode-icon">🔔</span><span class="mode-name">Beep</span>
           </div>
           <div class="mode-card"        id="src-noise"    onclick="setSource('noise')">
             <span class="mode-icon">〰️</span><span class="mode-name">Pink Noise</span>
@@ -384,6 +388,10 @@ footer a:hover { text-decoration: underline; }
   <p>Demo created by <strong>Renato Fera P.</strong> ·
   <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a> ·
   <a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars" target="_blank" rel="noopener">github.com/TUIlmenauAMS</a></p>
+  <p>Audio samples <strong>3411.mp3</strong> (evacuation alarm) and <strong>1298.mp3</strong> (beep) are
+  © <a href="https://bigsoundbank.com/" target="_blank" rel="noopener">BigSoundBank.com</a> —
+  Joseph SARDIN. Used under the
+  <a href="https://bigsoundbank.com/licence.html" target="_blank" rel="noopener">BigSoundBank licence</a>.</p>
 </footer>
 
 <!-- Resonance Audio UMD (no ES module build available) -->
@@ -412,7 +420,8 @@ let masterGain   = null;   // source output → analyser
 
 let audioMode    = 'hrtf';
 let sourceType   = 'alarm';   // 'alarm' | 'noise' | 'harmonic'
-let alarmBuffer  = null;       // decoded AudioBuffer for the alarm file
+let alarmBuffer  = null;       // decoded AudioBuffer for 3411.mp3
+let beepBuffer   = null;       // decoded AudioBuffer for 1298.mp3
 
 let sourceMesh   = null;
 let sourceHalo   = null;
@@ -471,9 +480,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   await tick();
   await initPostProcessing();
 
-  setProgress(90, 'Pre-loading alarm…');
+  setProgress(90, 'Pre-loading audio files…');
   await tick();
-  await preloadAlarm();   // non-fatal — falls back to noise if file missing
+  await preloadAlarm();   // non-fatal — individual files fall back to noise if missing
 
   setProgress(100, 'Ready');
   await new Promise(r => setTimeout(r, 350));
@@ -485,31 +494,33 @@ window.addEventListener('DOMContentLoaded', async () => {
 
 function tick() { return new Promise(r => setTimeout(r, 60)); }
 
-// ── Pre-load alarm file ───────────────────────────────────────────────────────
-// The alarm.mp3 must sit in the same directory as this HTML file.
-// If it cannot be loaded we silently fall back to noise source.
+// ── Pre-load MP3 files ────────────────────────────────────────────────────────
+// Both files must sit in the same directory as this HTML file.
+// Individual failures are non-fatal — the source card is dimmed and the
+// default falls back to pink noise.
 async function preloadAlarm() {
+  await Promise.all([
+    preloadFile('./3411.mp3', '_alarmArrayBuffer', 'src-alarm',  'noise', 'Pink Noise'),
+    preloadFile('./1298.mp3', '_beepArrayBuffer',  'src-beep',   'noise', 'Pink Noise'),
+  ]);
+}
+
+async function preloadFile(url, bufferKey, cardId, fallbackType, fallbackLabel) {
   try {
-    // We need an AudioContext to decode — create a temporary offline one
-    const tmpCtx = new OfflineAudioContext(1, 1, 44100);
-    const resp = await fetch('./alarm.mp3');
+    const resp = await fetch(url);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    const arrayBuf = await resp.arrayBuffer();
-    // Decode with a fresh AudioContext (offline context decode is not widely supported)
-    // We store the ArrayBuffer and decode it properly when startDemo() runs with a real context
-    window._alarmArrayBuffer = arrayBuf;
+    window[bufferKey] = await resp.arrayBuffer();
   } catch (e) {
-    console.warn('alarm.mp3 not found or fetch failed — alarm source will be unavailable.', e.message);
-    // Mark alarm card as unavailable
-    const card = document.getElementById('src-alarm');
-    card.style.opacity = '0.4';
-    card.title = 'alarm.mp3 not found in same directory';
-    // Switch default source to noise
-    if (sourceType === 'alarm') {
-      sourceType = 'noise';
-      card.classList.remove('active');
-      document.getElementById('src-noise').classList.add('active');
-      document.getElementById('hudSourceName').textContent = 'Pink Noise';
+    console.warn(url + ' not found or fetch failed — source will be unavailable.', e.message);
+    const card = document.getElementById(cardId);
+    if (card) { card.style.opacity = '0.4'; card.title = url + ' not found in same directory'; }
+    const srcKey = cardId.replace('src-', '');
+    if (sourceType === srcKey) {
+      sourceType = fallbackType;
+      if (card) card.classList.remove('active');
+      const fallbackCard = document.getElementById('src-' + fallbackType);
+      if (fallbackCard) fallbackCard.classList.add('active');
+      document.getElementById('hudSourceName').textContent = fallbackLabel;
     }
   }
 }
@@ -743,8 +754,18 @@ async function startDemo() {
     try {
       alarmBuffer = await audioContext.decodeAudioData(window._alarmArrayBuffer.slice(0));
     } catch(e) {
-      console.warn('Could not decode alarm.mp3:', e.message);
+      console.warn('Could not decode 3411.mp3:', e.message);
       alarmBuffer = null;
+    }
+  }
+
+  // Decode the beep buffer
+  if (window._beepArrayBuffer) {
+    try {
+      beepBuffer = await audioContext.decodeAudioData(window._beepArrayBuffer.slice(0));
+    } catch(e) {
+      console.warn('Could not decode 1298.mp3:', e.message);
+      beepBuffer = null;
     }
   }
 
@@ -807,9 +828,15 @@ function buildSourceNode(type) {
   if (lfoOsc) { try { lfoOsc.stop(); } catch(e) {} lfoOsc = null; }
 
   if (type === 'alarm' && alarmBuffer) {
-    // Loop the decoded alarm AudioBuffer
+    // Loop the decoded alarm AudioBuffer (3411.mp3)
     const bs = audioContext.createBufferSource();
     bs.buffer = alarmBuffer;
+    bs.loop   = true;
+    sourceNode = bs;
+  } else if (type === 'beep' && beepBuffer) {
+    // Loop the decoded beep AudioBuffer (1298.mp3)
+    const bs = audioContext.createBufferSource();
+    bs.buffer = beepBuffer;
     bs.loop   = true;
     sourceNode = bs;
   } else if (type === 'harmonic') {
@@ -894,7 +921,7 @@ function stopDemo() {
   }
   if (lfoOsc) { try { lfoOsc.stop(); } catch(e) {} lfoOsc = null; }
   if (audioContext) { audioContext.close(); audioContext = null; }
-  resonanceAudio = null; resonanceSource = null; alarmBuffer = null;
+  resonanceAudio = null; resonanceSource = null; alarmBuffer = null; beepBuffer = null;
   document.getElementById('btnStart').disabled = false;
   document.getElementById('btnStop').disabled  = true;
   document.getElementById('hudStrip').classList.remove('visible');
@@ -906,7 +933,7 @@ function setSource(type) {
   sourceType = type;
   document.querySelectorAll('.source-grid .mode-card').forEach(el => el.classList.remove('active'));
   document.getElementById('src-' + type).classList.add('active');
-  const names = { alarm: 'Alarm', noise: 'Pink Noise', harmonic: 'Harmonic' };
+  const names = { alarm: 'Alarm', beep: 'Beep', noise: 'Pink Noise', harmonic: 'Harmonic' };
   document.getElementById('hudSourceName').textContent = names[type] || type;
   if (!isRunning) return;
   buildSourceNode(type);
@@ -939,7 +966,7 @@ function getTrajectoryPosition(t) {
   const p = new THREE.Vector3();
   switch (trajectoryMode) {
     case 'equatorial':
-      p.set(ORBIT_R*Math.cos(omega*t), 0, ORBIT_R*Math.sin(omega*t));
+      p.set(ORBIT_R*Math.cos(omega*t), 1.05, ORBIT_R*Math.sin(omega*t));
       break;
     case 'elevation': {
       const phi = 1.22*Math.sin(omega*0.4*t);
