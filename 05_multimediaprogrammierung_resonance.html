@@ -501,39 +501,74 @@
   </tbody>
 </table>
 
-<h3>Absorption Coefficients and Material Presets</h3>
-<p>Every surface absorbs a fraction of the incident sound energy. This fraction — the <strong>absorption coefficient</strong> \(\alpha\) — varies from 0 (perfectly reflective, like a hard concrete wall) to 1 (perfectly absorptive, like an open window). The coefficient is frequency-dependent: most real materials absorb more at high frequencies than at low.</p>
-<p>Resonance Audio exposes room acoustics through named material presets. Each preset encodes a broadband absorption coefficient used in the room simulation. The table below lists all available presets with their approximate acoustic character:</p>
+<h3>Absorption Coefficients: Frequency Dependence</h3>
+<p>Every surface absorbs a fraction of the incident sound energy. This fraction — the <strong>absorption coefficient</strong> \(\alpha(f)\) — is a function of frequency, not a single number. It ranges from 0 (perfectly reflective) to 1 (perfectly absorptive, like an open window). The physical mechanisms that govern absorption are frequency-dependent, which is why the same wall can behave very differently at 125 Hz versus 4 kHz.</p>
+
+<p>Three distinct mechanisms dominate depending on the frequency range and the material type:</p>
+
+<ul>
+  <li><strong>Porous absorption.</strong> In soft, fibrous materials — carpet, curtains, acoustic foam, fiberglass — sound energy is converted to heat by viscous friction as the pressure wave forces air through the pore structure. The efficiency of this mechanism scales with frequency: at low frequencies the wavelength is large relative to the pore geometry and the air moves in and out of the material with little friction; at high frequencies the air motion is more locally confined, friction increases, and absorption rises. This is why carpet has very low absorption at 125 Hz (\(\alpha \approx 0.02\)) but high absorption at 2 kHz (\(\alpha \approx 0.65\)). Porous absorbers are the dominant treatment material in studios and lecture halls.</li>
+  <li><strong>Panel (membrane) absorption.</strong> In thin, impervious panels — plywood, sheet rock, glass, suspended ceilings — the surface acts as a mass–spring resonator. At the panel's resonant frequency \(f_r = 60 / \sqrt{m \cdot d}\) (where \(m\) is the surface mass in kg/m² and \(d\) is the air gap depth in metres behind the panel), the panel vibrates strongly and radiates energy into the supporting structure, dissipating it as heat. This resonance typically falls in the low-frequency range (63–250 Hz), so panel absorbers are designed specifically to control bass frequencies where porous absorbers are inefficient. Away from resonance, the panel is highly reflective.</li>
+  <li><strong>Cavity (Helmholtz) resonance.</strong> A perforated panel in front of an air cavity forms a Helmholtz resonator array. The resonant frequency depends on the perforation geometry and cavity depth, and can be tuned to target specific frequency bands. This mechanism is used in architectural acoustics to selectively absorb mid frequencies.</li>
+</ul>
+
+<h3>Frequency-Dependent RT60</h3>
+<p>Because \(\alpha\) is frequency-dependent, the Sabine formula must be evaluated independently at each octave band. The result is not a single RT60 value but an <strong>RT60 curve</strong> across frequency — the standard way acousticians characterize a room. A concert hall optimized for orchestral music might have RT60 of 2.1 s at 125 Hz, 2.0 s at 500 Hz, and 1.6 s at 4 kHz. A broadcast studio might show 0.4 s at 125 Hz, 0.3 s at 500 Hz, and 0.2 s at 4 kHz. The shape of this curve is as important as its magnitude:</p>
+
+\[ \text{RT60}(f) = \frac{0.161 \cdot V}{A(f)}, \qquad A(f) = \sum_i \alpha_i(f) \cdot S_i \]
+
+<p>A room with longer RT60 at low frequencies than at high frequencies — the typical case for hard-walled spaces with some soft furnishings — sounds "warm." A room with uniform or rising RT60 at high frequencies sounds "bright" or "harsh." These perceptual qualities are entirely determined by the frequency profile of the wall materials.</p>
+
+<h3>How Resonance Audio Encodes Material Absorption</h3>
+<p>Resonance Audio's material presets are not single numbers. Each preset is defined internally in the SDK (<code>room-materials.js</code>) as an array of absorption coefficients across <strong>nine octave bands</strong>: 20 Hz, 63 Hz, 125 Hz, 250 Hz, 500 Hz, 1 kHz, 2 kHz, 4 kHz, and 8 kHz. When <code>setRoomProperties</code> is called, the SDK uses these per-band coefficients to:</p>
+<ol>
+  <li>Compute per-band reflection coefficients \(r_i(f) = 1 - \alpha_i(f)\) for the image source method — the level of each early reflection is frequency-dependent, since walls reflect different amounts at different frequencies.</li>
+  <li>Compute per-band RT60 values via the Sabine formula, which are used to tune the decay time of the feedback delay network independently in each frequency band — the late reverberation tail therefore decays at different rates across the spectrum.</li>
+</ol>
+
+<p>The table below shows the actual per-band absorption coefficients as defined in the Resonance Audio SDK source for a representative selection of materials. The nine columns correspond to the nine octave-band centre frequencies.</p>
 
 <table>
-  <thead><tr><th>Material preset</th><th>Approx. α</th><th>Acoustic character</th></tr></thead>
+  <thead>
+    <tr>
+      <th>Material preset</th>
+      <th>20 Hz</th><th>63 Hz</th><th>125 Hz</th><th>250 Hz</th><th>500 Hz</th>
+      <th>1 kHz</th><th>2 kHz</th><th>4 kHz</th><th>8 kHz</th>
+    </tr>
+  </thead>
   <tbody>
-    <tr><td><code>transparent</code></td><td>1.00</td><td>Maximum absorption — anechoic approximation</td></tr>
-    <tr><td><code>acoustic_ceiling_tiles</code></td><td>0.70</td><td>Highly absorptive — office and studio ceilings</td></tr>
-    <tr><td><code>fiber_glass_insulation</code></td><td>0.80</td><td>Very absorptive — recording studio treatment</td></tr>
-    <tr><td><code>curtain_heavy</code></td><td>0.60</td><td>Absorptive — fabric drapes</td></tr>
-    <tr><td><code>carpet</code></td><td>0.37</td><td>Moderately absorptive — typical floor covering</td></tr>
-    <tr><td><code>plywood_panel</code></td><td>0.28</td><td>Moderate absorption — wood panels</td></tr>
-    <tr><td><code>wood_panel</code></td><td>0.30</td><td>Moderate absorption — solid timber wall</td></tr>
-    <tr><td><code>parquet_on_concrete</code></td><td>0.11</td><td>Low absorption — hardwood floor</td></tr>
-    <tr><td><code>brick_bare</code></td><td>0.03</td><td>Highly reflective — raw masonry</td></tr>
-    <tr><td><code>concrete_block_coarse</code></td><td>0.05</td><td>Highly reflective — rough concrete</td></tr>
-    <tr><td><code>plaster_smooth</code></td><td>0.03</td><td>Highly reflective — smooth plaster</td></tr>
-    <tr><td><code>marble</code></td><td>0.01</td><td>Near-perfectly reflective — polished stone</td></tr>
-    <tr><td><code>glass_thick</code></td><td>0.04</td><td>Reflective — structural glazing</td></tr>
-    <tr><td><code>glass_thin</code></td><td>0.10</td><td>Slightly more absorptive — window glass</td></tr>
-    <tr><td><code>metal</code></td><td>0.03</td><td>Highly reflective — steel panels</td></tr>
-    <tr><td><code>polished_concrete_or_tile</code></td><td>0.01</td><td>Near-perfectly reflective — polished floor</td></tr>
-    <tr><td><code>water_or_ice_surface</code></td><td>0.01</td><td>Near-perfectly reflective</td></tr>
-    <tr><td><code>grass</code></td><td>0.11</td><td>Low-moderate absorption — outdoor ground</td></tr>
-    <tr><td><code>linoleum</code></td><td>0.03</td><td>Low absorption — hard floor covering</td></tr>
-    <tr><td><code>sheet_rock</code></td><td>0.05</td><td>Low absorption — drywall</td></tr>
-    <tr><td><code>wood_ceiling</code></td><td>0.15</td><td>Low-moderate — timber roof structure</td></tr>
+    <tr><td><code>transparent</code></td><td>1.00</td><td>1.00</td><td>1.00</td><td>1.00</td><td>1.00</td><td>1.00</td><td>1.00</td><td>1.00</td><td>1.00</td></tr>
+    <tr><td><code>acoustic_ceiling_tiles</code></td><td>0.57</td><td>0.57</td><td>0.57</td><td>0.39</td><td>0.41</td><td>0.48</td><td>0.75</td><td>0.70</td><td>0.70</td></tr>
+    <tr><td><code>fiber_glass_insulation</code></td><td>0.20</td><td>0.20</td><td>0.20</td><td>0.45</td><td>0.73</td><td>0.86</td><td>0.95</td><td>0.97</td><td>0.97</td></tr>
+    <tr><td><code>curtain_heavy</code></td><td>0.14</td><td>0.14</td><td>0.14</td><td>0.35</td><td>0.55</td><td>0.72</td><td>0.70</td><td>0.65</td><td>0.65</td></tr>
+    <tr><td><code>carpet</code></td><td>0.02</td><td>0.02</td><td>0.02</td><td>0.06</td><td>0.14</td><td>0.37</td><td>0.60</td><td>0.65</td><td>0.65</td></tr>
+    <tr><td><code>plywood_panel</code></td><td>0.40</td><td>0.40</td><td>0.40</td><td>0.28</td><td>0.15</td><td>0.10</td><td>0.07</td><td>0.06</td><td>0.06</td></tr>
+    <tr><td><code>wood_panel</code></td><td>0.28</td><td>0.28</td><td>0.28</td><td>0.22</td><td>0.17</td><td>0.09</td><td>0.10</td><td>0.11</td><td>0.11</td></tr>
+    <tr><td><code>parquet_on_concrete</code></td><td>0.04</td><td>0.04</td><td>0.04</td><td>0.04</td><td>0.07</td><td>0.06</td><td>0.06</td><td>0.07</td><td>0.07</td></tr>
+    <tr><td><code>brick_bare</code></td><td>0.02</td><td>0.02</td><td>0.02</td><td>0.02</td><td>0.03</td><td>0.04</td><td>0.05</td><td>0.05</td><td>0.05</td></tr>
+    <tr><td><code>concrete_block_coarse</code></td><td>0.36</td><td>0.36</td><td>0.36</td><td>0.44</td><td>0.31</td><td>0.29</td><td>0.39</td><td>0.25</td><td>0.25</td></tr>
+    <tr><td><code>plaster_smooth</code></td><td>0.01</td><td>0.01</td><td>0.01</td><td>0.01</td><td>0.02</td><td>0.02</td><td>0.02</td><td>0.02</td><td>0.02</td></tr>
+    <tr><td><code>marble</code></td><td>0.01</td><td>0.01</td><td>0.01</td><td>0.01</td><td>0.01</td><td>0.01</td><td>0.02</td><td>0.02</td><td>0.02</td></tr>
+    <tr><td><code>glass_thick</code></td><td>0.18</td><td>0.18</td><td>0.18</td><td>0.06</td><td>0.04</td><td>0.03</td><td>0.02</td><td>0.02</td><td>0.02</td></tr>
+    <tr><td><code>glass_thin</code></td><td>0.35</td><td>0.35</td><td>0.35</td><td>0.25</td><td>0.18</td><td>0.12</td><td>0.07</td><td>0.04</td><td>0.04</td></tr>
+    <tr><td><code>metal</code></td><td>0.03</td><td>0.03</td><td>0.03</td><td>0.03</td><td>0.04</td><td>0.04</td><td>0.04</td><td>0.04</td><td>0.04</td></tr>
+    <tr><td><code>polished_concrete_or_tile</code></td><td>0.01</td><td>0.01</td><td>0.01</td><td>0.01</td><td>0.01</td><td>0.02</td><td>0.02</td><td>0.02</td><td>0.02</td></tr>
+    <tr><td><code>water_or_ice_surface</code></td><td>0.01</td><td>0.01</td><td>0.01</td><td>0.01</td><td>0.01</td><td>0.01</td><td>0.01</td><td>0.02</td><td>0.02</td></tr>
+    <tr><td><code>grass</code></td><td>0.11</td><td>0.11</td><td>0.11</td><td>0.26</td><td>0.60</td><td>0.69</td><td>0.92</td><td>0.99</td><td>0.99</td></tr>
+    <tr><td><code>linoleum_on_concrete</code></td><td>0.02</td><td>0.02</td><td>0.02</td><td>0.02</td><td>0.03</td><td>0.03</td><td>0.03</td><td>0.03</td><td>0.03</td></tr>
+    <tr><td><code>sheet_rock</code></td><td>0.29</td><td>0.29</td><td>0.29</td><td>0.10</td><td>0.05</td><td>0.04</td><td>0.07</td><td>0.09</td><td>0.09</td></tr>
+    <tr><td><code>wood_ceiling</code></td><td>0.15</td><td>0.15</td><td>0.15</td><td>0.11</td><td>0.10</td><td>0.07</td><td>0.06</td><td>0.07</td><td>0.07</td></tr>
+    <tr><td><code>brick_painted</code></td><td>0.01</td><td>0.01</td><td>0.01</td><td>0.01</td><td>0.02</td><td>0.02</td><td>0.02</td><td>0.03</td><td>0.03</td></tr>
+    <tr><td><code>concrete_block_painted</code></td><td>0.10</td><td>0.10</td><td>0.10</td><td>0.05</td><td>0.06</td><td>0.07</td><td>0.09</td><td>0.08</td><td>0.08</td></tr>
+    <tr><td><code>plaster_rough</code></td><td>0.01</td><td>0.01</td><td>0.01</td><td>0.02</td><td>0.03</td><td>0.04</td><td>0.05</td><td>0.05</td><td>0.05</td></tr>
+    <tr><td><code>plywood_panel</code></td><td>0.40</td><td>0.40</td><td>0.40</td><td>0.28</td><td>0.15</td><td>0.10</td><td>0.07</td><td>0.06</td><td>0.06</td></tr>
   </tbody>
 </table>
 
+<p>Reading these values carefully reveals the physical mechanisms described above. <strong>Carpet</strong> shows the classic porous absorber signature: near-zero absorption at low frequencies (0.02 at 20 Hz) rising steeply through the mid-range to high absorption at 4–8 kHz (0.65). <strong>Plywood panel</strong> shows the opposite: strong low-frequency absorption (0.40 at 20–125 Hz) due to panel resonance, dropping to low absorption at high frequencies (0.06 at 8 kHz). <strong>Glass (thick)</strong> shows significant low-frequency absorption (0.18 at 20 Hz) from panel resonance, then high reflectivity above 500 Hz. <strong>Marble</strong> and <strong>polished concrete</strong> are almost spectrally flat near zero — they reflect nearly all energy at every frequency, which is why highly marbled spaces like cathedrals are so reverberant across the entire audible spectrum.</p>
+
 <div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
-<strong>Visual and acoustic material properties are physically related.</strong> Rough, porous surfaces — carpet, curtains, acoustic foam — scatter and absorb both light and sound. Their PBR roughness value is high and their acoustic absorption coefficient is high. Smooth, dense surfaces — marble, glass, polished concrete — reflect both light and sound. Their PBR roughness is low and their acoustic absorption is low. This is not a coincidence: both properties arise from the same underlying physical structure. In Demo 2, the Three.js material and the Resonance material change together, because they should.
+<strong>Visual and acoustic material properties are physically related — but the connection is spectral.</strong> Rough, porous surfaces — carpet, curtains, acoustic foam — scatter and absorb both light and sound, with absorption rising at high frequencies (short wavelengths, where surface texture matters). Smooth, dense surfaces — marble, glass, polished concrete — reflect both light and sound with near-flat spectral profiles. The PBR roughness parameter in Three.js and the acoustic absorption coefficient array in Resonance Audio both arise from the same underlying physical microstructure. In Demo 2, the Three.js material and the Resonance material change together, because they should. Crucially, the acoustic effect is not just "more or less reverberant" — it is a spectrally shaped transformation of the room's impulse response.
 </div>
 
 <p style="margin:12px 0 0 0;">
@@ -1048,63 +1083,99 @@ resonanceAudio.setRoomProperties(
 <h3>The shoebox model and image source method</h3>
 <p>Resonance simulates a rectangular (shoebox) room. Real rooms are rarely rectangular, but the shoebox approximation correctly captures the dominant perceptual effect — the reverb tail — while being computationally practical for real-time use. Early reflections are computed using the <strong>image source method</strong>: virtual copies of the source are placed at mirror positions across each wall. Each virtual source contributes an early echo with correct delay, level, and phase. The delay is determined by the distance from the virtual source to the listener; the level is attenuated by the wall's reflection coefficient (1 − absorption coefficient).</p>
 
-<h3>RT60 from Resonance material coefficients</h3>
-<p>You can estimate the RT60 of a Resonance-configured room from the Sabine formula using the material absorption coefficients. This is what Demo 2 computes in real time as you change wall materials:</p>
+<h3>RT60 from Resonance material coefficients — per-band computation</h3>
+<p>As established in Section 2, absorption coefficients are frequency-dependent, and therefore so is RT60. The Resonance Audio SDK internally stores each material as an array of nine per-band coefficients (centre frequencies: 20, 63, 125, 250, 500, 1k, 2k, 4k, 8k Hz). The correct way to estimate a room's reverberation time from a Resonance configuration is to apply the Sabine formula independently at each octave band, yielding an RT60 curve rather than a scalar. This is what any professional acoustic analysis would produce.</p>
 
-<pre><code>// Broadband absorption coefficients for Resonance Audio material presets.
-// Source: extracted from the Resonance Audio SDK source code.
-const ABSORPTION = {
-  'transparent':              1.00,
-  'acoustic_ceiling_tiles':   0.70,
-  'brick_bare':               0.03,
-  'brick_painted':            0.02,
-  'concrete_block_coarse':    0.05,
-  'concrete_block_painted':   0.07,
-  'curtain_heavy':            0.60,
-  'fiber_glass_insulation':   0.80,
-  'glass_thick':              0.04,
-  'glass_thin':               0.10,
-  'grass':                    0.11,
-  'linoleum':                 0.03,
-  'marble':                   0.01,
-  'metal':                    0.03,
-  'parquet_on_concrete':      0.11,
-  'plaster_rough':            0.03,
-  'plaster_smooth':           0.03,
-  'plywood_panel':            0.28,
-  'polished_concrete_or_tile':0.01,
-  'sheet_rock':               0.05,
-  'water_or_ice_surface':     0.01,
-  'wood_ceiling':             0.15,
-  'wood_panel':               0.30,
+<pre><code>// Per-band absorption coefficients extracted from the Resonance Audio SDK source (room-materials.js).
+// Each array contains nine values for the nine octave-band centre frequencies:
+// [20 Hz, 63 Hz, 125 Hz, 250 Hz, 500 Hz, 1 kHz, 2 kHz, 4 kHz, 8 kHz]
+//
+// These are the exact values the SDK passes to its image-source and FDN stages.
+// The frequency-dependent decay of the reverb tail — the spectral shape of the room —
+// is determined entirely by these per-band coefficients.
+
+const MATERIAL_COEFFICIENTS = {
+  'transparent':               [1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00, 1.00],
+  'acoustic_ceiling_tiles':    [0.57, 0.57, 0.57, 0.39, 0.41, 0.48, 0.75, 0.70, 0.70],
+  'fiber_glass_insulation':    [0.20, 0.20, 0.20, 0.45, 0.73, 0.86, 0.95, 0.97, 0.97],
+  'curtain_heavy':             [0.14, 0.14, 0.14, 0.35, 0.55, 0.72, 0.70, 0.65, 0.65],
+  'carpet':                    [0.02, 0.02, 0.02, 0.06, 0.14, 0.37, 0.60, 0.65, 0.65],
+  'plywood_panel':             [0.40, 0.40, 0.40, 0.28, 0.15, 0.10, 0.07, 0.06, 0.06],
+  'wood_panel':                [0.28, 0.28, 0.28, 0.22, 0.17, 0.09, 0.10, 0.11, 0.11],
+  'parquet_on_concrete':       [0.04, 0.04, 0.04, 0.04, 0.07, 0.06, 0.06, 0.07, 0.07],
+  'brick_bare':                [0.02, 0.02, 0.02, 0.02, 0.03, 0.04, 0.05, 0.05, 0.05],
+  'brick_painted':             [0.01, 0.01, 0.01, 0.01, 0.02, 0.02, 0.02, 0.03, 0.03],
+  'concrete_block_coarse':     [0.36, 0.36, 0.36, 0.44, 0.31, 0.29, 0.39, 0.25, 0.25],
+  'concrete_block_painted':    [0.10, 0.10, 0.10, 0.05, 0.06, 0.07, 0.09, 0.08, 0.08],
+  'glass_thin':                [0.35, 0.35, 0.35, 0.25, 0.18, 0.12, 0.07, 0.04, 0.04],
+  'glass_thick':               [0.18, 0.18, 0.18, 0.06, 0.04, 0.03, 0.02, 0.02, 0.02],
+  'grass':                     [0.11, 0.11, 0.11, 0.26, 0.60, 0.69, 0.92, 0.99, 0.99],
+  'linoleum_on_concrete':      [0.02, 0.02, 0.02, 0.02, 0.03, 0.03, 0.03, 0.03, 0.03],
+  'marble':                    [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.02, 0.02, 0.02],
+  'metal':                     [0.03, 0.03, 0.03, 0.03, 0.04, 0.04, 0.04, 0.04, 0.04],
+  'plaster_rough':             [0.01, 0.01, 0.01, 0.02, 0.03, 0.04, 0.05, 0.05, 0.05],
+  'plaster_smooth':            [0.01, 0.01, 0.01, 0.01, 0.02, 0.02, 0.02, 0.02, 0.02],
+  'polished_concrete_or_tile': [0.01, 0.01, 0.01, 0.01, 0.01, 0.02, 0.02, 0.02, 0.02],
+  'sheet_rock':                [0.29, 0.29, 0.29, 0.10, 0.05, 0.04, 0.07, 0.09, 0.09],
+  'water_or_ice_surface':      [0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.01, 0.02, 0.02],
+  'wood_ceiling':              [0.15, 0.15, 0.15, 0.11, 0.10, 0.07, 0.06, 0.07, 0.07],
 };
 
-function computeRT60(dimensions, materials) {
+// Octave-band centre frequencies corresponding to the coefficient arrays above.
+const BAND_FREQUENCIES = [20, 63, 125, 250, 500, 1000, 2000, 4000, 8000]; // Hz
+
+// computeRT60Bands: returns an array of nine RT60 values, one per octave band.
+// This is the acoustically correct computation — RT60 is a function of frequency.
+// The SDK uses these per-band values internally to tune its FDN decay times.
+function computeRT60Bands(dimensions, materials) {
   const { width: W, height: H, depth: D } = dimensions;
   const volume = W * H * D;  // m³
 
-  // Surface areas of each wall [m²]
-  const surfaces = {
-    left:  H * D, right:  H * D,
-    front: W * H, back:   W * H,
-    down:  W * D, up:     W * D,
+  // Surface areas of the six walls [m²]
+  const walls = {
+    left:  H * D,  right: H * D,
+    front: W * H,  back:  W * H,
+    down:  W * D,  up:    W * D,
   };
 
-  // Total absorption A = Σ αᵢ × Sᵢ  [m² sabins]
-  let A = 0;
-  for (const [wall, area] of Object.entries(surfaces)) {
-    A += (ABSORPTION[materials[wall]] ?? 0.05) * area;
+  // Default fallback coefficients (plaster-like) for any unrecognised material key.
+  const FALLBACK = [0.01, 0.01, 0.01, 0.01, 0.02, 0.02, 0.02, 0.02, 0.02];
+
+  // For each of the nine frequency bands, compute total absorption A(f) and RT60(f).
+  return BAND_FREQUENCIES.map((freq, bandIndex) => {
+    let A = 0;
+    for (const [wall, area] of Object.entries(walls)) {
+      const coeffs = MATERIAL_COEFFICIENTS[materials[wall]] ?? FALLBACK;
+      A += coeffs[bandIndex] * area;
+    }
+    // Sabine formula applied per band: RT60(f) = 0.161 × V / A(f)
+    return A > 0 ? (0.161 * volume / A) : Infinity;
+  });
+}
+
+// Usage: returns nine RT60 values in seconds, indexed by BAND_FREQUENCIES.
+// Example: a Recording Studio preset (brick walls, parquet floor, acoustic ceiling tiles)
+const rt60Curve = computeRT60Bands(
+  { width: 8, height: 3.2, depth: 10 },
+  {
+    left: 'brick_bare', right: 'brick_bare',
+    front: 'plaster_smooth', back: 'plaster_smooth',
+    down: 'parquet_on_concrete', up: 'acoustic_ceiling_tiles',
   }
-
-  // Sabine formula: RT60 = 0.161 × V / A
-  return 0.161 * volume / A;  // seconds
-}</code></pre>
-
-<h3>Important behavior: setRoomProperties replaces the entire model</h3>
-<p>Each call to <code>setRoomProperties</code> recomputes the full room acoustics model. There is no incremental per-wall update. This is fast enough for interactive use — typically under 1 ms — but it must not be called every animation frame. Call it only when a material or dimension changes.</p>
+);
+// rt60Curve[2] → RT60 at 125 Hz (dominated by reflective brick walls — long)
+// rt60Curve[6] → RT60 at 2 kHz  (dominated by absorptive ceiling tiles — shorter)
+// The difference between these values is the "warmth" of the room.</code></pre>
 
 <div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
-<strong>The anechoic approximation in the demos.</strong> An anechoic chamber is defined as having less than 10 dB of reflected energy relative to the direct sound. Resonance Audio does not have a true anechoic mode, but applying <code>'transparent'</code> to all six walls — the preset with the highest absorption coefficient (1.00) — approaches this condition. Demo 1 uses <code>'transparent'</code> on all walls to isolate pure HRTF cues without room acoustics interference. Note: the <code>'fiber_glass_insulation'</code> preset (also high absorption at 0.80) is documented in earlier versions of the SDK but may not be recognized in all builds — <code>'transparent'</code> is the reliable anechoic choice.
+<strong>What the per-band RT60 curve tells you.</strong> A room whose RT60 is significantly longer at low frequencies than at high frequencies sounds "warm" — the bass lingers while the treble decays quickly, which is characteristic of spaces with hard walls and some soft furnishings. A room with a flat RT60 curve sounds "neutral." A rising curve (more decay at high frequencies) is rare and typically undesirable — it produces a harsh, bright character. The RT60 curve is the acoustic fingerprint of a room, and every material choice in <code>setRoomProperties</code> reshapes it.
+</div>
+
+<h3>Important behavior: setRoomProperties replaces the entire model</h3>
+<p>Each call to <code>setRoomProperties</code> recomputes the full room acoustics model — image source positions, per-band reflection coefficients, and all nine FDN decay time constants — from scratch. There is no incremental per-wall update. This is fast enough for interactive use (typically under 1 ms on a modern CPU), but must not be called every animation frame. Call it only when a material or dimension actually changes.</p>
+
+<div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
+<strong>The anechoic approximation.</strong> An anechoic chamber is defined as having less than 10 dB of reflected energy relative to the direct sound. Resonance Audio does not have a true anechoic mode, but applying <code>'transparent'</code> to all six walls achieves the closest approximation available: all nine per-band coefficients are 1.00, meaning total absorption across the full spectrum. Demo 1 uses this configuration to isolate pure HRTF cues from room acoustics. Any other high-absorption material — <code>'fiber_glass_insulation'</code>, <code>'acoustic_ceiling_tiles'</code> — still leaves significant reflective energy at low frequencies, as the per-band table in Section 2 shows. Only <code>'transparent'</code> is fully absorptive at all bands.
 </div>
 
 <div class="demo-box">
