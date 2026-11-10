@@ -1,0 +1,1397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 05: Google Resonance Audio for Web — Multimediaprogrammierung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [['\\(','\\)']], displayMath: [['\\[','\\]']] },
+    options: { skipHtmlTags: ['script','noscript','style','textarea','pre'] }
+  };
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0d0f14;
+    --surface: #161a22;
+    --border:  #252b38;
+    --text:    #d8dce6;
+    --muted:   #5a6175;
+    --accent:  #4f9cf9;
+    --accent2: #a78bfa;
+    --green:   #34d399;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* ── header ── */
+  header {
+    border-bottom: 2px solid var(--border);
+    padding: 24px 0 20px;
+  }
+  .header-inner {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+  .header-logo img { width: 100px; border-radius: 10px; display: block; }
+  .header-info h1 { font-size: clamp(18px,3vw,26px); font-weight: 500; color: #f0f2f7; line-height: 1.2; margin-bottom: 4px; }
+  .header-info h2 { font-size: 14px; font-weight: 400; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; }
+  .header-meta { font-size: 13px; color: var(--text); line-height: 1.6; }
+  .header-meta a { color: var(--accent); text-decoration: none; }
+  .header-meta a:hover { text-decoration: underline; }
+
+  .author-line {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 6px;
+    flex-wrap: wrap;
+  }
+  .author-name { font-size: 13px; font-weight: 500; color: #f0f2f7; }
+  .author-role { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .linkedin-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 500;
+    text-decoration: none;
+    background: rgba(10, 102, 194, 0.15);
+    color: #5aacf5;
+    border: 1px solid rgba(10, 102, 194, 0.35);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .linkedin-badge:hover { background: rgba(10, 102, 194, 0.25); border-color: rgba(10, 102, 194, 0.55); text-decoration: none; }
+  .linkedin-badge svg { width: 11px; height: 11px; fill: currentColor; flex-shrink: 0; }
+
+  /* ── breadcrumb ── */
+  .breadcrumb {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 14px 32px 0;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+  .breadcrumb a { color: var(--accent); text-decoration: none; }
+  .breadcrumb a:hover { text-decoration: underline; }
+  .breadcrumb span { margin: 0 6px; }
+
+  /* ── main ── */
+  main {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 40px 32px 80px;
+  }
+
+  /* ── notebook content ── */
+  .nb-content { display: flex; flex-direction: column; gap: 0; }
+  .nb-cell { padding: 0; }
+
+  /* ── prose ── */
+  .nb-cell h1 {
+    font-size: clamp(22px, 3.5vw, 32px);
+    font-weight: 500;
+    color: #f0f2f7;
+    line-height: 1.25;
+    margin: 40px 0 16px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .nb-cell h2 {
+    font-size: 20px;
+    font-weight: 500;
+    color: #e8eaf2;
+    margin: 48px 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .nb-cell h3 {
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--accent2);
+    margin: 28px 0 10px;
+    font-family: var(--mono);
+    letter-spacing: 0.02em;
+  }
+  .nb-cell p { margin-bottom: 14px; color: var(--text); }
+  .nb-cell ul, .nb-cell ol { margin: 0 0 14px 22px; }
+  .nb-cell li { margin-bottom: 6px; }
+  .nb-cell strong { color: #eef0f6; font-weight: 500; }
+  .nb-cell em { color: var(--text); }
+  .nb-cell a { color: var(--accent); text-decoration: none; }
+  .nb-cell a:hover { text-decoration: underline; }
+  .nb-cell hr { border: none; border-top: 1px solid var(--border); margin: 8px 0 0; }
+
+  /* tables */
+  .nb-cell table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 16px 0 20px;
+    font-size: 13.5px;
+  }
+  .nb-cell th {
+    text-align: left;
+    padding: 8px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    border-bottom: 1px solid var(--border);
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .nb-cell td {
+    padding: 9px 12px;
+    border-bottom: 1px solid rgba(37,43,56,0.6);
+    vertical-align: top;
+    color: var(--text);
+  }
+  .nb-cell tr:last-child td { border-bottom: none; }
+  .nb-cell tr:hover td { background: rgba(255,255,255,0.02); }
+
+  /* inline code */
+  .nb-cell code {
+    background: rgba(79,156,249,0.08);
+    color: #93c5fd;
+    font-family: var(--mono);
+    font-size: 0.88em;
+    padding: 1px 6px;
+    border-radius: 4px;
+  }
+
+  /* code blocks */
+  .nb-cell pre {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 18px 20px;
+    margin: 14px 0 20px;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 13px;
+    line-height: 1.65;
+    color: #c9d1e0;
+  }
+  .nb-cell pre code {
+    background: none;
+    color: inherit;
+    font-size: inherit;
+    padding: 0;
+    border-radius: 0;
+  }
+
+  /* pill links */
+  .nb-cell a[style*="border:1px solid #1a73e8"],
+  .nb-cell a[style*="border: 1px solid #1a73e8"] {
+    display: inline-flex !important;
+    align-items: center;
+    padding: 5px 14px !important;
+    margin: 4px 6px 4px 0 !important;
+    border: 1px solid rgba(79,156,249,0.4) !important;
+    border-radius: 20px !important;
+    text-decoration: none !important;
+    font-weight: 500 !important;
+    font-size: 12px !important;
+    color: var(--accent) !important;
+    background: rgba(79,156,249,0.07) !important;
+    font-family: var(--mono);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .nb-cell a[style*="border:1px solid #1a73e8"]:hover,
+  .nb-cell a[style*="border: 1px solid #1a73e8"]:hover {
+    background: rgba(79,156,249,0.14) !important;
+    border-color: rgba(79,156,249,0.7) !important;
+  }
+
+  /* info boxes */
+  .nb-cell div[style*="border-left:5px solid #1a73e8"],
+  .nb-cell div[style*="border-left: 5px solid #1a73e8"] {
+    border-left: 4px solid var(--accent) !important;
+    background: rgba(79,156,249,0.06) !important;
+    border-radius: 6px;
+    padding: 16px 20px !important;
+    margin: 20px 0 !important;
+    color: var(--text);
+  }
+
+  /* demo-box */
+  .demo-box {
+    border-left: 4px solid var(--green);
+    background: rgba(52,211,153,0.05);
+    border-radius: 6px;
+    padding: 16px 20px;
+    margin: 24px 0;
+  }
+  .demo-box strong { color: var(--green); }
+  .demo-box a {
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 14px;
+    margin: 8px 6px 0 0;
+    border: 1px solid rgba(52,211,153,0.35);
+    border-radius: 20px;
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 12px;
+    color: var(--green);
+    background: rgba(52,211,153,0.07);
+    font-family: var(--mono);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .demo-box a:hover { background: rgba(52,211,153,0.14); border-color: rgba(52,211,153,0.6); }
+
+  /* MathJax display override */
+  .nb-cell .MathJax { color: var(--text) !important; }
+
+  /* images */
+  .nb-cell img { max-width: 100%; border-radius: 10px; display: block; }
+  .nb-cell p[align="center"] { text-align: center; }
+  .nb-cell p[align="center"] img { margin: 0 auto; }
+  .nb-cell p[align="center"] em { display: block; margin-top: 8px; font-size: 13px; color: var(--muted); }
+
+  /* footer cell */
+  .nb-footer-cell {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 2px solid var(--border);
+    text-align: center;
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.7;
+  }
+  .nb-footer-cell b { color: var(--text); }
+  .nb-footer-cell a { color: var(--accent); text-decoration: none; }
+  .nb-footer-cell a:hover { text-decoration: underline; }
+
+  /* prev / next navigation */
+  .chapter-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-top: 56px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .chapter-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    text-decoration: none;
+    padding: 8px 14px;
+    border: 1px solid rgba(79,156,249,0.3);
+    border-radius: 6px;
+    background: rgba(79,156,249,0.05);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .chapter-nav a:hover { background: rgba(79,156,249,0.12); border-color: rgba(79,156,249,0.6); }
+  .chapter-nav .nav-label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 1px; }
+  .chapter-nav .nav-title { color: var(--accent); }
+
+  /* page footer */
+  footer {
+    border-top: 2px solid var(--border);
+    padding: 18px 32px 24px;
+    max-width: 860px;
+    margin: 0 auto;
+    text-align: center;
+    font-size: 13px;
+    color: var(--text);
+    line-height: 1.7;
+  }
+  footer p + p { margin-top: 4px; font-size: 12px; color: var(--muted); }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  @media (max-width: 600px) {
+    .header-inner, main, footer, .breadcrumb { padding-left: 20px; padding-right: 20px; }
+    .header-inner { flex-direction: column; align-items: flex-start; gap: 12px; }
+    .chapter-nav { flex-direction: column; align-items: stretch; }
+  }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="header-inner">
+    <div class="header-logo">
+      <img src="ams_group_tui.png" alt="AMS Group – TU Ilmenau">
+    </div>
+    <div class="header-info">
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 05: Google Resonance Audio for Web</h2>
+      <p class="header-meta">
+        <strong>Institut für Medientechnik –
+          <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme"
+             target="_blank" rel="noopener">AMS Group</a>
+          – Technische Universität Ilmenau</strong><br>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller
+      </p>
+      <div class="author-line">
+        <span class="author-role">Wissenschaftlicher Mitarbeiter &amp; Author</span>
+        <span class="author-name">Renato Fera P.</span>
+        <a class="linkedin-badge"
+           href="https://www.linkedin.com/in/renato-profeta/"
+           target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+          </svg>
+          LinkedIn
+        </a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="breadcrumb">
+  <a href="index.html">Seminar Materials</a>
+  <span>›</span>
+  Chapter 05: Google Resonance Audio for Web
+</nav>
+
+<main>
+<div class="nb-content">
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     CHAPTER INTRO
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<h1>Chapter 05: Google Resonance Audio for Web</h1>
+<p>When you listen to music through headphones, every sound is locked inside your head — there is no sense of a room, a stage, or a space. The sound is <em>inside</em> you, not around you. <strong>Spatial audio</strong> changes this: a sound source can be placed at any point in three-dimensional space, and the listener hears it as if it is actually there — coming from the left, from above, from behind a wall, from across a large reverberant hall. The difference, heard through headphones on a well-implemented system, is not subtle.</p>
+<p>This chapter builds the complete foundation for spatial audio in the browser — from the physics of how human ears localize sound, through room acoustics and Ambisonic mathematics, to a production-quality integration of <strong>Google Resonance Audio</strong> with <strong>Three.js</strong>. Every concept is taught from first principles before the SDK is introduced. By the end, you will understand not just how to call the API, but why every parameter exists and what it encodes about the physical world.</p>
+
+<h3>What this chapter covers</h3>
+<table>
+  <thead><tr><th>#</th><th>Topic</th><th>What you will learn</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Spatial Hearing</td><td>ITD, ILD, HRTF — the physics and psychoacoustics of 3D hearing</td></tr>
+    <tr><td>2</td><td>Room Acoustics</td><td>Room impulse response, RT60, Sabine formula, material absorption</td></tr>
+    <tr><td>3</td><td>Ambisonics</td><td>Spherical harmonics, B-format encoding, binaural decoding</td></tr>
+    <tr><td>4</td><td>Web Audio Foundation</td><td>The specific nodes that Resonance Audio integrates with</td></tr>
+    <tr><td>5</td><td>Resonance Audio SDK</td><td>Architecture, signal flow, initialization pattern</td></tr>
+    <tr><td>6</td><td>Three.js Integration</td><td>The full integration contract — camera matrix to listener, source objects to Resonance</td></tr>
+    <tr><td>7</td><td>Distance &amp; Directivity</td><td>Inverse square law, rolloff models, source directivity patterns</td></tr>
+    <tr><td>8</td><td>Room Acoustics API</td><td>setRoomProperties, material presets, RT60 from coefficients</td></tr>
+    <tr><td>9</td><td>Ambisonics in Resonance</td><td>Internal Ambisonic bus, ambisonicOutput, head rotation</td></tr>
+    <tr><td>10</td><td>Performance &amp; Production</td><td>CPU budget, source LOD, occlusion, AudioContext lifecycle</td></tr>
+  </tbody>
+</table>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 1 — SPATIAL HEARING
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>1. Spatial Hearing: The Physics and Psychoacoustics</h2>
+<p>The human auditory system solves a remarkable inverse problem every moment of your waking life: from two one-dimensional pressure signals — the left and right eardrums — it reconstructs a full three-dimensional acoustic environment. The brain determines not just <em>what</em> is making a sound, but precisely <em>where</em> it is in space. Understanding the cues the auditory system uses is the foundation for building convincing spatial audio.</p>
+
+<h3>Interaural Time Difference (ITD)</h3>
+<p>When a sound source is positioned to the right of the listener, the sound wave reaches the right ear slightly before the left. This delay is the <strong>Interaural Time Difference</strong>. The geometry is straightforward: the head has a diameter of approximately 17–22 cm, and sound travels at 343 m/s at room temperature. The maximum ITD — for a source directly to the side — is approximately 660 µs.</p>
+<p>The formula for ITD as a function of azimuth angle \(\theta\) (measured from directly in front) and head radius \(d\):</p>
+\[ \text{ITD}(\theta) = \frac{d \cdot \sin\theta}{c} \]
+<p>where \(c\) is the speed of sound (343 m/s) and \(d\) is the interaural distance (approximately 0.215 m). The auditory system can detect ITDs as small as 10 µs — a difference that corresponds to a source displaced by less than 1° from the median plane.</p>
+
+<table>
+  <thead><tr><th>Azimuth θ</th><th>ITD (µs)</th><th>Perceived location</th></tr></thead>
+  <tbody>
+    <tr><td>0°</td><td>0</td><td>Directly ahead</td></tr>
+    <tr><td>30°</td><td>330</td><td>Slightly right</td></tr>
+    <tr><td>60°</td><td>572</td><td>Well to the right</td></tr>
+    <tr><td>90°</td><td>660</td><td>Directly to the right (maximum)</td></tr>
+    <tr><td>180°</td><td>0</td><td>Directly behind (ambiguous — same ITD as 0°)</td></tr>
+  </tbody>
+</table>
+
+<p>ITD is most effective at low frequencies (below approximately 1500 Hz), where the auditory system can track the phase difference between ears. At higher frequencies, the wavelength becomes short enough that phase tracking breaks down — a different mechanism takes over.</p>
+
+<h3>Interaural Level Difference (ILD)</h3>
+<p>The head is not acoustically transparent. At frequencies where the acoustic wavelength is comparable to or smaller than the head diameter — roughly above 500 Hz — the head casts an <strong>acoustic shadow</strong> on the far ear. The result is an Interaural Level Difference: the near ear receives more energy than the far ear, and the difference is frequency-dependent.</p>
+<p>At 500 Hz, the ILD is negligible (the head is acoustically small relative to the wavelength). At 4 kHz, the ILD can reach 25 dB for a source directly to the side. This is why broadband audio — rich in high-frequency content — produces stronger, more convincing lateral localization than pure low-frequency tones.</p>
+
+<div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
+<strong>ITD vs ILD as complementary cues.</strong> The auditory system uses ITD predominantly at low frequencies and ILD predominantly at high frequencies. This duplex theory of sound localization, proposed by Lord Rayleigh in 1907, explains why broadband signals produce the strongest and most unambiguous localization: they carry both cues simultaneously. A pure 440 Hz sine wave has ITD but negligible ILD; a pure 8 kHz tone has ILD but no resolvable ITD. The evacuation alarm in Demo 1 is chosen precisely because it carries energy across the full spectrum, activating both cue systems at once.
+</div>
+
+<h3>Head-Related Transfer Function (HRTF)</h3>
+<p>ITD and ILD together explain lateral localization — left versus right. But the auditory system also localizes sounds in elevation (above vs below), in depth (near vs far), and critically, it distinguishes sounds in front from sounds behind, even when both have the same ITD and ILD. These additional cues come from the <strong>Head-Related Transfer Function</strong>.</p>
+<p>The HRTF is the frequency response of the acoustic path from a point in space to one eardrum, measured through the full physical structure of the head, torso, and — most importantly — the outer ear (pinna). It is defined separately for each direction in space and for each ear. Formally, it is a pair of direction-dependent filter functions \(H_L(\omega, \theta, \phi)\) and \(H_R(\omega, \theta, \phi)\), where \(\omega\) is angular frequency and \((\theta, \phi)\) are the azimuth and elevation of the source.</p>
+<p>The pinna introduces direction-dependent spectral notches above 4 kHz. These notches arise from reflections within the pinna geometry that interfere destructively with the direct path at specific frequencies. The frequency of the notch depends on the angle of arrival. The auditory system learns to interpret these spectral notches as elevation cues — a process that happens during early development and continues throughout life as the brain calibrates to the individual's own pinna geometry.</p>
+
+<h3>Measuring the HRTF</h3>
+<p>The HRTF is measured experimentally: a subject (or an anatomically accurate dummy head with microphones placed in the ear canals) is placed in an anechoic chamber. A loudspeaker is moved through hundreds of positions on a sphere surrounding the subject, and an impulse is played at each position. The resulting impulse response recorded at each ear, for each speaker position, constitutes the HRTF dataset. The industry-standard measurement system is the Neumann KU 100 binaural head. Publicly available databases include CIPIC (45 subjects) and SADIE II (20 subjects, full sphere coverage).</p>
+<p>Resonance Audio ships with a single generic HRTF dataset — an average across a population. Generic HRTFs work well for lateral localization (ITD and ILD are largely anatomically consistent), but front-back and elevation cues rely on individual pinna geometry and are weaker with a generic HRTF. This is a known limitation of all generic binaural rendering systems.</p>
+
+<h3>Externalization</h3>
+<p>When binaural audio works correctly, the sound is perceived as existing outside the head — in the room, at a specific location in space. This perceptual quality is called <strong>externalization</strong>. When it fails, the sound collapses to an in-head position — the sensation that the audio is "inside your skull" rather than "out there." Causes of poor externalization include: a generic HRTF that does not match the listener's own anatomy; the absence of pinna cues (which requires broadband high-frequency content); and the absence of room acoustics (even a small amount of reverberation dramatically improves externalization by providing the acoustic context the brain expects for a real sound in a real space).</p>
+
+<div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
+<strong>Why spatial audio requires headphones.</strong> Binaural rendering delivers a precisely calculated signal to each ear. Over loudspeakers, the left loudspeaker's signal reaches both ears (crosstalk), destroying the ITD and ILD cues the renderer computed. Headphone reproduction eliminates crosstalk by design — the left channel reaches only the left ear. This is why every demo in this chapter specifies: best experienced with headphones.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://www.aes.org/e-lib/browse.cfm?elib=7836" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Wightman &amp; Kistler — HRTF (AES) &#8599;</a>
+  <a href="https://ieee-dataport.org/open-access/sadie-ii-database" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">SADIE II Database &#8599;</a>
+  <a href="https://www.ece.ucdavis.edu/cipic/spatial-sound/hrtf-data/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">CIPIC HRTF Database &#8599;</a>
+</p>
+
+<div class="demo-box">
+  <strong>Demo 1 — Binaural Lab.</strong> An anechoic chamber in Three.js with a single spatial source orbiting the listener. Toggle between HRTF binaural rendering and a flat <code>StereoPannerNode</code> and hear the difference — especially on the Elevation Sweep trajectory, where the stereo panner produces no elevation cue whatsoever. The HUD displays live azimuth, elevation, ITD and estimated ILD for the current source position. The HRTF sphere visualization maps the dot product of source direction against every vertex direction on a sphere, giving a visual representation of how the HRTF gain varies across space as the source moves.
+  <br>
+  <a href="05_mm_binaural_lab.html">Open Demo 1: Binaural Lab &#8599;</a>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 2 — ROOM ACOUSTICS
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>2. Room Acoustics: Sound in Enclosed Spaces</h2>
+<p>In an anechoic chamber, you hear only the direct sound from the source — the sound that travels in a straight line from source to ear. In every other real environment, sound also bounces off walls, floor, ceiling, and objects. This reflected energy arrives after the direct sound, from multiple directions, and continues to arrive — with diminishing energy — for a time that depends on the room's size and the acoustic absorption of its surfaces. The complete acoustic effect of a room on a sound source is captured by the <strong>room impulse response</strong>.</p>
+
+<h3>The Room Impulse Response</h3>
+<p>The room impulse response (RIR) \(h(t)\) is the signal recorded at a listener position when an instantaneous impulse is emitted at the source position. It is a complete fingerprint of the room for that source-receiver pair. If you know the RIR, you can predict what any sound \(x(t)\) will sound like in that room by convolution:</p>
+\[ y(t) = x(t) * h(t) \]
+<p>The RIR has two perceptually distinct regions. The first 0–80 ms contain the <strong>early reflections</strong>: discrete, identifiable echoes from the nearest walls, floor, and ceiling. These carry spatial information — the brain uses early reflection patterns to estimate the size of the room, the distance of the source, and the direction of the nearest surfaces. The region beyond 80 ms is the <strong>late reverberation</strong>: a dense, diffuse, exponentially decaying tail that carries the room's acoustic signature without directional content.</p>
+
+<h3>RT60 and the Sabine Formula</h3>
+<p>The most important single-number descriptor of a room's acoustics is the <strong>reverberation time RT60</strong>: the time, in seconds, for the reverberant energy to decay by 60 dB after the source stops. The larger and more reflective the room, the longer the RT60.</p>
+<p>Wallace Clement Sabine derived the fundamental formula in 1900:</p>
+\[ \text{RT60} = \frac{0.161 \cdot V}{A} \]
+<p>where \(V\) is the room volume in m³ and \(A = \sum_i \alpha_i S_i\) is the total absorption in m² sabins — the sum over all surfaces of the absorption coefficient \(\alpha_i\) multiplied by the surface area \(S_i\). The Eyring correction, more accurate for highly absorptive rooms, replaces the denominator:</p>
+\[ \text{RT60} = \frac{0.161 \cdot V}{-S \cdot \ln(1 - \bar{\alpha})} \]
+<p>where \(\bar{\alpha}\) is the mean absorption coefficient across all surfaces and \(S\) is the total surface area.</p>
+
+<table>
+  <thead><tr><th>Environment</th><th>Typical RT60</th><th>Acoustic character</th></tr></thead>
+  <tbody>
+    <tr><td>Anechoic chamber</td><td>&lt; 0.1 s</td><td>Near-zero reflections; dead, isolating</td></tr>
+    <tr><td>Broadcast studio</td><td>0.2–0.3 s</td><td>Controlled, intimate, voice-optimized</td></tr>
+    <tr><td>Living room</td><td>0.3–0.5 s</td><td>Natural, comfortable for speech and music</td></tr>
+    <tr><td>Classroom</td><td>0.5–0.8 s</td><td>Moderate reverb; can impair speech intelligibility</td></tr>
+    <tr><td>Concert hall</td><td>1.5–2.2 s</td><td>Rich, enveloping; optimized for orchestral music</td></tr>
+    <tr><td>Cathedral</td><td>4–8 s</td><td>Extremely long tail; choral and organ music</td></tr>
+  </tbody>
+</table>
+
+<h3>Absorption Coefficients and Material Presets</h3>
+<p>Every surface absorbs a fraction of the incident sound energy. This fraction — the <strong>absorption coefficient</strong> \(\alpha\) — varies from 0 (perfectly reflective, like a hard concrete wall) to 1 (perfectly absorptive, like an open window). The coefficient is frequency-dependent: most real materials absorb more at high frequencies than at low.</p>
+<p>Resonance Audio exposes room acoustics through named material presets. Each preset encodes a broadband absorption coefficient used in the room simulation. The table below lists all available presets with their approximate acoustic character:</p>
+
+<table>
+  <thead><tr><th>Material preset</th><th>Approx. α</th><th>Acoustic character</th></tr></thead>
+  <tbody>
+    <tr><td><code>transparent</code></td><td>1.00</td><td>Maximum absorption — anechoic approximation</td></tr>
+    <tr><td><code>acoustic_ceiling_tiles</code></td><td>0.70</td><td>Highly absorptive — office and studio ceilings</td></tr>
+    <tr><td><code>fiber_glass_insulation</code></td><td>0.80</td><td>Very absorptive — recording studio treatment</td></tr>
+    <tr><td><code>curtain_heavy</code></td><td>0.60</td><td>Absorptive — fabric drapes</td></tr>
+    <tr><td><code>carpet</code></td><td>0.37</td><td>Moderately absorptive — typical floor covering</td></tr>
+    <tr><td><code>plywood_panel</code></td><td>0.28</td><td>Moderate absorption — wood panels</td></tr>
+    <tr><td><code>wood_panel</code></td><td>0.30</td><td>Moderate absorption — solid timber wall</td></tr>
+    <tr><td><code>parquet_on_concrete</code></td><td>0.11</td><td>Low absorption — hardwood floor</td></tr>
+    <tr><td><code>brick_bare</code></td><td>0.03</td><td>Highly reflective — raw masonry</td></tr>
+    <tr><td><code>concrete_block_coarse</code></td><td>0.05</td><td>Highly reflective — rough concrete</td></tr>
+    <tr><td><code>plaster_smooth</code></td><td>0.03</td><td>Highly reflective — smooth plaster</td></tr>
+    <tr><td><code>marble</code></td><td>0.01</td><td>Near-perfectly reflective — polished stone</td></tr>
+    <tr><td><code>glass_thick</code></td><td>0.04</td><td>Reflective — structural glazing</td></tr>
+    <tr><td><code>glass_thin</code></td><td>0.10</td><td>Slightly more absorptive — window glass</td></tr>
+    <tr><td><code>metal</code></td><td>0.03</td><td>Highly reflective — steel panels</td></tr>
+    <tr><td><code>polished_concrete_or_tile</code></td><td>0.01</td><td>Near-perfectly reflective — polished floor</td></tr>
+    <tr><td><code>water_or_ice_surface</code></td><td>0.01</td><td>Near-perfectly reflective</td></tr>
+    <tr><td><code>grass</code></td><td>0.11</td><td>Low-moderate absorption — outdoor ground</td></tr>
+    <tr><td><code>linoleum</code></td><td>0.03</td><td>Low absorption — hard floor covering</td></tr>
+    <tr><td><code>sheet_rock</code></td><td>0.05</td><td>Low absorption — drywall</td></tr>
+    <tr><td><code>wood_ceiling</code></td><td>0.15</td><td>Low-moderate — timber roof structure</td></tr>
+  </tbody>
+</table>
+
+<div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
+<strong>Visual and acoustic material properties are physically related.</strong> Rough, porous surfaces — carpet, curtains, acoustic foam — scatter and absorb both light and sound. Their PBR roughness value is high and their acoustic absorption coefficient is high. Smooth, dense surfaces — marble, glass, polished concrete — reflect both light and sound. Their PBR roughness is low and their acoustic absorption is low. This is not a coincidence: both properties arise from the same underlying physical structure. In Demo 2, the Three.js material and the Resonance material change together, because they should.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://www.iso.org/standard/55295.html" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">ISO 3382 — Room Acoustics &#8599;</a>
+  <a href="https://archive.org/details/reverberation_sabine" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Sabine 1900 — Original Paper &#8599;</a>
+</p>
+
+<div class="demo-box">
+  <strong>Demo 2 — Room Acoustics Lab.</strong> A fully navigable 3D room where you change the material of each wall independently and hear the room transform in real time. A live RT60 readout (computed from the Sabine formula applied to Resonance's material absorption coefficients) shows the computed reverberation time as you adjust materials. The Three.js wall material and Resonance material always update together.
+  <br>
+  <a href="05_mm_room_acoustics.html">Open Demo 2: Room Acoustics Lab &#8599;</a>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 3 — AMBISONICS
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>3. Ambisonics: The Full Spherical Sound Field</h2>
+<p>Binaural rendering with a fixed HRTF dataset solves the reproduction problem for one listener in one listening configuration. But it encodes the sound field in a form specific to that listener and those HRTFs. <strong>Ambisonics</strong> takes a different approach: it represents the sound field itself — the full three-dimensional distribution of acoustic energy at a point in space — in a format that is completely independent of the reproduction system. The reproduction (binaural decode for headphones, speaker array decode for a loudspeaker rig) is a separate step applied after encoding.</p>
+
+<h3>Spherical Harmonics</h3>
+<p>Ambisonics encodes the sound field using <strong>spherical harmonics</strong> — a family of functions defined over the surface of a sphere, orthonormal with respect to the spherical surface integral. They are the spherical analogue of Fourier basis functions over a circle. A real spherical harmonic of degree \(l\) and order \(m\) is written \(Y_l^m(\theta, \phi)\), where \(\theta\) is elevation and \(\phi\) is azimuth. The first few orders are:</p>
+\[ Y_0^0 = \frac{1}{\sqrt{4\pi}} \quad \text{(omnidirectional)} \]
+\[ Y_1^{-1} = \sqrt{\frac{3}{4\pi}} \sin\theta \sin\phi, \quad Y_1^0 = \sqrt{\frac{3}{4\pi}} \cos\theta, \quad Y_1^1 = \sqrt{\frac{3}{4\pi}} \sin\theta \cos\phi \]
+<p>An Ambisonic representation of order \(N\) uses \((N+1)^2\) spherical harmonic components. Each component is a separate audio signal whose amplitude at any moment encodes the contribution of the sound field to that harmonic pattern. Any sound field can be approximated to arbitrary accuracy by increasing the order — higher order means more components, finer spatial resolution, and more CPU cost.</p>
+
+<h3>Ambisonic Encoding</h3>
+<p>To encode a point source at direction \((\theta, \phi)\) with signal \(s(t)\) into the Ambisonic bus, each spherical harmonic component \(W_{lm}\) of the B-format signal receives a contribution:</p>
+\[ W_{lm}(t) = Y_l^m(\theta, \phi) \cdot s(t) \]
+<p>For first-order Ambisonics (the classical B-format), the four components are:</p>
+\[ W = \frac{s}{\sqrt{2}}, \quad X = s \cos\phi \cos\theta, \quad Y = s \cos\phi \sin\theta, \quad Z = s \sin\phi \]
+<p>These four signals can be stored, transmitted, and decoded entirely independently of how they will be reproduced. This is the key architectural advantage: encode once, decode to any playback system.</p>
+
+<h3>Binaural Ambisonic Decoding</h3>
+<p>Resonance Audio targets headphone reproduction. Its decode step takes the internal Ambisonic bus and produces a binaural stereo output by convolving each B-format channel with a set of pre-computed head-related spherical harmonic filters — a technique called <strong>magnitude-least-squares (MagLS) binaural Ambisonic decoding</strong>. This is equivalent to computing a direction-dependent HRTF-weighted sum across the full Ambisonic representation of the sound field. The result is a stereo signal where every source encoded on the Ambisonic bus is rendered binaurally according to its position.</p>
+
+<h3>Ambisonic Order and Spatial Resolution</h3>
+<table>
+  <thead><tr><th>Order N</th><th>Channels (N+1)²</th><th>Approx. spatial resolution</th><th>Use case</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>4</td><td>~90° (blurry)</td><td>Low-cost mobile, early VR</td></tr>
+    <tr><td>2</td><td>9</td><td>~50°</td><td>Acceptable quality, moderate CPU</td></tr>
+    <tr><td>3</td><td>16</td><td>~30° (recommended)</td><td>Resonance Audio default — high quality, real-time viable</td></tr>
+    <tr><td>5</td><td>36</td><td>~18°</td><td>High-end VR, significant CPU cost</td></tr>
+    <tr><td>7</td><td>64</td><td>~13°</td><td>Professional post-production</td></tr>
+  </tbody>
+</table>
+
+<h3>Head Rotation in the Ambisonic Domain</h3>
+<p>One of the principal advantages of the Ambisonic representation is that listener head rotation — the fundamental operation in head-tracked VR audio — is computationally cheap. Rotating the listener's perspective is equivalent to rotating the spherical harmonic coordinate system, which is a matrix multiplication on the coefficient domain (a Wigner-D matrix). This costs \(O((N+1)^4)\) multiplications per frame, far less expensive than re-encoding all sources from scratch. Source positions are fixed in the Ambisonic bus; only the rotation matrix changes when the head moves.</p>
+
+<div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
+<strong>Ambisonics separates the sound field from its reproduction.</strong> A single Ambisonic master can be decoded to headphones (binaural, as Resonance Audio does), to a 7.1.4 Dolby Atmos speaker array, to a dome of 50 loudspeakers, or to any other playback geometry. The B-format file is the same in all cases — only the decoder changes. This format-agnostic design is why Ambisonics has become the standard internal representation for immersive audio in VR platforms, YouTube 360, and professional post-production.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://www.aes.org/e-lib/browse.cfm?elib=1799" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Gerzon 1973 — Original Ambisonics Paper &#8599;</a>
+  <a href="https://github.com/google/spatial-media/blob/master/docs/spatial-audio-rfc.md" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Google Spatial Audio RFC &#8599;</a>
+</p>
+
+<div class="demo-box">
+  <strong>Demo 4 — Ambisonics Visualizer.</strong> Multiple sources encoded into a third-order Ambisonic bus, visualized as a spherical energy distribution. Toggle between first-order and third-order and hear the spatial resolution difference. Mouse drag rotates the listener's head — the binaural decode and the spherical visualization update together, showing the Wigner-D rotation in action. B-format channel energies (W, X, Y, Z) are displayed as live animated bars.
+  <br>
+  <a href="05_mm_ambisonics.html">Open Demo 4: Ambisonics Visualizer &#8599;</a>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 4 — WEB AUDIO FOUNDATION
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>4. Web Audio API: What Resonance Builds On</h2>
+<p>Chapter 01 covers the Web Audio API in full. This section is not a repeat — it identifies the specific nodes and patterns that are directly relevant to Resonance Audio integration, and explains the one lifecycle rule that every demo in this chapter depends on.</p>
+<p>Resonance Audio is implemented as a Web Audio node — it integrates into any Web Audio graph as a black box. Sources go in, binaural stereo comes out, and the output connects to <code>AudioContext.destination</code> as normal. The integration point is the standard Web Audio <code>.connect()</code> API; Resonance adds nothing to the connection model.</p>
+
+<table>
+  <thead><tr><th>Node</th><th>Role in Resonance integration</th></tr></thead>
+  <tbody>
+    <tr><td><code>AudioContext</code></td><td>Must be created on a user gesture. Every demo gates audio behind a click. Resume on page visibility restore.</td></tr>
+    <tr><td><code>AudioBufferSourceNode</code></td><td>Single-use. Load a buffer once, create a new source node for each playback. Connect to <code>resonanceSource.input</code>.</td></tr>
+    <tr><td><code>OscillatorNode</code></td><td>Synthesis source. Connect to <code>resonanceSource.input</code> via a <code>GainNode</code>.</td></tr>
+    <tr><td><code>GainNode</code></td><td>Used for crossfades between audio modes (HRTF ↔ Stereo Pan). Ramp with <code>linearRampToValueAtTime</code> — never abrupt assignment mid-playback.</td></tr>
+    <tr><td><code>AnalyserNode</code></td><td>Inserted between source and <code>resonanceSource.input</code> to read RMS energy for visual emissive intensity. Use <code>getByteFrequencyData</code> every animation frame.</td></tr>
+    <tr><td><code>StereoPannerNode</code></td><td>The comparison baseline. Receives the same audio signal in parallel with the Resonance path. A <code>GainNode</code> crossfade switches between them.</td></tr>
+    <tr><td><code>BiquadFilterNode</code></td><td>Used for occlusion simulation (low-pass, cutoff ~500 Hz when a wall is between source and listener) and noise shaping in synthesis.</td></tr>
+    <tr><td><code>ChannelSplitterNode</code></td><td>Splits the multichannel <code>resonanceAudio.ambisonicOutput</code> into individual Ambisonic channel signals for per-channel analysis.</td></tr>
+  </tbody>
+</table>
+
+<div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
+<strong>The autoplay policy is non-negotiable.</strong> Modern browsers suspend <code>AudioContext</code> creation until the user interacts with the page. Every demo in this chapter creates the <code>AudioContext</code> inside a click handler — never on page load. The loading screen's Start button is this interaction gate. Attempting to call <code>audioContext.resume()</code> before a user gesture fails silently and the student hears nothing. See Chapter 01 for the full treatment of the <code>AudioContext</code> lifecycle.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="01_multimediaprogrammierung_webaudio.html" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">← Chapter 01: Web Audio API</a>
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">MDN Web Audio API &#8599;</a>
+</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 5 — RESONANCE AUDIO SDK ARCHITECTURE
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>5. Google Resonance Audio SDK: Architecture</h2>
+<p>Google Resonance Audio is an open-source (Apache 2.0) spatial audio SDK released by Google in 2017, now maintained by the community on GitHub. It implements binaural rendering via third-order Ambisonics, a physically-based shoebox room acoustics model, and HRTF convolution — all in the browser, using the Web Audio API as its substrate. It is used in Google Cardboard, Daydream VR, YouTube 360, and many third-party applications.</p>
+
+<h3>Why Resonance over the built-in PannerNode</h3>
+<p>The Web Audio API provides a <code>PannerNode</code> with <code>panningModel: 'HRTF'</code> for 3D spatial audio. The difference in quality is significant:</p>
+
+<table>
+  <thead><tr><th></th><th>Web Audio PannerNode (HRTF)</th><th>Resonance Audio</th></tr></thead>
+  <tbody>
+    <tr><td>Ambisonic order</td><td>First-order (4 channels)</td><td>Third-order (16 channels)</td></tr>
+    <tr><td>HRTF dataset</td><td>Browser-vendor supplied, opaque</td><td>Google's measured dataset, documented</td></tr>
+    <tr><td>Room acoustics</td><td>None</td><td>Physically-based shoebox model, per-wall materials</td></tr>
+    <tr><td>Spatial resolution</td><td>~90° (blurry)</td><td>~30° (clear)</td></tr>
+    <tr><td>Three.js integration</td><td>Manual position/orientation sync</td><td><code>setFromMatrix(matrixWorld)</code> — one call per frame</td></tr>
+    <tr><td>Distance model</td><td>Inverse, linear, or exponential</td><td>Smooth rolloff with configurable min/max distance</td></tr>
+  </tbody>
+</table>
+
+<h3>Three-layer architecture</h3>
+<p>Resonance Audio is organized in three layers that map directly onto the physical model:</p>
+<ul>
+  <li><strong>Source layer.</strong> Each <code>ResonanceAudio.Source</code> object represents one spatial sound source. It has a position, orientation, directivity pattern, and distance model. Its <code>.input</code> property is a standard Web Audio <code>AudioNode</code> that accepts audio from any source in the graph.</li>
+  <li><strong>Room layer.</strong> The room simulation is configured via <code>setRoomProperties</code>. It defines a rectangular (shoebox) acoustic space by its dimensions and six wall materials. Resonance computes early reflections (using the image source method) and a late reverberation tail from the material absorption coefficients.</li>
+  <li><strong>Listener layer.</strong> The <code>ResonanceAudio</code> instance itself is the binaural decoder. It maintains the Ambisonic bus, applies the HRTF-based decode, and exposes the binaural stereo output via its <code>.output</code> AudioNode, which connects to <code>AudioContext.destination</code>.</li>
+</ul>
+
+<h3>Signal flow</h3>
+<pre><code>// Signal flow through a Resonance Audio integration
+//
+// Web Audio sources                Resonance Audio
+// ─────────────────────────────    ──────────────────────────────────────────
+// AudioBufferSourceNode ──────────▶ resonanceSource.input
+// OscillatorNode        ──────────▶ resonanceSource.input   ← multiple sources
+// (any AudioNode)       ──────────▶ resonanceSource.input     on the same bus
+//                                           │
+//                                           ▼
+//                              Ambisonic encoding (order 3)
+//                              Room simulation (early reflections + reverb)
+//                              Binaural HRTF decode (MagLS)
+//                                           │
+//                                           ▼
+//                              resonanceAudio.output (stereo)
+//                                           │
+//                                           ▼
+//                              AudioContext.destination (headphones)</code></pre>
+
+<h3>Initialization pattern</h3>
+<p>The complete SDK initialization — from <code>AudioContext</code> creation to a playing spatial source — follows this pattern. Every parameter is explained:</p>
+
+<pre><code>// STEP 1: Create AudioContext — always inside a user gesture handler.
+// The browser's autoplay policy blocks AudioContext creation on page load.
+const audioContext = new AudioContext();
+// If the context was already suspended (e.g. page was hidden), resume it.
+if (audioContext.state === 'suspended') await audioContext.resume();
+
+// STEP 2: Create the Resonance Audio instance.
+// ambisonicOrder: 3 uses 16 channels — the recommended quality/CPU balance.
+// The listenerPosition, listenerForward and listenerUp are updated every
+// animation frame via setListenerFromMatrix — these defaults are overwritten.
+const resonanceAudio = new ResonanceAudio(audioContext, {
+  ambisonicOrder: 3,
+  listenerPosition: [0, 0, 0],
+  listenerForward:  [0, 0, -1],  // looking toward -Z, matching Three.js default
+  listenerUp:       [0, 1,  0],  // Y-up, matching Three.js world convention
+});
+
+// STEP 3: Connect Resonance output to the audio hardware.
+// resonanceAudio.output is a standard AudioNode — connect it like any other.
+resonanceAudio.output.connect(audioContext.destination);
+
+// STEP 4: Configure the room.
+// Dimensions in meters. Materials are string keys from the RoomMaterials enum.
+// 'transparent' on all walls approximates an anechoic chamber (maximum absorption).
+resonanceAudio.setRoomProperties(
+  { width: 10, height: 3.2, depth: 10 },
+  {
+    left:  'transparent', right: 'transparent',
+    front: 'transparent', back:  'transparent',
+    down:  'transparent', up:    'transparent',
+  }
+);
+
+// STEP 5: Create a spatial source and connect audio into it.
+// resonanceAudio.createSource() returns a ResonanceAudio.Source.
+// Its .input property is a standard AudioNode — connect any audio source to it.
+const resonanceSource = resonanceAudio.createSource();
+audioBufferSourceNode.connect(resonanceSource.input);
+
+// STEP 6: Set the source position (in meters, Three.js / Resonance coordinate system).
+// Or, in the production pattern, use setFromMatrix() — see Section 6.
+resonanceSource.setPosition(2, 1, -3);</code></pre>
+
+<div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
+<strong>Coordinate system convention.</strong> Resonance Audio uses a right-handed coordinate system with Y-up, matching Three.js world space exactly. One Three.js world unit equals one meter in Resonance Audio. This convention must be established at the start of every project and never violated. If your Three.js scene uses non-unit scaling, apply it to scene geometry only — never to the camera or to source objects whose <code>matrixWorld</code> will be passed to Resonance.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://github.com/resonance-audio/resonance-audio" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Resonance Audio — GitHub &#8599;</a>
+  <a href="https://www.w3.org/TR/webaudio/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Web Audio API — W3C Spec &#8599;</a>
+</p>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 6 — THREE.JS INTEGRATION
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>6. Integrating Resonance Audio with Three.js</h2>
+<p>Resonance Audio was designed to integrate with Three.js. The <code>setFromMatrix</code> API accepts a <code>THREE.Matrix4</code> world matrix directly, meaning the audio coordinate system stays in sync with the visual coordinate system by construction, not by manual management. This section explains the full integration contract and the production patterns that every demo in this chapter uses.</p>
+
+<h3>The integration contract</h3>
+<ul>
+  <li>Three.js owns the visual world: camera, lights, geometry, materials, scene graph.</li>
+  <li>Resonance Audio owns the acoustic world: sources, listener, room.</li>
+  <li>The Three.js camera's <code>matrixWorld</code> is the single source of truth for listener position and orientation — written to Resonance every animation frame.</li>
+  <li>Three.js scene objects that represent sound sources expose their <code>matrixWorld</code> to Resonance every frame. The source object moves in the scene graph; the audio follows automatically.</li>
+</ul>
+
+<h3>Renderer initialization</h3>
+<pre><code>// CONCEPT: Renderer settings that matter for spatial audio demos.
+// antialias: true      — eliminates aliasing on the room geometry edges
+// powerPreference: 'high-performance' — requests the discrete GPU on dual-GPU systems
+const renderer = new THREE.WebGLRenderer({
+  antialias: true,
+  powerPreference: 'high-performance'
+});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // cap at 2 — no perceptible gain above
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type    = THREE.PCFSoftShadowMap;   // soft shadow edges
+renderer.toneMapping       = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.outputColorSpace  = THREE.SRGBColorSpace;      // correct gamma for display</code></pre>
+
+<h3>Creating a spatial source as a Three.js scene object</h3>
+<pre><code>// CONCEPT: A spatial source is both a Three.js mesh and a Resonance source.
+// They are kept in a single object so the mesh's matrixWorld can be passed
+// directly to Resonance each frame — no separate position tracking.
+function createSpatialSource(scene, resonanceAudio, audioContext, position) {
+
+  // Visual representation — the pulsing emissive sphere
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.11, 20, 20),
+    new THREE.MeshStandardMaterial({
+      color: 0x4fc3f7,
+      emissive: new THREE.Color(0x4fc3f7),
+      emissiveIntensity: 0.3  // driven by audio RMS each frame
+    })
+  );
+  mesh.position.copy(position);
+  scene.add(mesh);
+
+  // Co-located point light — intensity also driven by audio RMS
+  // This causes the source to cast dynamic shadows that pulse with the audio.
+  const light = new THREE.PointLight(0x4fc3f7, 0, 5);
+  light.position.copy(position);
+  scene.add(light);
+
+  // Resonance source — one per spatial sound source
+  const resonanceSource = resonanceAudio.createSource();
+
+  // AnalyserNode: tap the audio signal to drive visual energy readouts
+  const analyser = audioContext.createAnalyser();
+  analyser.fftSize = 256;
+  const energyBuffer = new Uint8Array(analyser.frequencyBinCount);
+
+  // Connect audio: source → analyser → resonanceSource.input
+  // The analyser is a pass-through — it reads energy without modifying the signal.
+  analyser.connect(resonanceSource.input);
+
+  return { mesh, light, resonanceSource, analyser, energyBuffer };
+}
+
+// Usage:
+// const src = createSpatialSource(scene, resonanceAudio, audioContext, new THREE.Vector3(2, 1, -3));
+// myAudioNode.connect(src.analyser);  // connect audio into the analyser tap</code></pre>
+
+<h3>The animation loop — the integration heartbeat</h3>
+<pre><code>// CONCEPT: The animation loop is where Three.js and Resonance Audio stay in sync.
+// Every frame, in this order:
+//   1. Advance any moving objects in the scene graph
+//   2. Update camera matrixWorld (Three.js does this automatically if camera is in the scene)
+//   3. Write camera matrixWorld to Resonance listener
+//   4. Write each source mesh matrixWorld to its Resonance source
+//   5. Read audio energy from each AnalyserNode and update visual properties
+//   6. Render
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+
+  // Update camera controls (OrbitControls or PointerLockControls)
+  controls.update();
+
+  // CONCEPT: setListenerFromMatrix — the single call that keeps audio in sync with visuals.
+  // camera.matrixWorld encodes the camera's full world-space position and orientation.
+  // Resonance reads position (translation component) and orientation (rotation component).
+  // Three.js keeps matrixWorld up to date automatically for objects in the scene graph.
+  camera.updateMatrixWorld();
+  resonanceAudio.setListenerFromMatrix(camera.matrixWorld);
+
+  // CONCEPT: setFromMatrix — same principle for each sound source.
+  // The source mesh moves in the Three.js scene graph.
+  // Its matrixWorld is the final world-space transform after all parent transforms.
+  // Passing it to Resonance keeps the acoustic position identical to the visual position.
+  for (const src of spatialSources) {
+    src.mesh.updateMatrixWorld();
+    src.resonanceSource.setFromMatrix(src.mesh.matrixWorld);
+
+    // Drive visual intensity from audio energy
+    src.analyser.getByteFrequencyData(src.energyBuffer);
+    let sum = 0;
+    for (let i = 0; i < src.energyBuffer.length; i++) {
+      sum += src.energyBuffer[i] * src.energyBuffer[i];
+    }
+    const rms = Math.sqrt(sum / src.energyBuffer.length) / 255;
+    src.mesh.material.emissiveIntensity = 0.1 + rms * 3.0;
+    src.light.intensity = rms * 2.5;
+  }
+
+  // Render through the post-processing composer (bloom + output pass)
+  composer ? composer.render() : renderer.render(scene, camera);
+}</code></pre>
+
+<h3>Post-processing for spatial audio scenes</h3>
+<pre><code>// CONCEPT: UnrealBloomPass makes emissive audio source meshes glow.
+// The bloom effect is physically motivated: a bright source that pulses with
+// audio energy appears to radiate light — reinforcing the connection between
+// what the student sees and what they hear.
+//
+// Three.js post-processing requires ES module imports via importmap:
+// {
+//   "imports": {
+//     "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+//     "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+//   }
+// }
+
+const { EffectComposer } = await import('three/addons/postprocessing/EffectComposer.js');
+const { RenderPass }     = await import('three/addons/postprocessing/RenderPass.js');
+const { UnrealBloomPass }= await import('three/addons/postprocessing/UnrealBloomPass.js');
+const { OutputPass }     = await import('three/addons/postprocessing/OutputPass.js');
+
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+composer.addPass(new UnrealBloomPass(
+  new THREE.Vector2(innerWidth, innerHeight),
+  0.7,  // strength  — controls total glow intensity
+  0.4,  // radius    — controls how far the glow spreads
+  0.3   // threshold — luminance value above which bloom activates
+));
+composer.addPass(new OutputPass());
+
+// In the animation loop: composer.render() instead of renderer.render(scene, camera)
+// On resize: composer.setSize(W, H) — the internal render targets have fixed dimensions</code></pre>
+
+<h3>First-person navigation</h3>
+<pre><code>// CONCEPT: First-person navigation binds the visual camera to the acoustic listener.
+// Every frame, camera.matrixWorld is passed to resonanceAudio.setListenerFromMatrix.
+// So navigation in the Three.js scene is simultaneously navigation in the acoustic space.
+// The student walks through the room and the audio updates correctly — by construction.
+
+// PointerLockControls locks the cursor to the canvas and maps mouse movement to camera rotation.
+// It is the standard Three.js approach for first-person look.
+const controls = new PointerLockControls(camera, renderer.domElement);
+renderer.domElement.addEventListener('click', () => controls.lock());
+
+const keys = {};
+document.addEventListener('keydown', e => { keys[e.code] = true; });
+document.addEventListener('keyup',   e => { keys[e.code] = false; });
+
+// In the animation loop — movement at 3 m/s, frame-rate independent via delta time:
+const SPEED = 3; // meters per second
+if (keys['KeyW'] || keys['ArrowUp'])    controls.moveForward( SPEED * dt);
+if (keys['KeyS'] || keys['ArrowDown'])  controls.moveForward(-SPEED * dt);
+if (keys['KeyA'] || keys['ArrowLeft'])  controls.moveRight(  -SPEED * dt);
+if (keys['KeyD'] || keys['ArrowRight']) controls.moveRight(   SPEED * dt);</code></pre>
+
+<div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
+<strong>setFromMatrix is the production pattern.</strong> You could manually call <code>resonanceSource.setPosition(x, y, z)</code> every frame, but this misses orientation, and breaks silently if the mesh is inside a transform hierarchy — only the local position is used, not the full world transform. <code>setFromMatrix(mesh.matrixWorld)</code> reads the final world-space transform after all parent transforms, and encodes both position and orientation in one call. Use it for every source and for the listener, without exception.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://threejs.org/docs/#api/en/math/Matrix4" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">THREE.Matrix4 — Docs &#8599;</a>
+  <a href="https://threejs.org/examples/#webgl_postprocessing_unreal_bloom" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">UnrealBloomPass — Three.js &#8599;</a>
+</p>
+
+<div class="demo-box">
+  <strong>Demo 3 — Acoustic Scene.</strong> Five spatial sources in a recording studio interior — guitar amplifier, drumkit, vocal booth, outboard rack, acoustic piano — each synthesized procedurally. Navigate in first person. Hear distance attenuation (the inverse square law is physically present in the room) and source directivity (the guitar amp is cardioid — walk behind it and the level drops noticeably). Every source pulsing visual follows the audio energy via <code>AnalyserNode</code> and <code>setFromMatrix</code>.
+  <br>
+  <a href="05_mm_acoustic_scene.html">Open Demo 3: Acoustic Scene &#8599;</a>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 7 — DISTANCE ATTENUATION AND SOURCE DIRECTIVITY
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>7. Distance Attenuation and Source Directivity</h2>
+
+<h3>Distance attenuation</h3>
+<p>In free space, the intensity of a point source falls off with the inverse square of distance. In logarithmic (dB) terms, this means a <strong>6 dB drop for every doubling of distance</strong>. At 1 m a source has a certain level; at 2 m it is 6 dB quieter; at 4 m it is 12 dB quieter; at 8 m it is 18 dB quieter. This relationship is immediately perceptible in a well-implemented spatial audio system — and it is one of the most important cues the brain uses to judge source distance.</p>
+<p>Resonance Audio controls distance attenuation on each source with three parameters:</p>
+
+<pre><code>// source.setMinDistance(r): the effective radius of the source.
+// At distances below r, gain is clamped — the source does not become infinitely loud
+// as the listener approaches it. 0.5 m is a reasonable default for a loudspeaker.
+resonanceSource.setMinDistance(0.5);
+
+// source.setMaxDistance(r): beyond this distance, attenuation stops.
+// Useful for ambient sources that should always be audible at a minimum level.
+resonanceSource.setMaxDistance(50);
+
+// source.setRolloffFactor(f): scales the rate of attenuation.
+// 1.0 is physically correct (inverse square law).
+// Values above 1.0 make attenuation faster — useful for localized effects.
+// Values below 1.0 make attenuation slower — useful for ambient sources.
+resonanceSource.setRolloffFactor(1.0);</code></pre>
+
+<h3>Source directivity</h3>
+<p>Real-world sound sources do not radiate energy equally in all directions. A violin projects most of its energy forward and to the sides. A guitar amplifier has a cardioid pattern — maximum energy in front, nearly silent behind. A kettledrum radiates primarily upward and downward. Matching the acoustic directivity pattern to the physical reality of the source is part of making a spatial audio scene believable.</p>
+<p>Resonance Audio controls source directivity with:</p>
+
+<pre><code>// source.setDirectivityPattern(alpha, sharpness)
+//
+// alpha controls the pattern shape:
+//   0.0 → omnidirectional (equal radiation in all directions)
+//   0.5 → cardioid (cosine pattern — maximum forward, zero at 180°)
+//   1.0 → figure-eight (bidirectional — maximum front and back, zero at sides)
+//
+// sharpness controls how narrow the pattern is:
+//   1.0 → gentle, wide pattern
+//   10.0 → very tight beam
+
+// Omnidirectional source (default — a point source)
+resonanceSource.setDirectivityPattern(0.0, 1.0);
+
+// Cardioid source — a loudspeaker or guitar amplifier
+resonanceSource.setDirectivityPattern(0.5, 1.0);
+
+// Hypercardioid — tighter forward pattern
+resonanceSource.setDirectivityPattern(0.75, 2.0);
+
+// Figure-eight — a bidirectional microphone
+resonanceSource.setDirectivityPattern(1.0, 1.0);</code></pre>
+
+<table>
+  <thead><tr><th>Pattern</th><th>α</th><th>Sharpness</th><th>Real-world equivalent</th></tr></thead>
+  <tbody>
+    <tr><td>Omnidirectional</td><td>0.0</td><td>1.0</td><td>Point source, loudspeaker array, ambient source</td></tr>
+    <tr><td>Cardioid</td><td>0.5</td><td>1.0</td><td>Guitar amplifier, cardioid microphone (reversed)</td></tr>
+    <tr><td>Hypercardioid</td><td>0.75</td><td>2.0</td><td>Horn loudspeaker, tight directional source</td></tr>
+    <tr><td>Figure-eight</td><td>1.0</td><td>1.0</td><td>Bidirectional ribbon microphone, doublet source</td></tr>
+  </tbody>
+</table>
+
+<h3>Source gain</h3>
+<pre><code>// source.setGain(value): a linear gain multiplier applied to the source output.
+// Muting a source: setGain(0) — cheaper than disconnecting the audio graph,
+// since reconnecting is expensive. The synthesis chain continues running (zero cost
+// on the audio thread since it outputs silence after the gain stage).
+resonanceSource.setGain(0.5);  // half amplitude
+resonanceSource.setGain(0);    // muted — but still connected, cheap to restore</code></pre>
+
+<div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
+<strong>Source directivity is frequently overlooked but perceptually significant.</strong> Walk behind a guitar amplifier with cardioid directivity set — the level drop is dramatic and immediately recognizable. Walk in front of the same amplifier — the level is highest directly in front. This is exactly what you experience in a recording studio. Omitting directivity makes every source sound like a floating point in space with no physical shape; applying it makes the source feel like a real object.
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 8 — ROOM ACOUSTICS API
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>8. Room Acoustics API</h2>
+
+<h3>setRoomProperties</h3>
+<p>The entire room simulation is configured with a single call:</p>
+<pre><code>// resonanceAudio.setRoomProperties(dimensions, materials)
+//
+// dimensions: { width, height, depth } — all in meters.
+//   These must match the Three.js room geometry dimensions exactly.
+//   The acoustic room and the visual room are the same room — dimension mismatch
+//   creates a perceptual dissonance (hearing a large reverberant space while
+//   standing in a visually small room, or vice versa).
+//
+// materials: { left, right, front, back, down, up }
+//   Each key is a string from the Resonance Audio material preset list.
+//   'left' and 'right' are the ±X walls.
+//   'front' and 'back' are the ±Z walls.
+//   'down' is the floor. 'up' is the ceiling.
+
+resonanceAudio.setRoomProperties(
+  { width: 8, height: 3.2, depth: 10 },
+  {
+    left:  'brick_bare',
+    right: 'brick_bare',
+    front: 'plaster_smooth',
+    back:  'plaster_smooth',
+    down:  'parquet_on_concrete',
+    up:    'acoustic_ceiling_tiles',
+  }
+);</code></pre>
+
+<h3>The shoebox model and image source method</h3>
+<p>Resonance simulates a rectangular (shoebox) room. Real rooms are rarely rectangular, but the shoebox approximation correctly captures the dominant perceptual effect — the reverb tail — while being computationally practical for real-time use. Early reflections are computed using the <strong>image source method</strong>: virtual copies of the source are placed at mirror positions across each wall. Each virtual source contributes an early echo with correct delay, level, and phase. The delay is determined by the distance from the virtual source to the listener; the level is attenuated by the wall's reflection coefficient (1 − absorption coefficient).</p>
+
+<h3>RT60 from Resonance material coefficients</h3>
+<p>You can estimate the RT60 of a Resonance-configured room from the Sabine formula using the material absorption coefficients. This is what Demo 2 computes in real time as you change wall materials:</p>
+
+<pre><code>// Broadband absorption coefficients for Resonance Audio material presets.
+// Source: extracted from the Resonance Audio SDK source code.
+const ABSORPTION = {
+  'transparent':              1.00,
+  'acoustic_ceiling_tiles':   0.70,
+  'brick_bare':               0.03,
+  'brick_painted':            0.02,
+  'concrete_block_coarse':    0.05,
+  'concrete_block_painted':   0.07,
+  'curtain_heavy':            0.60,
+  'fiber_glass_insulation':   0.80,
+  'glass_thick':              0.04,
+  'glass_thin':               0.10,
+  'grass':                    0.11,
+  'linoleum':                 0.03,
+  'marble':                   0.01,
+  'metal':                    0.03,
+  'parquet_on_concrete':      0.11,
+  'plaster_rough':            0.03,
+  'plaster_smooth':           0.03,
+  'plywood_panel':            0.28,
+  'polished_concrete_or_tile':0.01,
+  'sheet_rock':               0.05,
+  'water_or_ice_surface':     0.01,
+  'wood_ceiling':             0.15,
+  'wood_panel':               0.30,
+};
+
+function computeRT60(dimensions, materials) {
+  const { width: W, height: H, depth: D } = dimensions;
+  const volume = W * H * D;  // m³
+
+  // Surface areas of each wall [m²]
+  const surfaces = {
+    left:  H * D, right:  H * D,
+    front: W * H, back:   W * H,
+    down:  W * D, up:     W * D,
+  };
+
+  // Total absorption A = Σ αᵢ × Sᵢ  [m² sabins]
+  let A = 0;
+  for (const [wall, area] of Object.entries(surfaces)) {
+    A += (ABSORPTION[materials[wall]] ?? 0.05) * area;
+  }
+
+  // Sabine formula: RT60 = 0.161 × V / A
+  return 0.161 * volume / A;  // seconds
+}</code></pre>
+
+<h3>Important behavior: setRoomProperties replaces the entire model</h3>
+<p>Each call to <code>setRoomProperties</code> recomputes the full room acoustics model. There is no incremental per-wall update. This is fast enough for interactive use — typically under 1 ms — but it must not be called every animation frame. Call it only when a material or dimension changes.</p>
+
+<div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
+<strong>The anechoic approximation in the demos.</strong> An anechoic chamber is defined as having less than 10 dB of reflected energy relative to the direct sound. Resonance Audio does not have a true anechoic mode, but applying <code>'transparent'</code> to all six walls — the preset with the highest absorption coefficient (1.00) — approaches this condition. Demo 1 uses <code>'transparent'</code> on all walls to isolate pure HRTF cues without room acoustics interference. Note: the <code>'fiber_glass_insulation'</code> preset (also high absorption at 0.80) is documented in earlier versions of the SDK but may not be recognized in all builds — <code>'transparent'</code> is the reliable anechoic choice.
+</div>
+
+<div class="demo-box">
+  <strong>Demo 2 — Room Acoustics Lab.</strong> Change each wall's material and hear the room transform in real time. The RT60 readout (computed from the Sabine formula above) updates on every material change. Preset configurations — anechoic, wood studio, concrete loft, marble hall — apply six materials simultaneously. The Three.js wall material (texture, roughness) and the Resonance material always change together.
+  <br>
+  <a href="05_mm_room_acoustics.html">Open Demo 2: Room Acoustics Lab &#8599;</a>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 9 — AMBISONICS IN RESONANCE AUDIO
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>9. Ambisonics in Resonance Audio</h2>
+<p>Resonance Audio encodes all sources into an internal Ambisonic bus before the binaural decode step. Understanding how the Ambisonic bus works inside the SDK opens up two advanced capabilities: accessing the raw Ambisonic signal for visualization and analysis, and understanding why head rotation is cheap.</p>
+
+<h3>The internal signal path</h3>
+<p>When <code>resonanceAudio.createSource()</code> is called, Resonance creates an Ambisonic encoder for that source. Each frame, the source's current position (from <code>setFromMatrix</code>) is used to compute the spherical harmonic gains \(Y_l^m(\theta, \phi)\) for the source direction, and the source audio is multiplied by these gains and summed into the shared Ambisonic bus. The room simulation — early reflections and late reverberation — is applied in the Ambisonic domain. Finally, the binaural decoder reads the Ambisonic bus and produces the stereo output.</p>
+
+<h3>Setting Ambisonic order</h3>
+<pre><code>// ambisonicOrder is set at construction time and cannot be changed afterward.
+// Order 3 (16 channels) is the recommended default.
+//
+// If CPU budget is tight (mobile, low-end hardware), order 1 (4 channels) is usable
+// but audibly blurry — sources within ~90° of each other may be hard to separate.
+// Order 2 (9 channels) is a reasonable middle ground.
+
+const resonanceAudio = new ResonanceAudio(audioContext, {
+  ambisonicOrder: 3,  // 16 channels, ~30° spatial resolution
+});</code></pre>
+
+<h3>Accessing the Ambisonic bus output</h3>
+<pre><code>// resonanceAudio.ambisonicOutput is an AudioNode with (N+1)² channels.
+// At order 3, that is 16 channels — one per spherical harmonic component.
+// Use ChannelSplitterNode to route individual channels to separate AnalyserNodes.
+
+// CONCEPT: ChannelSplitterNode extracts individual channels from a multichannel node.
+// Channel 0 is W (zeroth-order omnidirectional component).
+// Channels 1–3 are X, Y, Z (first-order components — figure-eight patterns).
+// Channels 4–8 are second-order, etc.
+const splitter = audioContext.createChannelSplitter(16);
+resonanceAudio.ambisonicOutput.connect(splitter);
+
+// Connect the first four channels (B-format: W, X, Y, Z) to separate analysers
+const bFormatAnalysers = ['W','X','Y','Z'].map((_, i) => {
+  const analyser = audioContext.createAnalyser();
+  analyser.fftSize = 256;
+  splitter.connect(analyser, i);  // channel i → analyser
+  return analyser;
+});
+
+// In the animation loop: read RMS from each analyser to visualize B-format energy
+bFormatAnalysers.forEach((analyser, i) => {
+  const buf = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(buf);
+  let sum = 0;
+  buf.forEach(v => sum += v * v);
+  const rms = Math.sqrt(sum / buf.length) / 255;
+  // rms[0] = W energy (omnidirectional pressure)
+  // rms[1] = X energy (front-back figure-eight)
+  // rms[2] = Y energy (left-right figure-eight)
+  // rms[3] = Z energy (up-down figure-eight)
+});</code></pre>
+
+<h3>Head rotation — why it is cheap</h3>
+<p>When the listener rotates their head, Resonance does not re-encode the sources. Source positions are fixed in the Ambisonic bus. Instead, a rotation matrix (a Wigner-D matrix for the current order) is applied to the Ambisonic coefficient domain. For order 3, this is a 16×16 matrix multiplication per audio frame — far cheaper than re-computing spherical harmonic gains for every source from scratch. This architecture is why head-tracked VR audio is feasible at high Ambisonic orders: sources are encoded once per frame update; head rotation costs only the Wigner-D matrix multiply.</p>
+
+<pre><code>// CONCEPT: Head rotation in the Resonance / Three.js integration.
+// The camera's quaternion represents the listener's head orientation.
+// setListenerFromMatrix reads the rotation component of camera.matrixWorld
+// and applies the corresponding Wigner-D rotation in the Ambisonic domain.
+// No special call is needed — it is handled automatically by setListenerFromMatrix.
+
+// Head-tracked rotation (e.g. from mouse drag, IMU sensor, or WebXR):
+camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
+camera.updateMatrixWorld();
+resonanceAudio.setListenerFromMatrix(camera.matrixWorld);
+// ↑ This one call: updates listener position AND applies Wigner-D rotation.
+// The Ambisonic bus is not re-encoded — only the decode matrix rotates.</code></pre>
+
+<div class="demo-box">
+  <strong>Demo 4 — Ambisonics Visualizer.</strong> The raw Ambisonic bus is visualized as a spherical energy distribution — per-vertex colors on a sphere, updated every frame from the spherical harmonic gain contributions of all active sources. Toggle between first-order and third-order and hear the spatial resolution change. Mouse drag rotates the head; the sphere and binaural decode rotate together.
+  <br>
+  <a href="05_mm_ambisonics.html">Open Demo 4: Ambisonics Visualizer &#8599;</a>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 10 — PERFORMANCE AND PRODUCTION
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>10. Performance and Production Considerations</h2>
+
+<h3>CPU budget</h3>
+<p>The real-time cost of Resonance Audio scales with the number of sources on the full Ambisonic bus and the Ambisonic order. At order 3 on a 2022-era laptop, each active Ambisonic source costs approximately 2–4% CPU on the audio thread. Keep active Ambisonic source count below 16 for smooth 60 fps. For scenes with many simultaneous sources, use <strong>distance-based LOD</strong>: sources beyond a threshold distance contribute negligible spatial detail — the HRTF difference between 20 m and 25 m is below perceptual threshold. Downgrade distant sources to a simple <code>StereoPannerNode</code> and restore them to the Ambisonic bus when they come within range.</p>
+
+<pre><code>// CONCEPT: Spatial audio Level of Detail (LOD).
+// Sources far from the listener are downgraded to a cheap stereo pan.
+// Sources near the listener use the full Ambisonic rendering path.
+// A crossfade at the LOD boundary avoids an audible discontinuity.
+
+const LOD_THRESHOLD = 15; // meters
+
+function updateSourceLOD(source, listenerPosition) {
+  const distance = source.mesh.position.distanceTo(listenerPosition);
+
+  if (distance > LOD_THRESHOLD) {
+    // Downgrade to stereo — mute the Ambisonic path, enable the stereo path
+    source.resonanceSource.setGain(0);
+    const pan = computeStereoPan(source.mesh.position, listenerPosition);
+    source.stereoPanner.pan.setTargetAtTime(pan, audioContext.currentTime, 0.05);
+    source.stereoGain.gain.setTargetAtTime(
+      computeDistanceGain(distance), audioContext.currentTime, 0.05
+    );
+  } else {
+    // Restore full Ambisonic rendering
+    source.resonanceSource.setGain(source.nominalGain);
+    source.stereoGain.gain.setTargetAtTime(0, audioContext.currentTime, 0.05);
+  }
+}</code></pre>
+
+<h3>Occlusion simulation</h3>
+<p>When a wall stands between a sound source and the listener, two things happen physically: the total energy reaching the listener is reduced (the wall absorbs energy), and the high-frequency content is attenuated more than low-frequency content (the mass law — wall transmission loss is proportional to frequency × surface mass). A first-order approximation simulates this with a low-pass filter and a gain reduction on the occluded source.</p>
+
+<pre><code>// CONCEPT: Occlusion via Three.js Raycaster.
+// A ray from the source position to the listener position, intersecting wall geometry,
+// detects acoustic occlusion. This uses the same geometry the student sees —
+// if a wall is visually between source and listener, the ray hits it.
+const raycaster = new THREE.Raycaster();
+
+function checkOcclusion(sourcePosition, listenerPosition, wallObjects) {
+  const direction = listenerPosition.clone().sub(sourcePosition).normalize();
+  const distance  = listenerPosition.distanceTo(sourcePosition);
+
+  raycaster.set(sourcePosition, direction);
+  raycaster.far = distance;
+
+  const hits = raycaster.intersectObjects(wallObjects);
+  return hits.length > 0;
+}
+
+// Apply occlusion to the audio graph:
+function applyOcclusion(source, occluded) {
+  // Low-pass filter: walls block high frequencies (mass law).
+  // 500 Hz cutoff simulates a standard interior partition.
+  source.occlusionFilter.frequency.setTargetAtTime(
+    occluded ? 500 : 20000, audioContext.currentTime, 0.05
+  );
+  // Gain reduction: walls absorb energy (approximately -10 dB for a standard wall).
+  source.occlusionGain.gain.setTargetAtTime(
+    occluded ? 0.3 : 1.0, audioContext.currentTime, 0.05
+  );
+}</code></pre>
+
+<h3>AudioContext lifecycle</h3>
+<pre><code>// CONCEPT: AudioContext lifecycle management for long-running scenes.
+
+// The browser suspends AudioContext when the page is hidden (user switches tabs).
+// Always resume on visibility restore:
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState === 'visible' && audioContext) {
+    if (audioContext.state === 'suspended') await audioContext.resume();
+  }
+});
+
+// Never create more than one AudioContext per page.
+// Multiple contexts waste CPU and can cause timing drift between audio streams.
+// If you need to reinitialize audio (e.g. user clicks Stop then Start),
+// close the existing context first:
+async function reinitializeAudio() {
+  if (audioContext) {
+    await audioContext.close();
+    audioContext = null;
+  }
+  audioContext = new AudioContext();
+  await audioContext.resume();
+  // ... reinitialize Resonance, sources, etc.
+}</code></pre>
+
+<h3>Synthesis vs file playback</h3>
+<p>Web Audio synthesis — <code>OscillatorNode</code>, procedural noise via <code>ScriptProcessorNode</code> or <code>AudioWorkletNode</code>, additive synthesis — is always available, requires no network, and cannot have CORS issues. It is the preferred source for demos and prototypes. For file playback, the pattern is: <code>fetch()</code> the audio file (or use a <code>FileReader</code> for local files), call <code>audioContext.decodeAudioData()</code> to decode it into a reusable <code>AudioBuffer</code>, then create a new <code>AudioBufferSourceNode</code> for each playback. <code>AudioBufferSourceNode</code> is single-use — once it has played or been stopped, it cannot be restarted. Create a new one; the buffer is reusable at zero additional cost.</p>
+
+<div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
+<strong>The Web Audio API runs on a dedicated audio thread.</strong> Resonance Audio executes on this thread, separate from the main JavaScript thread. Audio processing continues smoothly even when the Three.js render loop stutters under load. The calls that cross threads — <code>setListenerFromMatrix</code>, <code>setFromMatrix</code>, <code>setRoomProperties</code> — write to Resonance's internal state; the audio thread reads this state asynchronously. These calls are cheap from the main thread. Do not throttle them — call them every animation frame.
+</div>
+
+<p style="margin:12px 0 0 0;">
+  <a href="https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API/Best_practices" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Web Audio Best Practices — MDN &#8599;</a>
+  <a href="https://developer.chrome.com/blog/autoplay/" target="_blank" style="display:inline-block; padding:6px 14px; margin:4px 8px 4px 0; border:1px solid #1a73e8; border-radius:20px; text-decoration:none; font-weight:600; font-size:0.95em;">Autoplay Policy — Chrome &#8599;</a>
+</p>
+
+<div class="demo-box">
+  <strong>Demo 5 — Production Spatial Audio Engine.</strong> A reference implementation of a production-grade spatial audio engine: a <code>SpatialAudioEngine</code> class encapsulating the Three.js / Resonance synchronization contract, distance-based source LOD, occlusion simulation via raycasting, dynamic source creation on click, and a full diagnostic HUD. This is the architecture pattern for professional spatial audio applications.
+  <br>
+  <a href="05_mm_production.html">Open Demo 5: Production Engine &#8599;</a>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     DEMO INDEX TABLE
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>Demo Index</h2>
+<p>All demos are self-contained HTML files in the same directory as this page. Best experienced with headphones.</p>
+<table>
+  <thead><tr><th>#</th><th>Demo</th><th>File</th><th>Key concepts demonstrated</th></tr></thead>
+  <tbody>
+    <tr>
+      <td>1</td>
+      <td><a href="05_mm_binaural_lab.html">Binaural Lab</a></td>
+      <td><code>05_mm_binaural_lab.html</code></td>
+      <td>HRTF vs stereo pan, ITD, ILD, elevation cues, HRTF sphere visualization, anechoic rendering via <code>'transparent'</code> material, four audio source types (alarm, beep, pink noise, harmonic)</td>
+    </tr>
+    <tr>
+      <td>2</td>
+      <td><a href="05_mm_room_acoustics.html">Room Acoustics Lab</a></td>
+      <td><code>05_mm_room_acoustics.html</code></td>
+      <td>Material absorption coefficients, RT60 from Sabine formula, early reflections, first-person navigation, visual and acoustic material coupling</td>
+    </tr>
+    <tr>
+      <td>3</td>
+      <td><a href="05_mm_acoustic_scene.html">Acoustic Scene</a></td>
+      <td><code>05_mm_acoustic_scene.html</code></td>
+      <td>Multi-source spatial scene, distance attenuation, source directivity, audio-reactive visuals, recording studio interior</td>
+    </tr>
+    <tr>
+      <td>4</td>
+      <td><a href="05_mm_ambisonics.html">Ambisonics Visualizer</a></td>
+      <td><code>05_mm_ambisonics.html</code></td>
+      <td>Ambisonic encoding, spherical energy visualization, B-format channel energy, head rotation in Ambisonic domain, order 1 vs order 3 comparison</td>
+    </tr>
+    <tr>
+      <td>5</td>
+      <td><a href="05_mm_production.html">Production Engine</a></td>
+      <td><code>05_mm_production.html</code></td>
+      <td>SpatialAudioEngine class, source LOD, occlusion via raycasting, dynamic source management, full diagnostic HUD</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<!-- prev / next navigation -->
+<nav class="chapter-nav">
+  <a href="04_multimediaprogrammierung_webrtc.html">
+    <span class="nav-label">← Previous</span>
+    <span class="nav-title">Chapter 04: WebRTC</span>
+  </a>
+  <a href="06_multimediaprogrammierung_XXXX.html">
+    <span class="nav-label">Next →</span>
+    <span class="nav-title">Chapter 06</span>
+  </a>
+</nav>
+
+<!-- Footer cell -->
+<div class="nb-footer-cell">
+  <p><b>Multimediaprogrammierung</b> &middot; Chapter 05: Google Resonance Audio for Web<br>
+  Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+  <div class="footer-author-line">
+    <span>Chapter authored by</span>
+    <strong>Renato Fera P.</strong>
+    <span>&middot;</span>
+    <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="width:13px;height:13px;fill:var(--accent);vertical-align:middle;margin-right:3px;">
+        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+      </svg>LinkedIn
+    </a>
+    <span>&middot;</span>
+    <a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars" target="_blank" rel="noopener">GitHub</a>
+  </div>
+</div>
+
+</div>
+</main>
+
+<footer>
+  <p><strong>Multimediaprogrammierung</strong> &middot; Seminar Materials<br>
+  Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+  <p>
+    Page maintained by <strong>Renato Fera P.</strong> &middot;
+    <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+    &nbsp;&middot;&nbsp;
+    <a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars" target="_blank" rel="noopener">github.com/TUIlmenauAMS/multimedia_programming_seminars</a>
+  </p>
+</footer>
+
+</body>
+</html>
