@@ -668,7 +668,8 @@ let masterGain   = null;
 let energyBuf    = null;
 
 let audioMode  = 'hrtf';
-let sourceType = 'alarm';
+// Default to 'noise' on file:// so the demo works without uploading MP3s
+let sourceType = (location.protocol === 'file:') ? 'noise' : 'alarm';
 let alarmBuffer = null;
 let beepBuffer  = null;
 
@@ -682,7 +683,7 @@ let isRunning   = false;
 // camera initial position — room centre, eye height 1.65 m, looking toward source
 const CAM_START = { x: 0, y: 1.65, z: 3.5 };
 // Source position — far end of room, ear height
-const SRC_POS   = new (typeof THREE !== 'undefined' ? THREE.Vector3 : Object)();
+let SRC_POS   = null;
 
 const isFileProtocol = (location.protocol === 'file:');
 const mp3Ready = { alarm: false, beep: false };
@@ -752,7 +753,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (typeof ResonanceAudio === 'undefined') { document.getElementById('loStatus').textContent = '⚠ Resonance Audio failed to load.'; return; }
 
   // Now SRC_POS can be a real Vector3
-  SRC_POS.set(0, 1.05, -(ROOM.depth / 2 - 1.0));
+  SRC_POS = new THREE.Vector3(0, 1.05, -(ROOM.depth / 2 - 1.0));
 
   setProgress(20, 'Initializing renderer…'); await tick();
   initThree();
@@ -995,7 +996,11 @@ async function initPostProcessing() {
 // POINTER LOCK CONTROLS
 // ════════════════════════════════════════════════════════════════════
 document.getElementById('startOverlay').addEventListener('click', () => {
-  if (isFileProtocol && sourceType !== 'noise' && sourceType !== 'harmonic' && !mp3Ready[sourceType]) return;
+  // If the selected source needs an MP3 that isn't loaded yet, fall back to
+  // noise so the demo always starts rather than silently doing nothing.
+  if (isFileProtocol && sourceType !== 'noise' && sourceType !== 'harmonic' && !mp3Ready[sourceType]) {
+    setSource('noise');
+  }
   startDemo();
 });
 document.getElementById('pauseOverlay').addEventListener('click', () => { controls.lock(); });
@@ -1019,6 +1024,11 @@ async function startDemo() {
   document.getElementById('btnStart').disabled = true;
   document.getElementById('btnStop').disabled  = false;
 
+  // Request Pointer Lock synchronously while still inside the user gesture.
+  // Any await before this call loses the gesture context and the browser
+  // silently drops the lock request.
+  controls.lock();
+
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
   if (audioContext.state === 'suspended') await audioContext.resume();
 
@@ -1038,7 +1048,6 @@ async function startDemo() {
 
   isRunning = true;
   document.getElementById('hudCtxState').textContent = 'running';
-  controls.lock();
 
   document.addEventListener('visibilitychange', onVisibilityChange);
 }
