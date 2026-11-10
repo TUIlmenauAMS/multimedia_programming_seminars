@@ -315,6 +315,8 @@ html, body {
 .btn-start:hover:not(:disabled) { filter: brightness(1.1); }
 .btn-stop  { background: rgba(248,113,113,0.12); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
 .btn-stop:hover:not(:disabled) { background: rgba(248,113,113,0.22); }
+.btn-reset { background: rgba(79,156,249,0.10); color: var(--accent); border: 1px solid rgba(79,156,249,0.25); }
+.btn-reset:hover { background: rgba(79,156,249,0.20); }
 
 /* wall section — padding only, scroll is on #sb-scroll */
 .sb-walls {
@@ -603,6 +605,9 @@ html, body {
         <button class="btn-play btn-stop"  id="btnStop"  onclick="stopDemo()"  disabled>■ Stop</button>
       </div>
       <div class="sb-row">
+        <button class="btn-play btn-reset" id="btnReset" onclick="resetView()">⌖ Reset View</button>
+      </div>
+      <div class="sb-row">
         <span class="sb-label">Mode</span>
         <div class="pill-toggle" id="modeToggle">
           <button class="active" id="btnHRTF"   onclick="setAudioMode('hrtf')">HRTF</button>
@@ -847,7 +852,6 @@ let activePresetName = 'Anechoic Chamber';
 
 // ── Each preset carries:
 //    dims     : { width, height, depth } in metres — all walkable, all visible
-//    camStart : { z } listener start position (x=0, y=1.65 always)
 //    fogDensity: exponential fog density suited to the room depth
 //    desc     : one-line teaching note shown in the HUD
 //    left/right/front/back/down/up : Resonance Audio material strings
@@ -856,7 +860,6 @@ const PRESETS = {
   // ── 1. Dead reference — same box, all transparent ─────────────────
   'Anechoic Chamber': {
     dims:       { width: 8,   height: 4.0,  depth: 12  },
-    camStart:   { z: 4.0 },
     fogDensity: 0.045,
     desc:  'All walls transparent → zero reflections, pure dry signal',
     left:'transparent', right:'transparent', front:'transparent',
@@ -866,7 +869,6 @@ const PRESETS = {
   // ── 2. Small tiled bathroom — short + dense flutter ───────────────
   'Tiled Bathroom': {
     dims:       { width: 3.2, height: 2.6,  depth: 4.5 },
-    camStart:   { z: 1.2 },
     fogDensity: 0.01,
     desc:  'Small hard parallel surfaces → dense ringy flutter reverb',
     left:'polished_concrete_or_tile', right:'polished_concrete_or_tile',
@@ -877,7 +879,6 @@ const PRESETS = {
   // ── 3. Treated recording studio ───────────────────────────────────
   'Recording Studio': {
     dims:       { width: 8,   height: 3.2,  depth: 10  },
-    camStart:   { z: 3.5 },
     fogDensity: 0.045,
     desc:  'Mixed absorption → warm, controlled ~0.4 s reverb',
     left:'wood_panel',    right:'curtain_heavy',      front:'plywood_panel',
@@ -887,7 +888,6 @@ const PRESETS = {
   // ── 4. Low concrete car park — wide & flat, flutter echoes ────────
   'Car Park': {
     dims:       { width: 20,  height: 3.0,  depth: 28  },
-    camStart:   { z: 10.0 },
     fogDensity: 0.018,
     desc:  'Wide & low concrete box → long lateral echoes, dead vertically',
     left:'concrete_block_coarse', right:'concrete_block_coarse',
@@ -898,7 +898,6 @@ const PRESETS = {
   // ── 5. Stone cave — tall & deep, water floor ──────────────────────
   'Cave': {
     dims:       { width: 12,  height: 10,   depth: 20  },
-    camStart:   { z: 6.0 },
     fogDensity: 0.022,
     desc:  'Tall stone cavity + reflective water floor → boomy, spaced echoes',
     left:'concrete_block_coarse', right:'concrete_block_coarse',
@@ -909,7 +908,6 @@ const PRESETS = {
   // ── 6. Marble cathedral — huge, near-zero absorption ──────────────
   'Cathedral': {
     dims:       { width: 18,  height: 22,   depth: 40  },
-    camStart:   { z: 12.0 },
     fogDensity: 0.012,
     desc:  'Vast marble volume → 6–8 s reverb tail, enormous sense of space',
     left:'marble', right:'marble', front:'marble',
@@ -956,8 +954,13 @@ let wallMeshes  = {};   // key → THREE.Mesh
 
 let isRunning   = false;
 
-// camera initial position — room centre, eye height 1.65 m, looking toward source
-const CAM_START = { x: 0, y: 1.65, z: 3.5 };
+// Camera eye height (metres)
+const CAM_EYE_Y = 1.65;
+// Returns the canonical start position: geometric centre of the current room at eye height.
+// Always computed from live ROOM dims so it is correct after any preset change.
+function getCamStart() {
+  return { x: 0, y: CAM_EYE_Y, z: 0 };
+}
 // Source position — far end of room, ear height
 let SRC_POS   = null;
 
@@ -1089,6 +1092,7 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   setProgress(45, 'Building scene…'); await tick();
   buildScene();
+  resetView(); // position camera at room centre, facing source
 
   setProgress(70, 'Post-processing…'); await tick();
   await initPostProcessing();
@@ -1195,7 +1199,8 @@ function initThree() {
   renderer.outputColorSpace  = THREE.SRGBColorSpace;
 
   camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 500);
-  camera.position.set(CAM_START.x, CAM_START.y, CAM_START.z);
+  const _cs = getCamStart();
+  camera.position.set(_cs.x, _cs.y, _cs.z);
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x07080d);
@@ -1275,7 +1280,7 @@ function initThree() {
       const Bp = getBounds();
       camera.position.x = Math.max(Bp.xMin, Math.min(Bp.xMax, camera.position.x));
       camera.position.z = Math.max(Bp.zMin, Math.min(Bp.zMax, camera.position.z));
-      camera.position.y = CAM_START.y;
+      camera.position.y = CAM_EYE_Y;
     }
   });
 
@@ -1290,7 +1295,7 @@ function initThree() {
     const Bs = getBounds();
     camera.position.x = Math.max(Bs.xMin, Math.min(Bs.xMax, camera.position.x));
     camera.position.z = Math.max(Bs.zMin, Math.min(Bs.zMax, camera.position.z));
-    camera.position.y = CAM_START.y;
+    camera.position.y = CAM_EYE_Y;
   }, { passive: false });
 
   canvas.style.cursor = 'grab';
@@ -1806,13 +1811,8 @@ function rebuildRoom(preset) {
   // ── 11. Update Resonance source position
   if (resonanceSource) resonanceSource.setPosition(SRC_POS.x, SRC_POS.y, SRC_POS.z);
 
-  // ── 12. Reset camera to preset's start position (clamped to room)
-  const startZ = preset && preset.camStart
-    ? Math.min(preset.camStart.z, ROOM.depth / 2 - 0.5)
-    : Math.min(3.5, ROOM.depth / 2 - 0.5);
-  camera.position.set(0, CAM_START.y, startZ);
-  // Face toward the source (negative Z)
-  camera.rotation.set(0, Math.PI, 0);
+  // ── 12. Reset camera to room centre, facing the source
+  resetView();
 }
 
 function applyPreset(presetName) {
@@ -1988,7 +1988,19 @@ function updateNavigation(dt) {
   const B = getBounds();
   camera.position.x = Math.max(B.xMin, Math.min(B.xMax, camera.position.x));
   camera.position.z = Math.max(B.zMin, Math.min(B.zMax, camera.position.z));
-  camera.position.y = CAM_START.y; // lock eye height
+  camera.position.y = CAM_EYE_Y; // lock eye height
+}
+
+// ════════════════════════════════════════════════════════════════════
+// RESET VIEW — room centre, eye height, facing the source (−Z)
+// ════════════════════════════════════════════════════════════════════
+function resetView() {
+  if (!camera) return;
+  const cs = getCamStart();
+  camera.position.set(cs.x, cs.y, cs.z);
+  // Face toward negative Z (where the source always sits)
+  camera.rotation.set(0, 0, 0);
+  camera.updateMatrixWorld();
 }
 
 // ════════════════════════════════════════════════════════════════════
