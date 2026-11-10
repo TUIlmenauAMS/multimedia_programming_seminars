@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Demo 2: Room Acoustics Lab — Multimediaprogrammierung</title>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+  import * as THREE from 'three';
+  import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+  window.THREE = THREE;
+  window._PointerLockControls = PointerLockControls;
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:           #07080d;
+  --surface:      #0f1118;
+  --surface2:     #161b24;
+  --border:       #1e2535;
+  --border2:      #2a3348;
+  --text:         #d8dce6;
+  --muted:        #5a6175;
+  --accent:       #4f9cf9;
+  --accent2:      #a78bfa;
+  --green:        #34d399;
+  --orange:       #fb923c;
+  --red:          #f87171;
+  --mono:         'IBM Plex Mono', monospace;
+  --jb:           'JetBrains Mono', monospace;
+  --sans:         'IBM Plex Sans', sans-serif;
+  --panel-bg:     rgba(7, 8, 13, 0.88);
+  --panel-border: rgba(255,255,255,0.07);
+  --panel-blur:   20px;
+  --sidebar-w:    300px;
+  --hud-w:        220px;
+  --safe-top:     env(safe-area-inset-top, 0px);
+  --safe-bottom:  env(safe-area-inset-bottom, 0px);
+}
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* ── Three.js canvas fills the entire viewport ── */
+#threeCanvas {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: block;
+}
+
+/* ── Loading overlay ── */
+#loadingOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  transition: opacity 0.4s ease;
+}
+#loadingOverlay.hidden { opacity: 0; pointer-events: none; }
+.lo-chapter  { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; }
+.lo-title    { font-family: var(--sans); font-size: clamp(20px, 2.5vw, 28px); font-weight: 500; color: #f0f2f7; }
+.lo-headphone{ font-size: 36px; }
+.lo-sub      { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; max-width: 320px; line-height: 1.6; }
+.lo-bar-track{ width: 220px; height: 2px; background: var(--border2); border-radius: 1px; overflow: hidden; }
+.lo-bar-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 1px; transition: width 0.3s ease; }
+#loStatus    { font-family: var(--mono); font-size: 11px; color: var(--muted); min-height: 16px; }
+
+/* ── Pointer lock / start overlay ── */
+#startOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 150;
+  background: rgba(7,8,13,0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  transition: opacity 0.3s ease;
+  cursor: pointer;
+}
+#startOverlay.hidden { opacity: 0; pointer-events: none; }
+.so-icon  { font-size: 44px; }
+.so-title { font-family: var(--sans); font-size: 20px; font-weight: 500; color: #f0f2f7; }
+.so-sub   { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; }
+.so-keys  {
+  display: flex; gap: 8px; margin-top: 8px;
+}
+.key-badge {
+  font-family: var(--mono); font-size: 11px; color: var(--muted);
+  border: 1px solid var(--border2); border-radius: 4px; padding: 3px 8px;
+  background: var(--surface2);
+}
+
+/* ── Paused overlay (ESC pressed) ── */
+#pauseOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 140;
+  background: rgba(7,8,13,0.55);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+  opacity: 0;
+}
+#pauseOverlay.visible { opacity: 1; pointer-events: auto; cursor: pointer; }
+.po-title { font-family: var(--sans); font-size: 18px; font-weight: 500; color: #f0f2f7; }
+.po-sub   { font-family: var(--mono); font-size: 12px; color: var(--muted); }
+
+/* ══════════════════════════════════════════════
+   LEFT SIDEBAR — material controls
+   ══════════════════════════════════════════════ */
+#sidebar {
+  position: fixed;
+  top: 0; left: 0; bottom: 0;
+  width: var(--sidebar-w);
+  z-index: 10;
+  background: var(--panel-bg);
+  border-right: 1px solid var(--panel-border);
+  backdrop-filter: blur(var(--panel-blur));
+  -webkit-backdrop-filter: blur(var(--panel-blur));
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+  overflow: hidden;
+}
+
+.sb-header {
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid var(--panel-border);
+  flex-shrink: 0;
+}
+.sb-chapter {
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px;
+}
+.sb-title {
+  font-family: var(--sans); font-size: 15px; font-weight: 500; color: #f0f2f7;
+  margin-bottom: 2px;
+}
+.sb-badge {
+  display: inline-block; font-family: var(--mono); font-size: 10px;
+  color: var(--accent2); background: rgba(167,139,250,0.1);
+  border: 1px solid rgba(167,139,250,0.25); border-radius: 20px;
+  padding: 1px 8px; margin-top: 4px;
+}
+
+/* audio controls strip */
+.sb-audio {
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--panel-border);
+  display: flex; flex-direction: column; gap: 8px;
+  flex-shrink: 0;
+}
+.sb-row { display: flex; align-items: center; gap: 8px; }
+.sb-label { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; min-width: 44px; }
+
+/* pill toggle */
+.pill-toggle {
+  display: inline-flex; background: rgba(0,0,0,0.4);
+  border: 1px solid var(--border2); border-radius: 20px; padding: 2px; gap: 1px;
+}
+.pill-toggle button {
+  border: none; background: transparent; color: var(--muted);
+  font-family: var(--mono); font-size: 10px; padding: 4px 10px; border-radius: 18px;
+  cursor: pointer; transition: background 0.15s, color 0.15s; white-space: nowrap;
+}
+.pill-toggle button.active { background: var(--accent2); color: #07080d; font-weight: 500; }
+.pill-toggle button:hover:not(.active) { color: var(--text); }
+
+/* source chips */
+.src-chips { display: flex; gap: 4px; flex-wrap: wrap; }
+.src-chip {
+  font-family: var(--mono); font-size: 10px; padding: 3px 10px; border-radius: 20px;
+  border: 1px solid var(--border2); background: transparent; color: var(--muted);
+  cursor: pointer; transition: all 0.15s; white-space: nowrap;
+}
+.src-chip.active { border-color: var(--accent2); color: var(--accent2); background: rgba(167,139,250,0.1); }
+.src-chip:hover:not(.active) { color: var(--text); border-color: var(--border2); }
+
+/* play/stop buttons */
+.btn-play {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  padding: 6px 14px; border-radius: 5px; border: none; cursor: pointer;
+  transition: filter 0.15s, opacity 0.15s;
+}
+.btn-play:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-start { background: var(--green); color: #07080d; }
+.btn-start:hover:not(:disabled) { filter: brightness(1.1); }
+.btn-stop  { background: rgba(248,113,113,0.12); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
+.btn-stop:hover:not(:disabled) { background: rgba(248,113,113,0.22); }
+
+/* scrollable wall section */
+.sb-walls {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 18px 12px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+}
+.sb-walls::-webkit-scrollbar { width: 4px; }
+.sb-walls::-webkit-scrollbar-track { background: transparent; }
+.sb-walls::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+.wall-section { margin-bottom: 14px; }
+.wall-label {
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.08em;
+  margin-bottom: 5px; display: flex; align-items: center; gap: 6px;
+}
+.wall-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+
+/* custom select */
+.mat-select-wrap { position: relative; }
+.mat-select {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 5px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 6px 28px 6px 10px;
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.mat-select:hover { border-color: var(--accent); }
+.mat-select:focus { border-color: var(--accent); }
+.mat-select-wrap::after {
+  content: '▾';
+  position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
+  color: var(--muted); font-size: 11px; pointer-events: none;
+}
+
+/* preset buttons */
+.sb-presets {
+  padding: 10px 18px 12px;
+  border-top: 1px solid var(--panel-border);
+  flex-shrink: 0;
+}
+.preset-label {
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 7px;
+}
+.preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.preset-btn {
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 5px; padding: 6px 8px; cursor: pointer;
+  transition: all 0.15s; text-align: left; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+.preset-btn.active { border-color: var(--accent2); color: var(--accent2); background: rgba(167,139,250,0.08); }
+
+/* file upload strip (file:// protocol) */
+#uploadStrip {
+  display: none;
+  padding: 8px 18px;
+  border-top: 1px solid var(--panel-border);
+  flex-shrink: 0;
+}
+#uploadStrip.visible { display: block; }
+.upload-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+.upload-label {
+  font-family: var(--mono); font-size: 10px; color: var(--muted); min-width: 40px;
+}
+.upload-btn {
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 4px; padding: 3px 8px; cursor: pointer;
+  transition: all 0.15s; position: relative;
+}
+.upload-btn:hover { border-color: var(--accent); color: var(--accent); }
+.upload-btn.loaded { border-color: var(--green); color: var(--green); }
+.upload-btn input[type=file] { display: none; }
+
+/* ══════════════════════════════════════════════
+   TOP-RIGHT HUD
+   ══════════════════════════════════════════════ */
+#hud {
+  position: fixed;
+  top: calc(16px + var(--safe-top));
+  right: 16px;
+  z-index: 10;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  backdrop-filter: blur(var(--panel-blur));
+  -webkit-backdrop-filter: blur(var(--panel-blur));
+  border-radius: 10px;
+  padding: 14px 18px;
+  min-width: var(--hud-w);
+}
+.hud-title {
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px;
+}
+.hud-metric { margin-bottom: 10px; }
+.hud-metric-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 2px; }
+.hud-metric-value { font-family: var(--jb); font-size: 22px; color: var(--accent); letter-spacing: 0.02em; line-height: 1; }
+.hud-metric-unit  { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-left: 3px; }
+.hud-metric-value.orange { color: var(--orange); }
+.hud-metric-value.green  { color: var(--green); }
+.hud-metric-value.purple { color: var(--accent2); }
+.hud-divider { border: none; border-top: 1px solid var(--panel-border); margin: 10px 0; }
+.hud-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.hud-row-label { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.hud-row-value { font-family: var(--jb); font-size: 12px; color: var(--text); }
+.hud-row-value.accent { color: var(--accent); }
+.hud-row-value.green  { color: var(--green); }
+
+/* ── RT60 bar visualizer ── */
+.rt60-bar-wrap { margin-top: 8px; }
+.rt60-bar-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 5px; display: flex; justify-content: space-between; }
+.rt60-bar-track { width: 100%; height: 4px; background: var(--border2); border-radius: 2px; overflow: hidden; }
+.rt60-bar-fill  { height: 100%; background: linear-gradient(90deg, var(--green), var(--orange), var(--red)); border-radius: 2px; transition: width 0.4s ease; }
+
+/* ══════════════════════════════════════════════
+   BOTTOM-CENTER — navigation hint
+   ══════════════════════════════════════════════ */
+#navHint {
+  position: fixed;
+  bottom: calc(16px + var(--safe-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  backdrop-filter: blur(var(--panel-blur));
+  -webkit-backdrop-filter: blur(var(--panel-blur));
+  border-radius: 8px;
+  padding: 8px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+#navHint.faded { opacity: 0; }
+.hint-key { font-family: var(--mono); font-size: 11px; color: var(--muted); border: 1px solid var(--border2); border-radius: 3px; padding: 2px 6px; background: var(--surface2); }
+.hint-sep { color: var(--muted); font-size: 11px; }
+
+/* ── Source energy indicator (bottom-left of HUD) ── */
+.energy-bar-wrap { margin-top: 8px; }
+.energy-bar-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 4px; }
+.energy-bar-track { width: 100%; height: 3px; background: var(--border2); border-radius: 1px; overflow: hidden; }
+.energy-bar-fill  { height: 100%; background: var(--accent2); border-radius: 1px; width: 0%; transition: width 0.05s linear; }
+
+/* ── Crosshair ── */
+#crosshair {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+#crosshair.visible { opacity: 1; }
+#crosshair::before, #crosshair::after {
+  content: '';
+  position: absolute;
+  background: rgba(255,255,255,0.6);
+}
+#crosshair::before { width: 1px; height: 14px; top: -7px; left: 0; }
+#crosshair::after  { width: 14px; height: 1px; left: -7px; top: 0; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<!-- ── Loading overlay ── -->
+<div id="loadingOverlay">
+  <div class="lo-headphone">🎧</div>
+  <div class="lo-chapter">Chapter 05 · Spatial Audio</div>
+  <div class="lo-title">Demo 2: Room Acoustics Lab</div>
+  <div class="lo-bar-track"><div class="lo-bar-fill" id="loFill"></div></div>
+  <div id="loStatus">Loading libraries…</div>
+  <div class="lo-sub">Best experienced with headphones.<br>Spatial audio requires headphones to perceive 3D positioning.</div>
+</div>
+
+<!-- ── Start / pointer-lock overlay ── -->
+<div id="startOverlay" class="hidden">
+  <div class="so-icon">▶</div>
+  <div class="so-title">Click to enter the room</div>
+  <div class="so-sub">AudioContext requires a user gesture · Pointer Lock for free-look</div>
+  <div class="so-keys">
+    <span class="key-badge">W A S D</span>
+    <span class="hint-sep">move</span>
+    <span class="key-badge">Mouse</span>
+    <span class="hint-sep">look</span>
+    <span class="key-badge">ESC</span>
+    <span class="hint-sep">pause &amp; settings</span>
+  </div>
+</div>
+
+<!-- ── Paused overlay ── -->
+<div id="pauseOverlay">
+  <div class="po-title">Paused — settings panel active</div>
+  <div class="po-sub">Click anywhere to resume navigation</div>
+</div>
+
+<!-- ── Three.js canvas ── -->
+<canvas id="threeCanvas"></canvas>
+
+<!-- ── Crosshair ── -->
+<div id="crosshair"></div>
+
+<!-- ══════════════════════════════════════════
+     LEFT SIDEBAR
+     ══════════════════════════════════════════ -->
+<div id="sidebar">
+
+  <div class="sb-header">
+    <div class="sb-chapter">Chapter 05 · Google Resonance Audio</div>
+    <div class="sb-title">Room Acoustics Lab</div>
+    <span class="sb-badge">🎧 Demo 2</span>
+  </div>
+
+  <!-- Audio controls -->
+  <div class="sb-audio">
+    <div class="sb-row">
+      <button class="btn-play btn-start" id="btnStart" onclick="startDemo()" disabled>▶ Start</button>
+      <button class="btn-play btn-stop"  id="btnStop"  onclick="stopDemo()"  disabled>■ Stop</button>
+    </div>
+    <div class="sb-row">
+      <span class="sb-label">Mode</span>
+      <div class="pill-toggle" id="modeToggle">
+        <button class="active" id="btnHRTF"   onclick="setAudioMode('hrtf')">HRTF</button>
+        <button               id="btnStereo" onclick="setAudioMode('stereo')">Stereo</button>
+      </div>
+    </div>
+    <div class="sb-row" style="flex-wrap:wrap; gap:4px;">
+      <span class="sb-label">Source</span>
+      <div class="src-chips">
+        <button class="src-chip active" id="src-alarm"    onclick="setSource('alarm')">🚨 Alarm</button>
+        <button class="src-chip"        id="src-beep"     onclick="setSource('beep')">🔔 Beep</button>
+        <button class="src-chip"        id="src-noise"    onclick="setSource('noise')">〰 Noise</button>
+        <button class="src-chip"        id="src-harmonic" onclick="setSource('harmonic')">🎵 Harmonic</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- File upload (file:// protocol only) -->
+  <div id="uploadStrip">
+    <div class="upload-row">
+      <span class="upload-label">Alarm</span>
+      <label class="upload-btn" id="lbl-alarm">
+        📂 3411.mp3
+        <input type="file" id="file-alarm" accept=".mp3,audio/*" onchange="handleUpload(event,'alarm')">
+      </label>
+    </div>
+    <div class="upload-row">
+      <span class="upload-label">Beep</span>
+      <label class="upload-btn" id="lbl-beep">
+        📂 1298.mp3
+        <input type="file" id="file-beep" accept=".mp3,audio/*" onchange="handleUpload(event,'beep')">
+      </label>
+    </div>
+  </div>
+
+  <!-- Wall material selectors -->
+  <div class="sb-walls">
+    <div id="wallSelectors"></div>
+  </div>
+
+  <!-- Room presets -->
+  <div class="sb-presets">
+    <div class="preset-label">Room Presets</div>
+    <div class="preset-grid" id="presetGrid"></div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════
+     HUD — top right
+     ══════════════════════════════════════════ -->
+<div id="hud">
+  <div class="hud-title">Room Diagnostics</div>
+
+  <div class="hud-metric">
+    <div class="hud-metric-label">Reverberation Time</div>
+    <span class="hud-metric-value orange" id="hudRT60">0.00</span>
+    <span class="hud-metric-unit">s  RT60</span>
+    <div class="rt60-bar-wrap">
+      <div class="rt60-bar-label">
+        <span>0 s</span><span id="hudRT60Max">8 s</span>
+      </div>
+      <div class="rt60-bar-track">
+        <div class="rt60-bar-fill" id="hudRT60Bar" style="width:0%"></div>
+      </div>
+    </div>
+  </div>
+
+  <hr class="hud-divider">
+
+  <div class="hud-row">
+    <span class="hud-row-label">Room</span>
+    <span class="hud-row-value accent">8 × 3.2 × 10 m</span>
+  </div>
+  <div class="hud-row">
+    <span class="hud-row-label">Volume</span>
+    <span class="hud-row-value">256 m³</span>
+  </div>
+  <div class="hud-row">
+    <span class="hud-row-label">Source dist.</span>
+    <span class="hud-row-value green" id="hudDist">— m</span>
+  </div>
+  <div class="hud-row">
+    <span class="hud-row-label">Audio</span>
+    <span class="hud-row-value" id="hudCtxState">inactive</span>
+  </div>
+  <div class="hud-row">
+    <span class="hud-row-label">Mode</span>
+    <span class="hud-row-value accent" id="hudMode">HRTF</span>
+  </div>
+
+  <hr class="hud-divider">
+
+  <div class="hud-row">
+    <span class="hud-row-label">Position</span>
+    <span class="hud-row-value" id="hudPos">0, 0, 0</span>
+  </div>
+
+  <div class="energy-bar-wrap">
+    <div class="energy-bar-label">Source energy</div>
+    <div class="energy-bar-track">
+      <div class="energy-bar-fill" id="energyBar"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Navigation hint ── -->
+<div id="navHint">
+  <span class="hint-key">W A S D</span>
+  <span class="hint-sep">·</span>
+  <span class="hint-key">Mouse</span>
+  <span class="hint-sep">·</span>
+  <span class="hint-key">ESC</span>
+  <span class="hint-sep">settings</span>
+</div>
+
+<!-- Resonance Audio UMD -->
+<script defer src="https://cdn.jsdelivr.net/npm/resonance-audio@1.0.0/build/resonance-audio.min.js"></script>
+
+<script>
+'use strict';
+
+// ── Coordinate system: Three.js world units = meters. Y-up. Right-handed.
+// ── Resonance Audio uses the same convention. 1 unit = 1 metre throughout.
+
+// ════════════════════════════════════════════════════════════════════
+// MATERIAL DEFINITIONS
+// ════════════════════════════════════════════════════════════════════
+
+// All Resonance Audio material preset strings, with display labels,
+// approximate broadband absorption coefficients, and PBR visual properties.
+const MATERIALS = {
+  transparent:               { label: 'Transparent (Anechoic)', alpha: 1.00, roughness: 1.0, metalness: 0.0, color: 0x1a1a2e },
+  acoustic_ceiling_tiles:    { label: 'Acoustic Ceiling Tiles',  alpha: 0.70, roughness: 0.95, metalness: 0.0, color: 0xc8c8b4 },
+  brick_bare:                { label: 'Brick — Bare',            alpha: 0.03, roughness: 0.92, metalness: 0.0, color: 0x8b4513 },
+  brick_painted:             { label: 'Brick — Painted',         alpha: 0.02, roughness: 0.88, metalness: 0.0, color: 0xd4b896 },
+  concrete_block_coarse:     { label: 'Concrete Block — Coarse', alpha: 0.05, roughness: 0.95, metalness: 0.05, color: 0x888880 },
+  concrete_block_painted:    { label: 'Concrete Block — Painted',alpha: 0.07, roughness: 0.80, metalness: 0.0, color: 0xb0b0a0 },
+  curtain_heavy:             { label: 'Curtain — Heavy',         alpha: 0.60, roughness: 0.97, metalness: 0.0, color: 0x3d2b1f },
+  fiber_glass_insulation:    { label: 'Fiber Glass Insulation',  alpha: 0.80, roughness: 0.99, metalness: 0.0, color: 0xd4b86a },
+  glass_thick:               { label: 'Glass — Thick',           alpha: 0.04, roughness: 0.02, metalness: 0.0, color: 0x9bb8c8 },
+  glass_thin:                { label: 'Glass — Thin',            alpha: 0.10, roughness: 0.05, metalness: 0.0, color: 0xadd8e6 },
+  grass:                     { label: 'Grass',                   alpha: 0.11, roughness: 0.95, metalness: 0.0, color: 0x3a7d44 },
+  linoleum_on_concrete:      { label: 'Linoleum on Concrete',    alpha: 0.03, roughness: 0.60, metalness: 0.0, color: 0x4a4a3a },
+  marble:                    { label: 'Marble',                  alpha: 0.01, roughness: 0.05, metalness: 0.0, color: 0xe8e0d0 },
+  metal:                     { label: 'Metal',                   alpha: 0.03, roughness: 0.25, metalness: 0.9, color: 0x8090a0 },
+  parquet_on_concrete:       { label: 'Parquet on Concrete',     alpha: 0.11, roughness: 0.70, metalness: 0.0, color: 0x9b7040 },
+  plaster_rough:             { label: 'Plaster — Rough',         alpha: 0.03, roughness: 0.90, metalness: 0.0, color: 0xd8d0c0 },
+  plaster_smooth:            { label: 'Plaster — Smooth',        alpha: 0.03, roughness: 0.60, metalness: 0.0, color: 0xe4ddd0 },
+  plywood_panel:             { label: 'Plywood Panel',           alpha: 0.28, roughness: 0.80, metalness: 0.0, color: 0xc4a060 },
+  polished_concrete_or_tile: { label: 'Polished Concrete / Tile',alpha: 0.01, roughness: 0.10, metalness: 0.0, color: 0xa0a098 },
+  sheet_rock:                { label: 'Sheet Rock (Drywall)',    alpha: 0.05, roughness: 0.75, metalness: 0.0, color: 0xd8d4cc },
+  uniform_average_absorption:{ label: 'Uniform Average Abs.',    alpha: 0.15, roughness: 0.75, metalness: 0.0, color: 0x909090 },
+  water_or_ice_surface:      { label: 'Water / Ice Surface',     alpha: 0.01, roughness: 0.02, metalness: 0.0, color: 0x4080b0 },
+  wood_ceiling:              { label: 'Wood Ceiling',            alpha: 0.15, roughness: 0.75, metalness: 0.0, color: 0xa07840 },
+  wood_panel:                { label: 'Wood Panel',              alpha: 0.30, roughness: 0.80, metalness: 0.0, color: 0x8b6030 },
+};
+
+const MATERIAL_KEYS = Object.keys(MATERIALS);
+
+// Room walls: key, display label, colour dot, default for each
+const WALLS = [
+  { key: 'left',  label: 'Left Wall',  color: '#4f9cf9', default: 'transparent' },
+  { key: 'right', label: 'Right Wall', color: '#a78bfa', default: 'transparent' },
+  { key: 'front', label: 'Front Wall', color: '#34d399', default: 'transparent' },
+  { key: 'back',  label: 'Back Wall',  color: '#fb923c', default: 'transparent' },
+  { key: 'down',  label: 'Floor',      color: '#f87171', default: 'transparent' },
+  { key: 'up',    label: 'Ceiling',    color: '#fbbf24', default: 'transparent' },
+];
+
+// Current material state
+const currentMaterials = {};
+WALLS.forEach(w => { currentMaterials[w.key] = w.default; });
+
+// Room presets
+const PRESETS = {
+  'Anechoic': { left:'transparent', right:'transparent', front:'transparent', back:'transparent', down:'transparent', up:'transparent' },
+  'Wood Studio': { left:'wood_panel', right:'wood_panel', front:'plywood_panel', back:'curtain_heavy', down:'parquet_on_concrete', up:'acoustic_ceiling_tiles' },
+  'Concrete Loft': { left:'concrete_block_coarse', right:'concrete_block_coarse', front:'concrete_block_painted', back:'concrete_block_painted', down:'polished_concrete_or_tile', up:'concrete_block_painted' },
+  'Marble Hall': { left:'marble', right:'marble', front:'marble', back:'marble', down:'marble', up:'plaster_smooth' },
+  'Curtained Room': { left:'curtain_heavy', right:'curtain_heavy', front:'curtain_heavy', back:'curtain_heavy', down:'linoleum_on_concrete', up:'acoustic_ceiling_tiles' },
+};
+
+// Room dimensions (metres)
+const ROOM = { width: 8, height: 3.2, depth: 10 };
+
+// ════════════════════════════════════════════════════════════════════
+// RUNTIME STATE
+// ════════════════════════════════════════════════════════════════════
+let renderer, scene, camera, clock, controls;
+let composer, bloomPass;
+
+let audioContext    = null;
+let resonanceAudio  = null;
+let resonanceSource = null;
+
+let sourceNode   = null;
+let lfoOsc       = null;
+let analyser     = null;
+let hrtfGain     = null;
+let stereoGain   = null;
+let stereoPanner = null;
+let masterGain   = null;
+let energyBuf    = null;
+
+let audioMode  = 'hrtf';
+let sourceType = 'alarm';
+let alarmBuffer = null;
+let beepBuffer  = null;
+
+let sourceMesh  = null;
+let sourceHalo  = null;
+let sourceLight = null;
+let wallMeshes  = {};   // key → THREE.Mesh
+
+let isRunning   = false;
+
+// camera initial position — room centre, eye height 1.65 m, looking toward source
+const CAM_START = { x: 0, y: 1.65, z: 3.5 };
+// Source position — far end of room, ear height
+const SRC_POS   = new (typeof THREE !== 'undefined' ? THREE.Vector3 : Object)();
+
+const isFileProtocol = (location.protocol === 'file:');
+const mp3Ready = { alarm: false, beep: false };
+
+// ════════════════════════════════════════════════════════════════════
+// PROGRESS BAR
+// ════════════════════════════════════════════════════════════════════
+function setProgress(pct, msg) {
+  document.getElementById('loFill').style.width = pct + '%';
+  document.getElementById('loStatus').textContent = msg;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// BUILD SIDEBAR UI DYNAMICALLY
+// ════════════════════════════════════════════════════════════════════
+function buildSidebarUI() {
+  // Wall selectors
+  const wallContainer = document.getElementById('wallSelectors');
+  WALLS.forEach(wall => {
+    const section = document.createElement('div');
+    section.className = 'wall-section';
+    section.innerHTML = `
+      <div class="wall-label">
+        <span class="wall-dot" style="background:${wall.color}"></span>
+        ${wall.label}
+      </div>
+      <div class="mat-select-wrap">
+        <select class="mat-select" id="sel-${wall.key}" onchange="onWallChange('${wall.key}', this.value)">
+          ${MATERIAL_KEYS.map(k =>
+            `<option value="${k}" ${k === wall.default ? 'selected' : ''}>${MATERIALS[k].label}</option>`
+          ).join('')}
+        </select>
+      </div>`;
+    wallContainer.appendChild(section);
+  });
+
+  // Preset buttons
+  const grid = document.getElementById('presetGrid');
+  Object.keys(PRESETS).forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn' + (name === 'Anechoic' ? ' active' : '');
+    btn.textContent = name;
+    btn.id = 'preset-' + name.replace(/\s/g,'_');
+    btn.onclick = () => applyPreset(name);
+    grid.appendChild(btn);
+  });
+
+  // Upload strip for file:// protocol
+  if (isFileProtocol) {
+    document.getElementById('uploadStrip').classList.add('visible');
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// INIT ON LOAD
+// ════════════════════════════════════════════════════════════════════
+window.addEventListener('DOMContentLoaded', async () => {
+  buildSidebarUI();
+  setProgress(5, 'Loading libraries…');
+
+  // Wait for THREE (ES module bootstrap) and ResonanceAudio (defer UMD)
+  const deadline = Date.now() + 9000;
+  while ((typeof window.THREE === 'undefined' || typeof window._PointerLockControls === 'undefined' || typeof ResonanceAudio === 'undefined') && Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 60));
+  }
+  if (typeof window.THREE === 'undefined') { document.getElementById('loStatus').textContent = '⚠ Three.js failed to load.'; return; }
+  if (typeof ResonanceAudio === 'undefined') { document.getElementById('loStatus').textContent = '⚠ Resonance Audio failed to load.'; return; }
+
+  // Now SRC_POS can be a real Vector3
+  SRC_POS.set(0, 1.05, -(ROOM.depth / 2 - 1.0));
+
+  setProgress(20, 'Initializing renderer…'); await tick();
+  initThree();
+
+  setProgress(45, 'Building scene…'); await tick();
+  buildScene();
+
+  setProgress(70, 'Post-processing…'); await tick();
+  await initPostProcessing();
+
+  setProgress(88, isFileProtocol ? 'Ready (upload MP3s to use Alarm/Beep)' : 'Pre-loading audio…'); await tick();
+  await preloadAudio();
+
+  setProgress(100, 'Ready');
+  await new Promise(r => setTimeout(r, 350));
+
+  document.getElementById('loadingOverlay').classList.add('hidden');
+  document.getElementById('startOverlay').classList.remove('hidden');
+  startRenderLoop();
+  scheduleNavHintFade();
+});
+
+function tick() { return new Promise(r => setTimeout(r, 60)); }
+
+// ════════════════════════════════════════════════════════════════════
+// AUDIO PRELOAD
+// ════════════════════════════════════════════════════════════════════
+async function preloadAudio() {
+  if (isFileProtocol) { updateStartReadiness(); return; }
+  await Promise.all([
+    fetchAndStore('3411.mp3', 'alarm'),
+    fetchAndStore('1298.mp3', 'beep'),
+  ]);
+  updateStartReadiness();
+}
+
+async function fetchAndStore(filename, key) {
+  try {
+    const resp = await fetch('./' + filename);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    window['_' + key + 'AB'] = await resp.arrayBuffer();
+    mp3Ready[key] = true;
+  } catch(e) {
+    console.warn(filename + ':', e.message);
+    dimSourceChip(key);
+    if (sourceType === key) { sourceType = 'noise'; setActiveChip('noise'); }
+  }
+}
+
+function handleUpload(event, key) {
+  const file = event.target.files[0]; if (!file) return;
+  event.stopPropagation();
+  const reader = new FileReader();
+  reader.onload = e => {
+    window['_' + key + 'AB'] = e.target.result;
+    mp3Ready[key] = true;
+    const lbl = document.getElementById('lbl-' + key);
+    if (lbl) { lbl.textContent = '✓ ' + file.name; lbl.classList.add('loaded'); }
+    updateStartReadiness();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function dimSourceChip(key) {
+  const c = document.getElementById('src-' + key);
+  if (c) { c.style.opacity = '0.35'; c.title = key + ' MP3 not found'; }
+}
+function setActiveChip(key) {
+  document.querySelectorAll('.src-chip').forEach(c => c.classList.remove('active'));
+  const c = document.getElementById('src-' + key);
+  if (c) c.classList.add('active');
+}
+
+function updateStartReadiness() {
+  const needsFile = isFileProtocol && (sourceType === 'alarm' || sourceType === 'beep');
+  const ready = !needsFile || mp3Ready[sourceType];
+  document.getElementById('btnStart').disabled = !ready;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// THREE.JS — RENDERER
+// ════════════════════════════════════════════════════════════════════
+function initThree() {
+  const canvas = document.getElementById('threeCanvas');
+
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+  renderer.toneMapping       = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  renderer.outputColorSpace  = THREE.SRGBColorSpace;
+
+  camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 500);
+  camera.position.set(CAM_START.x, CAM_START.y, CAM_START.z);
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x07080d);
+  scene.fog = new THREE.FogExp2(0x07080d, 0.06);
+
+  clock = new THREE.Clock();
+
+  // PointerLockControls — first-person look
+  controls = new window._PointerLockControls(camera, renderer.domElement);
+  controls.addEventListener('lock',   onPointerLock);
+  controls.addEventListener('unlock', onPointerUnlock);
+
+  window.addEventListener('resize', onResize);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// SCENE CONSTRUCTION
+// ════════════════════════════════════════════════════════════════════
+function buildScene() {
+  // Lighting
+  scene.add(new THREE.AmbientLight(0x101520, 0.5));
+
+  const keyLight = new THREE.DirectionalLight(0xfff8f0, 1.2);
+  keyLight.position.set(2, 4, 3);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(2048, 2048);
+  keyLight.shadow.camera.near = 0.1; keyLight.shadow.camera.far = 25;
+  keyLight.shadow.camera.left  = keyLight.shadow.camera.bottom = -8;
+  keyLight.shadow.camera.right = keyLight.shadow.camera.top   =  8;
+  scene.add(keyLight);
+
+  // Ceiling light strip (emissive plane + rect area light)
+  const ceilLight = new THREE.RectAreaLight(0xd4e8ff, 2.0, 5, 1.5);
+  ceilLight.position.set(0, ROOM.height - 0.05, 0);
+  ceilLight.rotation.x = Math.PI / 2;
+  scene.add(ceilLight);
+
+  // Ceiling light emissive mesh
+  const ceilLightMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(5, 1.5),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: new THREE.Color(0xd4e8ff), emissiveIntensity: 1.5, side: THREE.DoubleSide })
+  );
+  ceilLightMesh.position.set(0, ROOM.height - 0.02, 0);
+  ceilLightMesh.rotation.x = -Math.PI / 2;
+  scene.add(ceilLightMesh);
+
+  // Build room geometry
+  buildRoom();
+
+  // Grid on floor for depth perception
+  const grid = new THREE.GridHelper(Math.max(ROOM.width, ROOM.depth), 20, 0x1e2535, 0x1e2535);
+  grid.material.opacity = 0.5; grid.material.transparent = true;
+  grid.position.y = 0.002;
+  scene.add(grid);
+
+  // Audio source mesh — positioned at far end of room
+  const coreMat = new THREE.MeshStandardMaterial({
+    color: 0x4fc3f7, emissive: new THREE.Color(0x4fc3f7),
+    emissiveIntensity: 0.4, roughness: 0.2, metalness: 0.0,
+  });
+  sourceMesh = new THREE.Mesh(new THREE.SphereGeometry(0.11, 20, 20), coreMat);
+  sourceMesh.position.copy(SRC_POS);
+  sourceMesh.castShadow = true;
+  scene.add(sourceMesh);
+
+  const haloMat = new THREE.MeshStandardMaterial({
+    color: 0x4fc3f7, transparent: true, opacity: 0.07,
+    roughness: 1.0, metalness: 0.0, depthWrite: false,
+  });
+  sourceHalo = new THREE.Mesh(new THREE.SphereGeometry(0.22, 20, 20), haloMat);
+  sourceHalo.position.copy(SRC_POS);
+  scene.add(sourceHalo);
+
+  sourceLight = new THREE.PointLight(0x4fc3f7, 0, 6);
+  sourceLight.position.copy(SRC_POS);
+  scene.add(sourceLight);
+
+  // Speaker cabinet visual (simple box)
+  const cabinetMat = new THREE.MeshStandardMaterial({ color: 0x1a1a2a, roughness: 0.9, metalness: 0.1 });
+  const cabinet = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.4), cabinetMat);
+  cabinet.position.set(SRC_POS.x, 0.35, SRC_POS.z);
+  cabinet.castShadow = cabinet.receiveShadow = true;
+  scene.add(cabinet);
+
+  // Speaker cone (emissive circle on front face)
+  const coneMat = new THREE.MeshStandardMaterial({ color: 0x1a1a2a, emissive: new THREE.Color(0x4fc3f7), emissiveIntensity: 0.1, roughness: 0.5 });
+  const cone = new THREE.Mesh(new THREE.CircleGeometry(0.15, 32), coneMat);
+  cone.position.set(SRC_POS.x, 0.5, SRC_POS.z + 0.21);
+  scene.add(cone);
+}
+
+// ── Build six room walls — each as a separate mesh so materials can change ──
+function buildRoom() {
+  // [wall key, width, height, rotation, position]
+  const wallDefs = [
+    { key: 'down',  w: ROOM.width, h: ROOM.depth,  rx: -Math.PI/2, ry: 0,          tx: 0,              ty: 0,            tz: 0             },
+    { key: 'up',    w: ROOM.width, h: ROOM.depth,  rx:  Math.PI/2, ry: 0,          tx: 0,              ty: ROOM.height,  tz: 0             },
+    { key: 'back',  w: ROOM.width, h: ROOM.height, rx: 0,          ry: 0,          tx: 0,              ty: ROOM.height/2,tz: -ROOM.depth/2 },
+    { key: 'front', w: ROOM.width, h: ROOM.height, rx: 0,          ry: Math.PI,    tx: 0,              ty: ROOM.height/2,tz:  ROOM.depth/2 },
+    { key: 'left',  w: ROOM.depth, h: ROOM.height, rx: 0,          ry:  Math.PI/2, tx: -ROOM.width/2,  ty: ROOM.height/2,tz: 0             },
+    { key: 'right', w: ROOM.depth, h: ROOM.height, rx: 0,          ry: -Math.PI/2, tx:  ROOM.width/2,  ty: ROOM.height/2,tz: 0             },
+  ];
+
+  wallDefs.forEach(def => {
+    const geo = new THREE.PlaneGeometry(def.w, def.h);
+    const matKey = currentMaterials[def.key];
+    const matDef = MATERIALS[matKey];
+    const mat = new THREE.MeshStandardMaterial({
+      color: matDef.color,
+      roughness: matDef.roughness,
+      metalness: matDef.metalness,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.rotation.set(def.rx, def.ry, 0);
+    mesh.position.set(def.tx, def.ty, def.tz);
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+    wallMeshes[def.key] = mesh;
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════
+// POST-PROCESSING
+// ════════════════════════════════════════════════════════════════════
+async function initPostProcessing() {
+  try {
+    const W = window.innerWidth, H = window.innerHeight;
+    const { EffectComposer } = await import('three/addons/postprocessing/EffectComposer.js');
+    const { RenderPass }     = await import('three/addons/postprocessing/RenderPass.js');
+    const { UnrealBloomPass }= await import('three/addons/postprocessing/UnrealBloomPass.js');
+    const { OutputPass }     = await import('three/addons/postprocessing/OutputPass.js');
+    composer = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+    bloomPass = new UnrealBloomPass(new THREE.Vector2(W, H), 0.65, 0.4, 0.3);
+    composer.addPass(bloomPass);
+    composer.addPass(new OutputPass());
+  } catch(e) {
+    console.warn('Post-processing unavailable:', e.message);
+    composer = null;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// POINTER LOCK CONTROLS
+// ════════════════════════════════════════════════════════════════════
+document.getElementById('startOverlay').addEventListener('click', () => {
+  if (isFileProtocol && sourceType !== 'noise' && sourceType !== 'harmonic' && !mp3Ready[sourceType]) return;
+  startDemo();
+});
+document.getElementById('pauseOverlay').addEventListener('click', () => { controls.lock(); });
+
+function onPointerLock() {
+  document.getElementById('crosshair').classList.add('visible');
+  document.getElementById('pauseOverlay').classList.remove('visible');
+}
+function onPointerUnlock() {
+  document.getElementById('crosshair').classList.remove('visible');
+  if (isRunning) document.getElementById('pauseOverlay').classList.add('visible');
+}
+
+// ════════════════════════════════════════════════════════════════════
+// AUDIO — START / STOP
+// ════════════════════════════════════════════════════════════════════
+async function startDemo() {
+  if (isRunning) return;
+
+  document.getElementById('startOverlay').classList.add('hidden');
+  document.getElementById('btnStart').disabled = true;
+  document.getElementById('btnStop').disabled  = false;
+
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioContext.state === 'suspended') await audioContext.resume();
+
+  if (window._alarmAB) {
+    try { alarmBuffer = await audioContext.decodeAudioData(window._alarmAB.slice(0)); }
+    catch(e) { console.warn('alarm decode:', e.message); alarmBuffer = null; }
+  }
+  if (window._beepAB) {
+    try { beepBuffer = await audioContext.decodeAudioData(window._beepAB.slice(0)); }
+    catch(e) { console.warn('beep decode:', e.message); beepBuffer = null; }
+  }
+
+  initResonance();
+  initAudioGraph();
+  buildSourceNode(sourceType);
+  connectSourceNode();
+
+  isRunning = true;
+  document.getElementById('hudCtxState').textContent = 'running';
+  controls.lock();
+
+  document.addEventListener('visibilitychange', onVisibilityChange);
+}
+
+function stopDemo() {
+  if (!isRunning) return;
+  isRunning = false;
+  teardownAudio();
+  document.getElementById('btnStart').disabled = false;
+  document.getElementById('btnStop').disabled  = true;
+  document.getElementById('hudCtxState').textContent = 'inactive';
+  document.getElementById('pauseOverlay').classList.remove('visible');
+  document.getElementById('startOverlay').classList.remove('hidden');
+  controls.unlock();
+  document.removeEventListener('visibilitychange', onVisibilityChange);
+}
+
+function teardownAudio() {
+  if (sourceNode) {
+    try { sourceNode.stop && sourceNode.stop(); } catch(e) {}
+    try { sourceNode.disconnect(); } catch(e) {}
+    if (sourceNode._extraNodes) sourceNode._extraNodes.forEach(n => { try { n.disconnect(); } catch(e) {} });
+    sourceNode = null;
+  }
+  if (lfoOsc) { try { lfoOsc.stop(); } catch(e) {} lfoOsc = null; }
+  if (audioContext) { audioContext.close(); audioContext = null; }
+  resonanceAudio = null; resonanceSource = null;
+  alarmBuffer = null; beepBuffer = null;
+}
+
+async function onVisibilityChange() {
+  if (!audioContext) return;
+  if (document.visibilityState === 'visible' && audioContext.state === 'suspended') {
+    await audioContext.resume();
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// RESONANCE AUDIO INIT
+// ════════════════════════════════════════════════════════════════════
+function initResonance() {
+  resonanceAudio = new ResonanceAudio(audioContext, { ambisonicOrder: 3 });
+  resonanceAudio.output.connect(audioContext.destination);
+  resonanceSource = resonanceAudio.createSource();
+  resonanceSource.setPosition(SRC_POS.x, SRC_POS.y, SRC_POS.z);
+  applyResonanceRoom();
+}
+
+function applyResonanceRoom() {
+  if (!resonanceAudio) return;
+  resonanceAudio.setRoomProperties(
+    { width: ROOM.width, height: ROOM.height, depth: ROOM.depth },
+    { ...currentMaterials }
+  );
+}
+
+// ════════════════════════════════════════════════════════════════════
+// AUDIO GRAPH
+// ════════════════════════════════════════════════════════════════════
+function initAudioGraph() {
+  analyser     = audioContext.createAnalyser();
+  analyser.fftSize = 256;
+  analyser.smoothingTimeConstant = 0.72;
+  energyBuf    = new Uint8Array(analyser.frequencyBinCount);
+
+  masterGain   = audioContext.createGain();
+  masterGain.gain.value = 0.85;
+  masterGain.connect(analyser);
+
+  hrtfGain     = audioContext.createGain(); hrtfGain.gain.value   = 1.0;
+  stereoGain   = audioContext.createGain(); stereoGain.gain.value = 0.0;
+  stereoPanner = audioContext.createStereoPanner(); stereoPanner.pan.value = 0;
+
+  analyser.connect(hrtfGain);
+  hrtfGain.connect(resonanceSource.input);
+
+  analyser.connect(stereoGain);
+  stereoGain.connect(stereoPanner);
+  stereoPanner.connect(audioContext.destination);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// SOURCE NODES — same four sources as Demo 1
+// ════════════════════════════════════════════════════════════════════
+function buildSourceNode(type) {
+  if (sourceNode) {
+    try { sourceNode.stop && sourceNode.stop(); } catch(e) {}
+    try { sourceNode.disconnect(); } catch(e) {}
+    if (sourceNode._extraNodes) sourceNode._extraNodes.forEach(n => { try { n.disconnect(); } catch(e) {} });
+    sourceNode = null;
+  }
+  if (lfoOsc) { try { lfoOsc.stop(); } catch(e) {} lfoOsc = null; }
+
+  if (type === 'alarm' && alarmBuffer) {
+    const bs = audioContext.createBufferSource();
+    bs.buffer = alarmBuffer; bs.loop = true; sourceNode = bs;
+  } else if (type === 'beep' && beepBuffer) {
+    const bs = audioContext.createBufferSource();
+    bs.buffer = beepBuffer; bs.loop = true; sourceNode = bs;
+  } else if (type === 'harmonic') {
+    sourceNode = buildHarmonicSource();
+  } else {
+    sourceNode = buildNoiseSource();
+  }
+}
+
+function connectSourceNode() {
+  if (!sourceNode || !masterGain) return;
+  sourceNode.connect(masterGain);
+  if (sourceNode.start) sourceNode.start();
+  if (lfoOsc) lfoOsc.start();
+}
+
+// Paul Kellet's pink noise algorithm via ScriptProcessorNode
+function buildNoiseSource() {
+  const bufSize = 4096;
+  const proc    = audioContext.createScriptProcessor(bufSize, 0, 1);
+  let b0=0,b1=0,b2=0,b3=0,b4=0,b5=0,b6=0;
+  proc.onaudioprocess = e => {
+    const out = e.outputBuffer.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) {
+      const w = Math.random()*2-1;
+      b0=0.99886*b0+w*0.0555179; b1=0.99332*b1+w*0.0750759;
+      b2=0.96900*b2+w*0.1538520; b3=0.86650*b3+w*0.3104856;
+      b4=0.55000*b4+w*0.5329522; b5=-0.7616*b5-w*0.0168980;
+      out[i]=(b0+b1+b2+b3+b4+b5+b6+w*0.5362)*0.11; b6=w*0.115926;
+    }
+  };
+  const shelf = audioContext.createBiquadFilter();
+  shelf.type='highshelf'; shelf.frequency.value=3000; shelf.gain.value=5;
+  proc.connect(shelf);
+  const g = audioContext.createGain(); g.gain.value = 1.0;
+  shelf.connect(g);
+  proc._extraNodes = [shelf, g];
+  proc.connect = g.connect.bind(g);
+  return proc;
+}
+
+// Harmonic sawtooth with LFO tremolo
+function buildHarmonicSource() {
+  const osc = audioContext.createOscillator();
+  osc.type = 'sawtooth'; osc.frequency.value = 100;
+  const hp = audioContext.createBiquadFilter();
+  hp.type='highpass'; hp.frequency.value=80; hp.Q.value=0.5;
+  const shelf = audioContext.createBiquadFilter();
+  shelf.type='highshelf'; shelf.frequency.value=2500; shelf.gain.value=7;
+  const g = audioContext.createGain(); g.gain.value = 0.6;
+  lfoOsc = audioContext.createOscillator();
+  lfoOsc.type='sine'; lfoOsc.frequency.value=0.4;
+  const lfoG = audioContext.createGain(); lfoG.gain.value=0.15;
+  lfoOsc.connect(lfoG); lfoG.connect(g.gain);
+  osc.connect(hp); hp.connect(shelf); shelf.connect(g);
+  osc._extraNodes = [hp, shelf, g, lfoG];
+  osc.connect = g.connect.bind(g);
+  return osc;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// WALL MATERIAL CHANGE
+// ════════════════════════════════════════════════════════════════════
+function onWallChange(wallKey, materialKey) {
+  currentMaterials[wallKey] = materialKey;
+
+  // Update Three.js wall visual
+  const mesh   = wallMeshes[wallKey];
+  const matDef = MATERIALS[materialKey];
+  if (mesh) {
+    mesh.material.color.setHex(matDef.color);
+    mesh.material.roughness = matDef.roughness;
+    mesh.material.metalness = matDef.metalness;
+    mesh.material.needsUpdate = true;
+  }
+
+  // Update Resonance room model
+  applyResonanceRoom();
+
+  // Deactivate all preset buttons (custom state now)
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+
+  // Update RT60 readout
+  updateRT60Display();
+}
+
+function applyPreset(presetName) {
+  const preset = PRESETS[presetName];
+  if (!preset) return;
+
+  WALLS.forEach(wall => {
+    const matKey = preset[wall.key];
+    currentMaterials[wall.key] = matKey;
+    // Update dropdown
+    const sel = document.getElementById('sel-' + wall.key);
+    if (sel) sel.value = matKey;
+    // Update Three.js mesh
+    const mesh   = wallMeshes[wall.key];
+    const matDef = MATERIALS[matKey];
+    if (mesh) {
+      mesh.material.color.setHex(matDef.color);
+      mesh.material.roughness = matDef.roughness;
+      mesh.material.metalness = matDef.metalness;
+      mesh.material.needsUpdate = true;
+    }
+  });
+
+  applyResonanceRoom();
+  updateRT60Display();
+
+  // Mark active preset button
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
+  const btn = document.getElementById('preset-' + presetName.replace(/\s/g,'_'));
+  if (btn) btn.classList.add('active');
+}
+
+// ════════════════════════════════════════════════════════════════════
+// RT60 COMPUTATION (Sabine formula)
+// ════════════════════════════════════════════════════════════════════
+// Surface areas for the room
+const SURFACE_AREAS = {
+  left:  ROOM.height * ROOM.depth,
+  right: ROOM.height * ROOM.depth,
+  front: ROOM.width  * ROOM.height,
+  back:  ROOM.width  * ROOM.height,
+  down:  ROOM.width  * ROOM.depth,
+  up:    ROOM.width  * ROOM.depth,
+};
+
+function computeRT60() {
+  const V = ROOM.width * ROOM.height * ROOM.depth; // 256 m³
+  let A = 0;
+  WALLS.forEach(wall => {
+    const alpha = MATERIALS[currentMaterials[wall.key]]?.alpha ?? 0.05;
+    A += alpha * SURFACE_AREAS[wall.key];
+  });
+  if (A < 0.001) return 999;
+  return 0.161 * V / A;
+}
+
+function updateRT60Display() {
+  const rt60 = computeRT60();
+  const disp = rt60 > 99 ? '∞' : rt60.toFixed(2);
+  document.getElementById('hudRT60').textContent = disp;
+
+  // Bar: map 0–8 s range
+  const maxRT = 8;
+  const pct = Math.min(100, (rt60 / maxRT) * 100);
+  document.getElementById('hudRT60Bar').style.width = pct + '%';
+}
+
+// ════════════════════════════════════════════════════════════════════
+// AUDIO MODE TOGGLE (HRTF ↔ Stereo Pan)
+// ════════════════════════════════════════════════════════════════════
+function setAudioMode(mode) {
+  audioMode = mode;
+  document.getElementById('btnHRTF').classList.toggle('active', mode === 'hrtf');
+  document.getElementById('btnStereo').classList.toggle('active', mode === 'stereo');
+  document.getElementById('hudMode').textContent = mode === 'hrtf' ? 'HRTF' : 'Stereo';
+  if (!audioContext || !hrtfGain) return;
+  const now = audioContext.currentTime;
+  const F = 0.3;
+  hrtfGain.gain.setValueAtTime(hrtfGain.gain.value, now);
+  stereoGain.gain.setValueAtTime(stereoGain.gain.value, now);
+  if (mode === 'hrtf') {
+    hrtfGain.gain.linearRampToValueAtTime(1.0, now + F);
+    stereoGain.gain.linearRampToValueAtTime(0.0, now + F);
+  } else {
+    hrtfGain.gain.linearRampToValueAtTime(0.0, now + F);
+    stereoGain.gain.linearRampToValueAtTime(1.0, now + F);
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// SOURCE TYPE SWITCH
+// ════════════════════════════════════════════════════════════════════
+function setSource(type) {
+  sourceType = type;
+  setActiveChip(type);
+  if (isFileProtocol && !isRunning) updateStartReadiness();
+  if (!isRunning) return;
+  buildSourceNode(type);
+  connectSourceNode();
+}
+
+// ════════════════════════════════════════════════════════════════════
+// KEYBOARD NAVIGATION
+// ════════════════════════════════════════════════════════════════════
+const keys = {};
+document.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'Escape') { /* handled by PointerLockControls */ }
+});
+document.addEventListener('keyup', e => { keys[e.code] = false; });
+
+const SPEED = 3.0; // m/s
+const BOUNDS = {
+  xMin: -ROOM.width/2  + 0.3,
+  xMax:  ROOM.width/2  - 0.3,
+  zMin: -ROOM.depth/2  + 0.3,
+  zMax:  ROOM.depth/2  - 0.3,
+};
+
+function updateNavigation(dt) {
+  if (!controls.isLocked) return;
+  const prevPos = camera.position.clone();
+
+  if (keys['KeyW'] || keys['ArrowUp'])    controls.moveForward( SPEED * dt);
+  if (keys['KeyS'] || keys['ArrowDown'])  controls.moveForward(-SPEED * dt);
+  if (keys['KeyA'] || keys['ArrowLeft'])  controls.moveRight(  -SPEED * dt);
+  if (keys['KeyD'] || keys['ArrowRight']) controls.moveRight(   SPEED * dt);
+
+  // AABB collision against room walls — cannot walk through walls
+  camera.position.x = Math.max(BOUNDS.xMin, Math.min(BOUNDS.xMax, camera.position.x));
+  camera.position.z = Math.max(BOUNDS.zMin, Math.min(BOUNDS.zMax, camera.position.z));
+  camera.position.y = CAM_START.y; // lock eye height
+}
+
+// ════════════════════════════════════════════════════════════════════
+// RENDER LOOP
+// ════════════════════════════════════════════════════════════════════
+function startRenderLoop() {
+  function loop() {
+    requestAnimationFrame(loop);
+    const dt = clock.getDelta();
+
+    updateNavigation(dt);
+
+    if (isRunning) {
+      // Sync Resonance listener with camera
+      camera.updateMatrixWorld();
+      resonanceAudio.setListenerFromMatrix(camera.matrixWorld);
+
+      // Source position is fixed — but update matrixWorld for correctness
+      sourceMesh.updateMatrixWorld();
+      resonanceSource.setFromMatrix(sourceMesh.matrixWorld);
+
+      // Audio energy → visual emissive
+      if (analyser) {
+        analyser.getByteFrequencyData(energyBuf);
+        let sum = 0;
+        for (let i = 0; i < energyBuf.length; i++) sum += energyBuf[i] * energyBuf[i];
+        const rms = Math.sqrt(sum / energyBuf.length) / 255;
+
+        sourceMesh.material.emissiveIntensity = 0.2 + rms * 3.5;
+        sourceHalo.material.opacity           = 0.04 + rms * 0.3;
+        sourceLight.intensity                 = rms * 4.0;
+
+        // Energy bar in HUD
+        document.getElementById('energyBar').style.width = Math.min(100, rms * 400) + '%';
+      }
+
+      // HUD position readout
+      const p = camera.position;
+      document.getElementById('hudPos').textContent =
+        p.x.toFixed(1) + ', ' + p.y.toFixed(1) + ', ' + p.z.toFixed(1);
+
+      // Distance from listener to source
+      const dist = p.distanceTo(SRC_POS);
+      document.getElementById('hudDist').textContent = dist.toFixed(2) + ' m';
+
+      // Update stereo pan to match source azimuth (stereo mode)
+      if (stereoPanner && audioContext) {
+        const rel = SRC_POS.clone().sub(p);
+        const az  = Math.atan2(rel.x, -rel.z);
+        stereoPanner.pan.setTargetAtTime(Math.sin(az) * 0.8, audioContext.currentTime, 0.016);
+      }
+    }
+
+    composer ? composer.render() : renderer.render(scene, camera);
+  }
+  loop();
+  updateRT60Display(); // initial RT60 display (anechoic → ∞)
+}
+
+// ════════════════════════════════════════════════════════════════════
+// RESIZE
+// ════════════════════════════════════════════════════════════════════
+function onResize() {
+  if (!camera) return;
+  const W = window.innerWidth, H = window.innerHeight;
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+  renderer.setSize(W, H);
+  if (composer) composer.setSize(W, H);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// NAV HINT — fade after 6 seconds of play
+// ════════════════════════════════════════════════════════════════════
+function scheduleNavHintFade() {
+  setTimeout(() => {
+    document.getElementById('navHint').classList.add('faded');
+  }, 6000);
+}
+</script>
+</body>
+</html>
