@@ -843,84 +843,75 @@ WALLS.forEach(w => { currentMaterials[w.key] = w.default; });
 // Track last materials sent to Resonance so we skip redundant setRoomProperties calls
 let lastResonanceMaterials = null;
 // Track which preset is currently active (null = custom)
-let activePresetName = 'Anechoic';
+let activePresetName = 'Anechoic Chamber';
 
 // ── Each preset carries:
-//    dims  : { width, height, depth } in metres
-//    desc  : one-line teaching note shown in the HUD
+//    dims     : { width, height, depth } in metres — all walkable, all visible
+//    camStart : { z } listener start position (x=0, y=1.65 always)
+//    fogDensity: exponential fog density suited to the room depth
+//    desc     : one-line teaching note shown in the HUD
 //    left/right/front/back/down/up : Resonance Audio material strings
 const PRESETS = {
-  // ── Dead / reference ──────────────────────────────────────────────
-  'Anechoic': {
-    dims:  { width: 8,   height: 3.2,  depth: 10  },
-    desc:  'Zero reflections — reference for all other rooms',
+
+  // ── 1. Dead reference — same box, all transparent ─────────────────
+  'Anechoic Chamber': {
+    dims:       { width: 8,   height: 4.0,  depth: 12  },
+    camStart:   { z: 4.0 },
+    fogDensity: 0.045,
+    desc:  'All walls transparent → zero reflections, pure dry signal',
     left:'transparent', right:'transparent', front:'transparent',
     back:'transparent', down:'transparent',  up:'transparent',
   },
 
-  // ── Very small + very absorptive ──────────────────────────────────
-  'Wardrobe': {
-    dims:  { width: 1.4, height: 2.2,  depth: 1.0 },
-    desc:  'Tiny box + heavy absorption → near-anechoic but boxy',
-    left:'curtain_heavy', right:'curtain_heavy', front:'curtain_heavy',
-    back:'curtain_heavy', down:'carpet',         up:'fiber_glass_insulation',
-  },
-
-  // ── Small + very hard (all parallel surfaces) ─────────────────────
+  // ── 2. Small tiled bathroom — short + dense flutter ───────────────
   'Tiled Bathroom': {
-    dims:  { width: 2.5, height: 2.4,  depth: 3.0 },
-    desc:  'Small hard box → dense ringy flutter reverb',
+    dims:       { width: 3.2, height: 2.6,  depth: 4.5 },
+    camStart:   { z: 1.2 },
+    fogDensity: 0.01,
+    desc:  'Small hard parallel surfaces → dense ringy flutter reverb',
     left:'polished_concrete_or_tile', right:'polished_concrete_or_tile',
     front:'polished_concrete_or_tile', back:'polished_concrete_or_tile',
     down:'polished_concrete_or_tile', up:'polished_concrete_or_tile',
   },
 
-  // ── Tiny metallic resonance chamber ──────────────────────────────
-  'Metal Drum': {
-    dims:  { width: 0.7, height: 0.65, depth: 0.7  },
-    desc:  'Sub-metre metal box → pitched modal resonance',
-    left:'metal', right:'metal', front:'metal',
-    back:'metal', down:'metal',  up:'metal',
-  },
-
-  // ── Treated studio ────────────────────────────────────────────────
-  'Wood Studio': {
-    dims:  { width: 8,   height: 3.2,  depth: 10  },
-    desc:  'Mixed absorption → warm short reverb ~0.5 s',
-    left:'wood_panel',   right:'curtain_heavy', front:'plywood_panel',
+  // ── 3. Treated recording studio ───────────────────────────────────
+  'Recording Studio': {
+    dims:       { width: 8,   height: 3.2,  depth: 10  },
+    camStart:   { z: 3.5 },
+    fogDensity: 0.045,
+    desc:  'Mixed absorption → warm, controlled ~0.4 s reverb',
+    left:'wood_panel',    right:'curtain_heavy',      front:'plywood_panel',
     back:'curtain_heavy', down:'parquet_on_concrete', up:'acoustic_ceiling_tiles',
   },
 
-  // ── Wide + low industrial space ───────────────────────────────────
+  // ── 4. Low concrete car park — wide & flat, flutter echoes ────────
   'Car Park': {
-    dims:  { width: 30,  height: 2.8,  depth: 50  },
-    desc:  'Wide & low → long horizontal flutter, crushed vertically',
+    dims:       { width: 20,  height: 3.0,  depth: 28  },
+    camStart:   { z: 10.0 },
+    fogDensity: 0.018,
+    desc:  'Wide & low concrete box → long lateral echoes, dead vertically',
     left:'concrete_block_coarse', right:'concrete_block_coarse',
     front:'concrete_block_painted', back:'concrete_block_painted',
     down:'polished_concrete_or_tile', up:'concrete_block_coarse',
   },
 
-  // ── Large stone cave ──────────────────────────────────────────────
+  // ── 5. Stone cave — tall & deep, water floor ──────────────────────
   'Cave': {
-    dims:  { width: 22,  height: 14,   depth: 35  },
-    desc:  'Large irregular stone cavity → boomy spaced echoes',
+    dims:       { width: 12,  height: 10,   depth: 20  },
+    camStart:   { z: 6.0 },
+    fogDensity: 0.022,
+    desc:  'Tall stone cavity + reflective water floor → boomy, spaced echoes',
     left:'concrete_block_coarse', right:'concrete_block_coarse',
-    front:'brick_bare', back:'concrete_block_coarse',
-    down:'water_or_ice_surface', up:'concrete_block_coarse',
+    front:'brick_bare',           back:'concrete_block_coarse',
+    down:'water_or_ice_surface',  up:'concrete_block_coarse',
   },
 
-  // ── Concert hall ──────────────────────────────────────────────────
-  'Concert Hall': {
-    dims:  { width: 28,  height: 18,   depth: 48  },
-    desc:  'Large volume + mixed surfaces → smooth ~2 s reverb',
-    left:'wood_panel',    right:'wood_panel',  front:'plaster_rough',
-    back:'curtain_heavy', down:'parquet_on_concrete', up:'wood_ceiling',
-  },
-
-  // ── Massive marble cathedral ──────────────────────────────────────
+  // ── 6. Marble cathedral — huge, near-zero absorption ──────────────
   'Cathedral': {
-    dims:  { width: 24,  height: 32,   depth: 80  },
-    desc:  'Huge volume + near-zero absorption → 8+ s reverb tail',
+    dims:       { width: 18,  height: 22,   depth: 40  },
+    camStart:   { z: 12.0 },
+    fogDensity: 0.012,
+    desc:  'Vast marble volume → 6–8 s reverb tail, enormous sense of space',
     left:'marble', right:'marble', front:'marble',
     back:'marble', down:'polished_concrete_or_tile', up:'marble',
   },
@@ -930,8 +921,9 @@ const PRESETS = {
 // (uniform_average_absorption: α≈0.35 is a good broadband stand-in)
 const RESONANCE_MAT_REMAP = { 'carpet': 'uniform_average_absorption' };
 
-// Room dimensions (metres) — mutable; updated by applyPreset
-let ROOM = { width: 8, height: 3.2, depth: 10 };
+// Room dimensions (metres) — mutable; updated by applyPreset.
+// Initial values match the 'Anechoic Chamber' preset.
+let ROOM = { width: 8, height: 4.0, depth: 12 };
 
 // ════════════════════════════════════════════════════════════════════
 // RUNTIME STATE
@@ -1060,7 +1052,7 @@ function buildSidebarUI() {
   const grid = document.getElementById('presetGrid');
   Object.keys(PRESETS).forEach(name => {
     const btn = document.createElement('button');
-    btn.className = 'preset-btn' + (name === 'Anechoic' ? ' active' : '');
+    btn.className = 'preset-btn' + (name === 'Anechoic Chamber' ? ' active' : '');
     btn.textContent = name;
     btn.id = 'preset-' + name.replace(/\s/g,'_');
     btn.onclick = () => applyPreset(name);
@@ -1344,30 +1336,38 @@ function buildScene() {
   // Fill lights from both sides — illuminate left & right walls that the key misses
   const fillL = new THREE.DirectionalLight(0xc8d8ff, 0.7);
   fillL.position.set(-ROOM.width, ROOM.height * 0.6, 0);
+  fillL.userData.isFillL = true;
   scene.add(fillL);
 
   const fillR = new THREE.DirectionalLight(0xffd8c0, 0.7);
   fillR.position.set( ROOM.width, ROOM.height * 0.6, 0);
+  fillR.userData.isFillR = true;
   scene.add(fillR);
 
   // Back fill — softly lights the front wall (facing camera on entry)
   const fillBack = new THREE.DirectionalLight(0xd0e8ff, 0.5);
   fillBack.position.set(0, ROOM.height * 0.5, ROOM.depth);
+  fillBack.userData.isFillBack = true;
   scene.add(fillBack);
 
   // Ceiling light strip (emissive plane + rect area light)
-  const ceilLight = new THREE.RectAreaLight(0xd4e8ff, 2.0, 5, 1.5);
+  // Width = min(ROOM.width*0.5, 8), length = min(ROOM.depth*0.15, 3)
+  const clW = Math.min(ROOM.width  * 0.5, 8);
+  const clD = Math.min(ROOM.depth  * 0.15, 3);
+  const ceilLight = new THREE.RectAreaLight(0xd4e8ff, 2.0, clW, clD);
   ceilLight.position.set(0, ROOM.height - 0.05, 0);
   ceilLight.rotation.x = Math.PI / 2;
+  ceilLight.userData.isCeilLight = true;
   scene.add(ceilLight);
 
   // Ceiling light emissive mesh
   const ceilLightMesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(5, 1.5),
+    new THREE.PlaneGeometry(clW, clD),
     new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: new THREE.Color(0xd4e8ff), emissiveIntensity: 1.5, side: THREE.DoubleSide })
   );
   ceilLightMesh.position.set(0, ROOM.height - 0.02, 0);
   ceilLightMesh.rotation.x = -Math.PI / 2;
+  ceilLightMesh.userData.isCeilMesh = true;
   scene.add(ceilLightMesh);
 
   // Build room geometry
@@ -1737,31 +1737,65 @@ function onWallChange(wallKey, materialKey) {
 // ROOM REBUILD — tears down and recreates all wall meshes + scene objects
 // that depend on ROOM dimensions. Called by applyPreset when dims change.
 // ════════════════════════════════════════════════════════════════════
-function rebuildRoom() {
-  // Remove old wall meshes
+function rebuildRoom(preset) {
+  // ── 1. Remove old wall meshes
   Object.values(wallMeshes).forEach(m => scene.remove(m));
   wallMeshes = {};
 
-  // Remove old grid (find by userData tag)
+  // ── 2. Remove old grid
   scene.children.filter(c => c.userData.isGrid).forEach(c => scene.remove(c));
 
-  // Rebuild walls with new dimensions
+  // ── 3. Remove old ceiling light mesh (geometry depends on room dims)
+  scene.children.filter(c => c.userData.isCeilMesh).forEach(c => scene.remove(c));
+
+  // ── 4. Rebuild walls with new ROOM dimensions
   buildRoom();
 
-  // New grid
-  const grid = new THREE.GridHelper(Math.max(ROOM.width, ROOM.depth) * 1.1, 20, 0x1e2535, 0x1e2535);
-  grid.material.opacity = 0.5; grid.material.transparent = true;
+  // ── 5. New floor grid scaled to room
+  const gridSize = Math.max(ROOM.width, ROOM.depth);
+  const gridDivs = Math.min(40, Math.max(10, Math.round(gridSize * 1.5)));
+  const grid = new THREE.GridHelper(gridSize, gridDivs, 0x1e2535, 0x1e2535);
+  grid.material.opacity = 0.45; grid.material.transparent = true;
   grid.position.y = 0.002;
   grid.userData.isGrid = true;
   scene.add(grid);
 
-  // Reposition source mesh, halo, light, cabinet, cone
+  // ── 6. Update fill light positions to room scale
+  scene.children.forEach(c => {
+    if (c.userData.isFillL)    c.position.set(-ROOM.width,      ROOM.height * 0.6, 0);
+    if (c.userData.isFillR)    c.position.set( ROOM.width,      ROOM.height * 0.6, 0);
+    if (c.userData.isFillBack) c.position.set(0, ROOM.height * 0.5, ROOM.depth);
+  });
+
+  // ── 7. Reposition ceiling RectAreaLight
+  scene.children.forEach(c => {
+    if (c.userData.isCeilLight) {
+      c.position.set(0, ROOM.height - 0.05, 0);
+    }
+  });
+
+  // ── 8. New ceiling emissive mesh scaled to room
+  const clW = Math.min(ROOM.width  * 0.5, 8);
+  const clD = Math.min(ROOM.depth  * 0.15, 3);
+  const ceilLightMesh = new THREE.Mesh(
+    new THREE.PlaneGeometry(clW, clD),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: new THREE.Color(0xd4e8ff), emissiveIntensity: 1.5, side: THREE.DoubleSide })
+  );
+  ceilLightMesh.position.set(0, ROOM.height - 0.02, 0);
+  ceilLightMesh.rotation.x = -Math.PI / 2;
+  ceilLightMesh.userData.isCeilMesh = true;
+  scene.add(ceilLightMesh);
+
+  // ── 9. Update fog density for new room depth
+  if (scene.fog && preset && preset.fogDensity !== undefined) {
+    scene.fog.density = preset.fogDensity;
+  }
+
+  // ── 10. Reposition source mesh, halo, light, cabinet, cone
   SRC_POS = new THREE.Vector3(0, 1.05, -(ROOM.depth / 2 - 1.0));
   if (sourceMesh)  sourceMesh.position.copy(SRC_POS);
   if (sourceHalo)  sourceHalo.position.copy(SRC_POS);
   if (sourceLight) sourceLight.position.copy(SRC_POS);
-
-  // Find and reposition cabinet + cone by userData tags
   scene.children.filter(c => c.userData.isCabinet).forEach(c => {
     c.position.set(SRC_POS.x, 0.35, SRC_POS.z);
   });
@@ -1769,12 +1803,16 @@ function rebuildRoom() {
     c.position.set(SRC_POS.x, 0.5, SRC_POS.z + 0.21);
   });
 
-  // Update Resonance source position
+  // ── 11. Update Resonance source position
   if (resonanceSource) resonanceSource.setPosition(SRC_POS.x, SRC_POS.y, SRC_POS.z);
 
-  // Reset camera to safe starting position for new room
-  const safeZ = Math.min(3.5, ROOM.depth / 2 - 1.0);
-  camera.position.set(0, CAM_START.y, safeZ);
+  // ── 12. Reset camera to preset's start position (clamped to room)
+  const startZ = preset && preset.camStart
+    ? Math.min(preset.camStart.z, ROOM.depth / 2 - 0.5)
+    : Math.min(3.5, ROOM.depth / 2 - 0.5);
+  camera.position.set(0, CAM_START.y, startZ);
+  // Face toward the source (negative Z)
+  camera.rotation.set(0, Math.PI, 0);
 }
 
 function applyPreset(presetName) {
@@ -1806,7 +1844,7 @@ function applyPreset(presetName) {
 
   // Rebuild Three.js geometry if dimensions changed, otherwise just repaint walls
   if (dimsChanged) {
-    rebuildRoom();
+    rebuildRoom(preset);
   } else {
     WALLS.forEach(wall => {
       const mesh   = wallMeshes[wall.key];
@@ -2022,9 +2060,8 @@ function startRenderLoop() {
   updateRT60Display(); // initial RT60 display (anechoic → ∞)
   // Show initial preset description
   const descEl = document.getElementById('hudPresetDesc');
-  if (descEl && activePresetName && PRESETS[activePresetName]) {
-    descEl.textContent = PRESETS[activePresetName].desc || '';
-  }
+  const initPreset = PRESETS[activePresetName];
+  if (descEl && initPreset) descEl.textContent = initPreset.desc || '';
 }
 
 // ════════════════════════════════════════════════════════════════════
