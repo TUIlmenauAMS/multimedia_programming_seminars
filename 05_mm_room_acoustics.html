@@ -1081,29 +1081,35 @@ resonanceSource.setGain(0);    // muted — but still connected, cheap to restor
 //        │                                                          (no delay, no attenuation by walls)
 //        │
 //        ├──▶ Image source method (order 1 and 2)
-//        │      For each virtual image source k:
-//        │        delay  = distance(image_k, listener) / c
-//        │        level  = Π(1 − αᵢ) / distance(image_k, listener)
+//        │      For each virtual image source k and each frequency band f:
+//        │        delay     = distance(image_k, listener) / c
+//        │                    (frequency-independent — geometry only)
+//        │        level(f)  = Π(1 − αᵢ(f)) / distance(image_k, listener)
+//        │                    (frequency-dependent — each wall's per-band α applied)
 //        │        direction = normalize(image_k − listener)
-//        │      → Encoded into Ambisonic bus at direction, with delay and level
+//        │      → Encoded into Ambisonic bus at direction, with delay and level(f)
+//        │        Early reflections are spectrally shaped by wall material absorption
 //        │                                                       ▲ Early reflections
 //        │                                                         (0–80 ms, directional)
 //        │
-//        └──▶ Feedback Delay Network (FDN)
-//               Parameters derived from: room volume, total absorption A
-//               Decay time tuned to match RT60 = 0.161 × V / A
+//        └──▶ Feedback Delay Network (FDN) — nine parallel decay paths, one per band
+//               For each frequency band f:
+//                 A(f)    = Σ αᵢ(f) × Sᵢ     [total absorption at that frequency]
+//                 RT60(f) = 0.161 × V / A(f)  [Sabine formula applied per band]
+//               FDN decay time constant per band tuned to match RT60(f)
 //               → Encoded into Ambisonic bus as diffuse (omnidirectional) energy
+//               The late tail decays at a different rate in each frequency band
 //                                                        ▲ Late reverberation
-//                                                          (80 ms – RT60, diffuse)
+//                                                          (80 ms – RT60(f), diffuse)
 //
 // All three paths are summed in the Ambisonic bus → binaural decode → stereo output</code></pre>
 
 <h3>What you hear when you change wall materials</h3>
-<p>When you switch a wall from <code>'marble'</code> (\(\alpha = 0.01\)) to <code>'curtain_heavy'</code> (\(\alpha = 0.60\)) in Demo 2, three things change simultaneously in the simulation:</p>
+<p>When you switch a wall from <code>'marble'</code> to <code>'curtain_heavy'</code> in Demo 2, three things change simultaneously across all nine frequency bands in the simulation:</p>
 <ol>
-  <li><strong>Image source levels drop.</strong> The reflection coefficient of that wall changes from \(1 - 0.01 = 0.99\) to \(1 - 0.60 = 0.40\). Every early reflection that bounced off that wall is now 60% quieter. Reflections that bounced off that wall twice are \(0.40^2 = 16\%\) of their original level. This immediately thins the early reflection density.</li>
-  <li><strong>Total absorption increases.</strong> More energy is removed per reflection cycle. The FDN decay time shortens in proportion to the Sabine formula — if the total absorption \(A\) doubles, RT60 halves.</li>
-  <li><strong>The spatial distribution of late reverberation changes.</strong> A heavily absorbing wall acts as a directional sink — reflections from that direction are weaker, so the reverberant field loses energy faster from that angular sector. The late tail becomes asymmetric in the Ambisonic domain.</li>
+  <li><strong>Image source levels drop — spectrally.</strong> For each frequency band \(f\), the reflection coefficient of that wall changes from \(r(f) = 1 - \alpha_\text{marble}(f)\) to \(r(f) = 1 - \alpha_\text{curtain}(f)\). At 500 Hz: marble \(\alpha = 0.010\) → curtain \(\alpha = 0.550\), so the reflection coefficient drops from 0.990 to 0.450 — reflections off that wall are now less than half as loud at mid frequencies. At 125 Hz the effect is smaller: marble \(\alpha = 0.010\) → curtain \(\alpha = 0.140\), reflection coefficient 0.990 → 0.860. The early reflections become spectrally shaped — not just quieter, but tonally changed.</li>
+  <li><strong>RT60 shortens per band.</strong> More energy is removed per reflection cycle in each band. The FDN decay time constants are recomputed independently for each of the nine bands. The high-frequency bands shorten dramatically (curtain is highly absorptive above 500 Hz); the low-frequency bands shorten less (curtain absorbs less at 125 Hz). The reverb tail becomes "darker" — it decays faster at high frequencies than at low, which is audible as a loss of "air" and "shimmer" in the reverb.</li>
+  <li><strong>The spatial distribution of late reverberation changes.</strong> A heavily absorbing wall acts as a directional energy sink — reflections from that direction carry less energy into the Ambisonic bus. The late reverberant field becomes spatially asymmetric: energy arriving from the curtained wall direction decays faster than from the opposing reflective wall. This asymmetry is encoded in the Ambisonic bus and contributes to the perceived directionality of the reverb tail.</li>
 </ol>
 
 <h3>setRoomProperties — the API call</h3>
@@ -1125,99 +1131,201 @@ resonanceSource.setGain(0);    // muted — but still connected, cheap to restor
 resonanceAudio.setRoomProperties(
   { width: 8, height: 3.2, depth: 10 },
   {
-    left:  'brick_bare',           // α = 0.03 — highly reflective
-    right: 'brick_bare',           // α = 0.03
-    front: 'plaster_smooth',       // α = 0.03
-    back:  'plaster_smooth',       // α = 0.03
-    down:  'parquet_on_concrete',  // α = 0.11 — moderate absorption
-    up:    'acoustic_ceiling_tiles', // α = 0.70 — high absorption
+    // Per-band α values are frequency-dependent arrays (see MATERIAL_COEFFICIENTS).
+    // The values shown here are α at 500 Hz — the ISO 3382 reference band.
+    // The SDK uses all nine bands internally; these inline figures are for orientation only.
+    left:  'brick_bare',             // α(500Hz) = 0.030 — dense masonry, highly reflective
+    right: 'brick_bare',             // α(500Hz) = 0.030
+    front: 'plaster_smooth',         // α(500Hz) = 0.020 — sealed surface, highly reflective
+    back:  'plaster_smooth',         // α(500Hz) = 0.020
+    down:  'parquet_on_concrete',    // α(500Hz) = 0.070 — hardwood floor, moderate absorption
+    up:    'acoustic_ceiling_tiles', // α(500Hz) = 0.410 — mineral wool, high mid-frequency absorption
   }
 );
 // This configuration gives a room with heavy lateral and longitudinal reflections
-// but a highly absorptive ceiling — a common design in multipurpose halls
-// where the ceiling is treated to control reverb while walls remain reflective.</code></pre>
+// (brick and plaster walls reflect ~97–98% of energy at 500 Hz) but a highly
+// absorptive ceiling — a common design in multipurpose halls where the ceiling
+// is treated to control reverb density while walls remain reflective.
+// Note: at low frequencies (125 Hz), brick_bare is similarly reflective (α=0.020),
+// but acoustic_ceiling_tiles becomes less absorptive (α=0.572 vs 0.410 at 500 Hz),
+// so the low-frequency RT60 will be longer than the mid-frequency RT60 — the room
+// sounds "warm" (bass-heavy reverb tail).</code></pre>
 
 <div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
 <strong>setRoomProperties replaces the entire model.</strong> Each call recomputes image source positions, reflection coefficients, and FDN parameters from scratch. There is no incremental per-wall update. This is fast enough for interactive use — typically under 1 ms on a modern CPU — but must not be called every animation frame. Demo 2 caches the last material configuration as a JSON string and skips the call when nothing has changed, using a string comparison as an equality check on the full material state.
 </div>
 
 <h3>RT60 computation from material coefficients</h3>
-<p>The Sabine formula can be applied directly to Resonance's material absorption coefficients to predict the RT60 before any audio is played. This is what the live RT60 readout in Demo 2 computes in real time:</p>
+<p>The Resonance Audio SDK internally defines each material preset as an array of absorption coefficients across <strong>nine octave bands</strong> (20 Hz, 63 Hz, 125 Hz, 250 Hz, 500 Hz, 1 kHz, 2 kHz, 4 kHz, 8 kHz), extracted from <code>room-materials.js</code> in the SDK source. These per-band values are what the SDK actually passes to its image-source stage and FDN to produce a spectrally shaped room response — the reverb tail decays at a different rate in each frequency band, which is what gives each room its characteristic tonal colour.</p>
 
-<pre><code>// Broadband absorption coefficients for all Resonance Audio material presets.
-// Source: extracted from the Resonance Audio SDK source (room-materials.js).
-// These are the exact values Resonance uses internally in its FDN parameter computation.
-const ABSORPTION = {
-  'transparent':               1.00,  // anechoic approximation
-  'fiber_glass_insulation':    0.80,
-  'acoustic_ceiling_tiles':    0.70,
-  'curtain_heavy':             0.60,
-  'plywood_panel':             0.28,
-  'wood_panel':                0.30,
-  'wood_ceiling':              0.15,
-  'grass':                     0.11,
-  'parquet_on_concrete':       0.11,
-  'glass_thin':                0.10,
-  'concrete_block_painted':    0.07,
-  'sheet_rock':                0.05,
-  'concrete_block_coarse':     0.05,
-  'glass_thick':               0.04,
-  'brick_bare':                0.03,
-  'plaster_rough':             0.03,
-  'plaster_smooth':            0.03,
-  'metal':                     0.03,
-  'linoleum_on_concrete':      0.03,
-  'brick_painted':             0.02,
-  'marble':                    0.01,
-  'polished_concrete_or_tile': 0.01,
-  'water_or_ice_surface':      0.01,
+<p>For the live RT60 readout in Demo 2, we apply the Sabine formula at the <strong>500 Hz band</strong> — the standard reference frequency used in architectural acoustics (ISO 3382) when a single-number RT60 is reported. This is a display approximation: the full acoustic simulation inside Resonance is computed across all nine bands simultaneously. See the theory page for the complete per-band RT60 derivation.</p>
+
+<pre><code>/**
+ * Per-band absorption coefficient table for all Resonance Audio material presets.
+ *
+ * Source: extracted verbatim from the Resonance Audio SDK, room-materials.js.
+ * @see {@link https://github.com/resonance-audio/resonance-audio}
+ *
+ * Each array contains nine absorption coefficients α ∈ [0, 1] corresponding
+ * to the nine octave-band centre frequencies defined in BAND_FREQUENCIES below.
+ * α = 0 → perfectly reflective; α = 1 → perfectly absorptive.
+ *
+ * Physical mechanisms visible in these values:
+ *  - Porous absorbers (carpet, curtains, fiberglass): α rises with frequency
+ *    because viscous losses in the pore structure increase at shorter wavelengths.
+ *  - Panel absorbers (plywood, glass, sheet_rock): α peaks at the panel's
+ *    resonant frequency (typically 63–250 Hz) and falls at higher frequencies
+ *    where the panel is too stiff to vibrate.
+ *  - Dense, non-porous surfaces (marble, metal, polished_concrete): α is near
+ *    zero across the entire spectrum — almost all energy is reflected elastically.
+ *
+ * @type {Object.<string, number[]>}
+ */
+const MATERIAL_COEFFICIENTS = {
+  //                                   20Hz   63Hz  125Hz  250Hz  500Hz  1kHz   2kHz   4kHz   8kHz
+  'transparent':               [1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000, 1.000],
+  'acoustic_ceiling_tiles':    [0.572, 0.572, 0.572, 0.390, 0.410, 0.479, 0.754, 0.700, 0.700],
+  'fiber_glass_insulation':    [0.200, 0.200, 0.200, 0.450, 0.730, 0.860, 0.950, 0.970, 0.970],
+  'curtain_heavy':             [0.140, 0.140, 0.140, 0.350, 0.550, 0.720, 0.700, 0.650, 0.650],
+  'carpet':                    [0.020, 0.020, 0.020, 0.060, 0.140, 0.370, 0.600, 0.650, 0.650],
+  'plywood_panel':             [0.400, 0.400, 0.400, 0.280, 0.150, 0.100, 0.070, 0.060, 0.060],
+  'wood_panel':                [0.280, 0.280, 0.280, 0.220, 0.170, 0.090, 0.100, 0.110, 0.110],
+  'wood_ceiling':              [0.150, 0.150, 0.150, 0.110, 0.100, 0.070, 0.060, 0.070, 0.070],
+  'parquet_on_concrete':       [0.040, 0.040, 0.040, 0.040, 0.070, 0.060, 0.060, 0.070, 0.070],
+  'grass':                     [0.110, 0.110, 0.110, 0.260, 0.600, 0.690, 0.920, 0.990, 0.990],
+  'glass_thin':                [0.350, 0.350, 0.350, 0.250, 0.180, 0.120, 0.070, 0.040, 0.040],
+  'glass_thick':               [0.180, 0.180, 0.180, 0.060, 0.040, 0.030, 0.020, 0.020, 0.020],
+  'concrete_block_painted':    [0.100, 0.100, 0.100, 0.050, 0.060, 0.070, 0.090, 0.080, 0.080],
+  'concrete_block_coarse':     [0.360, 0.360, 0.360, 0.440, 0.310, 0.290, 0.390, 0.250, 0.250],
+  'sheet_rock':                [0.290, 0.290, 0.290, 0.100, 0.050, 0.040, 0.070, 0.090, 0.090],
+  'brick_bare':                [0.020, 0.020, 0.020, 0.020, 0.030, 0.040, 0.050, 0.050, 0.050],
+  'brick_painted':             [0.010, 0.010, 0.010, 0.010, 0.020, 0.020, 0.020, 0.030, 0.030],
+  'plaster_rough':             [0.010, 0.010, 0.010, 0.020, 0.030, 0.040, 0.050, 0.050, 0.050],
+  'plaster_smooth':            [0.010, 0.010, 0.010, 0.010, 0.020, 0.020, 0.020, 0.020, 0.020],
+  'metal':                     [0.030, 0.030, 0.030, 0.030, 0.040, 0.040, 0.040, 0.040, 0.040],
+  'linoleum_on_concrete':      [0.020, 0.020, 0.020, 0.020, 0.030, 0.030, 0.030, 0.030, 0.030],
+  'marble':                    [0.010, 0.010, 0.010, 0.010, 0.010, 0.010, 0.020, 0.020, 0.020],
+  'polished_concrete_or_tile': [0.010, 0.010, 0.010, 0.010, 0.010, 0.020, 0.020, 0.020, 0.020],
+  'water_or_ice_surface':      [0.010, 0.010, 0.010, 0.010, 0.010, 0.010, 0.010, 0.020, 0.020],
 };
 
+/**
+ * Octave-band centre frequencies (Hz) corresponding to the coefficient arrays above.
+ * Index 0 = 20 Hz, index 4 = 500 Hz (ISO 3382 reference band), index 8 = 8 kHz.
+ * @type {number[]}
+ */
+const BAND_FREQUENCIES = [20, 63, 125, 250, 500, 1000, 2000, 4000, 8000];
+
+/** Index into BAND_FREQUENCIES / MATERIAL_COEFFICIENTS for the 500 Hz reference band. */
+const BAND_500HZ = 4;
+
+/**
+ * Fallback per-band coefficients used when an unrecognised material key is passed.
+ * Values approximate a smooth plaster surface — a conservative, moderately reflective default.
+ * @type {number[]}
+ */
+const FALLBACK_COEFFICIENTS = [0.01, 0.01, 0.01, 0.01, 0.02, 0.02, 0.02, 0.02, 0.02];
+
+/**
+ * Computes the Sabine reverberation time (RT60) at the 500 Hz octave band for a
+ * Resonance Audio shoebox room configuration.
+ *
+ * RT60 is defined as the time (seconds) for reverberant energy to decay by 60 dB
+ * after the source stops. The Sabine formula:
+ *
+ *   RT60(f) = 0.161 × V / A(f)
+ *
+ * where V is the room volume [m³] and A(f) = Σ α_i(f) × S_i is the total
+ * frequency-dependent absorption [m² sabins].
+ *
+ * This function evaluates the formula at 500 Hz — the ISO 3382 reference band
+ * used when a single representative RT60 value is reported for a room.
+ * The full nine-band RT60 curve (see computeRT60Bands) is what the SDK computes
+ * internally to tune per-band FDN decay times; this function is a display approximation.
+ *
+ * The Sabine formula assumes a diffuse sound field (energy uniformly distributed
+ * in all directions) and is accurate when the mean absorption coefficient ᾱ < 0.3.
+ * For highly absorptive rooms (ᾱ > 0.5), the Eyring correction is more accurate:
+ *   RT60_Eyring = 0.161 × V / (-S_total × ln(1 − ᾱ))
+ * Demo 2 uses the Sabine formula, which remains pedagogically correct across the
+ * full interactive range and correctly predicts RT60 → 0 as α → 1 (anechoic limit).
+ *
+ * @param {{ width: number, height: number, depth: number }} dimensions
+ *   Room dimensions in metres. Must match the Three.js geometry exactly —
+ *   acoustic and visual room are the same physical space.
+ * @param {{ left: string, right: string, front: string, back: string,
+ *            down: string, up: string }} materials
+ *   Six wall material preset keys, one per face. Each key must be a property
+ *   of MATERIAL_COEFFICIENTS. Unrecognised keys fall back to FALLBACK_COEFFICIENTS
+ *   with a console warning.
+ * @returns {number} RT60 in seconds at 500 Hz. Returns Infinity if total
+ *   absorption is negligibly small (fully reflective room — reverb never decays).
+ */
 function computeRT60(dimensions, materials) {
   const { width: W, height: H, depth: D } = dimensions;
   const volume = W * H * D;  // m³
 
-  // Surface areas of the six walls [m²]
+  // Surface areas of the six walls [m²].
+  // left/right are the ±X faces (height × depth).
+  // front/back are the ±Z faces (width × height).
+  // down/up are the floor and ceiling (width × depth).
   const surfaces = {
-    left:  H * D,  right: H * D,   // side walls: height × depth
-    front: W * H,  back:  W * H,   // end walls:  width × height
-    down:  W * D,  up:    W * D,   // floor/ceiling: width × depth
+    left:  H * D,  right: H * D,
+    front: W * H,  back:  W * H,
+    down:  W * D,  up:    W * D,
   };
 
-  // Total absorption A = Σ αᵢ × Sᵢ  [m² sabins]
+  // Total absorption at 500 Hz: A(500 Hz) = Σ α_i(500 Hz) × S_i  [m² sabins].
   let A = 0;
   for (const [wall, area] of Object.entries(surfaces)) {
-    const alpha = ABSORPTION[materials[wall]] ?? 0.05;
-    A += alpha * area;
+    const coeffs = MATERIAL_COEFFICIENTS[materials[wall]];
+    if (!coeffs) {
+      console.warn(`computeRT60: unknown material "${materials[wall]}" on wall "${wall}" — using fallback.`);
+    }
+    A += (coeffs ?? FALLBACK_COEFFICIENTS)[BAND_500HZ] * area;
   }
 
-  if (A < 0.001) return Infinity;  // fully reflective room — reverb never decays
+  if (A < 0.001) return Infinity;  // fully reflective room — Sabine formula diverges
 
-  // Sabine formula: RT60 = 0.161 × V / A
+  // Sabine formula at the 500 Hz reference band.
   return 0.161 * volume / A;  // seconds
 }
 
-// Example: Recording Studio preset from Demo 2
-// ROOM = { width: 8, height: 3.2, depth: 10 }
-// Materials: wood_panel (left), curtain_heavy (right), plywood_panel (front),
-//            curtain_heavy (back), parquet_on_concrete (down), acoustic_ceiling_tiles (up)
+// ─── Worked example: Recording Studio preset ─────────────────────────────────
+//
+// Room: { width: 8, height: 3.2, depth: 10 }  →  V = 256 m³
+//
+// Wall material assignments and their 500 Hz absorption coefficients:
+//   left  : 'wood_panel'            α(500Hz) = 0.170
+//   right : 'curtain_heavy'         α(500Hz) = 0.550
+//   front : 'plywood_panel'         α(500Hz) = 0.150
+//   back  : 'curtain_heavy'         α(500Hz) = 0.550
+//   down  : 'parquet_on_concrete'   α(500Hz) = 0.070
+//   up    : 'acoustic_ceiling_tiles' α(500Hz) = 0.410
 //
 // Surface areas:
-//   left/right  = 3.2 × 10 = 32 m² each
-//   front/back  = 8 × 3.2  = 25.6 m² each
-//   floor/ceil  = 8 × 10   = 80 m² each
+//   left/right  = 3.2 × 10  =  32.0 m²  (each)
+//   front/back  = 8.0 × 3.2 =  25.6 m²  (each)
+//   down/up     = 8.0 × 10  =  80.0 m²  (each)
 //
-// Total absorption:
-//   left  (wood_panel,            α=0.30): 32 × 0.30 = 9.60 sabins
-//   right (curtain_heavy,         α=0.60): 32 × 0.60 = 19.20 sabins
-//   front (plywood_panel,         α=0.28): 25.6 × 0.28 = 7.17 sabins
-//   back  (curtain_heavy,         α=0.60): 25.6 × 0.60 = 15.36 sabins
-//   floor (parquet_on_concrete,   α=0.11): 80 × 0.11 = 8.80 sabins
-//   ceil  (acoustic_ceiling_tiles,α=0.70): 80 × 0.70 = 56.00 sabins
-//   ──────────────────────────────────────────────────────────────
-//   A = 116.13 sabins    V = 8 × 3.2 × 10 = 256 m³
+// Total absorption at 500 Hz:
+//   left  : 32.0 × 0.170 =  5.44 sabins
+//   right : 32.0 × 0.550 = 17.60 sabins
+//   front : 25.6 × 0.150 =  3.84 sabins
+//   back  : 25.6 × 0.550 = 14.08 sabins
+//   down  : 80.0 × 0.070 =  5.60 sabins
+//   up    : 80.0 × 0.410 = 32.80 sabins
+//   ─────────────────────────────────────
+//   A(500Hz) = 79.36 sabins
 //
-// RT60 = 0.161 × 256 / 116.13 ≈ 0.35 s  — typical treated recording studio ✓</code></pre>
+// RT60(500Hz) = 0.161 × 256 / 79.36 ≈ 0.52 s
+//
+// Note: at 125 Hz the same room behaves differently. The panel absorbers
+// (plywood, wood_panel) have higher α at low frequencies:
+//   wood_panel   α(125Hz) = 0.280  vs  α(500Hz) = 0.170
+//   plywood_panel α(125Hz) = 0.400  vs  α(500Hz) = 0.150
+// This shifts absorption upward at 125 Hz, shortening RT60(125Hz) ≈ 0.37 s.
+// The room is "warmer" at mid frequencies than at bass — a typical studio signature.</code></pre>
 
 <div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
 <strong>The anechoic approximation.</strong> An anechoic chamber is defined as a space with less than 10 dB of reflected energy relative to the direct sound at frequencies above 100 Hz. Resonance Audio does not have a true anechoic mode, but applying <code>'transparent'</code> (\(\alpha = 1.00\)) to all six walls absorbs the maximum possible energy at every reflection, driving reflected energy toward zero. The Sabine formula predicts RT60 → 0 as \(A \to V \cdot \infty\), consistent with the physical condition. This is the configuration used by Demo 1 to isolate pure HRTF cues without room acoustics contamination, and by Demo 2's Anechoic Chamber preset.
