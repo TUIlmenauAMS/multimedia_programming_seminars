@@ -1,4 +1,45 @@
 <!DOCTYPE html>
+<!--
+  Demo 2: Room Acoustics Lab — Multimediaprogrammierung, TU Ilmenau
+  Demo created by Renato Fera P.
+  Spatial audio: Google Resonance Audio (Web Audio API) · 3D scene: three.js
+
+  ══════════════════════════════════════════════════════════════════
+  AUDIO CREDITS & LICENSES
+  ══════════════════════════════════════════════════════════════════
+
+  Sample files (loaded from the same folder as this HTML file):
+
+  1) br_all.wav  — "Bruckner" source
+     Anton Bruckner, Symphony No. 8, 2nd movement. Anechoic orchestral
+     recording (each instrument recorded separately in an anechoic chamber).
+     Recorded by Jukka Pätynen, Ville Pulkki and Tapio Lokki,
+     Aalto University (formerly Helsinki University of Technology).
+     Source:   https://users.aalto.fi/~ktlokki/Sinfrec/sinfrec.html
+     Citation: J. Pätynen, V. Pulkki and T. Lokki, "Anechoic recording system
+               for symphony orchestra," Acta Acustica united with Acustica,
+               vol. 94, no. 6, pp. 856-865, 2008.
+     License:  The recordings are free for academic research. For any other
+               use, contact Aalto University (Tapio Lokki / Jukka Pätynen).
+
+  2) p020_freeform_speech_01.wav — "Speech" source
+     EARS (Expressive Anechoic Recordings of Speech) dataset,
+     speaker p020, freeform speech.
+     Source:   https://sp-uhh.github.io/ears_dataset/
+     Citation: J. Richter, Y.-C. Wu, S. Krenn, S. Welker, B. Lay,
+               S. Watanabe, A. Richard and T. Gerkmann, "EARS: An Anechoic
+               Fullband Speech Dataset Benchmarked for Speech Enhancement and
+               Dereverberation," Proc. Interspeech 2024, pp. 4873-4877.
+               https://doi.org/10.21437/Interspeech.2024-153
+     License:  CC BY-NC 4.0 — https://creativecommons.org/licenses/by-nc/4.0/
+     Changes:  at playback the file is converted to mono and level-normalised
+               in the browser (the file on disk is unmodified).
+
+  3) 3411.mp3 (Alarm) and 1298.mp3 (Beep) — see the original demo materials.
+     Noise and Harmonic sources are synthesised in the browser.
+
+  Libraries: three.js (MIT), Google Resonance Audio (Apache-2.0).
+-->
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -357,6 +398,24 @@ html, body {
 .upload-btn.loaded { border-color: var(--green); color: var(--green); }
 .upload-btn input[type=file] { display: none; }
 
+/* credits */
+.src-credit {
+  display: none;
+  font-family: var(--mono); font-size: 9px; color: var(--muted); line-height: 1.55;
+}
+.src-credit.visible { display: block; }
+.src-credit a, .sb-credits a { color: var(--accent); text-decoration: none; }
+.src-credit a:hover, .sb-credits a:hover { text-decoration: underline; }
+.sb-credits {
+  padding: 10px 18px 18px;
+  border-top: 1px solid var(--panel-border);
+}
+.credit-item {
+  font-family: var(--mono); font-size: 9px; color: var(--muted); line-height: 1.55;
+  margin-bottom: 10px;
+}
+.credit-item strong { color: var(--text); font-weight: 500; }
+
 /* ══════════════════════════════════════════════
    TOP-RIGHT HUD
    ══════════════════════════════════════════════ */
@@ -544,15 +603,18 @@ html, body {
           <button class="src-chip" id="src-beep"     onclick="setSource('beep')">🔔 Beep</button>
           <button class="src-chip" id="src-noise"    onclick="setSource('noise')">〰 Noise</button>
           <button class="src-chip" id="src-harmonic" onclick="setSource('harmonic')">🎵 Harmonic</button>
+          <button class="src-chip" id="src-bruckner" onclick="setSource('bruckner')">🎻 Bruckner</button>
+          <button class="src-chip" id="src-speech"   onclick="setSource('speech')">🗣 Speech</button>
         </div>
       </div>
+      <div class="src-credit" id="srcCredit"></div>
     </div>
 
     <!-- File:// protocol warning + upload strip -->
     <div id="fileProtocolWarn">
       ⚠ Running as a local file<br>
-      To use <strong>Alarm</strong> &amp; <strong>Beep</strong>, upload the two MP3s below
-      (<code>3411.mp3</code> and <code>1298.mp3</code>).<br>
+      To use <strong>Alarm</strong>, <strong>Beep</strong>, <strong>Bruckner</strong> &amp; <strong>Speech</strong>,
+      upload the four audio files below, or open the demo through a web server.<br>
       <strong>Noise</strong> &amp; <strong>Harmonic</strong> work without any files.
     </div>
     <div id="uploadStrip">
@@ -570,6 +632,20 @@ html, body {
           <input type="file" id="file-beep" accept=".mp3,audio/*" onchange="handleUpload(event,'beep')">
         </label>
       </div>
+      <div class="upload-row">
+        <span class="upload-label">Bruckner</span>
+        <label class="upload-btn" id="lbl-bruckner">
+          📂 br_all.wav
+          <input type="file" id="file-bruckner" accept=".wav,audio/*" onchange="handleUpload(event,'bruckner')">
+        </label>
+      </div>
+      <div class="upload-row">
+        <span class="upload-label">Speech</span>
+        <label class="upload-btn" id="lbl-speech">
+          📂 p020_freeform_speech_01.wav
+          <input type="file" id="file-speech" accept=".wav,audio/*" onchange="handleUpload(event,'speech')">
+        </label>
+      </div>
     </div>
 
     <!-- Wall material selectors -->
@@ -581,6 +657,25 @@ html, body {
     <div class="sb-presets">
       <div class="preset-label">Room Presets</div>
       <div class="preset-grid" id="presetGrid"></div>
+    </div>
+
+    <!-- Audio credits -->
+    <div class="sb-credits">
+      <div class="preset-label">Audio Credits</div>
+      <div class="credit-item">
+        <strong>🎻 Bruckner</strong> — Symphony No. 8, 2nd mvt., anechoic recording.
+        J. Pätynen, V. Pulkki &amp; T. Lokki, Aalto University.
+        “Anechoic recording system for symphony orchestra,” <em>Acta Acustica united with Acustica</em> 94(6), 2008.
+        Free for academic research.
+        <a href="https://users.aalto.fi/~ktlokki/Sinfrec/sinfrec.html" target="_blank" rel="noopener">Source ↗</a>
+      </div>
+      <div class="credit-item">
+        <strong>🗣 Speech</strong> — EARS dataset, speaker p020 (freeform).
+        J. Richter et al., “EARS: An Anechoic Fullband Speech Dataset…,” <em>Interspeech 2024</em>.
+        <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a>.
+        Converted to mono and level-normalised.
+        <a href="https://sp-uhh.github.io/ears_dataset/" target="_blank" rel="noopener">Source ↗</a>
+      </div>
     </div>
 
   </div><!-- /#sb-scroll -->
@@ -769,8 +864,7 @@ let energyBuf    = null;
 let audioMode  = 'hrtf';
 // Default to 'noise' on file:// so the demo works without uploading MP3s
 let sourceType = (location.protocol === 'file:') ? 'noise' : 'alarm';
-let alarmBuffer = null;
-let beepBuffer  = null;
+const sampleBuffers = {};   // key → decoded AudioBuffer (see SAMPLE_FILES)
 
 let sourceMesh  = null;
 let sourceHalo  = null;
@@ -785,7 +879,50 @@ const CAM_START = { x: 0, y: 1.65, z: 3.5 };
 let SRC_POS   = null;
 
 const isFileProtocol = (location.protocol === 'file:');
-const mp3Ready = { alarm: false, beep: false };
+// File-based sources. Files are loaded from the same folder as this HTML file.
+//   mono: downmix to mono (Resonance Audio expects mono point sources)
+//   peak: normalise peak level to this value (keeps the very different
+//         recordings at a comparable loudness). Omit to play the file as-is.
+// Credits for br_all.wav and p020_freeform_speech_01.wav: see header comment.
+const SAMPLE_FILES = {
+  alarm:    { file: '3411.mp3' },
+  beep:     { file: '1298.mp3' },
+  bruckner: { file: 'br_all.wav',                  mono: true, peak: 0.7 },  // Aalto University
+  speech:   { file: 'p020_freeform_speech_01.wav', mono: true, peak: 0.7 },  // EARS dataset
+};
+const mp3Ready = { alarm: false, beep: false, bruckner: false, speech: false };
+
+// Short credit line shown under the source chips when a source is selected
+const SOURCE_CREDITS = {
+  bruckner: 'Bruckner, Symphony No. 8, 2nd mvt. · anechoic recording by J. Pätynen, V. Pulkki &amp; T. Lokki, ' +
+            '<a href="https://users.aalto.fi/~ktlokki/Sinfrec/sinfrec.html" target="_blank" rel="noopener">Aalto University</a>. ' +
+            'Free for academic research.',
+  speech:   'EARS dataset, speaker p020 (freeform) · Richter et al., Interspeech 2024 · ' +
+            '<a href="https://sp-uhh.github.io/ears_dataset/" target="_blank" rel="noopener">EARS</a>, ' +
+            '<a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a>. ' +
+            'Converted to mono &amp; level-normalised.',
+};
+
+// Decode a file's ArrayBuffer; optionally downmix to mono and peak-normalise.
+async function decodeSample(key, arrayBuffer) {
+  const decoded = await audioContext.decodeAudioData(arrayBuffer.slice(0));
+  const cfg = SAMPLE_FILES[key];
+  if (!cfg.mono) return decoded;
+
+  const n = decoded.length, chans = decoded.numberOfChannels;
+  const mono = audioContext.createBuffer(1, n, decoded.sampleRate);
+  const out = mono.getChannelData(0);
+  for (let c = 0; c < chans; c++) {
+    const d = decoded.getChannelData(c);
+    for (let i = 0; i < n; i++) out[i] += d[i] / chans;
+  }
+  if (cfg.peak) {
+    let peak = 0;
+    for (let i = 0; i < n; i++) { const a = Math.abs(out[i]); if (a > peak) peak = a; }
+    if (peak > 0) { const g = cfg.peak / peak; for (let i = 0; i < n; i++) out[i] *= g; }
+  }
+  return mono;
+}
 
 // ════════════════════════════════════════════════════════════════════
 // PROGRESS BAR
@@ -886,10 +1023,9 @@ function tick() { return new Promise(r => setTimeout(r, 60)); }
 // ════════════════════════════════════════════════════════════════════
 async function preloadAudio() {
   if (isFileProtocol) { updateStartReadiness(); return; }
-  await Promise.all([
-    fetchAndStore('3411.mp3', 'alarm'),
-    fetchAndStore('1298.mp3', 'beep'),
-  ]);
+  await Promise.all(
+    Object.entries(SAMPLE_FILES).map(([key, cfg]) => fetchAndStore(cfg.file, key))
+  );
   updateStartReadiness();
 }
 
@@ -919,9 +1055,7 @@ function handleUpload(event, key) {
     // If audio is already running, decode immediately so switching source works
     if (audioContext) {
       try {
-        const decoded = await audioContext.decodeAudioData(ab.slice(0));
-        if (key === 'alarm') alarmBuffer = decoded;
-        if (key === 'beep')  beepBuffer  = decoded;
+        sampleBuffers[key] = await decodeSample(key, ab);
         // If this source is already selected, restart it now
         if (isRunning && sourceType === key) {
           buildSourceNode(key);
@@ -936,16 +1070,22 @@ function handleUpload(event, key) {
 
 function dimSourceChip(key) {
   const c = document.getElementById('src-' + key);
-  if (c) { c.style.opacity = '0.35'; c.title = key + ' MP3 not found'; }
+  if (c) { c.style.opacity = '0.35'; c.title = SAMPLE_FILES[key].file + ' not found'; }
 }
 function setActiveChip(key) {
   document.querySelectorAll('.src-chip').forEach(c => c.classList.remove('active'));
   const c = document.getElementById('src-' + key);
   if (c) c.classList.add('active');
+  // Show the credit line for sources that need one
+  const credit = document.getElementById('srcCredit');
+  if (credit) {
+    credit.innerHTML = SOURCE_CREDITS[key] || '';
+    credit.classList.toggle('visible', !!SOURCE_CREDITS[key]);
+  }
 }
 
 function updateStartReadiness() {
-  const needsFile = isFileProtocol && (sourceType === 'alarm' || sourceType === 'beep');
+  const needsFile = isFileProtocol && (sourceType in SAMPLE_FILES);
   const ready = !needsFile || mp3Ready[sourceType];
   document.getElementById('btnStart').disabled = !ready;
 }
@@ -1263,13 +1403,11 @@ async function startDemo() {
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
   if (audioContext.state === 'suspended') await audioContext.resume();
 
-  if (window._alarmAB) {
-    try { alarmBuffer = await audioContext.decodeAudioData(window._alarmAB.slice(0)); }
-    catch(e) { console.warn('alarm decode:', e.message); alarmBuffer = null; }
-  }
-  if (window._beepAB) {
-    try { beepBuffer = await audioContext.decodeAudioData(window._beepAB.slice(0)); }
-    catch(e) { console.warn('beep decode:', e.message); beepBuffer = null; }
+  for (const key of Object.keys(SAMPLE_FILES)) {
+    const ab = window['_' + key + 'AB'];
+    if (!ab) continue;
+    try { sampleBuffers[key] = await decodeSample(key, ab); }
+    catch(e) { console.warn(key + ' decode:', e.message); delete sampleBuffers[key]; }
   }
 
   initResonance();
@@ -1305,7 +1443,7 @@ function teardownAudio() {
   if (lfoOsc) { try { lfoOsc.stop(); } catch(e) {} lfoOsc = null; }
   if (audioContext) { audioContext.close(); audioContext = null; }
   resonanceAudio = null; resonanceSource = null;
-  alarmBuffer = null; beepBuffer = null;
+  for (const k of Object.keys(sampleBuffers)) delete sampleBuffers[k];
   lastResonanceMaterials = null;
 }
 
@@ -1382,24 +1520,15 @@ function buildSourceNode(type) {
   }
   if (lfoOsc) { try { lfoOsc.stop(); } catch(e) {} lfoOsc = null; }
 
-  if (type === 'alarm' && alarmBuffer) {
+  if (type in SAMPLE_FILES && sampleBuffers[type]) {
     const bs = audioContext.createBufferSource();
-    bs.buffer = alarmBuffer; bs.loop = true; sourceNode = bs;
-  } else if (type === 'alarm' && window._alarmAB) {
+    bs.buffer = sampleBuffers[type]; bs.loop = true; sourceNode = bs;
+  } else if (type in SAMPLE_FILES && window['_' + type + 'AB']) {
     // Buffer not yet decoded — decode now (async), fall back to noise meanwhile
-    audioContext.decodeAudioData(window._alarmAB.slice(0)).then(buf => {
-      alarmBuffer = buf;
-      if (isRunning && sourceType === 'alarm') { buildSourceNode('alarm'); connectSourceNode(); }
-    }).catch(e => console.warn('alarm decode:', e));
-    sourceNode = buildNoiseSource(); // temporary
-  } else if (type === 'beep' && beepBuffer) {
-    const bs = audioContext.createBufferSource();
-    bs.buffer = beepBuffer; bs.loop = true; sourceNode = bs;
-  } else if (type === 'beep' && window._beepAB) {
-    audioContext.decodeAudioData(window._beepAB.slice(0)).then(buf => {
-      beepBuffer = buf;
-      if (isRunning && sourceType === 'beep') { buildSourceNode('beep'); connectSourceNode(); }
-    }).catch(e => console.warn('beep decode:', e));
+    decodeSample(type, window['_' + type + 'AB']).then(buf => {
+      sampleBuffers[type] = buf;
+      if (isRunning && sourceType === type) { buildSourceNode(type); connectSourceNode(); }
+    }).catch(e => console.warn(type + ' decode:', e));
     sourceNode = buildNoiseSource(); // temporary
   } else if (type === 'harmonic') {
     sourceNode = buildHarmonicSource();
