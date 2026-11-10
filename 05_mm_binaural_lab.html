@@ -142,6 +142,9 @@ main { max-width: 960px; margin: 0 auto; padding: 36px 32px 80px; }
 .start-label { font-family: var(--sans); font-size: 18px; font-weight: 500; color: #f0f2f7; }
 .start-sub { font-family: var(--mono); font-size: 12px; color: var(--muted); }
 
+#fileProtocolWarning { display:none; background: rgba(251,146,60,0.1); border: 1px solid rgba(251,146,60,0.4); border-left: 4px solid var(--orange); border-radius: 8px; padding: 16px 20px; margin-bottom: 20px; font-size: 13px; line-height: 1.7; }
+#fileProtocolWarning strong { color: var(--orange); }
+#fileProtocolWarning code { background: rgba(255,255,255,0.08); border-radius: 4px; padding: 1px 7px; font-family: var(--mono); font-size: 12px; color: var(--text); }
 .concept-box { border-left: 4px solid var(--accent2); background: rgba(167,139,250,0.06); border-radius: 6px; padding: 14px 18px; margin: 16px 0; font-size: 13px; }
 .concept-box strong { color: var(--accent2); }
 .info-box { border-left: 4px solid var(--accent); background: rgba(79,156,249,0.06); border-radius: 6px; padding: 14px 18px; margin: 16px 0; font-size: 14px; }
@@ -213,6 +216,18 @@ footer a:hover { text-decoration: underline; }
     for HRTF perception), a <strong>beep</strong> (short periodic tone, good for ITD onset cues),
     <strong>pink noise</strong> (continuous broadband reference), or a <strong>harmonic
     stack</strong> (tonal, good for timbre changes with elevation).</p>
+  </div>
+
+  <!-- file:// protocol warning — shown by JS when window.location.protocol === 'file:' -->
+  <div id="fileProtocolWarning">
+    <strong>⚠ Local server required for MP3 sources (Alarm &amp; Beep)</strong><br>
+    Chrome blocks Web Audio access to local files when the page is opened directly from disk
+    (<code>file://</code>). Pink Noise and Harmonic work fine. To use the MP3 sources, serve
+    the folder with a local HTTP server — one-liners:<br><br>
+    <strong>Python&nbsp;3:</strong> <code>python -m http.server 8000</code> → open
+    <code>http://localhost:8000/05_mm_binaural_lab.html</code><br>
+    <strong>Node / npx:</strong> <code>npx serve .</code><br>
+    <strong>VS Code:</strong> install the <em>Live Server</em> extension → click <em>Go Live</em>
   </div>
 
   <!-- Controls panel -->
@@ -420,8 +435,8 @@ let masterGain   = null;   // source output → analyser
 
 let audioMode    = 'hrtf';
 let sourceType   = 'alarm';   // 'alarm' | 'noise' | 'harmonic'
-let alarmBuffer  = null;       // decoded AudioBuffer for 3411.mp3
-let beepBuffer   = null;       // decoded AudioBuffer for 1298.mp3
+let alarmBuffer  = null;   // decoded AudioBuffer for 3411.mp3
+let beepBuffer   = null;   // decoded AudioBuffer for 1298.mp3
 
 let sourceMesh   = null;
 let sourceHalo   = null;
@@ -495,33 +510,44 @@ window.addEventListener('DOMContentLoaded', async () => {
 function tick() { return new Promise(r => setTimeout(r, 60)); }
 
 // ── Pre-load MP3 files ────────────────────────────────────────────────────────
-// Both files must sit in the same directory as this HTML file.
-// Individual failures are non-fatal — the source card is dimmed and the
-// default falls back to pink noise.
+// fetch() + decodeAudioData() is the correct approach and works on any HTTP
+// server (including localhost).  Chrome blocks both fetch() AND
+// createMediaElementSource() for local files opened via file://, so we detect
+// that early, show the warning banner, and dim the MP3 cards without trying.
+const isFileProtocol = (location.protocol === 'file:');
+
 async function preloadAlarm() {
+  if (isFileProtocol) {
+    document.getElementById('fileProtocolWarning').style.display = 'block';
+    dimMp3Card('src-alarm', 'alarm', '3411.mp3 — needs local server (see warning above)');
+    dimMp3Card('src-beep',  'beep',  '1298.mp3 — needs local server (see warning above)');
+    return;
+  }
   await Promise.all([
-    preloadFile('./3411.mp3', '_alarmArrayBuffer', 'src-alarm',  'noise', 'Pink Noise'),
-    preloadFile('./1298.mp3', '_beepArrayBuffer',  'src-beep',   'noise', 'Pink Noise'),
+    fetchAndStore('3411.mp3', '_alarmArrayBuffer', 'src-alarm', 'alarm'),
+    fetchAndStore('1298.mp3', '_beepArrayBuffer',  'src-beep',  'beep'),
   ]);
 }
 
-async function preloadFile(url, bufferKey, cardId, fallbackType, fallbackLabel) {
+function dimMp3Card(cardId, key, tooltip) {
+  const card = document.getElementById(cardId);
+  if (card) { card.style.opacity = '0.4'; card.title = tooltip; }
+  if (sourceType === key) {
+    sourceType = 'noise';
+    if (card) card.classList.remove('active');
+    document.getElementById('src-noise').classList.add('active');
+    document.getElementById('hudSourceName').textContent = 'Pink Noise';
+  }
+}
+
+async function fetchAndStore(filename, bufKey, cardId, key) {
   try {
-    const resp = await fetch(url);
+    const resp = await fetch('./' + filename);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    window[bufferKey] = await resp.arrayBuffer();
-  } catch (e) {
-    console.warn(url + ' not found or fetch failed — source will be unavailable.', e.message);
-    const card = document.getElementById(cardId);
-    if (card) { card.style.opacity = '0.4'; card.title = url + ' not found in same directory'; }
-    const srcKey = cardId.replace('src-', '');
-    if (sourceType === srcKey) {
-      sourceType = fallbackType;
-      if (card) card.classList.remove('active');
-      const fallbackCard = document.getElementById('src-' + fallbackType);
-      if (fallbackCard) fallbackCard.classList.add('active');
-      document.getElementById('hudSourceName').textContent = fallbackLabel;
-    }
+    window[bufKey] = await resp.arrayBuffer();
+  } catch(e) {
+    console.warn(filename + ' could not be fetched:', e.message);
+    dimMp3Card(cardId, key, filename + ' not found in the same directory');
   }
 }
 
@@ -749,24 +775,14 @@ async function startDemo() {
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
   if (audioContext.state === 'suspended') await audioContext.resume();
 
-  // Decode the alarm buffer now that we have a real AudioContext
+  // Decode ArrayBuffers now that we have a real AudioContext
   if (window._alarmArrayBuffer) {
-    try {
-      alarmBuffer = await audioContext.decodeAudioData(window._alarmArrayBuffer.slice(0));
-    } catch(e) {
-      console.warn('Could not decode 3411.mp3:', e.message);
-      alarmBuffer = null;
-    }
+    try { alarmBuffer = await audioContext.decodeAudioData(window._alarmArrayBuffer.slice(0)); }
+    catch(e) { console.warn('Could not decode 3411.mp3:', e.message); alarmBuffer = null; }
   }
-
-  // Decode the beep buffer
   if (window._beepArrayBuffer) {
-    try {
-      beepBuffer = await audioContext.decodeAudioData(window._beepArrayBuffer.slice(0));
-    } catch(e) {
-      console.warn('Could not decode 1298.mp3:', e.message);
-      beepBuffer = null;
-    }
+    try { beepBuffer = await audioContext.decodeAudioData(window._beepArrayBuffer.slice(0)); }
+    catch(e) { console.warn('Could not decode 1298.mp3:', e.message); beepBuffer = null; }
   }
 
   initResonance();
@@ -816,9 +832,7 @@ function initAudioGraph() {
 }
 
 // ── Source node management ────────────────────────────────────────────────────
-// Stops and disconnects the current source, builds a new one, connects it.
 function buildSourceNode(type) {
-  // Tear down old source
   if (sourceNode) {
     try { sourceNode.stop && sourceNode.stop(); } catch(e) {}
     try { sourceNode.disconnect(); } catch(e) {}
@@ -828,21 +842,16 @@ function buildSourceNode(type) {
   if (lfoOsc) { try { lfoOsc.stop(); } catch(e) {} lfoOsc = null; }
 
   if (type === 'alarm' && alarmBuffer) {
-    // Loop the decoded alarm AudioBuffer (3411.mp3)
     const bs = audioContext.createBufferSource();
-    bs.buffer = alarmBuffer;
-    bs.loop   = true;
+    bs.buffer = alarmBuffer; bs.loop = true;
     sourceNode = bs;
   } else if (type === 'beep' && beepBuffer) {
-    // Loop the decoded beep AudioBuffer (1298.mp3)
     const bs = audioContext.createBufferSource();
-    bs.buffer = beepBuffer;
-    bs.loop   = true;
+    bs.buffer = beepBuffer; bs.loop = true;
     sourceNode = bs;
   } else if (type === 'harmonic') {
     sourceNode = buildHarmonicSource();
   } else {
-    // Pink noise (default fallback)
     sourceNode = buildNoiseSource();
   }
 }
