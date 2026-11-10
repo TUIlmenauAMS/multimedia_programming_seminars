@@ -471,9 +471,9 @@ html, body {
     <div class="sb-row" style="flex-wrap:wrap; gap:4px;">
       <span class="sb-label">Source</span>
       <div class="src-chips">
-        <button class="src-chip active" id="src-alarm"    onclick="setSource('alarm')">🚨 Alarm</button>
-        <button class="src-chip"        id="src-beep"     onclick="setSource('beep')">🔔 Beep</button>
-        <button class="src-chip"        id="src-noise"    onclick="setSource('noise')">〰 Noise</button>
+        <button class="src-chip" id="src-alarm"    onclick="setSource('alarm')">🚨 Alarm</button>
+        <button class="src-chip" id="src-beep"     onclick="setSource('beep')">🔔 Beep</button>
+        <button class="src-chip" id="src-noise"    onclick="setSource('noise')">〰 Noise</button>
         <button class="src-chip"        id="src-harmonic" onclick="setSource('harmonic')">🎵 Harmonic</button>
       </div>
     </div>
@@ -700,6 +700,9 @@ function setProgress(pct, msg) {
 // BUILD SIDEBAR UI DYNAMICALLY
 // ════════════════════════════════════════════════════════════════════
 function buildSidebarUI() {
+  // Reflect the runtime-chosen default source in the chip UI
+  setActiveChip(sourceType);
+
   // Wall selectors
   const wallContainer = document.getElementById('wallSelectors');
   WALLS.forEach(wall => {
