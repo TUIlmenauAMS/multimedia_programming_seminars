@@ -251,6 +251,57 @@
     justify-content: center;
   }
 
+  /* ── prev / next navigation ── */
+  .chapter-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    margin-top: 56px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+  }
+  .chapter-nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+    text-decoration: none;
+    padding: 8px 14px;
+    border: 1px solid rgba(79,156,249,0.3);
+    border-radius: 6px;
+    background: rgba(79,156,249,0.05);
+    transition: background 0.15s, border-color 0.15s;
+  }
+  .chapter-nav a:hover {
+    background: rgba(79,156,249,0.12);
+    border-color: rgba(79,156,249,0.6);
+  }
+  .chapter-nav .nav-label {
+    font-size: 11px;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 1px;
+  }
+  .chapter-nav .nav-title { color: var(--accent); }
+
+  /* footer author line */
+  .footer-author-line {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 8px;
+    flex-wrap: wrap;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .footer-author-line strong { color: var(--text); }
+  .footer-author-line a { color: var(--accent); text-decoration: none; }
+  .footer-author-line a:hover { text-decoration: underline; }
+
   /* ── page footer ── */
   footer {
     border-top: 2px solid var(--border);
@@ -515,6 +566,15 @@
 </p>
 </div>
 
+<!-- prev / next navigation -->
+<nav class="chapter-nav">
+  <span></span>
+  <a href="01_multimediaprogrammierung_webaudio.html">
+    <span class="nav-label">Next →</span>
+    <span class="nav-title">Chapter 01: Web Audio API</span>
+  </a>
+</nav>
+
 <!-- Footer cell -->
 <div class="nb-footer-cell">
   <p><strong>Multimediaprogrammierung</strong> &middot; Chapter 00: Introduction<br>
@@ -546,6 +606,7 @@
     &nbsp;&middot;&nbsp;
     <a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars" target="_blank" rel="noopener">github.com/TUIlmenauAMS/multimedia_programming_seminars</a>
   </p>
+
 </footer>
 
 </body>

@@ -1,0 +1,1928 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Demo 1: Binaural Lab — Multimediaprogrammierung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+/* ── STEP 0: Design system — exact match to course CSS variables ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  /* Course palette — do not alter */
+  --bg:      #0d0f14;
+  --surface: #161a22;
+  --border:  #252b38;
+  --text:    #d8dce6;
+  --muted:   #5a6175;
+  --accent:  #4f9cf9;
+  --accent2: #a78bfa;
+  --green:   #34d399;
+  --orange:  #fb923c;
+  --red:     #f87171;
+  --mono:    'IBM Plex Mono', monospace;
+  --jb:      'JetBrains Mono', monospace; /* used for HUD readouts per plan */
+  --sans:    'IBM Plex Sans', sans-serif;
+
+  /* Glass panel system — for the Three.js HUD overlays */
+  --panel-bg:     rgba(10, 10, 14, 0.82);
+  --panel-border: rgba(255, 255, 255, 0.07);
+  --panel-blur:   16px;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 15px;
+  line-height: 1.7;
+  min-height: 100vh;
+}
+
+/* ── header — identical structure to template ── */
+header {
+  border-bottom: 2px solid var(--border);
+  padding: 24px 0 20px;
+}
+.header-inner {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 0 32px;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+.header-logo img { width: 100px; border-radius: 10px; display: block; }
+.header-info h1 { font-size: clamp(16px,2.5vw,22px); font-weight: 500; color: #f0f2f7; line-height: 1.2; margin-bottom: 4px; }
+.header-info h2 { font-size: 13px; font-weight: 400; color: var(--muted); font-family: var(--mono); margin-bottom: 8px; }
+.header-meta { font-size: 13px; color: var(--text); line-height: 1.6; }
+.header-meta a { color: var(--accent); text-decoration: none; }
+.header-meta a:hover { text-decoration: underline; }
+.header-author {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--muted);
+}
+.header-author span { color: var(--text); font-weight: 500; }
+.header-author .linkedin-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(79,156,249,0.1);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 20px;
+  border: 1px solid rgba(79,156,249,0.25);
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.header-author .linkedin-badge:hover { background: rgba(79,156,249,0.2); }
+
+/* ── breadcrumb ── */
+.breadcrumb {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 14px 32px 0;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+.breadcrumb a { color: var(--accent); text-decoration: none; }
+.breadcrumb a:hover { text-decoration: underline; }
+.breadcrumb span { margin: 0 6px; }
+
+/* ── main content column ── */
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 36px 32px 80px;
+}
+
+/* ── demo intro block ── */
+.demo-intro {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 24px 28px;
+  margin-bottom: 32px;
+}
+.demo-intro h1 {
+  font-size: clamp(18px, 2.5vw, 26px);
+  font-weight: 500;
+  color: #f0f2f7;
+  margin-bottom: 8px;
+}
+.demo-intro .demo-badge {
+  display: inline-block;
+  background: rgba(167,139,250,0.12);
+  color: var(--accent2);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 20px;
+  border: 1px solid rgba(167,139,250,0.3);
+  margin-bottom: 12px;
+}
+.demo-intro p { color: var(--text); margin-bottom: 8px; }
+.demo-intro p:last-child { margin-bottom: 0; }
+
+/* ── panels ── */
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+.panel-header {
+  padding: 12px 18px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.panel-header .dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  flex-shrink: 0;
+}
+.panel-header .dot.green  { background: var(--green); }
+.panel-header .dot.blue   { background: var(--accent); }
+.panel-header .dot.orange { background: var(--orange); }
+.panel-header .dot.purple { background: var(--accent2); }
+.panel-body { padding: 18px; }
+
+/* ── buttons ── */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 6px;
+  border: none;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: opacity 0.15s, filter 0.15s;
+}
+.btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-primary  { background: var(--accent);  color: #0d0f14; }
+.btn-primary:hover:not(:disabled)  { filter: brightness(1.12); }
+.btn-success  { background: var(--green);   color: #0d0f14; }
+.btn-success:hover:not(:disabled)  { filter: brightness(1.1); }
+.btn-danger   { background: rgba(248,113,113,0.15); color: var(--red); border: 1px solid rgba(248,113,113,0.3); }
+.btn-danger:hover:not(:disabled)   { background: rgba(248,113,113,0.25); }
+.btn-muted    { background: var(--surface); color: var(--text); border: 1px solid var(--border); }
+.btn-muted:hover:not(:disabled)    { border-color: var(--accent); color: var(--accent); }
+.btn-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+/* ── pill toggle (HRTF vs Stereo Pan) ── */
+.pill-toggle {
+  display: inline-flex;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 24px;
+  padding: 3px;
+  gap: 2px;
+}
+.pill-toggle button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 12px;
+  padding: 5px 16px;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.pill-toggle button.active {
+  background: var(--accent2);
+  color: #0d0f14;
+  font-weight: 500;
+}
+.pill-toggle button:hover:not(.active) { color: var(--text); }
+
+/* ── mode selector grid ── */
+.mode-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+.mode-card {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  user-select: none;
+}
+.mode-card:hover { border-color: var(--accent); color: var(--text); }
+.mode-card.active { border-color: var(--accent2); background: rgba(167,139,250,0.08); color: var(--accent2); }
+.mode-card .mode-icon { font-size: 18px; display: block; margin-bottom: 4px; }
+.mode-card .mode-name { display: block; }
+
+/* ── speed slider ── */
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+.slider-row label {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 70px;
+}
+.slider-row input[type="range"] {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  outline: none;
+}
+.slider-row input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent2);
+  cursor: pointer;
+}
+.slider-row input[type="range"]::-moz-range-thumb {
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--accent2);
+  cursor: pointer;
+  border: none;
+}
+.slider-row .slider-val {
+  font-family: var(--jb);
+  font-size: 12px;
+  color: var(--accent2);
+  min-width: 32px;
+  text-align: right;
+}
+
+/* ── THE CANVAS WRAPPER — maximized within the content column ── */
+/*
+ * The canvas sits inside main, inside the 960px column.
+ * max-width: 100% ensures it never overflows.
+ * aspect-ratio: 16/9 gives it a stable height relative to its width.
+ * When the user goes full-screen, the canvas fills the viewport.
+ * The HUD panels are position: absolute inside this wrapper.
+ */
+.canvas-wrapper {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #07080d;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 20px;
+  border: 1px solid var(--border);
+}
+.canvas-wrapper canvas {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* ── fullscreen button (top-right corner of canvas wrapper) ── */
+.canvas-controls {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 20;
+}
+.canvas-btn {
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  backdrop-filter: blur(var(--panel-blur));
+  -webkit-backdrop-filter: blur(var(--panel-blur));
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.canvas-btn:hover { color: var(--text); border-color: rgba(255,255,255,0.15); }
+
+/* ── HUD panel (bottom-left of canvas) — glass morphism ── */
+.hud {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  z-index: 10;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  backdrop-filter: blur(var(--panel-blur));
+  -webkit-backdrop-filter: blur(var(--panel-blur));
+  border-radius: 10px;
+  padding: 14px 18px;
+  min-width: 220px;
+  pointer-events: none; /* let clicks pass through to canvas */
+}
+.hud-title {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.35);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.hud-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 16px;
+  margin-bottom: 4px;
+}
+.hud-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: rgba(255,255,255,0.4);
+}
+.hud-val {
+  font-family: var(--jb);
+  font-size: 13px;
+  color: rgba(79,156,249,0.9);
+  letter-spacing: 0.03em;
+}
+.hud-val.purple { color: rgba(167,139,250,0.9); }
+.hud-val.green  { color: rgba(52,211,153,0.9); }
+.hud-val.orange { color: rgba(251,146,60,0.9); }
+
+/* ── audio toggle HUD (top-right of canvas) ── */
+.hud-toggle {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  z-index: 10;
+  background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  backdrop-filter: blur(var(--panel-blur));
+  -webkit-backdrop-filter: blur(var(--panel-blur));
+  border-radius: 10px;
+  padding: 12px 16px;
+  pointer-events: all;
+}
+.hud-toggle .hud-title { margin-bottom: 8px; }
+
+/* ── loading overlay ── */
+#loadingOverlay {
+  position: absolute;
+  inset: 0;
+  background: #07080d;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  border-radius: 10px;
+  gap: 16px;
+  transition: opacity 0.4s ease;
+}
+#loadingOverlay.hidden { opacity: 0; pointer-events: none; }
+.loading-title {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.loading-demo-name {
+  font-family: var(--sans);
+  font-size: clamp(18px, 2vw, 24px);
+  font-weight: 500;
+  color: #f0f2f7;
+  text-align: center;
+}
+.loading-headphone {
+  font-size: 32px;
+  margin-bottom: 4px;
+}
+.loading-hint {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+.progress-bar-track {
+  width: 200px;
+  height: 3px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent2);
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+#loadingStatus {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  min-height: 16px;
+}
+
+/* ── start overlay (shown after loading, before AudioContext) ── */
+#startOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(7, 8, 13, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 90;
+  border-radius: 10px;
+  gap: 12px;
+  transition: opacity 0.3s ease;
+  cursor: pointer;
+}
+#startOverlay.hidden { opacity: 0; pointer-events: none; }
+.start-icon { font-size: 40px; }
+.start-label {
+  font-family: var(--sans);
+  font-size: 18px;
+  font-weight: 500;
+  color: #f0f2f7;
+}
+.start-sub {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ── concept boxes — same as template ── */
+.concept-box {
+  border-left: 4px solid var(--accent2);
+  background: rgba(167,139,250,0.06);
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin: 16px 0;
+  font-size: 13px;
+}
+.concept-box strong { color: var(--accent2); }
+.info-box {
+  border-left: 4px solid var(--accent);
+  background: rgba(79,156,249,0.06);
+  border-radius: 6px;
+  padding: 14px 18px;
+  margin: 16px 0;
+  font-size: 14px;
+}
+.info-box strong { color: var(--accent); }
+
+/* ── nb-footer-cell — identical to template ── */
+.nb-footer-cell {
+  margin-top: 48px;
+  padding-top: 24px;
+  border-top: 2px solid var(--border);
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+.nb-footer-cell b { color: var(--text); }
+.nb-footer-cell a { color: var(--accent); text-decoration: none; }
+.nb-footer-cell a:hover { text-decoration: underline; }
+
+/* ── footer — identical to template ── */
+footer {
+  border-top: 2px solid var(--border);
+  padding: 18px 32px 24px;
+  max-width: 960px;
+  margin: 0 auto;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.7;
+}
+footer p + p { margin-top: 4px; font-size: 12px; color: var(--muted); }
+footer a { color: var(--accent); text-decoration: none; }
+footer a:hover { text-decoration: underline; }
+
+@media (max-width: 600px) {
+  .header-inner, main, footer, .breadcrumb { padding-left: 20px; padding-right: 20px; }
+  .header-inner { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .mode-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* ── fullscreen: canvas fills the viewport ── */
+.canvas-wrapper:fullscreen,
+.canvas-wrapper:-webkit-full-screen {
+  width: 100vw;
+  height: 100vh;
+  aspect-ratio: unset;
+  border-radius: 0;
+  border: none;
+}
+</style>
+</head>
+<body>
+
+<!-- ── Header — matches course design system exactly ── -->
+<header>
+  <div class="header-inner">
+    <div class="header-logo">
+      <img src="ams_group_tui.png" alt="AMS Group – TU Ilmenau">
+    </div>
+    <div class="header-info">
+      <h1>Multimediaprogrammierung</h1>
+      <h2>Chapter 05: Google Resonance Audio — Demo 1</h2>
+      <p class="header-meta">
+        <strong>Institut für Medientechnik –
+          <a href="https://www.tu-ilmenau.de/universitaet/fakultaeten/fakultaet-elektrotechnik-und-informationstechnik/profil/institute-und-fachgebiete/fachgebiet-angewandte-mediensysteme"
+             target="_blank" rel="noopener">AMS Group</a>
+          – Technische Universität Ilmenau</strong><br>
+        <strong>Fachgebietsleiter:</strong> Prof. Dr.-Ing. Gerald Schuller &nbsp;·&nbsp;
+        <strong>Wissenschaftlicher Mitarbeiter:</strong> Renato Fera P.
+      </p>
+      <div class="header-author">
+        <span>Demo created by Renato Fera P.</span>
+        <a class="linkedin-badge"
+           href="https://www.linkedin.com/in/renato-profeta/"
+           target="_blank" rel="noopener">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+          </svg>
+          LinkedIn
+        </a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="breadcrumb">
+  <a href="index.html">Seminar Materials</a>
+  <span>›</span>
+  <a href="05_multimediaprogrammierung_resonance.html">Chapter 05: Google Resonance Audio</a>
+  <span>›</span>
+  Demo 1: Binaural Lab
+</nav>
+
+<main>
+
+  <!-- ── Demo intro block ── -->
+  <div class="demo-intro">
+    <div class="demo-badge">🎧 Best experienced with headphones</div>
+    <h1>Demo 1: Binaural Lab — Pure HRTF</h1>
+    <p>
+      An anechoic chamber rendered in Three.js. No room acoustics, no reverb — the walls absorb everything.
+      A single spatial audio source orbits the listener on a choreographed 3D path: equatorial orbit,
+      elevation sweep, figure-8, or free-roaming. You experience pure <strong>HRTF</strong> — the
+      interaural time difference (ITD), interaural level difference (ILD), and pinna spectral cues
+      that the brain uses to localize sound in three dimensions.
+    </p>
+    <p>
+      The HRTF sphere visualization maps the analytical gain pattern at every direction: vertex colors
+      show where the HRTF is loud (warm) and where it is quiet (cool) as the source moves.
+      The toggle switches between Resonance binaural (full HRTF) and a flat <code>StereoPannerNode</code>
+      — the perceptual difference, especially for elevation, is immediately audible.
+    </p>
+  </div>
+
+  <!-- ── STEP 1: Controls panel ── -->
+  <div class="panel">
+    <div class="panel-header">
+      <div class="dot purple"></div>
+      Demo Controls
+    </div>
+    <div class="panel-body">
+      <div class="btn-row">
+        <button class="btn btn-success" id="btnStart" onclick="startDemo()">▶ Start Demo</button>
+        <button class="btn btn-danger"  id="btnStop"  onclick="stopDemo()" disabled>■ Stop</button>
+        <span style="flex:1"></span>
+        <!-- HRTF vs Stereo Pan toggle — pill style matches the plan spec -->
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span style="font-family:var(--mono);font-size:12px;color:var(--muted);">Audio mode:</span>
+          <div class="pill-toggle" id="modeToggle">
+            <button class="active" id="btnHRTF" onclick="setAudioMode('hrtf')">HRTF Binaural</button>
+            <button id="btnStereo" onclick="setAudioMode('stereo')">Stereo Pan</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Source trajectory selector -->
+      <div style="margin-top:16px;">
+        <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-bottom:6px;">Source trajectory</div>
+        <div class="mode-grid">
+          <div class="mode-card active" id="mode-equatorial" onclick="setTrajectory('equatorial')">
+            <span class="mode-icon">⭕</span>
+            <span class="mode-name">Equatorial</span>
+          </div>
+          <div class="mode-card" id="mode-elevation" onclick="setTrajectory('elevation')">
+            <span class="mode-icon">🔃</span>
+            <span class="mode-name">Elevation Sweep</span>
+          </div>
+          <div class="mode-card" id="mode-figure8" onclick="setTrajectory('figure8')">
+            <span class="mode-icon">∞</span>
+            <span class="mode-name">Figure-8</span>
+          </div>
+          <div class="mode-card" id="mode-free" onclick="setTrajectory('free')">
+            <span class="mode-icon">🌐</span>
+            <span class="mode-name">Free Roam</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Speed slider -->
+      <div class="slider-row">
+        <label for="speedSlider">Speed</label>
+        <input type="range" id="speedSlider" min="0.1" max="3.0" step="0.05" value="0.5"
+               oninput="setSpeed(this.value)">
+        <span class="slider-val" id="speedVal">0.50×</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Three.js canvas ── -->
+  <!--
+    STEP 2: Canvas wrapper
+    The canvas lives inside the 960px content column.
+    aspect-ratio: 16/9 gives it a stable height. When the browser goes
+    fullscreen (via the button), the wrapper fills the viewport and the
+    Three.js resize handler adjusts renderer and composer dimensions.
+  -->
+  <div class="canvas-wrapper" id="canvasWrapper">
+
+    <!-- Loading overlay — shown while Three.js and Resonance Audio load -->
+    <div id="loadingOverlay">
+      <div class="loading-headphone">🎧</div>
+      <div class="loading-title">Chapter 05 · Spatial Audio</div>
+      <div class="loading-demo-name">Demo 1: Binaural Lab</div>
+      <div class="progress-bar-track">
+        <div class="progress-bar-fill" id="progressFill"></div>
+      </div>
+      <div id="loadingStatus">Loading Three.js…</div>
+    </div>
+
+    <!-- Start overlay — shown after libraries load, before AudioContext gate -->
+    <div id="startOverlay" class="hidden">
+      <div class="start-icon">▶</div>
+      <div class="start-label">Click to start audio</div>
+      <div class="start-sub">Browsers require a user gesture to activate AudioContext</div>
+    </div>
+
+    <!-- HUD: audio mode indicator (top-left of canvas) -->
+    <div class="hud-toggle" id="hudToggle" style="display:none;">
+      <div class="hud-title">Audio mode</div>
+      <div class="hud-row">
+        <span class="hud-label">Active</span>
+        <span class="hud-val purple" id="hudAudioMode">HRTF Binaural</span>
+      </div>
+      <div class="hud-row">
+        <span class="hud-label">Context</span>
+        <span class="hud-val green" id="hudCtxState">running</span>
+      </div>
+    </div>
+
+    <!-- HUD: source position readout (bottom-left of canvas) -->
+    <div class="hud" id="hud" style="display:none;">
+      <div class="hud-title">Source · HRTF Readout</div>
+      <div class="hud-row">
+        <span class="hud-label">Azimuth</span>
+        <span class="hud-val" id="hudAzimuth">0.0°</span>
+      </div>
+      <div class="hud-row">
+        <span class="hud-label">Elevation</span>
+        <span class="hud-val" id="hudElevation">0.0°</span>
+      </div>
+      <div class="hud-row">
+        <span class="hud-label">Distance</span>
+        <span class="hud-val orange" id="hudDistance">2.00 m</span>
+      </div>
+      <div class="hud-row">
+        <span class="hud-label">ITD</span>
+        <span class="hud-val purple" id="hudITD">0 µs</span>
+      </div>
+      <div class="hud-row">
+        <span class="hud-label">ILD</span>
+        <span class="hud-val green" id="hudILD">0.0 dB</span>
+      </div>
+      <div class="hud-row">
+        <span class="hud-label">Trajectory</span>
+        <span class="hud-val" id="hudMode">Equatorial</span>
+      </div>
+    </div>
+
+    <!-- Fullscreen button (top-right of canvas) -->
+    <div class="canvas-controls">
+      <button class="canvas-btn" onclick="toggleFullscreen()" title="Toggle fullscreen">⛶ Fullscreen</button>
+    </div>
+
+  </div><!-- /canvas-wrapper -->
+
+  <!-- ── Concept callouts ── -->
+  <div class="concept-box">
+    <strong>CONCEPT: Head-Related Transfer Function (HRTF).</strong>
+    The HRTF encodes how sound from every direction in space is filtered by the
+    listener's head, pinnae (outer ears), and torso before reaching the eardrums.
+    It is a direction-dependent filter: the same source sounds different from above
+    versus below, front versus behind. The Resonance Audio SDK applies a measured HRTF
+    database via convolution, producing convincing 3D audio over headphones. The key
+    perceptual cues are ITD (interaural time difference — microseconds of delay between
+    left and right), ILD (interaural level difference — dB difference in amplitude),
+    and pinna spectral cues (notches above 4 kHz that encode elevation).
+  </div>
+
+  <div class="concept-box">
+    <strong>CONCEPT: Why broadband audio for HRTF demonstration.</strong>
+    The HRTF is frequency-dependent. Pinna cues operate above 4 kHz — they are the
+    spectral notches and peaks that encode elevation. A pure tone at 440 Hz has no
+    energy above 4 kHz and therefore carries no elevation information. The sawtooth
+    oscillator used here produces harmonics up to ~8 kHz (above that, the oscillator's
+    digital aliasing rolls off), making elevation cues clearly audible. This is why
+    music — which is broadband — localizes better than a pure test tone.
+  </div>
+
+  <div class="concept-box">
+    <strong>CONCEPT: Anechoic approximation via Resonance room materials.</strong>
+    Resonance Audio's room model simulates early reflections and late reverberation
+    via its <code>setRoomProperties()</code> API. Setting all six wall materials to
+    <code>fiber_glass_insulation</code> gives the highest absorption coefficient
+    (~0.99) in the preset library. This minimizes reflected energy and isolates the
+    HRTF cues — no reverb masking. A true anechoic chamber is defined as having less
+    than 10 dB of reflected energy relative to the direct sound; this simulation
+    is an effective approximation for perceptual demonstration purposes.
+  </div>
+
+  <div class="concept-box">
+    <strong>CONCEPT: HRTF vs StereoPannerNode.</strong>
+    The <code>StereoPannerNode</code> is a simple equal-power pan law: it adjusts the
+    amplitude ratio between left and right channels as a function of azimuth only.
+    It has no elevation encoding, no ITD, no pinna spectral shaping. Toggle between
+    modes and notice: in Stereo Pan mode, elevation changes are inaudible — the source
+    sounds identical at 0° and 90° elevation. In HRTF mode, elevation is immediately
+    perceptible, especially with headphones. The 3-second crossfade between modes uses
+    a GainNode ramp to avoid click artifacts (a waveform discontinuity that would
+    cause a loud audible pop).
+  </div>
+
+  <div class="concept-box">
+    <strong>CONCEPT: HRTF sphere visualization.</strong>
+    The colored sphere surrounding the listener head maps the analytical HRTF gain
+    at every direction in space. For each vertex of a 64×32 sphere geometry, the
+    dominant ILD contribution is approximated as:
+    <code>ILD(θ) ≈ 6.0 · sin(θ)</code> where θ is the azimuth in radians (from the
+    Woodworth-Schlosberg spherical head model, simplified). This is not the full HRTF
+    database (that is a measured impulse response — not analytically available in the
+    browser), but it is an educationally accurate visualization of the dominant directional
+    effect. Colors follow a viridis-inspired ramp: blue (low gain) → green → yellow → red
+    (high gain). The sphere updates every frame as the source moves.
+  </div>
+
+  <div class="concept-box">
+    <strong>CONCEPT: <code>setFromMatrix()</code> is the production pattern.</strong>
+    Resonance Audio provides <code>source.setPosition(x, y, z)</code> for simple cases,
+    but the production-correct method is <code>source.setFromMatrix(mesh.matrixWorld)</code>.
+    This reads the final world transform from the Three.js scene graph, correctly handling
+    all parent transforms, rotation hierarchies, and scale. If you maintain a separate
+    position variable and call <code>setPosition()</code>, it desynchronizes from the
+    visual whenever the object is in a transform hierarchy. The matrix approach is always
+    correct and always in sync.
+  </div>
+
+  <!-- ── in-page footer credit ── -->
+  <div class="nb-footer-cell">
+    <p><b>Demo 1: Binaural Lab — Pure HRTF</b> &middot; Chapter 05: Google Resonance Audio &middot; Multimediaprogrammierung<br>
+    Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+    <p>Demo created by <b>Renato Fera P.</b> &middot;
+    <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+    &middot;
+    <a href="05_multimediaprogrammierung_resonance.html">← Back to Chapter 05</a></p>
+  </div>
+
+</main>
+
+<footer>
+  <p><strong>Multimediaprogrammierung</strong> &middot; Seminar Materials<br>
+  Institut für Medientechnik &ndash; Technische Universität Ilmenau</p>
+  <p>
+    Demo created by <strong>Renato Fera P.</strong> &middot;
+    <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">LinkedIn</a>
+    &nbsp;&middot;&nbsp;
+    <a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars" target="_blank" rel="noopener">github.com/TUIlmenauAMS/multimedia_programming_seminars</a>
+  </p>
+</footer>
+
+<!--
+  ── LIBRARY LOADING STRATEGY ──
+  Three.js and Resonance Audio are UMD bundles (browser globals).
+  They must be loaded as <script> tags before the inline script that uses them.
+  Exact version pins — never @latest. Versions known-good as of 2025.
+  Three.js r165: THREE global + OrbitControls via addons importmap.
+  Resonance Audio 1.0.0: ResonanceAudio global.
+  PostProcessing (EffectComposer, UnrealBloomPass, OutputPass): Three.js addons.
+-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r165/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/resonance-audio@1.0.0/build/resonance-audio.min.js"></script>
+
+<script>
+/*
+ * Demo 1: Binaural Lab — Pure HRTF
+ * Course:  Multimediaprogrammierung — Chapter 05: Google Resonance Audio
+ * Author:  Renato Fera P. — TU Ilmenau AMS Group
+ *
+ * What this demo teaches:
+ *   - HRTF perception: ITD, ILD, pinna cues, elevation encoding
+ *   - The difference between Resonance binaural (HRTF) and StereoPannerNode
+ *   - Resonance Audio SDK initialization and room material configuration
+ *   - Anechoic approximation using fiber_glass_insulation room materials
+ *   - Source trajectory parametric math (equatorial, elevation sweep, figure-8, free)
+ *   - HRTF sphere visualization: analytical gain mapping to vertex colors
+ *   - Three.js post-processing: UnrealBloomPass for the pulsing audio source
+ *   - setFromMatrix() as the production pattern for spatial audio sync
+ *   - AudioContext gate: browser autoplay policy and why it exists
+ *   - GainNode crossfade to switch audio modes without click artifacts
+ */
+
+'use strict';
+
+// ── STEP 0: State variables ──────────────────────────────────────────────────
+
+// Three.js core objects — null until initThree() is called
+let renderer, scene, camera, clock;
+
+// Post-processing objects
+// EffectComposer chains render passes; UnrealBloomPass adds the glow on the source
+let composer, bloomPass;
+
+// Audio objects — null until startDemo() / AudioContext gate
+let audioContext    = null;
+let resonanceAudio  = null;   // ResonanceAudio instance (the spatial audio engine)
+let resonanceSource = null;   // The spatial source connected to Resonance
+
+// Web Audio nodes for the synthesized broadband source signal
+let oscillator   = null;   // 200 Hz sawtooth — base tone
+let lfoOsc       = null;   // 0.5 Hz sine — amplitude modulation
+let lfoGain      = null;   // GainNode — LFO controls amplitude via this gain
+let analyser     = null;   // AnalyserNode — read RMS for visual pulse effect
+
+// HRTF vs StereoPanner mode
+// CONCEPT: audio mode switching uses crossfade GainNodes to avoid click artifacts
+let hrtfGain     = null;   // GainNode on the Resonance path
+let stereoGain   = null;   // GainNode on the StereoPanner path
+let stereoPanner = null;   // StereoPannerNode — the flat pan comparator
+let audioMode    = 'hrtf'; // 'hrtf' | 'stereo'
+
+// Three.js scene objects
+let sourceMesh   = null;   // The emissive sphere that pulses with audio energy
+let sourceHalo   = null;   // Outer transparent sphere — the bloom halo
+let sourceLight  = null;   // PointLight co-located with the source
+let headMesh     = null;   // Abstract listener head at the scene origin
+let hrtfSphere   = null;   // HRTF gain visualization sphere
+let trailLine    = null;   // Trail of last 120 source positions
+let trailPositions = null; // Float32Array circular buffer for trail vertices
+
+// Demo state
+let isRunning    = false;
+let trajectoryMode = 'equatorial'; // 'equatorial' | 'elevation' | 'figure8' | 'free'
+let orbitSpeed   = 0.5;            // Multiplier applied to the trajectory parameter
+let orbitTime    = 0;              // Accumulated time for trajectory evaluation
+
+// Free-roam trajectory: eight random sphere-surface waypoints
+// evaluated as a smooth closed path using CatmullRomCurve3
+let freeCurve    = null;
+
+// Source orbit radius in meters (Resonance Audio uses metric coordinates)
+const ORBIT_R = 2.0;
+
+// Trail buffer: 120 positions = 2 seconds at 60 fps
+const TRAIL_LEN = 120;
+let trailWriteIdx = 0;  // Ring buffer write index
+
+// RMS for emissive pulse
+let rmsBuffer = new Uint8Array(64); // AnalyserNode.getByteFrequencyData output
+
+// ── STEP 1: Library load progress ───────────────────────────────────────────
+
+// Three.js and Resonance Audio are synchronous UMD bundles loaded via <script>
+// tags above. By the time this inline script runs, they are already in the global
+// scope. We simulate a progress bar to show the loading screen before the
+// addons (EffectComposer etc.) are dynamically imported.
+// Real asset loading (textures, geometry) would use THREE.LoadingManager.
+
+let loadProgress = 0;
+function setProgress(pct, label) {
+  loadProgress = pct;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('loadingStatus').textContent = label;
+}
+
+// ── STEP 2: Initialization on page load ─────────────────────────────────────
+
+window.addEventListener('DOMContentLoaded', async () => {
+  setProgress(10, 'Three.js ready');
+
+  // Verify that Three.js loaded correctly.
+  // If the CDN failed, THREE will be undefined.
+  if (typeof THREE === 'undefined') {
+    document.getElementById('loadingStatus').textContent = '⚠ Three.js failed to load. Check your network.';
+    return;
+  }
+
+  // Verify that Resonance Audio loaded correctly.
+  if (typeof ResonanceAudio === 'undefined') {
+    document.getElementById('loadingStatus').textContent = '⚠ Resonance Audio failed to load. Check your network.';
+    return;
+  }
+
+  setProgress(30, 'Initializing Three.js renderer…');
+  await new Promise(r => setTimeout(r, 80)); // yield to browser paint
+
+  initThree();
+  setProgress(60, 'Building scene…');
+  await new Promise(r => setTimeout(r, 80));
+
+  buildScene();
+  setProgress(85, 'Setting up post-processing…');
+  await new Promise(r => setTimeout(r, 80));
+
+  initPostProcessing();
+  setProgress(100, 'Ready');
+  await new Promise(r => setTimeout(r, 300));
+
+  // Hide loading overlay, show start overlay
+  document.getElementById('loadingOverlay').classList.add('hidden');
+  document.getElementById('startOverlay').classList.remove('hidden');
+
+  // Start the render loop (without audio — just the Three.js scene)
+  startRenderLoop();
+});
+
+// ── STEP 3: Three.js renderer initialization ────────────────────────────────
+/*
+ * CONCEPT: WebGL2 renderer settings
+ * antialias: true       — MSAA smooths jagged edges at modest GPU cost
+ * powerPreference: 'high-performance' — requests the discrete GPU on dual-GPU machines
+ * ACES filmic tone mapping + SRGBColorSpace: physically-based output pipeline
+ *   ACES is the Academy Color Encoding System — same LUT used in feature film VFX.
+ *   It compresses highlights and lifts shadows, giving a cinematic look to HDR values.
+ * PCFSoftShadowMap: Percentage Closer Filtering — softer shadow edges than hard PCF.
+ */
+function initThree() {
+  const wrapper = document.getElementById('canvasWrapper');
+  const W = wrapper.clientWidth;
+  const H = wrapper.clientHeight;
+
+  renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    powerPreference: 'high-performance'
+  });
+  renderer.setSize(W, H);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // cap at 2× for performance
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+  renderer.toneMapping       = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  renderer.outputColorSpace  = THREE.SRGBColorSpace;
+
+  // Insert the canvas into the wrapper div (before the HUD overlays)
+  wrapper.insertBefore(renderer.domElement, wrapper.firstChild);
+
+  // Camera: 70° FOV, matched to plan spec. Near/Far covers the anechoic chamber.
+  camera = new THREE.PerspectiveCamera(70, W / H, 0.05, 500);
+  // Third-person view: the camera orbits the head so students see the source move
+  camera.position.set(0, 1.6, 4);
+  camera.lookAt(0, 0, 0);
+
+  scene = new THREE.Clock();     // will be overwritten below — keep for clarity
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x07080d); // near-black with blue-black tint
+
+  clock = new THREE.Clock();
+}
+
+// ── STEP 4: Scene construction ───────────────────────────────────────────────
+/*
+ * Builds the anechoic chamber interior, the listener head, the audio source mesh,
+ * the HRTF sphere, and the trail line.
+ *
+ * CONCEPT: Anechoic chamber visual design
+ * "Anechoic" means no echo — the room absorbs all reflections. Visually:
+ *   - Dark matte walls (roughness: 0.98) — no specular highlights
+ *   - No point lights on the walls — only ambient fill and one directional key
+ *   - No bright materials — everything stays below the bloom threshold
+ * This matches the acoustic intent: nothing bounces back.
+ */
+function buildScene() {
+
+  // ── Lighting ──────────────────────────────────────────────────────────────
+  // Ambient: cool dim fill — replicates the low-level energy in a very dark room
+  const ambient = new THREE.AmbientLight(0x101520, 0.4);
+  scene.add(ambient);
+
+  // Key light: warm-white directional from above-left
+  const keyLight = new THREE.DirectionalLight(0xfff8f0, 1.2);
+  keyLight.position.set(3, 5, 2);
+  keyLight.castShadow = true;
+  keyLight.shadow.mapSize.set(2048, 2048);
+  keyLight.shadow.camera.near = 0.1;
+  keyLight.shadow.camera.far  = 20;
+  keyLight.shadow.camera.left = keyLight.shadow.camera.bottom = -6;
+  keyLight.shadow.camera.right = keyLight.shadow.camera.top   =  6;
+  scene.add(keyLight);
+
+  // ── Anechoic chamber walls ────────────────────────────────────────────────
+  // Six planes: floor, ceiling, four walls
+  // MeshStandardMaterial (PBR) with very high roughness — absorptive, non-reflective
+  const wallMat = new THREE.MeshStandardMaterial({
+    color:     0x0a0d12,
+    roughness: 0.98,
+    metalness: 0.0
+  });
+
+  const makeWall = (w, h, rx, ry, rz, tx, ty, tz) => {
+    const geo  = new THREE.PlaneGeometry(w, h, 8, 8);
+    const mesh = new THREE.Mesh(geo, wallMat);
+    mesh.rotation.set(rx, ry, rz);
+    mesh.position.set(tx, ty, tz);
+    mesh.receiveShadow = true;
+    scene.add(mesh);
+    return mesh;
+  };
+
+  // Room: 8 m wide × 3.2 m high × 10 m deep (matches Demo 2 plan dimensions)
+  makeWall(8, 10,  -Math.PI/2, 0, 0,  0,  0,  0);         // floor (Y=0)
+  makeWall(8, 10,   Math.PI/2, 0, 0,  0,  3.2, 0);        // ceiling
+  makeWall(10, 3.2,  0, 0, 0,  0,  1.6, -5);               // back wall
+  makeWall(10, 3.2,  0, Math.PI, 0,  0, 1.6, 5);           // front wall
+  makeWall(3.2, 10,  0,  Math.PI/2, 0, -4, 1.6, 0);       // left wall
+  makeWall(3.2, 10,  0, -Math.PI/2, 0,  4, 1.6, 0);       // right wall
+
+  // Wedge pattern on walls: a grid of small pyramidal extrusions (displacement-proxy)
+  // We use a subtle dark grid overlay to suggest acoustic wedges without geometry cost
+  const wedgeMat = new THREE.MeshStandardMaterial({
+    color:     0x080b0f,
+    roughness: 1.0,
+    metalness: 0.0,
+    wireframe: false
+  });
+
+  // Simple wedge rows: a grid of small box prisms on each wall (5 × 4 grid)
+  const addWedges = (parent, countX, countY, spacing, depth, rotX, rotY, rotZ, ox, oy, oz) => {
+    const geo = new THREE.BoxGeometry(spacing * 0.7, spacing * 0.7, depth);
+    for (let ix = 0; ix < countX; ix++) {
+      for (let iy = 0; iy < countY; iy++) {
+        const m = new THREE.Mesh(geo, wedgeMat);
+        const x = (ix - (countX-1)/2) * spacing;
+        const y = (iy - (countY-1)/2) * spacing;
+        m.rotation.set(rotX, rotY, rotZ);
+        // Push the wedge slightly into the wall surface
+        m.position.set(ox + x, oy + y, oz);
+        m.receiveShadow = true;
+        scene.add(m);
+      }
+    }
+  };
+
+  // Back wall wedges
+  addWedges(scene, 10, 4, 0.75, 0.08, 0, 0, 0, 0, 1.6, -4.95);
+  // Left wall wedges
+  addWedges(scene, 10, 4, 0.75, 0.08, 0, Math.PI/2, 0, -3.95, 1.6, 0);
+  // Right wall wedges
+  addWedges(scene, scene, 10, 4, 0.75, 0.08, 0, -Math.PI/2, 0, 3.95, 1.6, 0);
+
+  // ── Listener head ─────────────────────────────────────────────────────────
+  /*
+   * CONCEPT: Abstract listener head geometry
+   * The head is a stylized proxy — not a photorealistic face, an abstract sculptural form.
+   * LatheGeometry revolves a 2D profile around the Y axis to produce a smooth
+   * head-like shape. We use a simple tapered cylinder profile (a few points).
+   * This is the third-person view demo — the student sees the head from outside.
+   */
+  const headProfile = [
+    new THREE.Vector2(0.0, -0.2),
+    new THREE.Vector2(0.14, -0.1),
+    new THREE.Vector2(0.18,  0.08),
+    new THREE.Vector2(0.16,  0.22),
+    new THREE.Vector2(0.10,  0.32),
+    new THREE.Vector2(0.04,  0.38),
+    new THREE.Vector2(0.0,   0.4)
+  ];
+  const headGeo = new THREE.LatheGeometry(headProfile, 32);
+  const headMat = new THREE.MeshStandardMaterial({
+    color:     0x1a2030,
+    roughness: 0.65,
+    metalness: 0.1
+  });
+  headMesh = new THREE.Mesh(headGeo, headMat);
+  headMesh.position.set(0, 0.85, 0); // center head at ear height (~1.2m off floor)
+  headMesh.castShadow    = true;
+  headMesh.receiveShadow = true;
+  scene.add(headMesh);
+
+  // Ear proxy: two small tori on the sides of the head
+  const earGeo = new THREE.TorusGeometry(0.04, 0.015, 8, 16);
+  const earMat = new THREE.MeshStandardMaterial({ color: 0x1a2030, roughness: 0.7 });
+  [-1, 1].forEach(side => {
+    const ear = new THREE.Mesh(earGeo, earMat);
+    ear.position.set(side * 0.185, 1.03, 0);
+    ear.rotation.y = Math.PI / 2;
+    ear.castShadow = true;
+    scene.add(ear);
+  });
+
+  // ── Audio source visual signature ─────────────────────────────────────────
+  /*
+   * CONCEPT: Audio source visual signature (from course design system)
+   * Core: small emissive sphere whose emissiveIntensity is driven by audio RMS
+   * Halo: larger transparent sphere that pulses with RMS
+   * PointLight: co-located with the source, intensity driven by RMS
+   * Bloom: UnrealBloomPass causes the emissive core to visually glow
+   * The source pulsing maps WHAT THE STUDENT HEARS to WHAT THEY SEE.
+   */
+  const coreGeo = new THREE.SphereGeometry(0.08, 16, 16);
+  const coreMat = new THREE.MeshStandardMaterial({
+    color:             0x4fc3f7,
+    emissive:          new THREE.Color(0x4fc3f7),
+    emissiveIntensity: 0.1,
+    roughness:         0.3,
+    metalness:         0.1
+  });
+  sourceMesh = new THREE.Mesh(coreGeo, coreMat);
+  sourceMesh.castShadow = true;
+  scene.add(sourceMesh);
+
+  const haloGeo = new THREE.SphereGeometry(0.14, 16, 16);
+  const haloMat = new THREE.MeshStandardMaterial({
+    color:       0x4fc3f7,
+    transparent: true,
+    opacity:     0.08,
+    roughness:   1.0,
+    metalness:   0.0,
+    depthWrite:  false
+  });
+  sourceHalo = new THREE.Mesh(haloGeo, haloMat);
+  scene.add(sourceHalo);
+
+  sourceLight = new THREE.PointLight(0xff9800, 0.0, 4);
+  scene.add(sourceLight);
+
+  // ── HRTF sphere visualization ─────────────────────────────────────────────
+  /*
+   * CONCEPT: HRTF sphere vertex color visualization
+   * A SphereGeometry(1.2, 64, 32) is centered on the listener head.
+   * For each vertex, we compute the analytical ILD approximation:
+   *   ILD(θ) ≈ 6.0 * sin(azimuth) dB   (from Woodworth-Schlosberg spherical head model)
+   * Map the ±6 dB range to a viridis-inspired color ramp.
+   * This is NOT the real HRTF database (which is a measured impulse response set —
+   * not analytically available in the browser). It is an educationally accurate
+   * visualization of the dominant directional effect.
+   * opacity: 0.35 — semi-transparent so the head and source are visible through it.
+   * depthWrite: false — prevents z-fighting with other transparent objects.
+   */
+  const hrtfGeo = new THREE.SphereGeometry(1.2, 64, 32);
+  // Pre-allocate vertex color attribute
+  const count = hrtfGeo.attributes.position.count;
+  const colors = new Float32Array(count * 3);
+  hrtfGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+  const hrtfMat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    transparent:  true,
+    opacity:      0.35,
+    roughness:    1.0,
+    metalness:    0.0,
+    depthWrite:   false,
+    side:         THREE.DoubleSide
+  });
+  hrtfSphere = new THREE.Mesh(hrtfGeo, hrtfMat);
+  hrtfSphere.position.copy(headMesh.position);
+  scene.add(hrtfSphere);
+
+  // Pre-compute vertex directions once — used every frame in updateHRTFSphere()
+  hrtfSphere.userData.vertexDirs = [];
+  const posAttr = hrtfGeo.attributes.position;
+  const tmpV    = new THREE.Vector3();
+  for (let i = 0; i < count; i++) {
+    tmpV.fromBufferAttribute(posAttr, i).normalize();
+    hrtfSphere.userData.vertexDirs.push(tmpV.clone());
+  }
+
+  // ── Trail line ────────────────────────────────────────────────────────────
+  /*
+   * CONCEPT: Trail visualization
+   * A THREE.Line with a circular buffer of the last 120 source positions
+   * (approximately 2 seconds at 60 fps). Each frame, the oldest position is
+   * overwritten with the current position and the buffer is uploaded to the GPU
+   * via geometry.attributes.position.needsUpdate = true.
+   * Color: a single accent color — gradient would require vertex colors on the line,
+   * which is set up below using a VertexColors material.
+   */
+  const trailGeo = new THREE.BufferGeometry();
+  trailPositions = new Float32Array(TRAIL_LEN * 3); // x,y,z per point
+  const trailColors = new Float32Array(TRAIL_LEN * 3);
+  trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPositions, 3));
+  trailGeo.setAttribute('color',    new THREE.BufferAttribute(trailColors, 3));
+  trailGeo.setDrawRange(0, 0); // start with 0 visible points
+
+  const trailMat = new THREE.LineBasicMaterial({
+    vertexColors: true,
+    transparent:  true,
+    depthWrite:   false,
+    linewidth:    1
+  });
+  trailLine = new THREE.Line(trailGeo, trailMat);
+  scene.add(trailLine);
+
+  // ── Free-roam curve ───────────────────────────────────────────────────────
+  /*
+   * CONCEPT: CatmullRomCurve3 for smooth free-roam trajectory
+   * Eight random points on the sphere surface generate a smooth closed path.
+   * CatmullRomCurve3 interpolates through all control points with C1 continuity.
+   * The curve is evaluated at time t (0…1) each frame to get the source position.
+   */
+  buildFreeCurve();
+
+  // Initial source position
+  sourceMesh.position.set(ORBIT_R, 0, 0);
+  sourceHalo.position.copy(sourceMesh.position);
+  sourceLight.position.copy(sourceMesh.position);
+}
+
+// Build a new random free-roam CatmullRomCurve3
+function buildFreeCurve() {
+  const pts = [];
+  for (let i = 0; i < 8; i++) {
+    // Random point on sphere surface using spherical coordinates
+    const theta = Math.random() * Math.PI * 2;
+    const phi   = Math.acos(2 * Math.random() - 1);
+    pts.push(new THREE.Vector3(
+      ORBIT_R * Math.sin(phi) * Math.cos(theta),
+      ORBIT_R * Math.cos(phi),
+      ORBIT_R * Math.sin(phi) * Math.sin(theta)
+    ));
+  }
+  freeCurve = new THREE.CatmullRomCurve3(pts, true, 'catmullrom', 0.5);
+}
+
+// ── STEP 5: Post-processing ──────────────────────────────────────────────────
+/*
+ * CONCEPT: UnrealBloomPass
+ * Bloom is a post-processing effect that causes bright pixels to bleed light
+ * onto their neighbors, simulating how a camera lens or the human eye handles
+ * high-intensity light sources. We use it to make the audio source "glow" in
+ * proportion to the audio energy — a physical metaphor for the sound field.
+ *
+ * Parameters (from plan spec):
+ *   threshold: 0.4  — pixels brighter than this (in linear HDR space) bloom
+ *   strength:  0.6  — how far the bloom light spreads
+ *   radius:    0.4  — softness of the bloom kernel
+ *
+ * OutputPass: applies ACES tone mapping and sRGB gamma correction as the final step.
+ * Without OutputPass, the scene looks washed out and linear.
+ *
+ * IMPORTANT: We load the EffectComposer, UnrealBloomPass, and OutputPass addons
+ * dynamically via import() from jsdelivr. These are ES module addons for Three.js r165.
+ * They are NOT available as global UMD bundles on cdnjs, so we use the JSM path.
+ */
+async function initPostProcessing() {
+  try {
+    const wrapper = document.getElementById('canvasWrapper');
+    const W = wrapper.clientWidth;
+    const H = wrapper.clientHeight;
+
+    // Dynamic ES module import — these are Three.js addons (not in the main bundle)
+    const { EffectComposer } = await import('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/EffectComposer.js');
+    const { RenderPass }     = await import('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/RenderPass.js');
+    const { UnrealBloomPass }= await import('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/UnrealBloomPass.js');
+    const { OutputPass }     = await import('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/OutputPass.js');
+
+    composer  = new EffectComposer(renderer);
+    composer.addPass(new RenderPass(scene, camera));
+
+    bloomPass = new UnrealBloomPass(
+      new THREE.Vector2(W, H),
+      0.6,   // strength
+      0.4,   // radius
+      0.4    // threshold
+    );
+    composer.addPass(bloomPass);
+    composer.addPass(new OutputPass());
+
+  } catch (err) {
+    // Post-processing is a visual enhancement, not critical — fall back to direct render
+    console.warn('Post-processing unavailable:', err.message);
+    composer = null;
+  }
+}
+
+// ── STEP 6: AudioContext initialization ─────────────────────────────────────
+/*
+ * CONCEPT: Browser autoplay policy
+ * All major browsers (Chrome, Firefox, Edge) block AudioContext.resume() until
+ * the user has interacted with the page (a click, keypress, or touch event).
+ * This policy was introduced in 2018 to prevent autoplaying audio that annoys users.
+ * The practical consequence: you MUST create and resume the AudioContext inside a
+ * user gesture handler. Here, startDemo() is called from the Start button click.
+ * The startOverlay also listens for a click to gate on first interaction.
+ */
+document.getElementById('startOverlay').addEventListener('click', startDemo);
+
+async function startDemo() {
+  if (isRunning) return;
+
+  // Hide start overlay
+  document.getElementById('startOverlay').classList.add('hidden');
+  document.getElementById('btnStart').disabled = true;
+  document.getElementById('btnStop').disabled  = false;
+
+  // Create AudioContext inside the user gesture — mandatory for autoplay policy
+  audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioContext.state === 'suspended') {
+    await audioContext.resume();
+  }
+
+  // Update HUD context state
+  document.getElementById('hudCtxState').textContent = audioContext.state;
+
+  initResonance();
+  initAudioSynth();
+  connectAudioGraph();
+
+  isRunning = true;
+  document.getElementById('hud').style.display      = '';
+  document.getElementById('hudToggle').style.display = '';
+}
+
+// ── STEP 7: Resonance Audio initialization ───────────────────────────────────
+/*
+ * CONCEPT: ResonanceAudio initialization
+ * new ResonanceAudio(audioContext, options) creates the spatial audio engine.
+ * ambisonicOrder: 3 — higher-order ambisonics, more spatially accurate HRTF decode.
+ *   Order 1 (the default) uses 4 Ambisonic channels. Order 3 uses 16, capturing
+ *   finer spatial detail — particularly for elevation, which requires higher orders.
+ *
+ * Room materials: all set to 'fiber_glass_insulation' — the most absorptive preset.
+ * This minimizes reverb, isolating the HRTF cues for pedagogical clarity.
+ * The student hears pure HRTF with no room coloration.
+ *
+ * resonanceAudio.output connects to the AudioContext destination (speakers/headphones).
+ * This is the final node in the Resonance signal chain.
+ */
+function initResonance() {
+  resonanceAudio = new ResonanceAudio(audioContext, {
+    ambisonicOrder: 3
+  });
+
+  // Anechoic approximation: all six walls absorb maximally
+  // CONCEPT: fiber_glass_insulation has the highest absorption coefficient
+  // in Resonance's preset library (~0.99). No reflection = no reverb.
+  resonanceAudio.setRoomProperties(
+    { width: 8, height: 3.2, depth: 10 },
+    {
+      left:   'fiber_glass_insulation',
+      right:  'fiber_glass_insulation',
+      front:  'fiber_glass_insulation',
+      back:   'fiber_glass_insulation',
+      up:     'fiber_glass_insulation',
+      down:   'fiber_glass_insulation'
+    }
+  );
+
+  // Connect Resonance output to the speakers
+  resonanceAudio.output.connect(audioContext.destination);
+
+  // Create the spatial source — the point in space that emits the sound
+  resonanceSource = resonanceAudio.createSource();
+}
+
+// ── STEP 8: Audio synthesis ───────────────────────────────────────────────────
+/*
+ * CONCEPT: Broadband synthesis for HRTF demonstration
+ * The source is a 200 Hz sawtooth oscillator amplitude-modulated at 0.5 Hz.
+ * - Sawtooth: rich in harmonics (every integer multiple of the fundamental).
+ *   At 200 Hz, harmonics extend up to 8–10 kHz — covering the pinna-cue frequency range.
+ * - LFO (0.5 Hz sine): a slow amplitude envelope makes the pulse rhythmic and
+ *   more audible as the source moves. It also drives the visual emissive pulse.
+ * - AnalyserNode: reads the RMS of the signal each frame for the visual effect.
+ *
+ * CONCEPT: StereoPannerNode as the comparison mode
+ * StereoPannerNode.pan ranges from -1 (full left) to +1 (full right).
+ * We map source azimuth to pan: pan = sin(azimuth).
+ * This is a simple equal-power pan law. It has no elevation encoding, no ITD,
+ * no pinna spectral shaping. It is the "flat stereo" that HRTF improves upon.
+ */
+function initAudioSynth() {
+  // Source oscillator: 200 Hz sawtooth
+  oscillator = audioContext.createOscillator();
+  oscillator.type      = 'sawtooth';
+  oscillator.frequency.value = 200;
+
+  // LFO: 0.5 Hz sine — modulates amplitude slowly
+  lfoOsc  = audioContext.createOscillator();
+  lfoOsc.type            = 'sine';
+  lfoOsc.frequency.value = 0.5;
+
+  // LFO gain: controls LFO depth — the LFO output (±1) is scaled here
+  lfoGain = audioContext.createGain();
+  lfoGain.gain.value = 0.4; // LFO modulates amplitude by ±0.4
+
+  // Carrier gain: DC bias + LFO = oscillates between 0.6 and 1.0
+  const carrierGain = audioContext.createGain();
+  carrierGain.gain.value = 0.6; // DC component
+
+  // AnalyserNode: tap the signal post-gain to read RMS for the visual pulse
+  analyser = audioContext.createAnalyser();
+  analyser.fftSize = 64; // small FFT — we only need RMS, not full spectrum
+
+  // LFO → lfoGain → carrierGain.gain (AudioParam modulation)
+  lfoOsc.connect(lfoGain);
+  lfoGain.connect(carrierGain.gain);
+
+  // oscillator → carrierGain → analyser
+  oscillator.connect(carrierGain);
+  carrierGain.connect(analyser);
+
+  // StereoPannerNode — the flat-pan comparator
+  stereoPanner = audioContext.createStereoPanner();
+  stereoPanner.pan.value = 0;
+}
+
+// ── STEP 9: Connect the audio graph ─────────────────────────────────────────
+/*
+ * CONCEPT: Dual audio path with GainNode crossfade
+ * Two paths run from the analyser output to the destination:
+ *   Path A (HRTF):   analyser → hrtfGain → resonanceSource.input → resonanceAudio.output → destination
+ *   Path B (Stereo): analyser → stereoGain → stereoPanner → destination
+ *
+ * hrtfGain and stereoGain are the crossfade control points.
+ * setAudioMode() ramps these gains over 3 seconds (audioContext.currentTime + 3).
+ * A linear ramp avoids the click artifact of an instantaneous gain change.
+ *
+ * Both paths are ALWAYS running — the crossfade just determines which is audible.
+ * This is the standard Web Audio "A/B switch" pattern.
+ */
+function connectAudioGraph() {
+  hrtfGain   = audioContext.createGain();
+  stereoGain = audioContext.createGain();
+
+  hrtfGain.gain.value   = 1.0; // Start in HRTF mode
+  stereoGain.gain.value = 0.0;
+
+  // HRTF path: analyser → hrtfGain → Resonance source input
+  analyser.connect(hrtfGain);
+  hrtfGain.connect(resonanceSource.input);
+
+  // Stereo path: analyser → stereoGain → stereoPanner → destination
+  analyser.connect(stereoGain);
+  stereoGain.connect(stereoPanner);
+  stereoPanner.connect(audioContext.destination);
+
+  // Start oscillators — they run continuously from here
+  oscillator.start();
+  lfoOsc.start();
+}
+
+// ── STEP 10: Stop demo ───────────────────────────────────────────────────────
+function stopDemo() {
+  if (!isRunning) return;
+  isRunning = false;
+
+  // Stop oscillators gracefully
+  try { oscillator.stop();  } catch(e) {}
+  try { lfoOsc.stop();      } catch(e) {}
+
+  // Close AudioContext — releases hardware
+  if (audioContext) {
+    audioContext.close();
+    audioContext = null;
+  }
+
+  resonanceAudio  = null;
+  resonanceSource = null;
+
+  document.getElementById('btnStart').disabled = false;
+  document.getElementById('btnStop').disabled  = true;
+  document.getElementById('hud').style.display      = 'none';
+  document.getElementById('hudToggle').style.display = 'none';
+
+  // Show start overlay again
+  document.getElementById('startOverlay').classList.remove('hidden');
+}
+
+// ── STEP 11: Audio mode toggle ───────────────────────────────────────────────
+/*
+ * CONCEPT: Crossfade between HRTF and Stereo Pan modes
+ * linearRampToValueAtTime ramps the GainNode value linearly over 3 seconds.
+ * This avoids the click artifact of an instantaneous gain change (a waveform
+ * discontinuity that the DAC renders as a broadband pop).
+ * The 3-second duration is perceptually smooth — the student hears the
+ * spatial quality gradually dissolve or emerge.
+ */
+function setAudioMode(mode) {
+  audioMode = mode;
+
+  // Update pill toggle UI
+  document.getElementById('btnHRTF').classList.toggle('active', mode === 'hrtf');
+  document.getElementById('btnStereo').classList.toggle('active', mode === 'stereo');
+  document.getElementById('hudAudioMode').textContent = mode === 'hrtf' ? 'HRTF Binaural' : 'Stereo Pan';
+
+  if (!audioContext || !hrtfGain) return;
+
+  const now = audioContext.currentTime;
+  const FADE = 3.0; // 3-second crossfade duration
+
+  if (mode === 'hrtf') {
+    hrtfGain.gain.linearRampToValueAtTime(1.0, now + FADE);
+    stereoGain.gain.linearRampToValueAtTime(0.0, now + FADE);
+  } else {
+    hrtfGain.gain.linearRampToValueAtTime(0.0, now + FADE);
+    stereoGain.gain.linearRampToValueAtTime(1.0, now + FADE);
+  }
+}
+
+// ── STEP 12: Trajectory system ───────────────────────────────────────────────
+/*
+ * CONCEPT: Parametric sphere-surface trajectories
+ * Each trajectory is a function of time t (seconds × orbitSpeed).
+ * All trajectories keep the source on a sphere of radius ORBIT_R centered
+ * on the listener — only the direction changes, not the distance.
+ *
+ * Equatorial:   x = R·cos(ωt), y = 0, z = R·sin(ωt)
+ *   The simplest orbit — horizontal circle at ear level. Demonstrates azimuth ITD.
+ *
+ * Elevation sweep: φ oscillates ±70° over time
+ *   x = R·cos(φ)·cos(ωt), y = R·sin(φ), z = R·cos(φ)·sin(ωt)
+ *   The elevation angle changes — this is the key test of pinna cues.
+ *   Stereo Pan mode will sound identical regardless of φ — HRTF mode will not.
+ *
+ * Figure-8 (Lissajous on sphere surface):
+ *   Uses two frequencies (ωt and 2ωt) to trace a figure-8 on the sphere.
+ *   The source crosses through the frontal plane and over the head.
+ *
+ * Free (CatmullRomCurve3):
+ *   Eight random points on the sphere, interpolated smoothly.
+ *   Rebuilt each time the student selects Free mode.
+ */
+function getTrajectoryPosition(t) {
+  const omega = orbitSpeed; // rad/s effective speed
+  const p     = new THREE.Vector3();
+
+  switch (trajectoryMode) {
+    case 'equatorial': {
+      p.set(
+        ORBIT_R * Math.cos(omega * t),
+        0,
+        ORBIT_R * Math.sin(omega * t)
+      );
+      break;
+    }
+    case 'elevation': {
+      const phi = 1.22 * Math.sin(omega * 0.4 * t); // ±70° elevation oscillation
+      p.set(
+        ORBIT_R * Math.cos(phi) * Math.cos(omega * t),
+        ORBIT_R * Math.sin(phi),
+        ORBIT_R * Math.cos(phi) * Math.sin(omega * t)
+      );
+      break;
+    }
+    case 'figure8': {
+      // Lissajous on sphere: θ = ωt (azimuth), φ = 0.5·sin(2ωt) (elevation)
+      const az  = omega * t;
+      const el  = 0.7 * Math.sin(2 * omega * t);
+      p.set(
+        ORBIT_R * Math.cos(el) * Math.cos(az),
+        ORBIT_R * Math.sin(el),
+        ORBIT_R * Math.cos(el) * Math.sin(az)
+      );
+      break;
+    }
+    case 'free': {
+      // t wraps in [0,1] over a period of (2π / orbitSpeed) seconds
+      const tNorm = ((t * orbitSpeed) / (Math.PI * 2)) % 1.0;
+      const curveP = freeCurve.getPoint(tNorm < 0 ? tNorm + 1 : tNorm);
+      p.copy(curveP);
+      break;
+    }
+  }
+  return p;
+}
+
+// ── STEP 13: HUD readout calculations ────────────────────────────────────────
+/*
+ * CONCEPT: Azimuth, elevation, ITD, ILD from Cartesian source position
+ * Given source position (x, y, z) relative to listener at origin:
+ *   azimuth (θ): atan2(x, -z) — angle in the horizontal plane, 0° = front
+ *   elevation (φ): asin(y / distance) — angle above/below horizontal plane
+ *   ITD: d_ear · sin(θ) / c   (Woodworth-Schlosberg spherical head model)
+ *     where d_ear ≈ 0.085 m (inter-aural distance / 2 = head radius)
+ *     and c = 343 m/s (speed of sound in air at 20°C)
+ *     Maximum ITD ≈ 630 µs (at 90° azimuth)
+ *   ILD: 6.0 · |sin(θ)| dB (simplified, dominant at high frequencies)
+ *     The real ILD varies with frequency and elevation — this is the
+ *     low-frequency approximation sufficient for the visualization.
+ */
+function computeHRTFReadout(pos) {
+  const dist = pos.length();
+  if (dist < 0.001) return { az: 0, el: 0, dist, itd: 0, ild: 0 };
+
+  const az  = Math.atan2(pos.x, -pos.z) * (180 / Math.PI);       // azimuth in degrees
+  const el  = Math.asin(Math.min(1, Math.max(-1, pos.y / dist))) * (180 / Math.PI); // elevation
+  const itd = (0.085 * Math.sin(az * Math.PI / 180) / 343) * 1e6; // ITD in µs
+  const ild = 6.0 * Math.abs(Math.sin(az * Math.PI / 180));         // ILD in dB (approx)
+
+  return { az, el, dist, itd, ild };
+}
+
+// ── STEP 14: HRTF sphere vertex color update ─────────────────────────────────
+/*
+ * Each frame, for each vertex on the HRTF sphere, compute the analytical ILD
+ * at that direction given the CURRENT source azimuth. The color reflects how
+ * much the HRTF amplifies or attenuates the sound from each direction —
+ * centered on where the source currently is.
+ * viridisColor() maps a [0,1] value to the viridis colormap (blue→green→yellow→red).
+ */
+function updateHRTFSphere(srcPos) {
+  const geo   = hrtfSphere.geometry;
+  const colAttr = geo.attributes.color;
+  const dirs  = hrtfSphere.userData.vertexDirs;
+
+  // Source direction unit vector (normalized)
+  const srcDir = srcPos.clone().normalize();
+
+  for (let i = 0; i < dirs.length; i++) {
+    const vdir  = dirs[i];
+    // Dot product between vertex direction and source direction: 1 when aligned
+    const dot   = THREE.MathUtils.clamp(vdir.dot(srcDir), -1, 1);
+    // Map [-1, 1] to [0, 1] for the colormap
+    const t     = (dot + 1) * 0.5;
+    const col   = viridisColor(t);
+    colAttr.setXYZ(i, col.r, col.g, col.b);
+  }
+  colAttr.needsUpdate = true;
+}
+
+// Viridis-inspired colormap: perceptually uniform, blue→green→yellow→red
+// Implemented as a piecewise linear interpolation through 5 key colors
+function viridisColor(t) {
+  const stops = [
+    [0.267, 0.005, 0.329],  // t=0.0 — dark purple-blue
+    [0.128, 0.566, 0.551],  // t=0.25 — teal
+    [0.370, 0.788, 0.384],  // t=0.5 — green
+    [0.993, 0.906, 0.144],  // t=0.75 — yellow
+    [0.993, 0.906, 0.144]   // t=1.0 — yellow (capped — full viridis ends at yellow)
+  ];
+  const n = stops.length - 1;
+  const i = Math.min(Math.floor(t * n), n - 1);
+  const f = t * n - i;
+  const a = stops[i], b = stops[i + 1];
+  return new THREE.Color(
+    a[0] + f * (b[0] - a[0]),
+    a[1] + f * (b[1] - a[1]),
+    a[2] + f * (b[2] - a[2])
+  );
+}
+
+// ── STEP 15: Trail visualization update ──────────────────────────────────────
+/*
+ * Ring buffer: trailWriteIdx advances each frame, wrapping at TRAIL_LEN.
+ * The draw range goes from 0 to min(frame, TRAIL_LEN) until the buffer fills.
+ * Color: fades from accent (recent) to transparent (old) using alpha in the
+ * vertex color attribute. Alpha = (position_in_buffer / TRAIL_LEN).
+ */
+function updateTrail(pos) {
+  const posAttr = trailLine.geometry.attributes.position;
+  const colAttr = trailLine.geometry.attributes.color;
+
+  // Write current position at the write index
+  posAttr.setXYZ(trailWriteIdx, pos.x, pos.y, pos.z);
+
+  // Recolor entire trail: each point's alpha decreases with age
+  const totalPts = Math.min(trailLine.geometry.drawRange.count + 1, TRAIL_LEN);
+  for (let i = 0; i < totalPts; i++) {
+    // Age: how far is this point from the write head?
+    const age   = ((trailWriteIdx - i + TRAIL_LEN) % TRAIL_LEN) / TRAIL_LEN;
+    const alpha = 1.0 - age; // recent = bright, old = dark
+    // Accent color: #4fc3f7 = r:0.31 g:0.76 b:0.97
+    colAttr.setXYZ(i, 0.31 * alpha, 0.76 * alpha, 0.97 * alpha);
+  }
+
+  trailWriteIdx = (trailWriteIdx + 1) % TRAIL_LEN;
+  posAttr.needsUpdate = true;
+  colAttr.needsUpdate = true;
+  trailLine.geometry.setDrawRange(0, Math.min(totalPts + 1, TRAIL_LEN));
+}
+
+// ── STEP 16: Animation loop ───────────────────────────────────────────────────
+/*
+ * CONCEPT: Animation loop order of operations
+ * The order matters:
+ *   1. clock.getDelta() — time since last frame
+ *   2. Source trajectory: advance orbitTime, compute new position
+ *   3. Source mesh position update (visual)
+ *   4. Resonance source position update (audio) — MUST stay in sync with visual
+ *   5. StereoPanner update — pan = sin(azimuth) for the comparison mode
+ *   6. HRTF sphere update (vertex colors)
+ *   7. Trail update (ring buffer)
+ *   8. AnalyserNode RMS read — drives emissive intensity
+ *   9. Source mesh emissive update (visual pulse)
+ *  10. HUD readout update (DOM)
+ *  11. composer.render() (or renderer.render() as fallback)
+ *
+ * CONCEPT: setFromMatrix() — why the matrix approach
+ * resonanceSource.setFromMatrix(sourceMesh.matrixWorld) reads the final
+ * world-space transform of the source mesh from Three.js. This is correct
+ * even if sourceMesh is a child of a group or parent with its own transform.
+ * We call sourceMesh.updateMatrixWorld() first to ensure the matrix is current
+ * (the Three.js render loop updates matrices lazily).
+ */
+function startRenderLoop() {
+  function loop() {
+    requestAnimationFrame(loop);
+
+    const dt = clock.getDelta();
+
+    if (isRunning) {
+      orbitTime += dt;
+
+      // 1. Source position from trajectory
+      const srcPos = getTrajectoryPosition(orbitTime);
+
+      // 2. Update visual objects
+      sourceMesh.position.copy(srcPos);
+      sourceHalo.position.copy(srcPos);
+      sourceLight.position.copy(srcPos);
+
+      // 3. Sync Resonance Audio source position using the matrix approach
+      //    setFromMatrix reads position AND orientation from the world transform.
+      sourceMesh.updateMatrixWorld(true);
+      if (resonanceSource) {
+        resonanceSource.setFromMatrix(sourceMesh.matrixWorld);
+      }
+
+      // 4. Update StereoPannerNode for the comparison mode
+      //    pan = sin(azimuth) maps the horizontal angle to left-right pan law
+      if (stereoPanner) {
+        const az = Math.atan2(srcPos.x, -srcPos.z);
+        stereoPanner.pan.setTargetAtTime(
+          Math.sin(az),
+          audioContext ? audioContext.currentTime : 0,
+          0.016 // 1-frame time constant — smooth but fast
+        );
+      }
+
+      // 5. HRTF sphere visualization
+      updateHRTFSphere(srcPos);
+
+      // 6. Trail
+      updateTrail(srcPos);
+
+      // 7. RMS from AnalyserNode → emissive intensity
+      if (analyser) {
+        analyser.getByteFrequencyData(rmsBuffer);
+        let sum = 0;
+        for (let i = 0; i < rmsBuffer.length; i++) sum += rmsBuffer[i] * rmsBuffer[i];
+        const rms = Math.sqrt(sum / rmsBuffer.length) / 255; // normalize to [0,1]
+        const emissiveI = 0.1 + rms * 2.4; // map RMS to [0.1, 2.5] per plan spec
+        const opacity   = 0.05 + rms * 0.3; // map RMS to [0.05, 0.35]
+
+        sourceMesh.material.emissiveIntensity = emissiveI;
+        sourceHalo.material.opacity           = opacity;
+        sourceLight.intensity                 = rms * 2.5;
+      }
+
+      // 8. HUD readout
+      const hrtf = computeHRTFReadout(srcPos);
+      document.getElementById('hudAzimuth').textContent  = hrtf.az.toFixed(1) + '°';
+      document.getElementById('hudElevation').textContent = hrtf.el.toFixed(1) + '°';
+      document.getElementById('hudDistance').textContent  = hrtf.dist.toFixed(2) + ' m';
+      document.getElementById('hudITD').textContent       = hrtf.itd.toFixed(0) + ' µs';
+      document.getElementById('hudILD').textContent       = hrtf.ild.toFixed(1) + ' dB';
+
+      // 9. Slow gentle camera orbit for the third-person view
+      //    The camera orbits around the head so the student sees the source move
+      const camOrbit = orbitTime * 0.07; // very slow
+      camera.position.set(
+        4 * Math.sin(camOrbit),
+        2.0 + 0.5 * Math.sin(camOrbit * 0.4),
+        4 * Math.cos(camOrbit)
+      );
+      camera.lookAt(0, 1.0, 0); // look at the head
+
+    }
+
+    // 10. Render
+    if (composer) {
+      composer.render();
+    } else {
+      renderer.render(scene, camera);
+    }
+  }
+
+  loop();
+}
+
+// ── STEP 17: Trajectory and speed controls ───────────────────────────────────
+
+function setTrajectory(mode) {
+  trajectoryMode = mode;
+
+  // Update mode card UI
+  document.querySelectorAll('.mode-card').forEach(el => el.classList.remove('active'));
+  document.getElementById('mode-' + mode).classList.add('active');
+  document.getElementById('hudMode').textContent =
+    { equatorial: 'Equatorial', elevation: 'Elevation Sweep', figure8: 'Figure-8', free: 'Free Roam' }[mode];
+
+  // Rebuild free-roam curve on each selection (new random path)
+  if (mode === 'free') buildFreeCurve();
+}
+
+function setSpeed(val) {
+  orbitSpeed = parseFloat(val);
+  document.getElementById('speedVal').textContent = orbitSpeed.toFixed(2) + '×';
+}
+
+// ── STEP 18: Fullscreen ──────────────────────────────────────────────────────
+/*
+ * CONCEPT: Fullscreen API
+ * requestFullscreen() on the canvas wrapper makes it fill the entire screen.
+ * The CSS rule .canvas-wrapper:fullscreen { width:100vw; height:100vh; aspect-ratio:unset; }
+ * overrides the 16:9 constraint. The resize handler (below) updates the
+ * renderer and composer to match the new dimensions.
+ */
+function toggleFullscreen() {
+  const wrapper = document.getElementById('canvasWrapper');
+  if (!document.fullscreenElement) {
+    wrapper.requestFullscreen().catch(err => {
+      console.warn('Fullscreen request failed:', err.message);
+    });
+  } else {
+    document.exitFullscreen();
+  }
+}
+
+// ── STEP 19: Resize handler ──────────────────────────────────────────────────
+/*
+ * CONCEPT: Why the composer must also be resized
+ * EffectComposer creates internal WebGL render targets at a fixed size.
+ * If only the renderer is resized and the composer is not, the bloom pass
+ * operates at the old resolution and the final output is blurry.
+ * Both renderer.setSize() AND composer.setSize() must be called on resize.
+ */
+function onResize() {
+  const wrapper = document.getElementById('canvasWrapper');
+  const W = wrapper.clientWidth;
+  const H = wrapper.clientHeight;
+
+  camera.aspect = W / H;
+  camera.updateProjectionMatrix();
+  renderer.setSize(W, H);
+  if (composer) composer.setSize(W, H);
+}
+
+// ResizeObserver watches the wrapper element directly
+// This fires on both window resize AND fullscreen transitions
+new ResizeObserver(onResize).observe(document.getElementById('canvasWrapper'));
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Fix for the extra scene = new THREE.Clock() assignment above
+// (defensive: if scene was overwritten, re-create properly)
+// This block runs after the function declarations resolve
+if (!(scene instanceof THREE.Scene)) {
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x07080d);
+}
+</script>
+
+</body>
+</html>
