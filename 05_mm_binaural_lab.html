@@ -4,6 +4,21 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Demo 1: Binaural Lab — Multimediaprogrammierung</title>
+<!--
+  Importmap: aliases 'three' so that the ES-module postprocessing addons
+  (EffectComposer, UnrealBloomPass, OutputPass) resolve to the same URL as the
+  UMD bundle loaded dynamically below. Without this, the browser would fetch a
+  second copy of Three.js for the addons, creating two separate class hierarchies
+  and breaking instanceof checks inside the addon code.
+-->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+  }
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -844,15 +859,14 @@ footer a:hover { text-decoration: underline; }
 
 <!--
   ── LIBRARY LOADING STRATEGY ──
-  Three.js and Resonance Audio are UMD bundles (browser globals).
-  They must be loaded as <script> tags before the inline script that uses them.
-  Exact version pins — never @latest. Versions known-good as of 2025.
-  Three.js r165: THREE global + OrbitControls via addons importmap.
-  Resonance Audio 1.0.0: ResonanceAudio global.
-  PostProcessing (EffectComposer, UnrealBloomPass, OutputPass): Three.js addons.
+  All libraries are loaded dynamically inside DOMContentLoaded via a helper that
+  injects a <script> tag and waits for load/error events. This lets the loading
+  overlay display progress and show a clear error if a CDN is unreachable.
+  Primary CDN: cdn.jsdelivr.net (consistent with the ES-module addon imports below).
+  Resonance Audio 1.0.0 UMD: also on jsdelivr.
+  PostProcessing (EffectComposer, UnrealBloomPass, OutputPass): Three.js JSM addons
+  loaded via dynamic import() — these are not available as UMD bundles.
 -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r165/three.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/resonance-audio@1.0.0/build/resonance-audio.min.js"></script>
 
 <script>
 /*
@@ -948,34 +962,53 @@ function setProgress(pct, label) {
 
 // ── STEP 2: Initialization on page load ─────────────────────────────────────
 
+// ── Dynamic script loader ────────────────────────────────────────────────────
+// Injects a <script src> tag and returns a Promise that resolves on load or
+// rejects on error. This gives us progress feedback and clean error handling
+// without blocking HTML parsing with synchronous <script> tags.
+function loadScript(url) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = url;
+    s.onload  = resolve;
+    s.onerror = () => reject(new Error('Failed to load: ' + url));
+    document.head.appendChild(s);
+  });
+}
+
 window.addEventListener('DOMContentLoaded', async () => {
-  setProgress(10, 'Three.js ready');
+  setProgress(5, 'Loading Three.js…');
 
-  // Verify that Three.js loaded correctly.
-  // If the CDN failed, THREE will be undefined.
-  if (typeof THREE === 'undefined') {
-    document.getElementById('loadingStatus').textContent = '⚠ Three.js failed to load. Check your network.';
+  // ── Load Three.js core (UMD → window.THREE) ──
+  try {
+    await loadScript('https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.min.js');
+  } catch (e) {
+    document.getElementById('loadingStatus').textContent =
+      '⚠ Three.js failed to load. Check your network connection.';
     return;
   }
+  setProgress(30, 'Loading Resonance Audio…');
 
-  // Verify that Resonance Audio loaded correctly.
-  if (typeof ResonanceAudio === 'undefined') {
-    document.getElementById('loadingStatus').textContent = '⚠ Resonance Audio failed to load. Check your network.';
+  // ── Load Resonance Audio (UMD → window.ResonanceAudio) ──
+  try {
+    await loadScript('https://cdn.jsdelivr.net/npm/resonance-audio@1.0.0/build/resonance-audio.min.js');
+  } catch (e) {
+    document.getElementById('loadingStatus').textContent =
+      '⚠ Resonance Audio failed to load. Check your network connection.';
     return;
   }
-
-  setProgress(30, 'Initializing Three.js renderer…');
+  setProgress(50, 'Initializing Three.js renderer…');
   await new Promise(r => setTimeout(r, 80)); // yield to browser paint
 
   initThree();
-  setProgress(60, 'Building scene…');
+  setProgress(70, 'Building scene…');
   await new Promise(r => setTimeout(r, 80));
 
   buildScene();
   setProgress(85, 'Setting up post-processing…');
   await new Promise(r => setTimeout(r, 80));
 
-  initPostProcessing();
+  await initPostProcessing();
   setProgress(100, 'Ready');
   await new Promise(r => setTimeout(r, 300));
 
@@ -1023,7 +1056,6 @@ function initThree() {
   camera.position.set(0, 1.6, 4);
   camera.lookAt(0, 0, 0);
 
-  scene = new THREE.Clock();     // will be overwritten below — keep for clarity
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x07080d); // near-black with blue-black tint
 
@@ -1118,7 +1150,7 @@ function buildScene() {
   // Left wall wedges
   addWedges(scene, 10, 4, 0.75, 0.08, 0, Math.PI/2, 0, -3.95, 1.6, 0);
   // Right wall wedges
-  addWedges(scene, scene, 10, 4, 0.75, 0.08, 0, -Math.PI/2, 0, 3.95, 1.6, 0);
+  addWedges(scene, 10, 4, 0.75, 0.08, 0, -Math.PI/2, 0, 3.95, 1.6, 0);
 
   // ── Listener head ─────────────────────────────────────────────────────────
   /*
@@ -1320,11 +1352,14 @@ async function initPostProcessing() {
     const W = wrapper.clientWidth;
     const H = wrapper.clientHeight;
 
-    // Dynamic ES module import — these are Three.js addons (not in the main bundle)
-    const { EffectComposer } = await import('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/EffectComposer.js');
-    const { RenderPass }     = await import('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/RenderPass.js');
-    const { UnrealBloomPass }= await import('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/UnrealBloomPass.js');
-    const { OutputPass }     = await import('https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/postprocessing/OutputPass.js');
+    // Dynamic ES module imports via importmap aliases.
+    // The importmap at the top of <head> resolves 'three' and 'three/addons/'
+    // to the same jsdelivr URLs used by the UMD bundle loaded above, so all
+    // Three.js classes share a single prototype chain — no duplicate-instance issues.
+    const { EffectComposer } = await import('three/addons/postprocessing/EffectComposer.js');
+    const { RenderPass }     = await import('three/addons/postprocessing/RenderPass.js');
+    const { UnrealBloomPass }= await import('three/addons/postprocessing/UnrealBloomPass.js');
+    const { OutputPass }     = await import('three/addons/postprocessing/OutputPass.js');
 
     composer  = new EffectComposer(renderer);
     composer.addPass(new RenderPass(scene, camera));
@@ -1911,17 +1946,11 @@ function onResize() {
 
 // ResizeObserver watches the wrapper element directly
 // This fires on both window resize AND fullscreen transitions
-new ResizeObserver(onResize).observe(document.getElementById('canvasWrapper'));
+// Guard: only call onResize once camera has been initialised (DOMContentLoaded → initThree)
+new ResizeObserver(() => { if (camera) onResize(); }).observe(document.getElementById('canvasWrapper'));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-// Fix for the extra scene = new THREE.Clock() assignment above
-// (defensive: if scene was overwritten, re-create properly)
-// This block runs after the function declarations resolve
-if (!(scene instanceof THREE.Scene)) {
-  scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x07080d);
-}
+// (scene is initialised inside initThree() — no inline guard needed here)
 </script>
 
 </body>
