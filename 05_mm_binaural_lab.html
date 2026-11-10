@@ -5,11 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Demo 1: Binaural Lab — Multimediaprogrammierung</title>
 <!--
-  Importmap: aliases 'three' so that the ES-module postprocessing addons
-  (EffectComposer, UnrealBloomPass, OutputPass) resolve to the same URL as the
-  UMD bundle loaded dynamically below. Without this, the browser would fetch a
-  second copy of Three.js for the addons, creating two separate class hierarchies
-  and breaking instanceof checks inside the addon code.
+  Importmap: all Three.js references (main code + postprocessing addons) resolve
+  to the same ES module URL — one copy, one prototype chain, no instanceof bugs.
+  The bootstrap module below (type="module") imports THREE and assigns window.THREE
+  so the non-module inline script can use it as a global.
+  Resonance Audio is a UMD bundle with no ES module build — loaded with defer.
 -->
 <script type="importmap">
 {
@@ -18,6 +18,11 @@
     "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
   }
 }
+</script>
+<!-- Bootstrap: import THREE as ES module → expose as window.THREE for the main script -->
+<script type="module">
+  import * as THREE from 'three';
+  window.THREE = THREE;
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -859,14 +864,13 @@ footer a:hover { text-decoration: underline; }
 
 <!--
   ── LIBRARY LOADING STRATEGY ──
-  All libraries are loaded dynamically inside DOMContentLoaded via a helper that
-  injects a <script> tag and waits for load/error events. This lets the loading
-  overlay display progress and show a clear error if a CDN is unreachable.
-  Primary CDN: cdn.jsdelivr.net (consistent with the ES-module addon imports below).
-  Resonance Audio 1.0.0 UMD: also on jsdelivr.
-  PostProcessing (EffectComposer, UnrealBloomPass, OutputPass): Three.js JSM addons
-  loaded via dynamic import() — these are not available as UMD bundles.
+  Three.js: loaded as ES module via the importmap + bootstrap <script type="module">
+  in <head>. The bootstrap assigns window.THREE for the main (non-module) script.
+  Resonance Audio: UMD bundle — no ES module build available.
+  defer guarantees it runs after HTML parsing; the DOMContentLoaded handler
+  checks window.ResonanceAudio before proceeding.
 -->
+<script defer src="https://cdn.jsdelivr.net/npm/resonance-audio@1.0.0/build/resonance-audio.min.js"></script>
 
 <script>
 /*
@@ -962,46 +966,33 @@ function setProgress(pct, label) {
 
 // ── STEP 2: Initialization on page load ─────────────────────────────────────
 
-// ── Dynamic script loader ────────────────────────────────────────────────────
-// Injects a <script src> tag and returns a Promise that resolves on load or
-// rejects on error. This gives us progress feedback and clean error handling
-// without blocking HTML parsing with synchronous <script> tags.
-function loadScript(url) {
-  return new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = url;
-    s.onload  = resolve;
-    s.onerror = () => reject(new Error('Failed to load: ' + url));
-    document.head.appendChild(s);
-  });
-}
-
 window.addEventListener('DOMContentLoaded', async () => {
-  setProgress(5, 'Loading Three.js…');
+  setProgress(10, 'Loading libraries…');
 
-  // ── Load Three.js core (UMD → window.THREE) ──
-  try {
-    await loadScript('https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.min.js');
-  } catch (e) {
+  // ES modules (type="module") execute after defer scripts but both run at
+  // DOMContentLoaded time. Poll up to 5 s for window.THREE and ResonanceAudio
+  // to be set by their respective loaders before giving up.
+  const deadline = Date.now() + 5000;
+  while ((typeof THREE === 'undefined' || typeof ResonanceAudio === 'undefined') && Date.now() < deadline) {
+    await new Promise(r => setTimeout(r, 50));
+  }
+
+  if (typeof THREE === 'undefined') {
     document.getElementById('loadingStatus').textContent =
-      '⚠ Three.js failed to load. Check your network connection.';
+      '⚠ Three.js failed to load — check your internet connection.';
     return;
   }
-  setProgress(30, 'Loading Resonance Audio…');
-
-  // ── Load Resonance Audio (UMD → window.ResonanceAudio) ──
-  try {
-    await loadScript('https://cdn.jsdelivr.net/npm/resonance-audio@1.0.0/build/resonance-audio.min.js');
-  } catch (e) {
+  if (typeof ResonanceAudio === 'undefined') {
     document.getElementById('loadingStatus').textContent =
-      '⚠ Resonance Audio failed to load. Check your network connection.';
+      '⚠ Resonance Audio failed to load — check your internet connection.';
     return;
   }
-  setProgress(50, 'Initializing Three.js renderer…');
-  await new Promise(r => setTimeout(r, 80)); // yield to browser paint
+
+  setProgress(30, 'Initializing Three.js renderer…');
+  await new Promise(r => setTimeout(r, 80));
 
   initThree();
-  setProgress(70, 'Building scene…');
+  setProgress(60, 'Building scene…');
   await new Promise(r => setTimeout(r, 80));
 
   buildScene();
@@ -1012,11 +1003,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   setProgress(100, 'Ready');
   await new Promise(r => setTimeout(r, 300));
 
-  // Hide loading overlay, show start overlay
   document.getElementById('loadingOverlay').classList.add('hidden');
   document.getElementById('startOverlay').classList.remove('hidden');
 
-  // Start the render loop (without audio — just the Three.js scene)
   startRenderLoop();
 });
 
@@ -1462,54 +1451,149 @@ function initResonance() {
 
 // ── STEP 8: Audio synthesis ───────────────────────────────────────────────────
 /*
- * CONCEPT: Broadband synthesis for HRTF demonstration
- * The source is a 200 Hz sawtooth oscillator amplitude-modulated at 0.5 Hz.
- * - Sawtooth: rich in harmonics (every integer multiple of the fundamental).
- *   At 200 Hz, harmonics extend up to 8–10 kHz — covering the pinna-cue frequency range.
- * - LFO (0.5 Hz sine): a slow amplitude envelope makes the pulse rhythmic and
- *   more audible as the source moves. It also drives the visual emissive pulse.
- * - AnalyserNode: reads the RMS of the signal each frame for the visual effect.
+ * CONCEPT: Professional broadband source for HRTF demonstration
  *
- * CONCEPT: StereoPannerNode as the comparison mode
- * StereoPannerNode.pan ranges from -1 (full left) to +1 (full right).
- * We map source azimuth to pan: pan = sin(azimuth).
- * This is a simple equal-power pan law. It has no elevation encoding, no ITD,
- * no pinna spectral shaping. It is the "flat stereo" that HRTF improves upon.
+ * The ideal HRTF demonstration source must excite ALL three perceptual cues:
+ *   1. ITD  (inter-aural time difference) — most audible with transients / clicks
+ *   2. ILD  (inter-aural level difference) — most audible with broadband energy
+ *   3. Pinna spectral notches — only audible ABOVE 4 kHz (elevation encoding)
+ *
+ * A single sawtooth at 200 Hz fails criterion 3 at high frequencies and has no
+ * transients for criterion 1. This synthesis uses three layers:
+ *
+ * Layer A — Pink-ish filtered noise: ScriptProcessor fills a buffer with white
+ *   noise, then a cascade of two peaking BiquadFilters shapes it toward pink
+ *   noise (-3 dB/octave), giving strong low-mid energy that carries ILD well.
+ *
+ * Layer B — Harmonic stack (100 Hz sawtooth): a sawtooth oscillator whose
+ *   partials extend to 8+ kHz provides the pinna-cue frequency range (4–8 kHz).
+ *   Gain-mixed at 0.3 relative to noise so it adds "body" without dominating.
+ *
+ * Layer C — Periodic click train (4 Hz): a ScriptProcessor generates a brief
+ *   Gaussian-shaped impulse every 250 ms. Clicks are optimal for ITD perception
+ *   because the onset transient has ~sub-millisecond rise time, making the
+ *   interaural delay immediately perceptible.
+ *
+ * All three layers sum into a single masterGain → analyser → audio graph.
+ * The result is a natural-sounding, tonally interesting signal that makes the
+ * HRTF vs Stereo Pan difference strikingly obvious.
+ *
+ * CONCEPT: StereoPannerNode as comparison mode
+ * StereoPannerNode.pan ∈ [-1, +1], driven by sin(azimuth).
+ * It is a pure amplitude pan — no ITD, no elevation, no pinna spectral shaping.
+ * The difference vs HRTF mode is immediately audible, especially on elevation sweep.
  */
 function initAudioSynth() {
-  // Source oscillator: 200 Hz sawtooth
-  oscillator = audioContext.createOscillator();
-  oscillator.type      = 'sawtooth';
-  oscillator.frequency.value = 200;
+  const sr = audioContext.sampleRate;
 
-  // LFO: 0.5 Hz sine — modulates amplitude slowly
+  // ── Layer A: filtered noise (pink-ish) ───────────────────────────────────
+  // AudioWorklet would be ideal but requires HTTPS; ScriptProcessorNode works
+  // reliably for file:// and is sufficient for a 4096-sample buffer.
+  const bufSize  = 4096;
+  const noiseProc = audioContext.createScriptProcessor(bufSize, 0, 1);
+
+  // Pink-noise IIR state (Paul Kellet's pink noise algorithm — accurate to ±0.05 dB)
+  let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
+  noiseProc.onaudioprocess = function(e) {
+    const out = e.outputBuffer.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) {
+      const w = Math.random() * 2 - 1; // white noise sample
+      b0 = 0.99886*b0 + w*0.0555179;
+      b1 = 0.99332*b1 + w*0.0750759;
+      b2 = 0.96900*b2 + w*0.1538520;
+      b3 = 0.86650*b3 + w*0.3104856;
+      b4 = 0.55000*b4 + w*0.5329522;
+      b5 = -0.7616*b5 - w*0.0168980;
+      out[i] = (b0+b1+b2+b3+b4+b5+b6+w*0.5362) * 0.11;
+      b6 = w * 0.115926;
+    }
+  };
+
+  // High-shelf boost at 3 kHz (+6 dB) to boost pinna-cue range energy
+  const noiseShelf = audioContext.createBiquadFilter();
+  noiseShelf.type            = 'highshelf';
+  noiseShelf.frequency.value = 3000;
+  noiseShelf.gain.value      = 6;
+
+  const noiseGainNode = audioContext.createGain();
+  noiseGainNode.gain.value = 0.7;
+
+  noiseProc.connect(noiseShelf);
+  noiseShelf.connect(noiseGainNode);
+
+  // ── Layer B: harmonic stack (100 Hz sawtooth) ─────────────────────────────
+  oscillator = audioContext.createOscillator();
+  oscillator.type            = 'sawtooth';
+  oscillator.frequency.value = 100; // harmonics to 8 kHz+
+
+  // Gentle high-pass to remove sub-bass mud
+  const sawHP = audioContext.createBiquadFilter();
+  sawHP.type            = 'highpass';
+  sawHP.frequency.value = 80;
+  sawHP.Q.value         = 0.5;
+
+  const sawGainNode = audioContext.createGain();
+  sawGainNode.gain.value = 0.25;
+
+  oscillator.connect(sawHP);
+  sawHP.connect(sawGainNode);
+
+  // ── Layer C: click train (4 Hz) ───────────────────────────────────────────
+  // A 4 Hz periodic Gaussian impulse — maximises ITD salience
+  const clickProc = audioContext.createScriptProcessor(bufSize, 0, 1);
+  let clickPhase = 0;
+  const clickPeriod = sr / 4; // samples between clicks (4 Hz)
+  clickProc.onaudioprocess = function(e) {
+    const out = e.outputBuffer.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) {
+      clickPhase++;
+      if (clickPhase >= clickPeriod) clickPhase = 0;
+      // Gaussian envelope: σ = 100 samples → ~2 ms click at 48 kHz
+      const env = Math.exp(-0.5 * Math.pow((clickPhase - 2) / 100, 2));
+      out[i] = env * (clickPhase < 400 ? 1 : 0);
+    }
+  };
+
+  const clickGainNode = audioContext.createGain();
+  clickGainNode.gain.value = 0.5;
+  clickProc.connect(clickGainNode);
+
+  // ── LFO amplitude modulation (0.3 Hz — slow breathe) ─────────────────────
   lfoOsc  = audioContext.createOscillator();
   lfoOsc.type            = 'sine';
-  lfoOsc.frequency.value = 0.5;
+  lfoOsc.frequency.value = 0.3;
 
-  // LFO gain: controls LFO depth — the LFO output (±1) is scaled here
   lfoGain = audioContext.createGain();
-  lfoGain.gain.value = 0.4; // LFO modulates amplitude by ±0.4
+  lfoGain.gain.value = 0.18; // subtle ±18% AM — present but not distracting
 
-  // Carrier gain: DC bias + LFO = oscillates between 0.6 and 1.0
-  const carrierGain = audioContext.createGain();
-  carrierGain.gain.value = 0.6; // DC component
+  const masterGain = audioContext.createGain();
+  masterGain.gain.value = 0.82; // DC bias
 
-  // AnalyserNode: tap the signal post-gain to read RMS for the visual pulse
-  analyser = audioContext.createAnalyser();
-  analyser.fftSize = 64; // small FFT — we only need RMS, not full spectrum
-
-  // LFO → lfoGain → carrierGain.gain (AudioParam modulation)
   lfoOsc.connect(lfoGain);
-  lfoGain.connect(carrierGain.gain);
+  lfoGain.connect(masterGain.gain); // AM modulation via AudioParam
 
-  // oscillator → carrierGain → analyser
-  oscillator.connect(carrierGain);
-  carrierGain.connect(analyser);
+  // Mix all three layers into masterGain
+  noiseGainNode.connect(masterGain);
+  sawGainNode.connect(masterGain);
+  clickGainNode.connect(masterGain);
+
+  // AnalyserNode: larger FFT for better RMS fidelity across the spectrum
+  analyser = audioContext.createAnalyser();
+  analyser.fftSize       = 256;
+  analyser.smoothingTimeConstant = 0.75;
+  rmsBuffer = new Uint8Array(analyser.frequencyBinCount);
+
+  masterGain.connect(analyser);
 
   // StereoPannerNode — the flat-pan comparator
   stereoPanner = audioContext.createStereoPanner();
   stereoPanner.pan.value = 0;
+
+  // Keep references for stop/cleanup
+  oscillator._extraNodes = [noiseProc, noiseShelf, noiseGainNode,
+                             sawHP, sawGainNode,
+                             clickProc, clickGainNode,
+                             masterGain];
 }
 
 // ── STEP 9: Connect the audio graph ─────────────────────────────────────────
@@ -1552,9 +1636,12 @@ function stopDemo() {
   if (!isRunning) return;
   isRunning = false;
 
-  // Stop oscillators gracefully
-  try { oscillator.stop();  } catch(e) {}
-  try { lfoOsc.stop();      } catch(e) {}
+  // Stop oscillators and disconnect all extra nodes from the broadband synth
+  try { oscillator.stop(); } catch(e) {}
+  try { lfoOsc.stop();     } catch(e) {}
+  if (oscillator && oscillator._extraNodes) {
+    oscillator._extraNodes.forEach(n => { try { n.disconnect(); } catch(e) {} });
+  }
 
   // Close AudioContext — releases hardware
   if (audioContext) {
@@ -1594,12 +1681,18 @@ function setAudioMode(mode) {
   if (!audioContext || !hrtfGain) return;
 
   const now = audioContext.currentTime;
-  const FADE = 3.0; // 3-second crossfade duration
+  const FADE = 0.3; // 300 ms crossfade — fast enough to compare, smooth enough for no click
 
+  // setValueAtTime pins the current value before the ramp; without it the
+  // Web Audio scheduler can produce a click on the first ramp in a context.
   if (mode === 'hrtf') {
+    hrtfGain.gain.setValueAtTime(hrtfGain.gain.value, now);
+    stereoGain.gain.setValueAtTime(stereoGain.gain.value, now);
     hrtfGain.gain.linearRampToValueAtTime(1.0, now + FADE);
     stereoGain.gain.linearRampToValueAtTime(0.0, now + FADE);
   } else {
+    hrtfGain.gain.setValueAtTime(hrtfGain.gain.value, now);
+    stereoGain.gain.setValueAtTime(stereoGain.gain.value, now);
     hrtfGain.gain.linearRampToValueAtTime(0.0, now + FADE);
     stereoGain.gain.linearRampToValueAtTime(1.0, now + FADE);
   }
