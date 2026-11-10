@@ -499,10 +499,10 @@ html, body {
 
   <!-- File:// protocol warning + upload strip -->
   <div id="fileProtocolWarn">
-    ⚠ Running locally (file://)<br>
-    Alarm &amp; Beep need MP3 files uploaded below.<br>
-    Noise &amp; Harmonic work without files.<br>
-    Served via GitHub Pages? No upload needed.
+    ⚠ Running as a local file<br>
+    To use <strong>Alarm</strong> &amp; <strong>Beep</strong>, upload the two MP3s below
+    (<code>3411.mp3</code> and <code>1298.mp3</code>).<br>
+    <strong>Noise</strong> &amp; <strong>Harmonic</strong> work without any files.
   </div>
   <div id="uploadStrip">
     <div class="upload-row">
@@ -623,18 +623,19 @@ html, body {
 // All Resonance Audio material preset strings, with display labels,
 // approximate broadband absorption coefficients, and PBR visual properties.
 const MATERIALS = {
-  transparent:               { label: 'Transparent (Anechoic)', alpha: 1.00, roughness: 1.0, metalness: 0.0, color: 0x1a1a2e },
+  transparent:               { label: 'Transparent (Anechoic)', alpha: 1.00, roughness: 0.85, metalness: 0.0, color: 0x3a4a5c },
   acoustic_ceiling_tiles:    { label: 'Acoustic Ceiling Tiles',  alpha: 0.70, roughness: 0.95, metalness: 0.0, color: 0xc8c8b4 },
   brick_bare:                { label: 'Brick — Bare',            alpha: 0.03, roughness: 0.92, metalness: 0.0, color: 0x8b4513 },
   brick_painted:             { label: 'Brick — Painted',         alpha: 0.02, roughness: 0.88, metalness: 0.0, color: 0xd4b896 },
+  carpet:                    { label: 'Carpet',                  alpha: 0.35, roughness: 0.98, metalness: 0.0, color: 0x5a4a3a },
   concrete_block_coarse:     { label: 'Concrete Block — Coarse', alpha: 0.05, roughness: 0.95, metalness: 0.05, color: 0x888880 },
   concrete_block_painted:    { label: 'Concrete Block — Painted',alpha: 0.07, roughness: 0.80, metalness: 0.0, color: 0xb0b0a0 },
-  curtain_heavy:             { label: 'Curtain — Heavy',         alpha: 0.60, roughness: 0.97, metalness: 0.0, color: 0x3d2b1f },
+  curtain_heavy:             { label: 'Curtain — Heavy',         alpha: 0.60, roughness: 0.97, metalness: 0.0, color: 0x6b3d28 },
   fiber_glass_insulation:    { label: 'Fiber Glass Insulation',  alpha: 0.80, roughness: 0.99, metalness: 0.0, color: 0xd4b86a },
   glass_thick:               { label: 'Glass — Thick',           alpha: 0.04, roughness: 0.02, metalness: 0.0, color: 0x9bb8c8 },
   glass_thin:                { label: 'Glass — Thin',            alpha: 0.10, roughness: 0.05, metalness: 0.0, color: 0xadd8e6 },
   grass:                     { label: 'Grass',                   alpha: 0.11, roughness: 0.95, metalness: 0.0, color: 0x3a7d44 },
-  linoleum_on_concrete:      { label: 'Linoleum on Concrete',    alpha: 0.03, roughness: 0.60, metalness: 0.0, color: 0x4a4a3a },
+  linoleum_on_concrete:      { label: 'Linoleum on Concrete',    alpha: 0.03, roughness: 0.60, metalness: 0.0, color: 0x6a6050 },
   marble:                    { label: 'Marble',                  alpha: 0.01, roughness: 0.05, metalness: 0.0, color: 0xe8e0d0 },
   metal:                     { label: 'Metal',                   alpha: 0.03, roughness: 0.25, metalness: 0.9, color: 0x8090a0 },
   parquet_on_concrete:       { label: 'Parquet on Concrete',     alpha: 0.11, roughness: 0.70, metalness: 0.0, color: 0x9b7040 },
@@ -686,12 +687,9 @@ const PRESETS = {
   'Cathedral':       { left:'marble',                 right:'marble',                 front:'marble',                 back:'marble',                  down:'polished_concrete_or_tile', up:'marble'              },
 };
 
-// Carpet is not in Resonance presets by name — map to closest available
-// (using uniform_average_absorption as a stand-in for carpet: α≈0.35)
-// We patch this after the fact in applyResonanceRoom via a material remap.
+// Carpet has no Resonance Audio preset by name — remap to closest available
+// (uniform_average_absorption: α≈0.35 is a good broadband stand-in)
 const RESONANCE_MAT_REMAP = { 'carpet': 'uniform_average_absorption' };
-// And add a visual-only carpet entry so the wall selector shows it nicely
-MATERIALS['carpet'] = { label: 'Carpet', alpha: 0.35, roughness: 0.98, metalness: 0.0, color: 0x5a4a3a };
 
 // Room dimensions (metres)
 const ROOM = { width: 8, height: 3.2, depth: 10 };
@@ -782,9 +780,10 @@ function buildSidebarUI() {
     grid.appendChild(btn);
   });
 
-  // Upload strip for file:// protocol
+  // Upload strip + warning only appear when opened as a local file
   if (isFileProtocol) {
     document.getElementById('uploadStrip').classList.add('visible');
+    document.getElementById('fileProtocolWarn').classList.add('visible');
   }
 }
 
@@ -1037,8 +1036,10 @@ function initThree() {
 // ════════════════════════════════════════════════════════════════════
 function buildScene() {
   // Lighting
-  scene.add(new THREE.AmbientLight(0x101520, 0.5));
+  // Ambient — raised so dark materials stay readable
+  scene.add(new THREE.AmbientLight(0x1a2030, 1.8));
 
+  // Key light — front-top-right, casts shadows
   const keyLight = new THREE.DirectionalLight(0xfff8f0, 1.2);
   keyLight.position.set(2, 4, 3);
   keyLight.castShadow = true;
@@ -1047,6 +1048,20 @@ function buildScene() {
   keyLight.shadow.camera.left  = keyLight.shadow.camera.bottom = -8;
   keyLight.shadow.camera.right = keyLight.shadow.camera.top   =  8;
   scene.add(keyLight);
+
+  // Fill lights from both sides — illuminate left & right walls that the key misses
+  const fillL = new THREE.DirectionalLight(0xc8d8ff, 0.7);
+  fillL.position.set(-ROOM.width, ROOM.height * 0.6, 0);
+  scene.add(fillL);
+
+  const fillR = new THREE.DirectionalLight(0xffd8c0, 0.7);
+  fillR.position.set( ROOM.width, ROOM.height * 0.6, 0);
+  scene.add(fillR);
+
+  // Back fill — softly lights the front wall (facing camera on entry)
+  const fillBack = new THREE.DirectionalLight(0xd0e8ff, 0.5);
+  fillBack.position.set(0, ROOM.height * 0.5, ROOM.depth);
+  scene.add(fillBack);
 
   // Ceiling light strip (emissive plane + rect area light)
   const ceilLight = new THREE.RectAreaLight(0xd4e8ff, 2.0, 5, 1.5);
