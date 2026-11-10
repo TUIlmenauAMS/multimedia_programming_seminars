@@ -32,10 +32,22 @@
                Dereverberation," Proc. Interspeech 2024, pp. 4873-4877.
                https://doi.org/10.21437/Interspeech.2024-153
      License:  CC BY-NC 4.0 — https://creativecommons.org/licenses/by-nc/4.0/
-     Changes:  at playback the file is converted to mono and level-normalised
-               in the browser (the file on disk is unmodified).
+     Changes:  at playback the file is converted to mono, peak-normalised to 0.95,
+               and boosted +6 dB to match synthesised source levels
+               (the file on disk is unmodified).
 
-  3) 3411.mp3 (Alarm) and 1298.mp3 (Beep) — see the original demo materials.
+  3) 3411.mp3 — "Alarm" source
+     Fire alarm / smoke detector sound effect.
+     Source:  https://bigsoundbank.com/detail-3411.html
+     License: BigSoundBank.com — free for personal and commercial use with attribution.
+              See https://bigsoundbank.com/licence.html
+
+  4) 1298.mp3 — "Beep" source
+     Electronic beep / notification sound effect.
+     Source:  https://bigsoundbank.com/detail-1298.html
+     License: BigSoundBank.com — free for personal and commercial use with attribution.
+              See https://bigsoundbank.com/licence.html
+
      Noise and Harmonic sources are synthesised in the browser.
 
   Libraries: three.js (MIT), Google Resonance Audio (Apache-2.0).
@@ -663,6 +675,16 @@ html, body {
     <div class="sb-credits">
       <div class="preset-label">Audio Credits</div>
       <div class="credit-item">
+        <strong>🚨 Alarm</strong> — Fire alarm sound effect.
+        <a href="https://bigsoundbank.com/detail-3411.html" target="_blank" rel="noopener">BigSoundBank.com #3411 ↗</a>.
+        Free with attribution.
+      </div>
+      <div class="credit-item">
+        <strong>🔔 Beep</strong> — Electronic beep sound effect.
+        <a href="https://bigsoundbank.com/detail-1298.html" target="_blank" rel="noopener">BigSoundBank.com #1298 ↗</a>.
+        Free with attribution.
+      </div>
+      <div class="credit-item">
         <strong>🎻 Bruckner</strong> — Symphony No. 8, 2nd mvt., anechoic recording.
         J. Pätynen, V. Pulkki &amp; T. Lokki, Aalto University.
         “Anechoic recording system for symphony orchestra,” <em>Acta Acustica united with Acustica</em> 94(6), 2008.
@@ -673,12 +695,12 @@ html, body {
         <strong>🗣 Speech</strong> — EARS dataset, speaker p020 (freeform).
         J. Richter et al., “EARS: An Anechoic Fullband Speech Dataset…,” <em>Interspeech 2024</em>.
         <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a>.
-        Converted to mono and level-normalised.
+        Converted to mono and level-normalised at playback.
         <a href="https://sp-uhh.github.io/ears_dataset/" target="_blank" rel="noopener">Source ↗</a>
       </div>
     </div>
 
-  </div><!-- /#sb-scroll -->
+      </div><!-- /#sb-scroll -->
 
 </div>
 
@@ -887,20 +909,26 @@ const isFileProtocol = (location.protocol === 'file:');
 const SAMPLE_FILES = {
   alarm:    { file: '3411.mp3' },
   beep:     { file: '1298.mp3' },
-  bruckner: { file: 'br_all.wav',                  mono: true, peak: 0.7 },  // Aalto University
-  speech:   { file: 'p020_freeform_speech_01.wav', mono: true, peak: 0.7 },  // EARS dataset
+  bruckner: { file: 'br_all.wav',                  mono: true, peak: 0.95 },  // Aalto University
+  speech:   { file: 'p020_freeform_speech_01.wav', mono: true, peak: 0.95 },  // EARS dataset
 };
 const mp3Ready = { alarm: false, beep: false, bruckner: false, speech: false };
 
 // Short credit line shown under the source chips when a source is selected
 const SOURCE_CREDITS = {
+  alarm:    'Fire alarm sound effect · ' +
+            '<a href="https://bigsoundbank.com/detail-3411.html" target="_blank" rel="noopener">BigSoundBank.com #3411</a> · ' +
+            'Free with attribution.',
+  beep:     'Electronic beep sound effect · ' +
+            '<a href="https://bigsoundbank.com/detail-1298.html" target="_blank" rel="noopener">BigSoundBank.com #1298</a> · ' +
+            'Free with attribution.',
   bruckner: 'Bruckner, Symphony No. 8, 2nd mvt. · anechoic recording by J. Pätynen, V. Pulkki &amp; T. Lokki, ' +
             '<a href="https://users.aalto.fi/~ktlokki/Sinfrec/sinfrec.html" target="_blank" rel="noopener">Aalto University</a>. ' +
             'Free for academic research.',
   speech:   'EARS dataset, speaker p020 (freeform) · Richter et al., Interspeech 2024 · ' +
             '<a href="https://sp-uhh.github.io/ears_dataset/" target="_blank" rel="noopener">EARS</a>, ' +
             '<a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a>. ' +
-            'Converted to mono &amp; level-normalised.',
+            'Converted to mono &amp; level-normalised at playback.',
 };
 
 // Decode a file's ArrayBuffer; optionally downmix to mono and peak-normalise.
@@ -1522,7 +1550,22 @@ function buildSourceNode(type) {
 
   if (type in SAMPLE_FILES && sampleBuffers[type]) {
     const bs = audioContext.createBufferSource();
-    bs.buffer = sampleBuffers[type]; bs.loop = true; sourceNode = bs;
+    bs.buffer = sampleBuffers[type]; bs.loop = true;
+    // WAV anechoic recordings have a low RMS relative to peak; boost +6 dB to
+    // match the perceived loudness of the synthesised Noise / Harmonic sources.
+    // MP3 files (alarm, beep) are already loudness-normalised and don't need this.
+    const needsBoost = (type === 'bruckner' || type === 'speech');
+    if (needsBoost) {
+      const wavGain = audioContext.createGain();
+      wavGain.gain.value = 2.0; // +6 dB
+      bs.connect(wavGain);
+      sourceNode = wavGain;
+      sourceNode._extraNodes = [bs];
+      sourceNode.stop  = () => { try { bs.stop(); } catch(e) {} };
+      sourceNode.start = () => bs.start();
+    } else {
+      sourceNode = bs;
+    }
   } else if (type in SAMPLE_FILES && window['_' + type + 'AB']) {
     // Buffer not yet decoded — decode now (async), fall back to noise meanwhile
     decodeSample(type, window['_' + type + 'AB']).then(buf => {
