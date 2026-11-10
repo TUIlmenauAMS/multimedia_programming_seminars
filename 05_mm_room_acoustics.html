@@ -364,6 +364,7 @@ html, body {
   text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 7px;
 }
 .preset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.preset-btn.active { border-color: var(--accent2); color: var(--accent2); background: rgba(167,139,250,0.08); font-weight: 500; }
 .preset-btn {
   font-family: var(--mono); font-size: 10px; color: var(--muted);
   background: var(--surface2); border: 1px solid var(--border2);
@@ -728,11 +729,14 @@ html, body {
 
   <div class="hud-row">
     <span class="hud-row-label">Room</span>
-    <span class="hud-row-value accent">8 × 3.2 × 10 m</span>
+    <span class="hud-row-value accent" id="hudDims">8 × 3.2 × 10 m</span>
   </div>
   <div class="hud-row">
     <span class="hud-row-label">Volume</span>
-    <span class="hud-row-value">256 m³</span>
+    <span class="hud-row-value" id="hudVol">256 m³</span>
+  </div>
+  <div class="hud-row" id="hudPresetRow" style="margin-top:2px;">
+    <span class="hud-row-label" style="color:var(--muted);font-size:9px;" id="hudPresetDesc"></span>
   </div>
   <div class="hud-row">
     <span class="hud-row-label">Source dist.</span>
@@ -841,28 +845,93 @@ let lastResonanceMaterials = null;
 // Track which preset is currently active (null = custom)
 let activePresetName = 'Anechoic';
 
-// Room presets — spaced across the full RT60 spectrum for clearly audible differences
+// ── Each preset carries:
+//    dims  : { width, height, depth } in metres
+//    desc  : one-line teaching note shown in the HUD
+//    left/right/front/back/down/up : Resonance Audio material strings
 const PRESETS = {
-  // ~∞ — perfectly dead, no reflections
-  'Anechoic':        { left:'transparent',            right:'transparent',            front:'transparent',            back:'transparent',            down:'transparent',            up:'transparent'            },
-  // ~0.2 s — heavily treated recording booth: thick absorbers everywhere
-  'Vocal Booth':     { left:'fiber_glass_insulation', right:'fiber_glass_insulation', front:'curtain_heavy',          back:'fiber_glass_insulation', down:'carpet',                 up:'acoustic_ceiling_tiles'  },
-  // ~0.6 s — typical treated studio with wood and soft furnishings
-  'Wood Studio':     { left:'wood_panel',             right:'curtain_heavy',          front:'plywood_panel',          back:'curtain_heavy',           down:'parquet_on_concrete',   up:'acoustic_ceiling_tiles'  },
-  // ~1.5 s — mid-size lecture hall: plaster walls, lino floor, some ceiling treatment
-  'Lecture Hall':    { left:'plaster_rough',          right:'plaster_rough',          front:'concrete_block_painted', back:'plaster_smooth',          down:'linoleum_on_concrete',  up:'acoustic_ceiling_tiles'  },
-  // ~3.0 s — reverberant brick church: hard surfaces, wooden pews implied by floor
-  'Brick Church':    { left:'brick_bare',             right:'brick_bare',             front:'brick_painted',          back:'brick_bare',              down:'parquet_on_concrete',   up:'plaster_rough'           },
-  // ~6+ s — massive stone cathedral / marble palace: extremely live
-  'Cathedral':       { left:'marble',                 right:'marble',                 front:'marble',                 back:'marble',                  down:'polished_concrete_or_tile', up:'marble'              },
+  // ── Dead / reference ──────────────────────────────────────────────
+  'Anechoic': {
+    dims:  { width: 8,   height: 3.2,  depth: 10  },
+    desc:  'Zero reflections — reference for all other rooms',
+    left:'transparent', right:'transparent', front:'transparent',
+    back:'transparent', down:'transparent',  up:'transparent',
+  },
+
+  // ── Very small + very absorptive ──────────────────────────────────
+  'Wardrobe': {
+    dims:  { width: 1.4, height: 2.2,  depth: 1.0 },
+    desc:  'Tiny box + heavy absorption → near-anechoic but boxy',
+    left:'curtain_heavy', right:'curtain_heavy', front:'curtain_heavy',
+    back:'curtain_heavy', down:'carpet',         up:'fiber_glass_insulation',
+  },
+
+  // ── Small + very hard (all parallel surfaces) ─────────────────────
+  'Tiled Bathroom': {
+    dims:  { width: 2.5, height: 2.4,  depth: 3.0 },
+    desc:  'Small hard box → dense ringy flutter reverb',
+    left:'polished_concrete_or_tile', right:'polished_concrete_or_tile',
+    front:'polished_concrete_or_tile', back:'polished_concrete_or_tile',
+    down:'polished_concrete_or_tile', up:'polished_concrete_or_tile',
+  },
+
+  // ── Tiny metallic resonance chamber ──────────────────────────────
+  'Metal Drum': {
+    dims:  { width: 0.7, height: 0.65, depth: 0.7  },
+    desc:  'Sub-metre metal box → pitched modal resonance',
+    left:'metal', right:'metal', front:'metal',
+    back:'metal', down:'metal',  up:'metal',
+  },
+
+  // ── Treated studio ────────────────────────────────────────────────
+  'Wood Studio': {
+    dims:  { width: 8,   height: 3.2,  depth: 10  },
+    desc:  'Mixed absorption → warm short reverb ~0.5 s',
+    left:'wood_panel',   right:'curtain_heavy', front:'plywood_panel',
+    back:'curtain_heavy', down:'parquet_on_concrete', up:'acoustic_ceiling_tiles',
+  },
+
+  // ── Wide + low industrial space ───────────────────────────────────
+  'Car Park': {
+    dims:  { width: 30,  height: 2.8,  depth: 50  },
+    desc:  'Wide & low → long horizontal flutter, crushed vertically',
+    left:'concrete_block_coarse', right:'concrete_block_coarse',
+    front:'concrete_block_painted', back:'concrete_block_painted',
+    down:'polished_concrete_or_tile', up:'concrete_block_coarse',
+  },
+
+  // ── Large stone cave ──────────────────────────────────────────────
+  'Cave': {
+    dims:  { width: 22,  height: 14,   depth: 35  },
+    desc:  'Large irregular stone cavity → boomy spaced echoes',
+    left:'concrete_block_coarse', right:'concrete_block_coarse',
+    front:'brick_bare', back:'concrete_block_coarse',
+    down:'water_or_ice_surface', up:'concrete_block_coarse',
+  },
+
+  // ── Concert hall ──────────────────────────────────────────────────
+  'Concert Hall': {
+    dims:  { width: 28,  height: 18,   depth: 48  },
+    desc:  'Large volume + mixed surfaces → smooth ~2 s reverb',
+    left:'wood_panel',    right:'wood_panel',  front:'plaster_rough',
+    back:'curtain_heavy', down:'parquet_on_concrete', up:'wood_ceiling',
+  },
+
+  // ── Massive marble cathedral ──────────────────────────────────────
+  'Cathedral': {
+    dims:  { width: 24,  height: 32,   depth: 80  },
+    desc:  'Huge volume + near-zero absorption → 8+ s reverb tail',
+    left:'marble', right:'marble', front:'marble',
+    back:'marble', down:'polished_concrete_or_tile', up:'marble',
+  },
 };
 
 // Carpet has no Resonance Audio preset by name — remap to closest available
 // (uniform_average_absorption: α≈0.35 is a good broadband stand-in)
 const RESONANCE_MAT_REMAP = { 'carpet': 'uniform_average_absorption' };
 
-// Room dimensions (metres)
-const ROOM = { width: 8, height: 3.2, depth: 10 };
+// Room dimensions (metres) — mutable; updated by applyPreset
+let ROOM = { width: 8, height: 3.2, depth: 10 };
 
 // ════════════════════════════════════════════════════════════════════
 // RUNTIME STATE
@@ -1211,8 +1280,9 @@ function initThree() {
       camera.position.addScaledVector(fwd, -dy * PAN_SENS);
 
       // Clamp to room bounds
-      camera.position.x = Math.max(BOUNDS.xMin, Math.min(BOUNDS.xMax, camera.position.x));
-      camera.position.z = Math.max(BOUNDS.zMin, Math.min(BOUNDS.zMax, camera.position.z));
+      const Bp = getBounds();
+      camera.position.x = Math.max(Bp.xMin, Math.min(Bp.xMax, camera.position.x));
+      camera.position.z = Math.max(Bp.zMin, Math.min(Bp.zMax, camera.position.z));
       camera.position.y = CAM_START.y;
     }
   });
@@ -1225,8 +1295,9 @@ function initThree() {
     fwd.y = 0; fwd.normalize();
     // e.deltaY > 0 = scroll down = move backward; < 0 = scroll up = move forward
     camera.position.addScaledVector(fwd, -e.deltaY * SCROLL_SPD);
-    camera.position.x = Math.max(BOUNDS.xMin, Math.min(BOUNDS.xMax, camera.position.x));
-    camera.position.z = Math.max(BOUNDS.zMin, Math.min(BOUNDS.zMax, camera.position.z));
+    const Bs = getBounds();
+    camera.position.x = Math.max(Bs.xMin, Math.min(Bs.xMax, camera.position.x));
+    camera.position.z = Math.max(Bs.zMin, Math.min(Bs.zMax, camera.position.z));
     camera.position.y = CAM_START.y;
   }, { passive: false });
 
@@ -1306,6 +1377,7 @@ function buildScene() {
   const grid = new THREE.GridHelper(Math.max(ROOM.width, ROOM.depth), 20, 0x1e2535, 0x1e2535);
   grid.material.opacity = 0.5; grid.material.transparent = true;
   grid.position.y = 0.002;
+  grid.userData.isGrid = true;
   scene.add(grid);
 
   // Audio source mesh — positioned at far end of room
@@ -1335,12 +1407,14 @@ function buildScene() {
   const cabinet = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.7, 0.4), cabinetMat);
   cabinet.position.set(SRC_POS.x, 0.35, SRC_POS.z);
   cabinet.castShadow = cabinet.receiveShadow = true;
+  cabinet.userData.isCabinet = true;
   scene.add(cabinet);
 
   // Speaker cone (emissive circle on front face)
   const coneMat = new THREE.MeshStandardMaterial({ color: 0x1a1a2a, emissive: new THREE.Color(0x4fc3f7), emissiveIntensity: 0.1, roughness: 0.5 });
   const cone = new THREE.Mesh(new THREE.CircleGeometry(0.15, 32), coneMat);
   cone.position.set(SRC_POS.x, 0.5, SRC_POS.z + 0.21);
+  cone.userData.isCone = true;
   scene.add(cone);
 }
 
@@ -1659,6 +1733,50 @@ function onWallChange(wallKey, materialKey) {
   updateRT60Display();
 }
 
+// ════════════════════════════════════════════════════════════════════
+// ROOM REBUILD — tears down and recreates all wall meshes + scene objects
+// that depend on ROOM dimensions. Called by applyPreset when dims change.
+// ════════════════════════════════════════════════════════════════════
+function rebuildRoom() {
+  // Remove old wall meshes
+  Object.values(wallMeshes).forEach(m => scene.remove(m));
+  wallMeshes = {};
+
+  // Remove old grid (find by userData tag)
+  scene.children.filter(c => c.userData.isGrid).forEach(c => scene.remove(c));
+
+  // Rebuild walls with new dimensions
+  buildRoom();
+
+  // New grid
+  const grid = new THREE.GridHelper(Math.max(ROOM.width, ROOM.depth) * 1.1, 20, 0x1e2535, 0x1e2535);
+  grid.material.opacity = 0.5; grid.material.transparent = true;
+  grid.position.y = 0.002;
+  grid.userData.isGrid = true;
+  scene.add(grid);
+
+  // Reposition source mesh, halo, light, cabinet, cone
+  SRC_POS = new THREE.Vector3(0, 1.05, -(ROOM.depth / 2 - 1.0));
+  if (sourceMesh)  sourceMesh.position.copy(SRC_POS);
+  if (sourceHalo)  sourceHalo.position.copy(SRC_POS);
+  if (sourceLight) sourceLight.position.copy(SRC_POS);
+
+  // Find and reposition cabinet + cone by userData tags
+  scene.children.filter(c => c.userData.isCabinet).forEach(c => {
+    c.position.set(SRC_POS.x, 0.35, SRC_POS.z);
+  });
+  scene.children.filter(c => c.userData.isCone).forEach(c => {
+    c.position.set(SRC_POS.x, 0.5, SRC_POS.z + 0.21);
+  });
+
+  // Update Resonance source position
+  if (resonanceSource) resonanceSource.setPosition(SRC_POS.x, SRC_POS.y, SRC_POS.z);
+
+  // Reset camera to safe starting position for new room
+  const safeZ = Math.min(3.5, ROOM.depth / 2 - 1.0);
+  camera.position.set(0, CAM_START.y, safeZ);
+}
+
 function applyPreset(presetName) {
   const preset = PRESETS[presetName];
   if (!preset) return;
@@ -1666,26 +1784,49 @@ function applyPreset(presetName) {
   if (activePresetName === presetName) return;
   activePresetName = presetName;
 
+  // Update room dimensions if the preset carries them
+  const dimsChanged = preset.dims && (
+    preset.dims.width  !== ROOM.width  ||
+    preset.dims.height !== ROOM.height ||
+    preset.dims.depth  !== ROOM.depth
+  );
+  if (preset.dims) {
+    ROOM.width  = preset.dims.width;
+    ROOM.height = preset.dims.height;
+    ROOM.depth  = preset.dims.depth;
+  }
+
+  // Update materials state + dropdowns
   WALLS.forEach(wall => {
     const matKey = preset[wall.key];
     currentMaterials[wall.key] = matKey;
-    // Update dropdown
     const sel = document.getElementById('sel-' + wall.key);
     if (sel) sel.value = matKey;
-    // Update Three.js mesh
-    const mesh   = wallMeshes[wall.key];
-    const matDef = MATERIALS[matKey];
-    if (mesh) {
-      mesh.material.color.setHex(matDef.color);
-      mesh.material.roughness = matDef.roughness;
-      mesh.material.metalness = matDef.metalness;
-      mesh.material.side = THREE.DoubleSide;
-      mesh.material.needsUpdate = true;
-    }
   });
+
+  // Rebuild Three.js geometry if dimensions changed, otherwise just repaint walls
+  if (dimsChanged) {
+    rebuildRoom();
+  } else {
+    WALLS.forEach(wall => {
+      const mesh   = wallMeshes[wall.key];
+      const matDef = MATERIALS[currentMaterials[wall.key]];
+      if (mesh) {
+        mesh.material.color.setHex(matDef.color);
+        mesh.material.roughness = matDef.roughness;
+        mesh.material.metalness = matDef.metalness;
+        mesh.material.side = THREE.DoubleSide;
+        mesh.material.needsUpdate = true;
+      }
+    });
+  }
 
   applyResonanceRoom();
   updateRT60Display();
+
+  // Update HUD preset description
+  const descEl = document.getElementById('hudPresetDesc');
+  if (descEl) descEl.textContent = preset.desc || '';
 
   // Mark active preset button
   document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'));
@@ -1696,23 +1837,22 @@ function applyPreset(presetName) {
 // ════════════════════════════════════════════════════════════════════
 // RT60 COMPUTATION (Sabine formula)
 // ════════════════════════════════════════════════════════════════════
-// Surface areas for the room
-const SURFACE_AREAS = {
-  left:  ROOM.height * ROOM.depth,
-  right: ROOM.height * ROOM.depth,
-  front: ROOM.width  * ROOM.height,
-  back:  ROOM.width  * ROOM.height,
-  down:  ROOM.width  * ROOM.depth,
-  up:    ROOM.width  * ROOM.depth,
-};
-
 function computeRT60() {
-  const V = ROOM.width * ROOM.height * ROOM.depth; // 256 m³
+  const V = ROOM.width * ROOM.height * ROOM.depth;
+  // Surface areas derived from current ROOM dimensions
+  const SA = {
+    left:  ROOM.height * ROOM.depth,
+    right: ROOM.height * ROOM.depth,
+    front: ROOM.width  * ROOM.height,
+    back:  ROOM.width  * ROOM.height,
+    down:  ROOM.width  * ROOM.depth,
+    up:    ROOM.width  * ROOM.depth,
+  };
   let A = 0;
   WALLS.forEach(wall => {
     const matKey = currentMaterials[wall.key];
     const alpha = MATERIALS[matKey]?.alpha ?? 0.05;
-    A += alpha * SURFACE_AREAS[wall.key];
+    A += alpha * SA[wall.key];
   });
   if (A < 0.001) return 999;
   return 0.161 * V / A;
@@ -1723,10 +1863,18 @@ function updateRT60Display() {
   const disp = rt60 > 99 ? '∞' : rt60.toFixed(2);
   document.getElementById('hudRT60').textContent = disp;
 
-  // Bar: map 0–8 s range
-  const maxRT = 8;
+  // Scale bar max to the largest possible RT60 (Cathedral ~8–12 s)
+  const maxRT = 12;
+  document.getElementById('hudRT60Max').textContent = maxRT + ' s';
   const pct = Math.min(100, (rt60 / maxRT) * 100);
   document.getElementById('hudRT60Bar').style.width = pct + '%';
+
+  // Room dimensions + volume
+  const W = ROOM.width, H = ROOM.height, D = ROOM.depth;
+  document.getElementById('hudDims').textContent =
+    W + ' × ' + H + ' × ' + D + ' m';
+  const vol = (W * H * D).toFixed(0);
+  document.getElementById('hudVol').textContent = vol + ' m³';
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -1779,12 +1927,15 @@ document.addEventListener('keydown', e => {
 document.addEventListener('keyup', e => { keys[e.code] = false; });
 
 const SPEED = 3.0; // m/s
-const BOUNDS = {
-  xMin: -ROOM.width/2  + 0.3,
-  xMax:  ROOM.width/2  - 0.3,
-  zMin: -ROOM.depth/2  + 0.3,
-  zMax:  ROOM.depth/2  - 0.3,
-};
+// BOUNDS is computed live from the current ROOM dimensions
+function getBounds() {
+  return {
+    xMin: -ROOM.width/2 + 0.3,
+    xMax:  ROOM.width/2 - 0.3,
+    zMin: -ROOM.depth/2 + 0.3,
+    zMax:  ROOM.depth/2 - 0.3,
+  };
+}
 
 function updateNavigation(dt) {
   if (!controls.isLocked) return;
@@ -1796,8 +1947,9 @@ function updateNavigation(dt) {
   if (keys['KeyD'] || keys['ArrowRight']) controls.moveRight(   SPEED * dt);
 
   // AABB collision against room walls — cannot walk through walls
-  camera.position.x = Math.max(BOUNDS.xMin, Math.min(BOUNDS.xMax, camera.position.x));
-  camera.position.z = Math.max(BOUNDS.zMin, Math.min(BOUNDS.zMax, camera.position.z));
+  const B = getBounds();
+  camera.position.x = Math.max(B.xMin, Math.min(B.xMax, camera.position.x));
+  camera.position.z = Math.max(B.zMin, Math.min(B.zMax, camera.position.z));
   camera.position.y = CAM_START.y; // lock eye height
 }
 
@@ -1868,6 +2020,11 @@ function startRenderLoop() {
   }
   loop();
   updateRT60Display(); // initial RT60 display (anechoic → ∞)
+  // Show initial preset description
+  const descEl = document.getElementById('hudPresetDesc');
+  if (descEl && activePresetName && PRESETS[activePresetName]) {
+    descEl.textContent = PRESETS[activePresetName].desc || '';
+  }
 }
 
 // ════════════════════════════════════════════════════════════════════
