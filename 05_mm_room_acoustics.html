@@ -1,7 +1,40 @@
 <!DOCTYPE html>
 <!--
+  ══════════════════════════════════════════════════════════════════════════════
   Demo 2: Room Acoustics Lab — Multimediaprogrammierung, TU Ilmenau
   Demo created by Renato Fera P.
+
+  ── PURPOSE ──────────────────────────────────────────────────────────────────
+  This interactive demo lets students explore how room acoustics affect what
+  we hear. By changing wall materials (and therefore their sound-absorption
+  coefficients) and room geometry, the student observes how reverberation time
+  (RT60) changes and what that sounds and feels like in a 3D space.
+
+  ── TECHNOLOGY STACK ─────────────────────────────────────────────────────────
+  Spatial audio  : Google Resonance Audio — a Web Audio API extension that
+                   uses Ambisonic (higher-order spherical-harmonic) encoding
+                   combined with HRTF (Head-Related Transfer Function) decoding
+                   to simulate 3D binaural audio in the browser.
+  3D scene       : three.js — a WebGL abstraction library.
+  Post-processing: three.js EffectComposer + UnrealBloomPass for the glow
+                   effect around the audio-source sphere.
+
+  ── COORDINATE SYSTEM ────────────────────────────────────────────────────────
+  Three.js uses a right-handed, Y-up coordinate system.  Resonance Audio uses
+  the same convention.  One world unit = one metre throughout the entire file.
+  Origin (0,0,0) is the geometric centre of the room floor.
+
+  ── KEY CONCEPTS TAUGHT ──────────────────────────────────────────────────────
+  • Absorption coefficient (α): fraction of incident sound energy absorbed by
+    a surface. α = 0 → perfect mirror; α = 1 → perfect absorber.
+  • RT60 / T60: the time (in seconds) for sound energy to decay by 60 dB after
+    the source stops. Computed here via Sabine's formula (see computeRT60).
+  • HRTF: Head-Related Transfer Function — the frequency-domain filter that
+    encodes the direction of a sound source as it diffracts around the head,
+    pinnae, and torso. Crucially, it must be listened to through headphones.
+  • Ambisonic order: higher order = more spatial resolution. Order 3 is used
+    here (16 B-format channels), giving good spatial accuracy.
+
   Spatial audio: Google Resonance Audio (Web Audio API) · 3D scene: three.js
 
   ══════════════════════════════════════════════════════════════════
@@ -57,6 +90,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Demo 2: Room Acoustics Lab — Multimediaprogrammierung</title>
+<!--
+  ── IMPORT MAP ───────────────────────────────────────────────────────────────
+  An import map tells the browser how to resolve bare module specifiers such as
+  `import * as THREE from 'three'`.  Without it the browser would not know
+  where to fetch the module from — it only understands full URLs.
+  We pin three.js to an exact version (0.165.0) so the demo does not break
+  if the CDN later publishes a breaking release.
+-->
 <script type="importmap">
 {
   "imports": {
@@ -65,9 +106,21 @@
   }
 }
 </script>
+
+<!--
+  ── ES MODULE BOOTSTRAP ──────────────────────────────────────────────────────
+  Three.js and PointerLockControls are ES modules (they use `export`).
+  The main <script> below is a classic (non-module) script so that all its
+  functions are global — required for the HTML onclick="..." attributes.
+  To bridge the gap we import THREE and PointerLockControls in this tiny
+  module script and attach them to `window`, making them accessible globally.
+  The `defer` attribute on the Resonance Audio <script> tag (see bottom of
+  <body>) means both libraries finish loading before DOMContentLoaded fires.
+-->
 <script type="module">
   import * as THREE from 'three';
   import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+  /* Expose to global scope so the classic script below can access them */
   window.THREE = THREE;
   window._PointerLockControls = PointerLockControls;
 </script>
@@ -75,8 +128,53 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
+/*
+  ══════════════════════════════════════════════════════════════════════════════
+  CSS DESIGN TOKENS (Custom Properties)
+  ══════════════════════════════════════════════════════════════════════════════
+  All colours, typefaces, and layout constants are defined once here on :root
+  and referenced via var(--name) throughout.  Keeping values in one place
+  makes it trivial to retheme the whole UI by editing just this block.
+
+  Colour palette — dark studio aesthetic to stay out of the way of the 3D scene:
+    --bg        : near-black page background (matches the Three.js scene background)
+    --surface   : one step lighter — used for panel backgrounds
+    --surface2  : two steps lighter — used for inputs, chips, preset buttons
+    --border    : subtle separator lines
+    --border2   : slightly stronger borders (interactive states)
+    --text      : default body text — cool near-white
+    --muted     : de-emphasised labels (units, metadata)
+    --accent    : blue — primary interactive highlight
+    --accent2   : violet — secondary highlight (source chips, preset active state)
+    --green     : positive / running state indicator
+    --orange    : warning / mid-range RT60 bar colour
+    --red       : error / stop button / high-reverb bar colour
+
+  Typography:
+    --mono : IBM Plex Mono — monospaced font for numeric readouts and code-like labels
+    --jb   : JetBrains Mono — slightly wider mono face for the large HUD numerics
+    --sans : IBM Plex Sans  — humanist sans for headings and body prose
+
+  Layout:
+    --panel-bg    : semi-transparent panel fill + slight opacity so the 3D scene
+                    bleeds through (glassmorphism effect)
+    --panel-border: very subtle white border on glass panels
+    --panel-blur  : CSS backdrop-filter blur amount
+    --sidebar-w   : fixed width of the left control panel
+    --hud-w       : minimum width of the top-right HUD panel
+    --safe-top/bottom : CSS environment variables for iPhone notch / home bar.
+                        env() returns a pixel value from the browser when the page
+                        is displayed inside the safe area.  The fallback (0px) is
+                        used on non-iOS or desktop browsers.
+*/
+
+/* Box-sizing: border-box means padding and border are included in an element's
+   stated width/height — the default content-box model often causes layout math
+   surprises, so resetting globally is considered best practice. */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
 :root {
+  /* ── Colour palette ── */
   --bg:           #07080d;
   --surface:      #0f1118;
   --surface2:     #161b24;
@@ -89,18 +187,32 @@
   --green:        #34d399;
   --orange:       #fb923c;
   --red:          #f87171;
+
+  /* ── Typography ── */
   --mono:         'IBM Plex Mono', monospace;
   --jb:           'JetBrains Mono', monospace;
   --sans:         'IBM Plex Sans', sans-serif;
+
+  /* ── Glassmorphism panel tokens ── */
   --panel-bg:     rgba(7, 8, 13, 0.88);
   --panel-border: rgba(255,255,255,0.07);
   --panel-blur:   20px;
+
+  /* ── Layout constants ── */
   --sidebar-w:    300px;
   --hud-w:        220px;
+
+  /* ── iOS safe areas — keep content clear of notch / home indicator ── */
   --safe-top:     env(safe-area-inset-top, 0px);
   --safe-bottom:  env(safe-area-inset-bottom, 0px);
 }
 
+/*
+  html + body: full-viewport lock.
+  overflow: hidden prevents the browser's native scrollbar from appearing
+  when Three.js or absolutely positioned UI elements overflow the edge.
+  The 3D canvas is the "page" — there is nothing to scroll.
+*/
 html, body {
   width: 100%; height: 100%;
   overflow: hidden;
@@ -111,7 +223,13 @@ html, body {
   line-height: 1.5;
 }
 
-/* ── Three.js canvas fills the entire viewport ── */
+/*
+  #threeCanvas — the WebGL render target.
+  position:fixed + inset:0 stretches it to exactly the viewport.
+  z-index:0 keeps it behind all UI overlays (z-index ≥ 10).
+  display:block removes the small inline gap browsers add under <canvas>
+  elements (they are treated as inline/replaced elements by default).
+*/
 #threeCanvas {
   position: fixed;
   inset: 0;
@@ -119,7 +237,15 @@ html, body {
   display: block;
 }
 
-/* ── Loading overlay ── */
+/*
+  ── Loading overlay ──────────────────────────────────────────────────────────
+  Covers the entire viewport while libraries load and the scene initialises.
+  z-index:200 puts it above everything else.
+  The .hidden class fades it out (opacity:0) and disables mouse events
+  (pointer-events:none) so clicks pass through to the canvas below.
+  Using opacity for hide/show rather than display:none means we get the
+  smooth 0.4s CSS transition — display changes are not animatable.
+*/
 #loadingOverlay {
   position: fixed;
   inset: 0;
@@ -141,7 +267,15 @@ html, body {
 .lo-bar-fill { height: 100%; width: 0%; background: var(--accent); border-radius: 1px; transition: width 0.3s ease; }
 #loStatus    { font-family: var(--mono); font-size: 11px; color: var(--muted); min-height: 16px; }
 
-/* ── Pointer lock / start overlay ── */
+/*
+  ── Start overlay ────────────────────────────────────────────────────────────
+  Shown after loading completes.  A click on this overlay dismisses it and
+  the user can then press the Start button in the sidebar to begin audio.
+  backdrop-filter:blur creates the frosted-glass look by blurring whatever
+  is rendered behind this element (the 3D canvas).
+  -webkit-backdrop-filter is the vendor-prefixed version required for Safari.
+  z-index:150 — below the loading overlay (200) but above all UI panels (10).
+*/
 #startOverlay {
   position: fixed;
   inset: 0;
@@ -170,7 +304,15 @@ html, body {
   background: var(--surface2);
 }
 
-/* ── Paused overlay (ESC pressed) ── */
+/*
+  ── Pause overlay ────────────────────────────────────────────────────────────
+  Appears when the user exits mouse-drag navigation mode (ESC key or clicking
+  outside the canvas).  Unlike the start overlay it defaults to invisible
+  (opacity:0, pointer-events:none) and becomes visible by gaining .visible.
+  This is the inverse pattern of .hidden used on the start overlay, but both
+  achieve the same result: CSS opacity transition + pointer-events toggle.
+  z-index:140 — just below the start overlay.
+*/
 #pauseOverlay {
   position: fixed;
   inset: 0;
@@ -184,22 +326,32 @@ html, body {
   justify-content: center;
   gap: 10px;
   transition: opacity 0.2s ease;
-  pointer-events: none;
+  pointer-events: none; /* invisible by default — does not capture mouse events */
   opacity: 0;
 }
 #pauseOverlay.visible { opacity: 1; pointer-events: auto; cursor: pointer; }
 .po-title { font-family: var(--sans); font-size: 18px; font-weight: 500; color: #f0f2f7; }
 .po-sub   { font-family: var(--mono); font-size: 12px; color: var(--muted); }
 
-/* ══════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════════════════════════
    LEFT SIDEBAR — material controls
-   ══════════════════════════════════════════════ */
+   ══════════════════════════════════════════════════════════════════════════════
+   The sidebar is a fixed-position column on the left edge.  It is split into
+   two parts:
+     .sb-header  — always visible, pinned to the top of the sidebar
+     #sb-scroll  — the rest of the content, which can scroll independently
+
+   This two-part pattern is a common UI technique: pin what must always be
+   visible, let the rest overflow in its own scroll container.
+   overflow:hidden on #sidebar itself prevents the sidebar as a whole from
+   growing a scrollbar — only #sb-scroll scrolls.
+   ══════════════════════════════════════════════════════════════════════════════ */
 #sidebar {
   position: fixed;
   top: 0; left: 0; bottom: 0;
   width: var(--sidebar-w);
   z-index: 10;
-  background: var(--panel-bg);
+  background: var(--panel-bg);  /* semi-transparent glass panel */
   border-right: 1px solid var(--panel-border);
   backdrop-filter: blur(var(--panel-blur));
   -webkit-backdrop-filter: blur(var(--panel-blur));
@@ -210,12 +362,25 @@ html, body {
   overflow: hidden;
 }
 
-/* sticky top header — always visible */
+/*
+  .sb-header: flex-shrink:0 means this element will never be compressed
+  when the flex container runs out of space — it always takes its full height.
+*/
 .sb-header {
   flex-shrink: 0;
 }
 
-/* everything below the header scrolls as one block */
+/*
+  #sb-scroll: flex:1 means this takes all remaining vertical space after the
+  header.  overflow-y:auto adds a scrollbar only when content is taller than
+  the available space.
+
+  Custom scrollbar styling:
+    scrollbar-width + scrollbar-color : Firefox's simpler API
+    ::-webkit-scrollbar-*             : Chrome/Safari/Edge vendor-prefix API
+  Both are needed for cross-browser support.  We style it thin and muted so
+  it doesn't compete visually with the content.
+*/
 #sb-scroll {
   flex: 1;
   overflow-y: auto;
@@ -271,16 +436,26 @@ html, body {
   padding: 1px 8px; margin-top: 4px;
 }
 
-/* audio controls strip */
+/* Audio controls strip — flex column stacks rows vertically */
 .sb-audio {
   padding: 10px 18px;
   border-bottom: 1px solid var(--panel-border);
   display: flex; flex-direction: column; gap: 8px;
 }
 .sb-row { display: flex; align-items: center; gap: 8px; }
+/* min-width on the label prevents the right-side control from jumping
+   when labels of different lengths are shown */
 .sb-label { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; min-width: 44px; }
 
-/* pill toggle */
+/*
+  Pill toggle — HRTF ↔ Stereo mode selector.
+  The outer .pill-toggle is a rounded container; the inner buttons share the
+  border-radius so the active button fills the pill cleanly.
+  The pattern:  container has padding:2px gap:1px so buttons sit inside the
+  border ring with a tiny gap.  .active gets a filled background; the rest
+  are transparent.  :not(.active) on hover prevents re-styling the active
+  button when the cursor passes over it.
+*/
 .pill-toggle {
   display: inline-flex; background: rgba(0,0,0,0.4);
   border: 1px solid var(--border2); border-radius: 20px; padding: 2px; gap: 1px;
@@ -293,7 +468,11 @@ html, body {
 .pill-toggle button.active { background: var(--accent2); color: #07080d; font-weight: 500; }
 .pill-toggle button:hover:not(.active) { color: var(--text); }
 
-/* source chips */
+/*
+  Source chips — small toggle buttons for picking the audio source.
+  .active state is set by JavaScript (setActiveChip).
+  flex-wrap:wrap allows chips to flow to a second line on narrow viewports.
+*/
 .src-chips { display: flex; gap: 4px; flex-wrap: wrap; }
 .src-chip {
   font-family: var(--mono); font-size: 10px; padding: 3px 10px; border-radius: 20px;
@@ -303,7 +482,14 @@ html, body {
 .src-chip.active { border-color: var(--accent2); color: var(--accent2); background: rgba(167,139,250,0.1); }
 .src-chip:hover:not(.active) { color: var(--text); border-color: var(--border2); }
 
-/* play/stop buttons */
+/*
+  Play / stop / reset buttons.
+  .btn-play is the shared base; .btn-start/.btn-stop/.btn-reset are the
+  variant modifiers.  :disabled reduces opacity and changes cursor to give
+  clear visual feedback that the button cannot be pressed yet.
+  filter:brightness() on hover is a lightweight way to lighten/darken without
+  knowing the button's exact colour at style-writing time.
+*/
 .btn-play {
   display: inline-flex; align-items: center; gap: 5px;
   font-family: var(--mono); font-size: 11px; font-weight: 500;
@@ -331,7 +517,16 @@ html, body {
 }
 .wall-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
 
-/* custom select */
+/*
+  Custom <select> element.
+  By default, <select> elements are styled by the OS and cannot be fully
+  controlled with CSS.  The technique here:
+    1. appearance:none / -webkit-appearance:none  — strips all OS chrome
+    2. Add padding-right:28px to leave space for our custom arrow icon
+    3. Use a ::after pseudo-element on the wrapper to draw the ▾ arrow
+    4. pointer-events:none on the arrow means clicks pass through to the select
+  This gives full visual control while keeping the native dropdown behaviour.
+*/
 .mat-select-wrap { position: relative; }
 .mat-select {
   width: 100%;
@@ -341,7 +536,7 @@ html, body {
   color: var(--text);
   font-family: var(--mono);
   font-size: 11px;
-  padding: 6px 28px 6px 10px;
+  padding: 6px 28px 6px 10px; /* right padding reserves space for the ▾ arrow */
   appearance: none;
   -webkit-appearance: none;
   cursor: pointer;
@@ -350,6 +545,7 @@ html, body {
 }
 .mat-select:hover { border-color: var(--accent); }
 .mat-select:focus { border-color: var(--accent); }
+/* The custom dropdown arrow, absolutely positioned inside the wrapper */
 .mat-select-wrap::after {
   content: '▾';
   position: absolute; right: 9px; top: 50%; transform: translateY(-50%);
@@ -377,7 +573,15 @@ html, body {
 .preset-btn:hover { border-color: var(--accent); color: var(--accent); }
 .preset-btn.active { border-color: var(--accent2); color: var(--accent2); background: rgba(167,139,250,0.08); }
 
-/* file upload strip (file:// protocol) */
+/*
+  Upload strip — only shown when the page is opened as a local file (file://).
+  Browsers block fetch() requests on file:// for security (CORS-equivalent).
+  When detected, we show this strip so the student can manually upload the
+  audio files from their filesystem as a workaround.
+  display:none / .visible:display:block is the simplest show/hide pattern —
+  no CSS transition needed here because the strip does not appear during normal
+  interaction (only on first load on file://).
+*/
 #uploadStrip {
   display: none;
   padding: 8px 18px;
@@ -385,7 +589,7 @@ html, body {
 }
 #uploadStrip.visible { display: block; }
 
-/* file:// warning toast */
+/* Warning toast for file:// protocol — orange tint to signal an advisory */
 #fileProtocolWarn {
   display: none;
   margin: 0 18px 8px;
@@ -411,6 +615,11 @@ html, body {
 }
 .upload-btn:hover { border-color: var(--accent); color: var(--accent); }
 .upload-btn.loaded { border-color: var(--green); color: var(--green); }
+/*
+  Hiding the native <input type="file"> and replacing it with a styled <label>
+  is standard practice.  Clicking the <label> triggers the hidden input.
+  This gives full visual control over the upload button appearance.
+*/
 .upload-btn input[type=file] { display: none; }
 
 /* credits */
@@ -431,9 +640,15 @@ html, body {
 }
 .credit-item strong { color: var(--text); font-weight: 500; }
 
-/* ══════════════════════════════════════════════
-   TOP-RIGHT HUD
-   ══════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════════════════════
+   TOP-RIGHT HUD (Heads-Up Display)
+   ══════════════════════════════════════════════════════════════════════════════
+   Real-time readout panel: RT60, room dimensions, listener position, etc.
+   top: calc(16px + var(--safe-top)) — 16px gap from the top edge PLUS the
+   iOS safe-area inset so it stays clear of the notch on iPhones.
+   The HUD mirrors the same glassmorphism treatment as the sidebar for visual
+   consistency: semi-transparent fill + blur + subtle white border.
+   ══════════════════════════════════════════════════════════════════════════════ */
 #hud {
   position: fixed;
   top: calc(16px + var(--safe-top));
@@ -465,15 +680,30 @@ html, body {
 .hud-row-value.accent { color: var(--accent); }
 .hud-row-value.green  { color: var(--green); }
 
-/* ── RT60 bar visualizer ── */
+/*
+  RT60 bar visualizer — a thin progress bar that shows reverberation time
+  relative to a maximum (12 s, roughly the upper bound for a large cathedral).
+  The gradient green → orange → red visually encodes the perceptual effect:
+    green  = short, controlled reverb (studio, bathroom)
+    orange = moderate (small hall, church)
+    red    = very long reverb (massive stone cathedral)
+  overflow:hidden on the track clips the fill as it shrinks/grows.
+  transition:width 0.4s gives a smooth animation when RT60 changes.
+*/
 .rt60-bar-wrap { margin-top: 8px; }
 .rt60-bar-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 5px; display: flex; justify-content: space-between; }
 .rt60-bar-track { width: 100%; height: 4px; background: var(--border2); border-radius: 2px; overflow: hidden; }
 .rt60-bar-fill  { height: 100%; background: linear-gradient(90deg, var(--green), var(--orange), var(--red)); border-radius: 2px; transition: width 0.4s ease; }
 
-/* ══════════════════════════════════════════════
+/* ══════════════════════════════════════════════════════════════════════════════
    BOTTOM-CENTER — navigation hint
-   ══════════════════════════════════════════════ */
+   ══════════════════════════════════════════════════════════════════════════════
+   Fades out 6 s after playback starts (see scheduleNavHintFade in JS).
+   left:50% + transform:translateX(-50%) is the standard CSS trick for
+   horizontally centring an element of unknown width.
+   pointer-events:none — the hint is purely decorative and must not block
+   mouse clicks on the canvas behind it.
+   ══════════════════════════════════════════════════════════════════════════════ */
 #navHint {
   position: fixed;
   bottom: calc(16px + var(--safe-bottom));
@@ -494,16 +724,29 @@ html, body {
   transition: opacity 0.5s ease;
 }
 #navHint.faded { opacity: 0; }
+/* .hint-key: styled to look like a keyboard key */
 .hint-key { font-family: var(--mono); font-size: 11px; color: var(--muted); border: 1px solid var(--border2); border-radius: 3px; padding: 2px 6px; background: var(--surface2); }
 .hint-sep { color: var(--muted); font-size: 11px; }
 
-/* ── Source energy indicator (bottom-left of HUD) ── */
+/*
+  Source energy bar — driven by the Web Audio AnalyserNode in the render loop.
+  The JS reads RMS (root-mean-square) energy from the FFT buffer every frame
+  and sets this element's width in real time.
+  transition:width 0.05s is intentionally very short (50 ms) so the bar
+  reacts almost instantaneously to transients in the audio signal.
+*/
 .energy-bar-wrap { margin-top: 8px; }
 .energy-bar-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 4px; }
 .energy-bar-track { width: 100%; height: 3px; background: var(--border2); border-radius: 1px; overflow: hidden; }
 .energy-bar-fill  { height: 100%; background: var(--accent2); border-radius: 1px; width: 0%; transition: width 0.05s linear; }
 
-/* ── Crosshair ── */
+/*
+  Crosshair — appears while the user drags on the canvas.
+  Built entirely from CSS using ::before (vertical bar) and ::after (horizontal
+  bar) pseudo-elements, so no image file is needed.  position:fixed + 50%/50%
+  centres it in the viewport regardless of scroll position.
+  z-index:5 — below UI panels (z-index:10) so it does not cover sidebar text.
+*/
 #crosshair {
   position: fixed;
   top: 50%; left: 50%;
@@ -519,9 +762,15 @@ html, body {
   position: absolute;
   background: rgba(255,255,255,0.6);
 }
-#crosshair::before { width: 1px; height: 14px; top: -7px; left: 0; }
-#crosshair::after  { width: 14px; height: 1px; left: -7px; top: 0; }
+#crosshair::before { width: 1px; height: 14px; top: -7px; left: 0; }  /* vertical bar */
+#crosshair::after  { width: 14px; height: 1px; left: -7px; top: 0; }  /* horizontal bar */
 
+/*
+  Accessibility: @media (prefers-reduced-motion: reduce) respects the user's
+  OS-level "reduce motion" setting.  Setting all transitions to none ensures
+  the page does not cause discomfort for users with vestibular disorders.
+  !important overrides any inline or component-level transition declarations.
+*/
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
@@ -786,21 +1035,76 @@ html, body {
   <span class="hint-sep">fwd/back</span>
 </div>
 
-<!-- Resonance Audio UMD -->
+<!--
+  Resonance Audio — loaded as a UMD (Universal Module Definition) bundle.
+  UMD bundles expose a global variable (here: `ResonanceAudio`) when loaded
+  in a browser, so we can use it without `import`.  The `defer` attribute
+  means the script is downloaded in parallel with HTML parsing and executed
+  after the DOM is complete, but before DOMContentLoaded fires — matching
+  the timing expectation in the init polling loop below.
+-->
 <script defer src="https://cdn.jsdelivr.net/npm/resonance-audio@1.0.0/build/resonance-audio.min.js"></script>
 
+<!--
+  ══════════════════════════════════════════════════════════════════════════════
+  MAIN SCRIPT — classic (non-module) script
+  All functions and variables declared here are global so that HTML onclick=""
+  attributes (e.g. onclick="startDemo()") can call them directly.
+  'use strict' enables strict mode: catches common mistakes such as
+  accidental globals, duplicate parameter names, and use of reserved words.
+  ══════════════════════════════════════════════════════════════════════════════
+-->
 <script>
 'use strict';
 
-// ── Coordinate system: Three.js world units = meters. Y-up. Right-handed.
-// ── Resonance Audio uses the same convention. 1 unit = 1 metre throughout.
+/*
+  COORDINATE SYSTEM (important for understanding all position/rotation math)
+  ─────────────────────────────────────────────────────────────────────────────
+  Three.js world coordinates:
+    X → right
+    Y ↑ up
+    Z → toward the viewer (out of the screen)
+  One world unit = one metre.  Resonance Audio uses the exact same convention,
+  so Three.js positions can be passed directly to Resonance without conversion.
 
-// ════════════════════════════════════════════════════════════════════
+  The room is centred at the world origin.  The floor sits at Y = 0, and the
+  ceiling at Y = ROOM.height.  The source is placed at the far end, near Z = −depth/2.
+*/
+
+// ════════════════════════════════════════════════════════════════════════════
 // MATERIAL DEFINITIONS
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+/*
+  Each entry in MATERIALS maps a Resonance Audio material preset string to a
+  set of properties used for both the acoustics simulation and the 3D visual.
 
-// All Resonance Audio material preset strings, with display labels,
-// approximate broadband absorption coefficients, and PBR visual properties.
+  Keys are the exact strings that Resonance Audio's setRoomProperties() API
+  accepts.  Resonance internally stores frequency-dependent absorption
+  coefficient tables for each preset.  For the RT60 estimate we store a single
+  broadband `alpha` (average absorption coefficient across the audible band).
+
+  Properties:
+    label     : human-readable display name shown in the sidebar dropdown
+    alpha     : broadband absorption coefficient, 0.0–1.0
+                  0.0 = perfectly reflective (theoretical mirror)
+                  1.0 = perfectly absorptive (anechoic / open window)
+                  Real materials fall in between:
+                    marble ~0.01, carpet ~0.35, acoustic foam ~0.80+
+    roughness : PBR (Physically Based Rendering) roughness, 0 = mirror, 1 = matte.
+                Controls how specular highlights spread across the Three.js wall mesh.
+    metalness : PBR metalness, 0 = non-metal (dielectric), 1 = metal.
+                Affects how the material reflects the environment.
+    color     : hex colour for the Three.js MeshStandardMaterial.
+                Chosen to roughly match the real-world appearance of the material
+                so the 3D room gives intuitive visual feedback about what the walls are.
+
+  ACOUSTIC CONCEPT — Absorption Coefficient (α):
+    When a sound wave hits a surface, some energy is absorbed (converted to heat
+    by friction in the material), some is reflected, and some is transmitted
+    through.  α is the fraction absorbed.  Hard, smooth, dense surfaces (marble,
+    polished concrete) have very low α (< 0.05).  Soft, porous materials
+    (carpet, curtains, acoustic tiles) have high α (0.35–0.95).
+*/
 const MATERIALS = {
   transparent:               { label: 'Transparent (Anechoic)', alpha: 1.00, roughness: 0.85, metalness: 0.0, color: 0x3a4a5c },
   acoustic_ceiling_tiles:    { label: 'Acoustic Ceiling Tiles',  alpha: 0.70, roughness: 0.95, metalness: 0.0, color: 0xc8c8b4 },
@@ -829,9 +1133,19 @@ const MATERIALS = {
   wood_panel:                { label: 'Wood Panel',              alpha: 0.30, roughness: 0.80, metalness: 0.0, color: 0x8b6030 },
 };
 
+/* Array of all material key strings — used to populate the <select> dropdowns */
 const MATERIAL_KEYS = Object.keys(MATERIALS);
 
-// Room walls: key, display label, colour dot, default for each
+/*
+  WALLS — describes each of the six room surfaces.
+  Stored as an array (not an object) so we can iterate in a stable order
+  when building the UI dropdowns and computing RT60.
+    key     : identifier used in currentMaterials{} and in Resonance's room spec
+    label   : shown in the sidebar section header
+    color   : colour of the dot beside the wall label (unique per wall so the
+              student can quickly identify which surface is which)
+    default : initial material — 'transparent' = anechoic (no reflections)
+*/
 const WALLS = [
   { key: 'left',  label: 'Left Wall',  color: '#4f9cf9', default: 'transparent' },
   { key: 'right', label: 'Right Wall', color: '#a78bfa', default: 'transparent' },
@@ -841,20 +1155,53 @@ const WALLS = [
   { key: 'up',    label: 'Ceiling',    color: '#fbbf24', default: 'transparent' },
 ];
 
-// Current material state
+/*
+  currentMaterials — the live material state for all six walls.
+  Initialised from each wall's `default`.  Updated by:
+    • onWallChange() when the student changes a dropdown
+    • applyPreset()  when the student clicks a preset button
+  This object is the single source of truth; both the Three.js wall visuals
+  and the Resonance Audio room model are always synchronised from it.
+*/
 const currentMaterials = {};
 WALLS.forEach(w => { currentMaterials[w.key] = w.default; });
 
-// Track last materials sent to Resonance so we skip redundant setRoomProperties calls
+/*
+  lastResonanceMaterials — JSON snapshot of the last material state we sent
+  to Resonance Audio.  Before each setRoomProperties() call we compare a
+  new JSON.stringify() against this value.  If they match, we skip the call.
+  This avoids resetting Resonance's reverb engine when nothing has changed,
+  which would cause an audible click/pop.
+*/
 let lastResonanceMaterials = null;
-// Track which preset is currently active (null = custom)
+
+/*
+  activePresetName — which preset button is currently highlighted.
+  Set to null when the student manually changes an individual wall (custom state).
+*/
 let activePresetName = 'Anechoic Chamber';
 
-// ── Each preset carries:
-//    dims     : { width, height, depth } in metres — all walkable, all visible
-//    fogDensity: exponential fog density suited to the room depth
-//    desc     : one-line teaching note shown in the HUD
-//    left/right/front/back/down/up : Resonance Audio material strings
+/*
+  PRESETS — predefined room configurations that demonstrate specific acoustic
+  environments.  Each preset is a teaching example; the HUD shows `desc` as
+  a one-line explanation of what acoustic phenomenon the student should listen for.
+
+  Each preset object carries:
+    dims        : { width, height, depth } in metres.
+                  Changing dims rebuilds the Three.js geometry (rebuildRoom).
+    fogDensity  : exponential-fog density for scene.fog (THREE.FogExp2).
+                  Larger rooms need less fog so they don't look hazy up close;
+                  smaller rooms can use more fog to give a sense of enclosure.
+    desc        : one-sentence teaching note, displayed in the HUD.
+    left/right/front/back/down/up : Resonance Audio material preset strings
+                  — must match keys in MATERIALS.
+
+  ACOUSTIC CONCEPT — What makes rooms sound different:
+    Reverberation time depends on volume (V) and total absorption (A = Σ αᵢ Sᵢ).
+    Small room + hard surfaces → short RT60 with many dense early reflections.
+    Large room + hard surfaces → very long RT60 (cathedral effect).
+    Soft surfaces → energy absorbed quickly → short, dry sound regardless of size.
+*/
 const PRESETS = {
 
   // ── 1. Dead reference — same box, all transparent ─────────────────
@@ -915,24 +1262,74 @@ const PRESETS = {
   },
 };
 
-// Carpet has no Resonance Audio preset by name — remap to closest available
-// (uniform_average_absorption: α≈0.35 is a good broadband stand-in)
+/*
+  RESONANCE_MAT_REMAP — some materials in MATERIALS do not have a matching
+  preset string in Resonance Audio's internal lookup table.  This map replaces
+  them with the acoustically closest available preset before passing the room
+  spec to Resonance.  For example:
+    'carpet' → 'uniform_average_absorption'
+      Carpet has α ≈ 0.35 broadband; uniform_average_absorption (α ≈ 0.15) is
+      not an exact match but is the closest Resonance preset.
+  The remap is applied in applyResonanceRoom(); the Three.js visual still uses
+  the original key so the wall colour reflects the chosen material correctly.
+*/
 const RESONANCE_MAT_REMAP = { 'carpet': 'uniform_average_absorption' };
 
-// Room dimensions (metres) — mutable; updated by applyPreset.
-// Initial values match the 'Anechoic Chamber' preset.
+/*
+  ROOM — current room dimensions in metres.  This is a mutable object (let,
+  not const) because applyPreset() overwrites its fields when switching to a
+  preset with different dimensions.
+  Initial values match the 'Anechoic Chamber' preset (8 × 4 × 12 m).
+*/
 let ROOM = { width: 8, height: 4.0, depth: 12 };
 
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // RUNTIME STATE
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+/*
+  All mutable runtime variables are declared here at the top of the script
+  so their existence is visible at a glance.  They are initialised to null/false
+  and populated during init / startDemo().
+
+  Three.js render objects:
+    renderer  : THREE.WebGLRenderer — draws the scene to the canvas via WebGL
+    scene     : THREE.Scene — the scene graph (all 3D objects live here)
+    camera    : THREE.PerspectiveCamera — the viewpoint
+    clock     : THREE.Clock — tracks elapsed time between frames (used for movement)
+    controls  : custom camera control object (mouse drag + WASD, see initThree)
+    composer  : THREE.EffectComposer — post-processing pipeline
+    bloomPass : THREE.UnrealBloomPass — adds glow to bright objects (source sphere)
+*/
 let renderer, scene, camera, clock, controls;
 let composer, bloomPass;
 
+/*
+  Web Audio API objects:
+    audioContext    : AudioContext — the central object for all Web Audio work.
+                      Must be created (or resumed) inside a user gesture to comply
+                      with browser autoplay policies.
+    resonanceAudio  : ResonanceAudio instance — the spatial audio engine.
+                      Wraps the AudioContext and manages the ambisonic encoder,
+                      room model, and HRTF binaural decoder.
+    resonanceSource : A single point source inside the Resonance scene.
+                      Audio fed into resonanceSource.input is spatialised.
+*/
 let audioContext    = null;
 let resonanceAudio  = null;
 let resonanceSource = null;
 
+/*
+  Audio graph nodes (see initAudioGraph for the full signal routing diagram):
+    sourceNode   : the currently playing source (OscillatorNode, BufferSourceNode,
+                   or ScriptProcessorNode for pink noise)
+    lfoOsc       : Low Frequency Oscillator used for the harmonic source's tremolo
+    analyser     : AnalyserNode — provides FFT data for the energy bar visualisation
+    hrtfGain     : GainNode that gates the HRTF (Resonance) signal path on/off
+    stereoGain   : GainNode that gates the simple stereo pan path on/off
+    stereoPanner : StereoPannerNode — left/right panning for the non-HRTF mode
+    masterGain   : GainNode providing overall volume control (0.85 = −1.4 dB)
+    energyBuf    : Uint8Array scratch buffer used by analyser.getByteFrequencyData()
+*/
 let sourceNode   = null;
 let lfoOsc       = null;
 let analyser     = null;
@@ -942,40 +1339,90 @@ let stereoPanner = null;
 let masterGain   = null;
 let energyBuf    = null;
 
+/* audioMode — which spatialisation path is active: 'hrtf' or 'stereo' */
 let audioMode  = 'hrtf';
-// Default to 'noise' on file:// so the demo works without uploading MP3s
-let sourceType = (location.protocol === 'file:') ? 'noise' : 'alarm';
-const sampleBuffers = {};   // key → decoded AudioBuffer (see SAMPLE_FILES)
 
+/*
+  sourceType — which audio source is currently selected.
+  Defaults to 'noise' when opened as a local file (file://) because the
+  synthesised noise source works without any external files.
+  Defaults to 'alarm' when served over HTTP/S (all files are preloaded).
+*/
+let sourceType = (location.protocol === 'file:') ? 'noise' : 'alarm';
+
+/* sampleBuffers — decoded AudioBuffers keyed by source name (alarm/beep/etc.)
+   Populated by decodeSample() after the ArrayBuffer is fetched or uploaded.  */
+const sampleBuffers = {};
+
+/*
+  Three.js scene objects that need to be updated at runtime:
+    sourceMesh  : the glowing sphere that visually represents the audio source
+    sourceHalo  : a larger, transparent sphere around sourceMesh (glow effect)
+    sourceLight : PointLight attached to the source, intensity driven by audio RMS
+    wallMeshes  : map of wall key → THREE.Mesh, updated when material changes
+*/
 let sourceMesh  = null;
 let sourceHalo  = null;
 let sourceLight = null;
-let wallMeshes  = {};   // key → THREE.Mesh
+let wallMeshes  = {};
 
+/* isRunning — true while audio is playing; prevents double-starts */
 let isRunning   = false;
 
-// Camera eye height (metres)
+/*
+  CAM_EYE_Y — camera height in metres (average human eye level standing).
+  Locking Y to a constant gives the first-person illusion without implementing
+  full physics.
+*/
 const CAM_EYE_Y = 1.65;
-// Returns the canonical start position: geometric centre of the current room at eye height.
-// Always computed from live ROOM dims so it is correct after any preset change.
+
+/**
+ * Returns the canonical camera start position: room centre at eye height.
+ * Computed from live ROOM dimensions so it is always correct after a preset
+ * changes the room size.
+ * @returns {{ x: number, y: number, z: number }}
+ */
 function getCamStart() {
   return { x: 0, y: CAM_EYE_Y, z: 0 };
 }
-// Source position — far end of room, ear height
-let SRC_POS   = null;
 
+/*
+  SRC_POS — THREE.Vector3 position of the audio source.
+  Null until THREE is loaded (Vector3 needs the THREE namespace).
+  Placed at the far end of the room (z = -(depth/2 - 1.0)) at ear height (y = 1.05 m).
+  Updated in rebuildRoom() when the preset changes room dimensions.
+*/
+let SRC_POS = null;
+
+/* isFileProtocol — true when the page is opened as a local file (file://)
+   Used throughout to decide whether to show the upload strip and disable
+   file-based sources that cannot be fetched. */
 const isFileProtocol = (location.protocol === 'file:');
-// File-based sources. Files are loaded from the same folder as this HTML file.
-//   mono: downmix to mono (Resonance Audio expects mono point sources)
-//   peak: normalise peak level to this value (keeps the very different
-//         recordings at a comparable loudness). Omit to play the file as-is.
-// Credits for br_all.wav and p020_freeform_speech_01.wav: see header comment.
+/*
+  SAMPLE_FILES — configuration for the four file-based audio sources.
+  Files must be in the same directory as this HTML file.
+    file : filename to fetch (or be uploaded on file://)
+    mono : if true, the decoded buffer is downmixed to mono in decodeSample().
+           Resonance Audio expects mono input for a point source; stereo input
+           would create an offset between the two channels inside the renderer.
+    peak : if set, peak-normalise the downmixed mono buffer to this level (0–1).
+           The anechoic orchestra and speech recordings were captured at a low
+           level to avoid clipping transient peaks; normalising brings them to a
+           comparable loudness with the synthesised sources.
+  Credits: see the top-of-file HTML comment for full citations.
+*/
 const SAMPLE_FILES = {
   alarm:    { file: '3411.mp3' },
   beep:     { file: '1298.mp3' },
   bruckner: { file: 'br_all.wav',                  mono: true, peak: 0.95 },  // Aalto University
   speech:   { file: 'p020_freeform_speech_01.wav', mono: true, peak: 0.95 },  // EARS dataset
 };
+
+/*
+  mp3Ready — tracks whether each file-based source's ArrayBuffer has been
+  received (fetched or uploaded).  Used by updateStartReadiness() to decide
+  whether to enable the Start button.
+*/
 const mp3Ready = { alarm: false, beep: false, bruckner: false, speech: false };
 
 // Short credit line shown under the source chips when a source is selected
@@ -995,40 +1442,90 @@ const SOURCE_CREDITS = {
             'Converted to mono &amp; level-normalised at playback.',
 };
 
-// Decode a file's ArrayBuffer; optionally downmix to mono and peak-normalise.
+/**
+ * Decodes a compressed audio ArrayBuffer into a Web Audio AudioBuffer.
+ * Optionally downmixes to mono and peak-normalises the result.
+ *
+ * WHY .slice(0)?
+ *   AudioContext.decodeAudioData() is specified to detach (transfer) the
+ *   ArrayBuffer after decoding, making it unusable for a second call.
+ *   Passing a slice (copy) instead of the original preserves the original
+ *   so it can be decoded again if the AudioContext is recreated.
+ *
+ * DOWNMIX TO MONO:
+ *   We average all channel samples: out[i] = Σ(channel[i]) / numberOfChannels.
+ *   This is the standard "sum-to-mono" or "downmix" operation.
+ *   We use a new 1-channel AudioBuffer at the same sample rate and length.
+ *
+ * PEAK NORMALISATION:
+ *   1. Find the peak absolute sample value across the whole buffer.
+ *   2. Compute a gain factor: g = targetPeak / peak.
+ *   3. Multiply every sample by g.
+ *   This ensures the loudest sample in the file equals `cfg.peak` (0.95),
+ *   leaving 0.05 headroom below full scale (0 dBFS).
+ *
+ * @param   {string}      key         — key into SAMPLE_FILES
+ * @param   {ArrayBuffer} arrayBuffer — raw compressed audio bytes
+ * @returns {Promise<AudioBuffer>}    — decoded (and optionally processed) buffer
+ */
 async function decodeSample(key, arrayBuffer) {
+  /* Decode the compressed bytes (MP3 / WAV) into PCM float32 samples */
   const decoded = await audioContext.decodeAudioData(arrayBuffer.slice(0));
   const cfg = SAMPLE_FILES[key];
+
+  /* If this source does not need mono downmix, return the decoded buffer as-is */
   if (!cfg.mono) return decoded;
 
-  const n = decoded.length, chans = decoded.numberOfChannels;
-  const mono = audioContext.createBuffer(1, n, decoded.sampleRate);
-  const out = mono.getChannelData(0);
+  /* ── Downmix to mono ── */
+  const n     = decoded.length;              /* number of sample frames */
+  const chans = decoded.numberOfChannels;    /* 1 = mono, 2 = stereo, etc. */
+  const mono  = audioContext.createBuffer(1, n, decoded.sampleRate);
+  const out   = mono.getChannelData(0);      /* writable Float32Array */
   for (let c = 0; c < chans; c++) {
     const d = decoded.getChannelData(c);
-    for (let i = 0; i < n; i++) out[i] += d[i] / chans;
+    for (let i = 0; i < n; i++) out[i] += d[i] / chans;  /* average channels */
   }
+
+  /* ── Peak normalisation ── */
   if (cfg.peak) {
     let peak = 0;
     for (let i = 0; i < n; i++) { const a = Math.abs(out[i]); if (a > peak) peak = a; }
-    if (peak > 0) { const g = cfg.peak / peak; for (let i = 0; i < n; i++) out[i] *= g; }
+    if (peak > 0) {
+      const g = cfg.peak / peak;                        /* normalisation gain */
+      for (let i = 0; i < n; i++) out[i] *= g;
+    }
   }
   return mono;
 }
 
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // PROGRESS BAR
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+/**
+ * Updates the loading overlay progress bar and status message.
+ * @param {number} pct  — fill percentage, 0–100
+ * @param {string} msg  — status message shown below the bar
+ */
 function setProgress(pct, msg) {
   document.getElementById('loFill').style.width = pct + '%';
   document.getElementById('loStatus').textContent = msg;
 }
 
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // BUILD SIDEBAR UI DYNAMICALLY
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+/*
+  The wall dropdowns and preset buttons are created programmatically from the
+  WALLS and PRESETS data structures rather than being hard-coded in HTML.
+  This keeps data and presentation in sync: adding a new material or preset
+  only requires updating the data object — the UI regenerates automatically.
+
+  innerHTML template literals are used for compact multi-element inserts.
+  For each wall, a section <div> containing a label row and a <select> is
+  appended to the #wallSelectors container.
+*/
 function buildSidebarUI() {
-  // Reflect the runtime-chosen default source in the chip UI
+  /* Highlight the initially selected source chip */
   setActiveChip(sourceType);
 
   // Wall selectors
@@ -1069,39 +1566,69 @@ function buildSidebarUI() {
   }
 }
 
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // INIT ON LOAD
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+/*
+  DOMContentLoaded fires after the HTML is fully parsed but before images and
+  stylesheets have fully loaded — an appropriate moment to start our async
+  initialisation sequence.  We use an async arrow function so we can await
+  each step without nested callbacks.
+
+  LIBRARY POLLING LOOP:
+  Three.js is loaded via an ES module <script type="module"> which is async
+  by nature.  Resonance Audio is loaded with `defer`.  Both run after HTML
+  parsing but their exact completion order relative to DOMContentLoaded is
+  not guaranteed.  We poll every 60 ms (up to 9 s) until both are available
+  on window.  This is simpler than chaining load events across different
+  script types and handles edge cases like slow network connections.
+*/
 window.addEventListener('DOMContentLoaded', async () => {
   buildSidebarUI();
   setProgress(5, 'Loading libraries…');
 
-  // Wait for THREE (ES module bootstrap) and ResonanceAudio (defer UMD)
+  /* Poll until THREE, PointerLockControls, and ResonanceAudio are all defined */
   const deadline = Date.now() + 9000;
-  while ((typeof window.THREE === 'undefined' || typeof window._PointerLockControls === 'undefined' || typeof ResonanceAudio === 'undefined') && Date.now() < deadline) {
+  while (
+    (typeof window.THREE === 'undefined' ||
+     typeof window._PointerLockControls === 'undefined' ||
+     typeof ResonanceAudio === 'undefined') &&
+    Date.now() < deadline
+  ) {
     await new Promise(r => setTimeout(r, 60));
   }
-  if (typeof window.THREE === 'undefined') { document.getElementById('loStatus').textContent = '⚠ Three.js failed to load.'; return; }
-  if (typeof ResonanceAudio === 'undefined') { document.getElementById('loStatus').textContent = '⚠ Resonance Audio failed to load.'; return; }
+  /* Fail gracefully with a user-visible error if libraries did not load */
+  if (typeof window.THREE === 'undefined') {
+    document.getElementById('loStatus').textContent = '⚠ Three.js failed to load.'; return;
+  }
+  if (typeof ResonanceAudio === 'undefined') {
+    document.getElementById('loStatus').textContent = '⚠ Resonance Audio failed to load.'; return;
+  }
 
-  // Now SRC_POS can be a real Vector3
+  /*
+    SRC_POS requires THREE.Vector3, so it cannot be initialised at the top of
+    the script (THREE is not yet loaded there).  We set it here, after confirming
+    THREE is available.  Formula: 1 m inside the far wall, at ear height 1.05 m.
+  */
   SRC_POS = new THREE.Vector3(0, 1.05, -(ROOM.depth / 2 - 1.0));
 
+  /* ── Sequential init steps — each awaits a tick() so the browser repaints
+     the progress bar before the (potentially blocking) work begins ── */
   setProgress(20, 'Initializing renderer…'); await tick();
-  initThree();
+  initThree();                               /* create WebGLRenderer, camera, mouse controls */
 
   setProgress(45, 'Building scene…'); await tick();
-  buildScene();
-  resetView(); // position camera at room centre, facing source
+  buildScene();                              /* lights, walls, source sphere, grid */
+  resetView();                               /* position camera at room centre facing source */
 
   setProgress(70, 'Post-processing…'); await tick();
-  await initPostProcessing();
+  await initPostProcessing();                /* bloom pass (async: dynamic import) */
 
   setProgress(88, isFileProtocol ? 'Ready (upload MP3s to use Alarm/Beep)' : 'Pre-loading audio…'); await tick();
-  await preloadAudio();
+  await preloadAudio();                      /* fetch audio files from server (HTTP only) */
 
   setProgress(100, 'Ready');
-  await new Promise(r => setTimeout(r, 350));
+  await new Promise(r => setTimeout(r, 350)); /* brief pause so '100%' is visible */
 
   document.getElementById('loadingOverlay').classList.add('hidden');
   document.getElementById('startOverlay').classList.remove('hidden');
@@ -1109,11 +1636,26 @@ window.addEventListener('DOMContentLoaded', async () => {
   scheduleNavHintFade();
 });
 
+/**
+ * Returns a Promise that resolves after one event-loop tick (60 ms).
+ * Used between init steps so the browser has a chance to repaint the
+ * loading bar before the next potentially-blocking operation starts.
+ * @returns {Promise<void>}
+ */
 function tick() { return new Promise(r => setTimeout(r, 60)); }
 
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // AUDIO PRELOAD
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Pre-fetches all sample files in parallel (HTTP/S only).
+ * On file:// we skip fetching — the student uploads files manually.
+ * Promise.all runs all fetches concurrently and resolves when all have
+ * finished (success or failure).  Individual failures are handled inside
+ * fetchAndStore without rejecting the whole Promise.all.
+ * @returns {Promise<void>}
+ */
 async function preloadAudio() {
   if (isFileProtocol) { updateStartReadiness(); return; }
   await Promise.all(
@@ -1122,11 +1664,24 @@ async function preloadAudio() {
   updateStartReadiness();
 }
 
+/**
+ * Fetches one audio file and stores its raw ArrayBuffer on window.
+ * Storing on window (window['_alarmAB'] etc.) makes it accessible both here
+ * and in startDemo() without passing the buffer through multiple call layers.
+ *
+ * On fetch failure (file not found, server error):
+ *   - Dims the source chip so the student knows it is unavailable.
+ *   - Falls back to 'noise' if the currently selected source is now missing.
+ *
+ * @param {string} filename — path relative to the HTML file
+ * @param {string} key      — source name key (alarm/beep/bruckner/speech)
+ * @returns {Promise<void>}
+ */
 async function fetchAndStore(filename, key) {
   try {
     const resp = await fetch('./' + filename);
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
-    window['_' + key + 'AB'] = await resp.arrayBuffer();
+    window['_' + key + 'AB'] = await resp.arrayBuffer();  /* store raw bytes */
     mp3Ready[key] = true;
   } catch(e) {
     console.warn(filename + ':', e.message);
@@ -1135,21 +1690,35 @@ async function fetchAndStore(filename, key) {
   }
 }
 
+/**
+ * Handles a manual file upload from the file:// upload strip.
+ * Uses the FileReader API to read the selected file as an ArrayBuffer.
+ * FileReader is an older callback-based API (pre-Promise); we use its
+ * onload callback and wrap it in an async function for the decode step.
+ *
+ * If audio is already running when the user uploads, we decode immediately
+ * and hot-swap the source node so playback continues without a full restart.
+ *
+ * @param {Event}  event — the input[type=file] change event
+ * @param {string} key   — source name key (alarm/beep/bruckner/speech)
+ */
 function handleUpload(event, key) {
   const file = event.target.files[0]; if (!file) return;
+  /* stopPropagation prevents the click from bubbling up and triggering
+     any parent element handlers (e.g. overlay dismiss) */
   event.stopPropagation();
   const reader = new FileReader();
   reader.onload = async e => {
     const ab = e.target.result;
-    window['_' + key + 'AB'] = ab;
+    window['_' + key + 'AB'] = ab;   /* store for future startDemo() calls */
     mp3Ready[key] = true;
+    /* Update the upload button label to confirm the file was received */
     const lbl = document.getElementById('lbl-' + key);
     if (lbl) { lbl.textContent = '✓ ' + file.name; lbl.classList.add('loaded'); }
-    // If audio is already running, decode immediately so switching source works
+    /* If audio is already running, decode and hot-swap the source */
     if (audioContext) {
       try {
         sampleBuffers[key] = await decodeSample(key, ab);
-        // If this source is already selected, restart it now
         if (isRunning && sourceType === key) {
           buildSourceNode(key);
           connectSourceNode();
@@ -1161,15 +1730,28 @@ function handleUpload(event, key) {
   reader.readAsArrayBuffer(file);
 }
 
+/**
+ * Visually dims a source chip to indicate the file is unavailable.
+ * Also sets a tooltip (title attribute) explaining why.
+ * @param {string} key — source name key
+ */
 function dimSourceChip(key) {
   const c = document.getElementById('src-' + key);
   if (c) { c.style.opacity = '0.35'; c.title = SAMPLE_FILES[key].file + ' not found'; }
 }
+
+/**
+ * Marks one source chip as active (highlighted) and updates the credit line.
+ * Removes .active from all chips first, then adds it to the target.
+ * classList.toggle(cls, bool) adds the class when bool is truthy, removes it
+ * when falsy — a convenient one-liner for conditional class management.
+ * @param {string} key — source name key
+ */
 function setActiveChip(key) {
   document.querySelectorAll('.src-chip').forEach(c => c.classList.remove('active'));
   const c = document.getElementById('src-' + key);
   if (c) c.classList.add('active');
-  // Show the credit line for sources that need one
+  /* Show the credit line for sources that have one (file-based sources only) */
   const credit = document.getElementById('srcCredit');
   if (credit) {
     credit.innerHTML = SOURCE_CREDITS[key] || '';
@@ -1177,15 +1759,40 @@ function setActiveChip(key) {
   }
 }
 
+/**
+ * Enables or disables the Start button based on whether the selected source
+ * is ready to play.  On file:// the student must upload the file first;
+ * over HTTP/S files are pre-fetched so the button is enabled immediately.
+ */
 function updateStartReadiness() {
   const needsFile = isFileProtocol && (sourceType in SAMPLE_FILES);
   const ready = !needsFile || mp3Ready[sourceType];
   document.getElementById('btnStart').disabled = !ready;
 }
 
-// ════════════════════════════════════════════════════════════════════
-// THREE.JS — RENDERER
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// THREE.JS — RENDERER & CAMERA
+// ════════════════════════════════════════════════════════════════════════════
+/**
+ * Initialises the Three.js WebGL renderer, camera, and camera controls.
+ *
+ * RENDERER OPTIONS:
+ *   antialias:true       — multi-sample anti-aliasing (MSAA); smooths jagged
+ *                          edges at a small GPU cost.
+ *   powerPreference      — hints to the browser/GPU driver to prefer the
+ *                          discrete (high-performance) GPU on laptops with both
+ *                          integrated and discrete GPUs.
+ *   setPixelRatio(≤2)    — capped at 2× to avoid extremely high load on
+ *                          Retina/HiDPI displays where 3× or 4× would render
+ *                          4× or 16× more pixels than needed.
+ *   shadowMap            — PCFSoftShadowMap uses percentage-closer filtering to
+ *                          produce soft shadow edges.
+ *   ACESFilmicToneMapping— maps HDR (high dynamic range) scene lighting to the
+ *                          0–1 LDR display range using the ACES film curve, which
+ *                          gives a cinematic look.
+ *   SRGBColorSpace       — ensures colours are output in the sRGB colour space
+ *                          expected by modern displays.
+ */
 function initThree() {
   const canvas = document.getElementById('threeCanvas');
 
@@ -1198,47 +1805,82 @@ function initThree() {
   renderer.toneMappingExposure = 1.0;
   renderer.outputColorSpace  = THREE.SRGBColorSpace;
 
+  /*
+    PerspectiveCamera(fov, aspect, near, far):
+      fov   = 70° — typical first-person field of view
+      near  = 0.05 m — objects closer than this are clipped (avoids z-fighting
+              when the camera is very close to a wall)
+      far   = 500 m — objects beyond this are clipped (not relevant here, but
+              must be large enough to encompass the largest room)
+  */
   camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 500);
   const _cs = getCamStart();
   camera.position.set(_cs.x, _cs.y, _cs.z);
 
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x07080d);
+  scene.background = new THREE.Color(0x07080d); /* matches --bg CSS colour */
+  /*
+    FogExp2 — exponential fog: density increases with distance squared.
+    This is more realistic than linear fog for enclosed spaces.
+    Density 0.06 is calibrated for the default room depth (12 m); presets with
+    larger rooms use a lower density (set in rebuildRoom via preset.fogDensity).
+  */
   scene.fog = new THREE.FogExp2(0x07080d, 0.06);
 
-  clock = new THREE.Clock();
+  clock = new THREE.Clock(); /* used in the render loop for dt (delta-time) */
 
-  // ── Mouse navigation ──────────────────────────────────────────────
-  // Left-drag   : look / rotate camera
-  // Right-drag  : strafe (pan) left/right + move forward/back
-  // Middle-drag : strafe (pan) — same as right
-  // Scroll      : move forward / back
+  /*
+    MOUSE NAVIGATION
+    ─────────────────────────────────────────────────────────────────────────
+    Left-drag   : look / rotate camera  (FPS-style look)
+    Right-drag  : strafe (pan) left/right + move forward/back
+    Middle-drag : strafe (pan) — same as right
+    Scroll      : move forward / back along camera facing direction
+
+    WHY NOT PointerLockControls?
+    PointerLockControls is imported but not used here.  Pointer lock requires
+    an explicit user gesture on each browser-tab focus change, and shows a
+    browser-native "press ESC to exit" notification that cannot be styled.
+    Instead, we implement our own drag-based controls that work without pointer
+    lock and are friendlier for a demo/tutorial context.
+
+    EULER ORDER 'YXZ':
+    Three.js Euler angles describe rotation as three successive rotations.
+    'YXZ' means: first rotate around Y (yaw/heading), then around the new X
+    (pitch/tilt).  This is the standard first-person camera order because it
+    prevents "gimbal lock" for typical head orientations (yaw and pitch don't
+    interfere with each other at normal viewing angles).
+  */
   const euler = new THREE.Euler(0, 0, 0, 'YXZ');
-  const LOOK_SENS  = 0.002;
-  const PAN_SENS   = 0.008; // m per pixel
-  const SCROLL_SPD = 0.012; // m per wheel delta unit
+  const LOOK_SENS  = 0.002;   /* radians per pixel — look sensitivity */
+  const PAN_SENS   = 0.008;   /* metres per pixel — strafe/pan sensitivity */
+  const SCROLL_SPD = 0.012;   /* metres per wheel-delta unit */
 
-  // Which buttons are currently held: 0=left, 1=middle, 2=right
+  /* Track which mouse buttons are currently held down */
   const mouseBtn = { look: false, pan: false };
-  let lastX = 0, lastY = 0;
+  let lastX = 0, lastY = 0;    /* previous mouse position for delta calculation */
 
-  // Suppress browser context menu on right-click inside the canvas
+  /* Suppress the browser's native right-click context menu on the canvas */
   canvas.addEventListener('contextmenu', e => e.preventDefault());
 
   canvas.addEventListener('mousedown', e => {
-    if (e.target !== canvas) return;
+    if (e.target !== canvas) return;  /* ignore clicks on UI overlaid on canvas */
     lastX = e.clientX; lastY = e.clientY;
     if (e.button === 0) {
+      /* Left button — look/rotate mode */
       mouseBtn.look = true;
       canvas.style.cursor = 'grabbing';
       document.getElementById('crosshair').classList.add('visible');
     } else if (e.button === 1 || e.button === 2) {
+      /* Middle (1) or right (2) button — pan/strafe mode */
       mouseBtn.pan = true;
       canvas.style.cursor = 'move';
-      e.preventDefault(); // prevent autoscroll on middle button
+      e.preventDefault(); /* prevent browser's auto-scroll on middle-button press */
     }
   });
 
+  /* mouseup is on window (not canvas) so releasing outside the canvas still
+     cancels the drag — avoids getting "stuck" in drag mode */
   window.addEventListener('mouseup', e => {
     if (e.button === 0) {
       mouseBtn.look = false;
@@ -1250,47 +1892,72 @@ function initThree() {
     }
   });
 
+  /* mousemove is on window for the same reason as mouseup */
   window.addEventListener('mousemove', e => {
-    if (!mouseBtn.look && !mouseBtn.pan) return;
-    const dx = e.clientX - lastX;
+    if (!mouseBtn.look && !mouseBtn.pan) return;  /* early exit when no button held */
+    const dx = e.clientX - lastX;   /* pixels moved since last event */
     const dy = e.clientY - lastY;
     lastX = e.clientX; lastY = e.clientY;
 
     if (mouseBtn.look) {
-      // Rotate camera
+      /*
+        FPS camera rotation:
+          euler.y (yaw)   : horizontal rotation — dx controls left/right turn
+          euler.x (pitch) : vertical rotation — dy controls up/down tilt
+        Clamping euler.x to ±(π/2 − 0.01) prevents the camera from flipping
+        past straight up or straight down (gimbal lock in those orientations).
+        setFromQuaternion extracts the current rotation into Euler angles,
+        we modify them, then setFromEuler writes them back as a quaternion.
+        Quaternions avoid gimbal lock at intermediate angles but are hard to
+        edit directly — hence the Euler ↔ Quaternion round-trip.
+      */
       euler.setFromQuaternion(camera.quaternion);
-      euler.y -= dx * LOOK_SENS;
-      euler.x -= dy * LOOK_SENS;
+      euler.y -= dx * LOOK_SENS;    /* negative: moving right → yaw left in screen space */
+      euler.x -= dy * LOOK_SENS;    /* negative: moving down → pitch up */
       euler.x  = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, euler.x));
       camera.quaternion.setFromEuler(euler);
     }
 
     if (mouseBtn.pan) {
-      // Strafe right/left with dx, move forward/back with dy
+      /*
+        Strafe / pan:
+          right vector: cross product of forward and up gives the camera's local
+                        right direction in world space.
+          fwd vector:   camera's facing direction, flattened to the XZ plane
+                        (y = 0) so we only move horizontally, not vertically.
+        addScaledVector(v, s) is equivalent to position += v * s.
+        After moving, clamp to the room's AABB (axis-aligned bounding box)
+        and restore eye height.
+      */
       const right = new THREE.Vector3();
       right.crossVectors(camera.getWorldDirection(new THREE.Vector3()), camera.up).normalize();
       camera.position.addScaledVector(right, dx * PAN_SENS);
 
       const fwd = new THREE.Vector3();
       camera.getWorldDirection(fwd);
-      fwd.y = 0; fwd.normalize();
-      camera.position.addScaledVector(fwd, -dy * PAN_SENS);
+      fwd.y = 0; fwd.normalize();  /* flatten to horizontal */
+      camera.position.addScaledVector(fwd, -dy * PAN_SENS);  /* forward on drag up */
 
-      // Clamp to room bounds
+      /* Clamp to room bounds so we cannot walk through walls */
       const Bp = getBounds();
       camera.position.x = Math.max(Bp.xMin, Math.min(Bp.xMax, camera.position.x));
       camera.position.z = Math.max(Bp.zMin, Math.min(Bp.zMax, camera.position.z));
-      camera.position.y = CAM_EYE_Y;
+      camera.position.y = CAM_EYE_Y;  /* lock eye height */
     }
   });
 
-  // Scroll wheel → move forward / backward
+  /*
+    Scroll wheel → move forward / backward along the camera's facing direction.
+    { passive: false } is required to allow e.preventDefault() inside the
+    handler, which prevents the page from scrolling (the default wheel action).
+    Without passive:false the browser may ignore preventDefault for performance.
+    e.deltaY > 0 = scrolling down = moving backward (intuitive: "pull back").
+  */
   canvas.addEventListener('wheel', e => {
     e.preventDefault();
     const fwd = new THREE.Vector3();
     camera.getWorldDirection(fwd);
     fwd.y = 0; fwd.normalize();
-    // e.deltaY > 0 = scroll down = move backward; < 0 = scroll up = move forward
     camera.position.addScaledVector(fwd, -e.deltaY * SCROLL_SPD);
     const Bs = getBounds();
     camera.position.x = Math.max(Bs.xMin, Math.min(Bs.xMax, camera.position.x));
@@ -1300,36 +1967,69 @@ function initThree() {
 
   canvas.style.cursor = 'grab';
 
+  /*
+    controls — a lightweight shim that exposes the same interface as
+    THREE.PointerLockControls (moveForward, moveRight, lock, unlock, isLocked)
+    so that updateNavigation() can call controls.moveForward/moveRight without
+    knowing whether we are using pointer lock or drag-based movement.
+    isLocked is permanently true here because drag-based movement is always
+    active (there is no "locked" state to gate against).
+    lock() and unlock() are no-ops in this implementation.
+  */
   controls = {
     isLocked: true,
     moveForward(dist) {
+      /* Move along the camera's horizontal facing direction */
       const dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
-      dir.y = 0; dir.normalize();
+      dir.y = 0; dir.normalize();   /* flatten to XZ plane */
       camera.position.addScaledVector(dir, dist);
     },
     moveRight(dist) {
+      /* Move along the camera's local right axis (perpendicular to forward) */
       const right = new THREE.Vector3();
       right.crossVectors(camera.getWorldDirection(new THREE.Vector3()), camera.up).normalize();
       camera.position.addScaledVector(right, dist);
     },
-    lock()   {},
-    unlock() {},
+    lock()   { /* no-op — drag controls do not use pointer lock */ },
+    unlock() { /* no-op */ },
   };
 
   window.addEventListener('resize', onResize);
 }
 
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // SCENE CONSTRUCTION
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+/**
+ * Builds the initial Three.js scene: lights, room geometry, source mesh, grid.
+ *
+ * LIGHTING RIG (industry-standard three-point + fill setup):
+ *   AmbientLight  — provides a low-level global illumination floor so that
+ *                   surfaces facing away from all lights are not pure black.
+ *   Key light     — primary directional light, front-top-right, casts shadows.
+ *   Fill lights   — left and right fills prevent the side walls from being
+ *                   completely dark when the key misses them.
+ *   Back fill     — softly illuminates the front wall (facing the camera on entry).
+ *   RectAreaLight — simulates a ceiling fluorescent strip; gives physically
+ *                   plausible soft lighting on the floor and near-ceiling walls.
+ *
+ * userData flags (e.g. isFillL, isCeilLight) are stored on each object so that
+ * rebuildRoom() can find and reposition them without keeping separate references.
+ */
 function buildScene() {
-  // Lighting
-  // Ambient — raised so dark materials stay readable
+
+  /* ── Ambient light — cool blue-black tint to match the dark studio palette ── */
   scene.add(new THREE.AmbientLight(0x1a2030, 1.8));
 
-  // Key light — front-top-right, casts shadows
-  const keyLight = new THREE.DirectionalLight(0xfff8f0, 1.2);
+  /*
+    Key light — DirectionalLight simulates a distant light source (like the sun)
+    with parallel rays.  castShadow:true enables the shadow map.
+    shadow.mapSize: 2048×2048 pixels for high-quality shadows.
+    shadow.camera defines the orthographic frustum that determines which scene
+    area the shadow map covers; it must encompass the whole room.
+  */
+  const keyLight = new THREE.DirectionalLight(0xfff8f0, 1.2); /* warm white */
   keyLight.position.set(2, 4, 3);
   keyLight.castShadow = true;
   keyLight.shadow.mapSize.set(2048, 2048);
@@ -1338,30 +2038,34 @@ function buildScene() {
   keyLight.shadow.camera.right = keyLight.shadow.camera.top   =  8;
   scene.add(keyLight);
 
-  // Fill lights from both sides — illuminate left & right walls that the key misses
-  const fillL = new THREE.DirectionalLight(0xc8d8ff, 0.7);
+  /* ── Fill lights — scaled to room dimensions so they always reach the walls ── */
+  const fillL = new THREE.DirectionalLight(0xc8d8ff, 0.7);  /* cool blue fill */
   fillL.position.set(-ROOM.width, ROOM.height * 0.6, 0);
-  fillL.userData.isFillL = true;
+  fillL.userData.isFillL = true;    /* tag for rebuildRoom() to find */
   scene.add(fillL);
 
-  const fillR = new THREE.DirectionalLight(0xffd8c0, 0.7);
+  const fillR = new THREE.DirectionalLight(0xffd8c0, 0.7);  /* warm orange fill */
   fillR.position.set( ROOM.width, ROOM.height * 0.6, 0);
   fillR.userData.isFillR = true;
   scene.add(fillR);
 
-  // Back fill — softly lights the front wall (facing camera on entry)
   const fillBack = new THREE.DirectionalLight(0xd0e8ff, 0.5);
   fillBack.position.set(0, ROOM.height * 0.5, ROOM.depth);
   fillBack.userData.isFillBack = true;
   scene.add(fillBack);
 
-  // Ceiling light strip (emissive plane + rect area light)
-  // Width = min(ROOM.width*0.5, 8), length = min(ROOM.depth*0.15, 3)
+  /*
+    RectAreaLight — simulates an area light source (a glowing panel) rather
+    than a point or directional source.  Used for the ceiling light strip.
+    Width capped at 8 m so it doesn't become absurdly large in the Cathedral preset.
+    Length is 15% of room depth — a sensible ceiling-strip proportion.
+    Rotation.x = π/2 faces the light downward.
+  */
   const clW = Math.min(ROOM.width  * 0.5, 8);
   const clD = Math.min(ROOM.depth  * 0.15, 3);
   const ceilLight = new THREE.RectAreaLight(0xd4e8ff, 2.0, clW, clD);
   ceilLight.position.set(0, ROOM.height - 0.05, 0);
-  ceilLight.rotation.x = Math.PI / 2;
+  ceilLight.rotation.x = Math.PI / 2;  /* face downward */
   ceilLight.userData.isCeilLight = true;
   scene.add(ceilLight);
 
@@ -1378,14 +2082,30 @@ function buildScene() {
   // Build room geometry
   buildRoom();
 
-  // Grid on floor for depth perception
+  /* ── Floor grid — helps the student judge distance and room scale ── */
   const grid = new THREE.GridHelper(Math.max(ROOM.width, ROOM.depth), 20, 0x1e2535, 0x1e2535);
   grid.material.opacity = 0.5; grid.material.transparent = true;
-  grid.position.y = 0.002;
+  grid.position.y = 0.002;  /* slightly above Y=0 to avoid z-fighting with the floor mesh */
   grid.userData.isGrid = true;
   scene.add(grid);
 
-  // Audio source mesh — positioned at far end of room
+  /*
+    AUDIO SOURCE VISUALISATION — three layered objects:
+
+    1. sourceMesh: a small sphere (r=0.11 m) with an emissive material.
+       The emissiveIntensity is modulated by the audio RMS energy in the
+       render loop, so the sphere "pulses" with the music.
+
+    2. sourceHalo: a larger transparent sphere (r=0.22 m) around the core.
+       depthWrite:false prevents it from occluding objects behind it.
+       Its opacity is also driven by RMS, giving a soft glow effect.
+
+    3. sourceLight: a PointLight at the same position.  Intensity driven by RMS.
+       Radius 6 m means only nearby walls and the floor are lit by it.
+
+    Together these give clear visual feedback about the source location and
+    current audio energy level.
+  */
   const coreMat = new THREE.MeshStandardMaterial({
     color: 0x4fc3f7, emissive: new THREE.Color(0x4fc3f7),
     emissiveIntensity: 0.4, roughness: 0.2, metalness: 0.0,
@@ -1403,7 +2123,7 @@ function buildScene() {
   sourceHalo.position.copy(SRC_POS);
   scene.add(sourceHalo);
 
-  sourceLight = new THREE.PointLight(0x4fc3f7, 0, 6);
+  sourceLight = new THREE.PointLight(0x4fc3f7, 0, 6);  /* intensity 0 = off until audio plays */
   sourceLight.position.copy(SRC_POS);
   scene.add(sourceLight);
 
@@ -1423,16 +2143,42 @@ function buildScene() {
   scene.add(cone);
 }
 
-// ── Build six room walls — each as a separate mesh so materials can change ──
+/**
+ * Builds six room-wall plane meshes (floor, ceiling, four walls) from the
+ * current ROOM dimensions and stores them in wallMeshes{}.
+ *
+ * WHY SEPARATE MESHES?
+ * Each wall is a separate THREE.Mesh so its material (colour, roughness,
+ * metalness) can be changed independently when the student selects a new
+ * surface material from the dropdown.
+ *
+ * PLANE GEOMETRY & ROTATION:
+ * THREE.PlaneGeometry creates a flat plane facing +Z by default.
+ * We rotate each plane to face inward (toward the room centre):
+ *   Floor (down)   : rotate -90° around X → faces up
+ *   Ceiling (up)   : rotate +90° around X → faces down
+ *   Back wall      : no Y rotation → faces +Z (toward viewer)
+ *   Front wall     : rotate 180° around Y → faces -Z (toward source)
+ *   Left wall      : rotate +90° around Y → faces +X (inward from left)
+ *   Right wall     : rotate -90° around Y → faces -X (inward from right)
+ *
+ * THREE.DoubleSide ensures the plane is visible from both faces —
+ * useful for the ceiling, which is seen from below.
+ */
 function buildRoom() {
-  // [wall key, width, height, rotation, position]
+  /*
+    wallDefs: an array of transform descriptors for each wall plane.
+    rx, ry = X and Y Euler rotation in radians.
+    tx, ty, tz = world-space position.
+    w, h = plane width and height (swapped for side walls vs floor/ceiling).
+  */
   const wallDefs = [
-    { key: 'down',  w: ROOM.width, h: ROOM.depth,  rx: -Math.PI/2, ry: 0,          tx: 0,              ty: 0,            tz: 0             },
-    { key: 'up',    w: ROOM.width, h: ROOM.depth,  rx:  Math.PI/2, ry: 0,          tx: 0,              ty: ROOM.height,  tz: 0             },
-    { key: 'back',  w: ROOM.width, h: ROOM.height, rx: 0,          ry: 0,          tx: 0,              ty: ROOM.height/2,tz: -ROOM.depth/2 },
-    { key: 'front', w: ROOM.width, h: ROOM.height, rx: 0,          ry: Math.PI,    tx: 0,              ty: ROOM.height/2,tz:  ROOM.depth/2 },
-    { key: 'left',  w: ROOM.depth, h: ROOM.height, rx: 0,          ry:  Math.PI/2, tx: -ROOM.width/2,  ty: ROOM.height/2,tz: 0             },
-    { key: 'right', w: ROOM.depth, h: ROOM.height, rx: 0,          ry: -Math.PI/2, tx:  ROOM.width/2,  ty: ROOM.height/2,tz: 0             },
+    { key: 'down',  w: ROOM.width, h: ROOM.depth,  rx: -Math.PI/2, ry: 0,          tx: 0,             ty: 0,             tz: 0             }, /* floor */
+    { key: 'up',    w: ROOM.width, h: ROOM.depth,  rx:  Math.PI/2, ry: 0,          tx: 0,             ty: ROOM.height,   tz: 0             }, /* ceiling */
+    { key: 'back',  w: ROOM.width, h: ROOM.height, rx: 0,          ry: 0,          tx: 0,             ty: ROOM.height/2, tz: -ROOM.depth/2 }, /* back wall (far, near source) */
+    { key: 'front', w: ROOM.width, h: ROOM.height, rx: 0,          ry: Math.PI,    tx: 0,             ty: ROOM.height/2, tz:  ROOM.depth/2 }, /* front wall (near viewer start) */
+    { key: 'left',  w: ROOM.depth, h: ROOM.height, rx: 0,          ry:  Math.PI/2, tx: -ROOM.width/2, ty: ROOM.height/2, tz: 0             }, /* left wall */
+    { key: 'right', w: ROOM.depth, h: ROOM.height, rx: 0,          ry: -Math.PI/2, tx:  ROOM.width/2, ty: ROOM.height/2, tz: 0             }, /* right wall */
   ];
 
   wallDefs.forEach(def => {
@@ -1454,22 +2200,50 @@ function buildRoom() {
   });
 }
 
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // POST-PROCESSING
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+/**
+ * Sets up the Three.js post-processing pipeline for bloom (glow) effects.
+ *
+ * HOW THREE.JS POST-PROCESSING WORKS:
+ *   Normally renderer.render(scene, camera) draws directly to the screen.
+ *   With post-processing, we render to an off-screen framebuffer (render target)
+ *   instead, then apply a chain of "passes" that transform the image before
+ *   the final output goes to the screen.
+ *
+ *   Pass chain:
+ *     1. RenderPass      — renders the scene normally to the off-screen buffer
+ *     2. UnrealBloomPass — blurs bright areas and adds them back (bloom / glow)
+ *                          Parameters: resolution, strength(0.65), radius(0.4), threshold(0.3)
+ *                          threshold=0.3 means only pixels brighter than 30% of max get bloom
+ *     3. OutputPass      — tone-mapping + final output to screen
+ *
+ *   The source sphere's high emissiveIntensity (driven by audio RMS) causes it
+ *   to exceed the bloom threshold and glow when sound is loud.
+ *
+ * Dynamic imports (await import(...)) are used here because the
+ * postprocessing add-ons are large modules only needed if bloom is supported.
+ * If the import fails (e.g. CDN unreachable) we gracefully fall back to the
+ * plain renderer (composer = null; the render loop checks for this).
+ *
+ * @returns {Promise<void>}
+ */
 async function initPostProcessing() {
   try {
     const W = window.innerWidth, H = window.innerHeight;
+    /* Dynamic imports — load postprocessing modules only when needed */
     const { EffectComposer } = await import('three/addons/postprocessing/EffectComposer.js');
     const { RenderPass }     = await import('three/addons/postprocessing/RenderPass.js');
     const { UnrealBloomPass }= await import('three/addons/postprocessing/UnrealBloomPass.js');
     const { OutputPass }     = await import('three/addons/postprocessing/OutputPass.js');
     composer = new EffectComposer(renderer);
-    composer.addPass(new RenderPass(scene, camera));
+    composer.addPass(new RenderPass(scene, camera));  /* step 1: render scene */
     bloomPass = new UnrealBloomPass(new THREE.Vector2(W, H), 0.65, 0.4, 0.3);
-    composer.addPass(bloomPass);
-    composer.addPass(new OutputPass());
+    composer.addPass(bloomPass);                       /* step 2: bloom */
+    composer.addPass(new OutputPass());                /* step 3: final output */
   } catch(e) {
+    /* Graceful degradation: render without bloom if postprocessing fails */
     console.warn('Post-processing unavailable:', e.message);
     composer = null;
   }
@@ -1493,41 +2267,84 @@ function onPointerUnlock() {
   if (isRunning) document.getElementById('pauseOverlay').classList.add('visible');
 }
 
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // AUDIO — START / STOP
-// ════════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Starts audio playback and initialises the full audio pipeline.
+ *
+ * BROWSER AUTOPLAY POLICY:
+ *   Browsers block AudioContext creation (or leave it suspended) unless it
+ *   happens inside a user gesture (click, keydown, etc.).  startDemo() is
+ *   called from an onclick handler, so we are inside a gesture here.
+ *   IMPORTANT: any `await` before the AudioContext creation would still be
+ *   inside the gesture stack, but controls.lock() (Pointer Lock API) must be
+ *   called synchronously — the first line after the guard — because the
+ *   Pointer Lock API has an even stricter requirement: it must be called on
+ *   the gesture's synchronous call stack, before any async operation.
+ *
+ * AUDIO STARTUP SEQUENCE:
+ *   1. Create AudioContext (or webkitAudioContext for older Safari)
+ *   2. Resume it if the browser left it suspended
+ *   3. Decode all pre-fetched ArrayBuffers into AudioBuffers
+ *   4. Initialise Resonance Audio (room model + spatial encoder)
+ *   5. Build the audio signal graph (analyser, gains, panner)
+ *   6. Build the chosen source node and connect it
+ *
+ * @returns {Promise<void>}
+ */
 async function startDemo() {
-  if (isRunning) return;
+  if (isRunning) return;  /* prevent double-start */
 
   document.getElementById('btnStart').disabled = true;
   document.getElementById('btnStop').disabled  = false;
 
-  // Request Pointer Lock synchronously while still inside the user gesture.
-  // Any await before this call loses the gesture context and the browser
-  // silently drops the lock request.
+  /*
+    controls.lock() must be called HERE, synchronously, before any await.
+    The Pointer Lock API requires the call to be on the synchronous call stack
+    of the user gesture.  Any await before it would cause the browser to
+    silently ignore the lock request.
+    (In this implementation controls.lock() is a no-op because we use
+    drag-based controls, but the comment is preserved for educational value.)
+  */
   controls.lock();
 
+  /*
+    window.AudioContext || window.webkitAudioContext — feature detection for
+    Safari, which historically used the webkit-prefixed version.  Modern Safari
+    supports the unprefixed version, but the fallback is kept for compatibility.
+  */
   audioContext = new (window.AudioContext || window.webkitAudioContext)();
   if (audioContext.state === 'suspended') await audioContext.resume();
 
+  /* Decode all pre-fetched ArrayBuffers into playable AudioBuffers */
   for (const key of Object.keys(SAMPLE_FILES)) {
     const ab = window['_' + key + 'AB'];
-    if (!ab) continue;
+    if (!ab) continue;  /* skip files that were not loaded (file:// or fetch failure) */
     try { sampleBuffers[key] = await decodeSample(key, ab); }
     catch(e) { console.warn(key + ' decode:', e.message); delete sampleBuffers[key]; }
   }
 
-  initResonance();
-  initAudioGraph();
-  buildSourceNode(sourceType);
-  connectSourceNode();
+  initResonance();         /* create ResonanceAudio instance + room model */
+  initAudioGraph();        /* build analyser, master gain, hrtf/stereo paths */
+  buildSourceNode(sourceType);  /* create the oscillator / buffer source */
+  connectSourceNode();     /* connect source → masterGain and start it */
 
   isRunning = true;
   document.getElementById('hudCtxState').textContent = 'running';
 
+  /*
+    Resume the AudioContext when the browser tab becomes visible again.
+    Browsers suspend AudioContexts when the tab is hidden to save resources.
+  */
   document.addEventListener('visibilitychange', onVisibilityChange);
 }
 
+/**
+ * Stops audio playback and tears down all Web Audio API resources.
+ * Also unlocks the camera controls and hides the pause overlay.
+ */
 function stopDemo() {
   if (!isRunning) return;
   isRunning = false;
@@ -1540,6 +2357,19 @@ function stopDemo() {
   document.removeEventListener('visibilitychange', onVisibilityChange);
 }
 
+/**
+ * Disconnects and disposes all Web Audio API objects.
+ * Called by stopDemo() and implicitly by startDemo() on restart.
+ *
+ * WHY EXPLICIT CLEANUP?
+ *   The Web Audio API does not automatically garbage-collect nodes while they
+ *   are connected.  We must disconnect() every node and close() the
+ *   AudioContext to free the underlying OS audio resources.
+ *   try/catch around stop() and disconnect() is defensive: some nodes (e.g.
+ *   ScriptProcessorNode) throw if stopped after already stopping.
+ *   _extraNodes is a custom array we attach to complex sources to track
+ *   intermediate nodes that also need disconnecting.
+ */
 function teardownAudio() {
   if (sourceNode) {
     try { sourceNode.stop && sourceNode.stop(); } catch(e) {}
@@ -1550,10 +2380,17 @@ function teardownAudio() {
   if (lfoOsc) { try { lfoOsc.stop(); } catch(e) {} lfoOsc = null; }
   if (audioContext) { audioContext.close(); audioContext = null; }
   resonanceAudio = null; resonanceSource = null;
+  /* Clear decoded buffers — they will be re-decoded on the next startDemo() */
   for (const k of Object.keys(sampleBuffers)) delete sampleBuffers[k];
   lastResonanceMaterials = null;
 }
 
+/**
+ * Resumes a suspended AudioContext when the page becomes visible again.
+ * Browsers (particularly Chrome on Android) automatically suspend audio
+ * when the tab is backgrounded; we must resume it on tab focus.
+ * @returns {Promise<void>}
+ */
 async function onVisibilityChange() {
   if (!audioContext) return;
   if (document.visibilityState === 'visible' && audioContext.state === 'suspended') {
