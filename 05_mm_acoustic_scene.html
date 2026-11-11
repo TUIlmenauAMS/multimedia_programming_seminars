@@ -15,14 +15,19 @@
   Origin (0,0,0) is the room centre floor.
 
   ── LAYOUT ────────────────────────────────────────────────────────────────────
-  Single room: 14 m wide × 10 m deep × 4 m high
-    [-7..+7 x,  0..4 y,  -9..+1 z]
-    Listener starts at (0, 1.65, 0) facing −Z (into the stage)
+  Single room: 20 m wide × 16 m deep × 5 m high
+    [-10..+10 x,  0..5 y,  -15..+1 z]
+    Listener starts at (0, 1.65, -1) facing −Z (into the stage)
 
-  Instrument positions:
-    Guitar Amp  [-3,  0,  -6]   left stage, facing +Z (toward listener)
-    Drum Kit    [ 0,  0,  -7]   centre back
-    Grand Piano [ 3,  0.1,-5]   right stage
+  Instrument positions (3 m+ clearance on all sides for walk-around):
+    Guitar Amp  [-5,  0,  -9]   left stage, facing +Z  (toward listener)
+    Drum Kit    [ 0,  0,  -11]  centre back
+    Grand Piano [ 5,  0,  -8]   right stage
+
+  ── DIRECTIVITY ──────────────────────────────────────────────────────────────
+  Guitar Amp  — cardioid  alpha=0.5, sharpness=1.5  (walk behind → level drops)
+  Drum Kit    — omni      alpha=0.0                  (accurate: kit radiates 360°)
+  Grand Piano — omni      alpha=0.0                  (accurate: open lid is diffuse)
 
   3D Models (place in same folder as this HTML, or upload via sidebar):
     guitar_amplifier.glb  · tama_drum_kit.glb  · grand_piano.glb
@@ -491,7 +496,7 @@ html, body {
         <div class="source-dot" style="background:#fb923c"></div>
         <div class="source-info">
           <div class="source-name">Guitar Amp</div>
-          <div class="source-sub">Left stage · cardioid</div>
+          <div class="source-sub">Left stage · cardioid α=0.5</div>
           <div class="energy-bar-mini"><div class="energy-bar-mini-fill" id="ebar-guitar" style="background:#fb923c"></div></div>
         </div>
         <div class="source-dist" id="dist-guitar">— m</div>
@@ -502,7 +507,7 @@ html, body {
         <div class="source-dot" style="background:#f87171"></div>
         <div class="source-info">
           <div class="source-name">Drum Kit</div>
-          <div class="source-sub">Centre back</div>
+          <div class="source-sub">Centre back · omni α=0.0</div>
           <div class="energy-bar-mini"><div class="energy-bar-mini-fill" id="ebar-drums" style="background:#f87171"></div></div>
         </div>
         <div class="source-dist" id="dist-drums">— m</div>
@@ -513,7 +518,7 @@ html, body {
         <div class="source-dot" style="background:#a78bfa"></div>
         <div class="source-info">
           <div class="source-name">Grand Piano</div>
-          <div class="source-sub">Right stage</div>
+          <div class="source-sub">Right stage · omni α=0.0</div>
           <div class="energy-bar-mini"><div class="energy-bar-mini-fill" id="ebar-piano" style="background:#a78bfa"></div></div>
         </div>
         <div class="source-dist" id="dist-piano">— m</div>
@@ -619,9 +624,9 @@ html, body {
   Three.js: X right, Y up, Z toward viewer. One unit = 1 metre.
   Resonance Audio uses the same convention — no conversion needed.
 
-  Room: 14 m wide × 10 m deep × 4 m high
-  X: [-7 .. +7]   Z: [-9 .. +1]   Y: [0 .. 4]
-  Listener starts at (0, 1.65, 0) looking toward −Z (the stage).
+  Room: 20 m wide × 16 m deep × 5 m high
+  X: [-10 .. +10]   Z: [-15 .. +1]   Y: [0 .. 5]
+  Listener starts at (0, 1.65, -1) looking toward −Z (the stage).
 */
 
 // ════════════════════════════════════════════════════════════════
@@ -632,7 +637,7 @@ const ACOUSTIC_MODES = {
   dry: {
     name:       'Studio (Dry)',
     rt60:       0.25,
-    dimensions: { width: 14, height: 4, depth: 10 },
+    dimensions: { width: 20, height: 5, depth: 16 },
     // Heavy absorption — recording studio treatment
     materials: {
       left:  'fiber_glass_insulation',
@@ -646,7 +651,7 @@ const ACOUSTIC_MODES = {
   wet: {
     name:       'Theater (Wet)',
     rt60:       1.10,
-    dimensions: { width: 14, height: 4, depth: 10 },
+    dimensions: { width: 20, height: 5, depth: 16 },
     // Reflective surfaces — small theater / concert stage
     materials: {
       left:  'wood_panel',
@@ -664,9 +669,17 @@ const ACOUSTIC_MODES = {
 // pos: world-space [x, y, z] — matches the instrument placement.
 // ════════════════════════════════════════════════════════════════
 const SOURCE_DEFS = [
-  { key: 'guitar', name: 'Guitar Amp',  pos: [-3.0, 0.0, -6.0], color: 0xfb923c, cardioid: true  },
-  { key: 'drums',  name: 'Drum Kit',    pos: [ 0.0, 0.0, -7.5], color: 0xf87171, cardioid: false },
-  { key: 'piano',  name: 'Grand Piano', pos: [ 3.5, 0.0, -5.5], color: 0xa78bfa, cardioid: false }
+  // directivity: { alpha, sharpness } — set on the Resonance source after init
+  // alpha=0 → omni, alpha=0.5 → cardioid, alpha=1 → hyper-cardioid
+  { key: 'guitar', name: 'Guitar Amp',  pos: [-5.0, 0.0,  -9.0], color: 0xfb923c,
+    directivity: { alpha: 0.5, sharpness: 1.5 },  // cardioid — walk behind to hear drop
+    directivityLabel: 'cardioid  α=0.5' },
+  { key: 'drums',  name: 'Drum Kit',    pos: [ 0.0, 0.0, -11.0], color: 0xf87171,
+    directivity: { alpha: 0.0, sharpness: 1.0 },  // omni — kit radiates 360°
+    directivityLabel: 'omni  α=0.0' },
+  { key: 'piano',  name: 'Grand Piano', pos: [ 5.0, 0.0,  -8.0], color: 0xa78bfa,
+    directivity: { alpha: 0.0, sharpness: 1.0 },  // omni — open lid is diffuse
+    directivityLabel: 'omni  α=0.0' }
 ];
 
 // ════════════════════════════════════════════════════════════════
@@ -705,8 +718,8 @@ const PAN_SENS   = 0.008;
 const SCROLL_SPD = 0.012;
 const CAM_EYE_Y  = 1.65;
 
-// Camera bounds for the single room
-const CAM_BOUNDS = { xMin: -6.7, xMax: 6.7, zMin: -8.8, zMax: 0.8 };
+// Camera bounds for the single room — 0.3 m inset from walls
+const CAM_BOUNDS = { xMin: -9.7, xMax: 9.7, zMin: -14.7, zMax: 0.8 };
 
 // ════════════════════════════════════════════════════════════════
 // STEP 1A: Audio file loading
@@ -844,9 +857,13 @@ async function fetchAllModelFiles() {
 // scale is a uniform scalar; rotY is rotation around Y in radians.
 // offsetY shifts the model up/down after auto-floor alignment.
 const MODEL_OVERRIDES = {
-  guitar: { scale: 1.0,  rotY: Math.PI,       offsetY: 0    },
-  drums:  { scale: 1.0,  rotY: 0,             offsetY: 0    },
-  piano:  { scale: 1.0,  rotY: -Math.PI / 2,  offsetY: 0    }
+  // guitar amp: target height ~0.65 m (realistic 1×12 combo cabinet)
+  // rotY: Math.PI so front speaker faces +Z toward the listener
+  guitar: { targetHeight: 0.65, rotY: Math.PI,      offsetY: 0 },
+  // drums: target height ~1.4 m (floor tom + cymbal overhead)
+  drums:  { targetHeight: 1.4,  rotY: 0,            offsetY: 0 },
+  // piano: target height ~1.0 m (grand piano body, lid closed)
+  piano:  { targetHeight: 1.0,  rotY: -Math.PI / 2, offsetY: 0 }
 };
 
 async function loadAndPlaceModel(key) {
@@ -867,14 +884,12 @@ async function loadAndPlaceModel(key) {
       const center = new THREE.Vector3();
       box.getCenter(center);
 
-      // Auto-scale: target max dimension of 2.5 m for guitar amp and piano,
-      // 2.2 m for drums (they tend to be wider). We'll rescale uniformly.
-      const TARGET = { guitar: 1.4, drums: 2.2, piano: 2.2 };
-      const maxDim = Math.max(size.x, size.y, size.z);
-      const autoScale = TARGET[key] / maxDim;
-
+      // Auto-scale: scale so the model's Y dimension matches targetHeight.
+      // We use Y (height) as the reference axis so guitars, drums and pianos
+      // all sit at believable real-world proportions relative to each other.
       const ov = MODEL_OVERRIDES[key];
-      const finalScale = autoScale * ov.scale;
+      const autoScale = ov.targetHeight / size.y;
+      const finalScale = autoScale;
 
       model.scale.setScalar(finalScale);
 
@@ -950,12 +965,12 @@ function initThree() {
   renderer.toneMappingExposure = 1.0;
   renderer.outputColorSpace  = THREE.SRGBColorSpace;
 
-  camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 500);
-  camera.position.set(0, CAM_EYE_Y, 0);
+  camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 600);
+  camera.position.set(0, CAM_EYE_Y, -1);
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x07080d);
-  scene.fog = new THREE.FogExp2(0x07080d, 0.028);
+  scene.fog = new THREE.FogExp2(0x07080d, 0.018);
 
   clock = new THREE.Clock();
 
@@ -1030,7 +1045,7 @@ function clampCamera() {
 }
 
 function resetView() {
-  camera.position.set(0, CAM_EYE_Y, 0);
+  camera.position.set(0, CAM_EYE_Y, -1);
   navState.euler = new THREE.Euler(0, Math.PI, 0, 'YXZ');
   camera.quaternion.setFromEuler(navState.euler);
 }
@@ -1147,124 +1162,139 @@ function buildScene() {
   buildFurniture();
   buildSourceVisuals();
 
-  // Floor grid
-  const grid = new THREE.GridHelper(20, 50, 0x1e2535, 0x1e2535);
-  grid.material.opacity = 0.35; grid.material.transparent = true;
-  grid.position.set(0, 0.003, -4);
+  // Floor grid — covers entire room
+  const grid = new THREE.GridHelper(30, 60, 0x1e2535, 0x1e2535);
+  grid.material.opacity = 0.30; grid.material.transparent = true;
+  grid.position.set(0, 0.003, -7);
   scene.add(grid);
 }
 
 function buildLighting() {
-  scene.add(new THREE.AmbientLight(0x1a2030, 1.6));
+  scene.add(new THREE.AmbientLight(0x1a2030, 1.5));
 
-  // Key light — above and slightly front
-  const key = new THREE.DirectionalLight(0xfff4e0, 1.1);
-  key.position.set(3, 6, 2); key.castShadow = true;
+  // Key light — above centre, casts shadows
+  const key = new THREE.DirectionalLight(0xfff4e0, 1.0);
+  key.position.set(4, 10, 2); key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
-  key.shadow.camera.near = 0.1; key.shadow.camera.far = 25;
-  key.shadow.camera.left = key.shadow.camera.bottom = -10;
-  key.shadow.camera.right = key.shadow.camera.top = 10;
+  key.shadow.camera.near = 0.1; key.shadow.camera.far = 40;
+  key.shadow.camera.left = key.shadow.camera.bottom = -16;
+  key.shadow.camera.right = key.shadow.camera.top  =  16;
   scene.add(key);
 
-  const fillL = new THREE.DirectionalLight(0xc8d8ff, 0.5); fillL.position.set(-8,4,-4); scene.add(fillL);
-  const fillR = new THREE.DirectionalLight(0xffd8c0, 0.5); fillR.position.set( 8,4,-4); scene.add(fillR);
+  const fillL = new THREE.DirectionalLight(0xc8d8ff, 0.45); fillL.position.set(-12, 6, -6);  scene.add(fillL);
+  const fillR = new THREE.DirectionalLight(0xffd8c0, 0.45); fillR.position.set( 12, 6, -6);  scene.add(fillR);
+  const fillB = new THREE.DirectionalLight(0xd0e8ff, 0.30); fillB.position.set(  0, 4,  8);  scene.add(fillB);
 
-  // Stage overhead strip lights (warm)
-  for (const [x, z] of [[-3,-6],[0,-7.5],[3.5,-5.5]]) {
-    const rl = new THREE.RectAreaLight(0xffead0, 2.0, 1.5, 0.8);
-    rl.position.set(x, 3.85, z); rl.lookAt(x, 0, z); scene.add(rl);
+  // Instrument spot lights — one per source position, warm overhead
+  for (const [x, z] of [[-5,-9],[0,-11],[5,-8]]) {
+    const rl = new THREE.RectAreaLight(0xffead0, 2.2, 2.0, 1.0);
+    rl.position.set(x, 4.85, z); rl.lookAt(x, 0, z); scene.add(rl);
   }
 
-  // Front-of-house fill (cool)
-  const foh = new THREE.RectAreaLight(0xd4e8ff, 1.2, 4.0, 1.0);
-  foh.position.set(0, 3.85, -1); foh.lookAt(0, 0, -1); scene.add(foh);
+  // General stage wash (cooler, wide)
+  const wash = new THREE.RectAreaLight(0xd4e8ff, 1.0, 10.0, 1.2);
+  wash.position.set(0, 4.85, -9); wash.lookAt(0, 0, -9); scene.add(wash);
+
+  // Front-of-house fill
+  const foh = new THREE.RectAreaLight(0xd4e8ff, 0.8, 6.0, 1.0);
+  foh.position.set(0, 4.85, -2); foh.lookAt(0, 0, -2); scene.add(foh);
 }
 
 function buildRoom() {
-  const W=14, H=4, D=10, cx=0, cz=-4;
+  // 20 m wide × 16 m deep × 5 m high
+  // X: [-10..+10]  Z: [-15..+1]  Y: [0..5]
+  const W=20, H=5, D=16, cx=0, cz=-7;
 
-  const floorMat = new THREE.MeshStandardMaterial({ map: texParquet(), roughness: 0.75, metalness: 0 });
-  const ceilMat  = new THREE.MeshStandardMaterial({ map: texCeiling(),  roughness: 0.90, metalness: 0 });
+  const floorMat = new THREE.MeshStandardMaterial({ map: texParquet(),      roughness: 0.75, metalness: 0 });
+  const ceilMat  = new THREE.MeshStandardMaterial({ map: texCeiling(),      roughness: 0.90, metalness: 0 });
   const wallWood = matWall(texWoodPanel);
   const wallBack = new THREE.MeshStandardMaterial({ map: texAcousticPanel(), roughness: 0.95, metalness: 0 });
   const wallFront= matWall(texConcrete);
 
-  // Floor
-  addPlane(W, D, new THREE.Vector3(cx, 0,     cz), -Math.PI/2, 0, floorMat);
-  // Ceiling
-  addPlane(W, D, new THREE.Vector3(cx, H,     cz),  Math.PI/2, 0, ceilMat);
-  // Back wall (Z = -9)
-  addPlane(W, H, new THREE.Vector3(cx, H/2, -9),  0, 0, wallBack.clone());
+  // Floor & ceiling
+  addPlane(W, D, new THREE.Vector3(cx, 0,    cz), -Math.PI/2, 0, floorMat);
+  addPlane(W, D, new THREE.Vector3(cx, H,    cz),  Math.PI/2, 0, ceilMat);
+  // Back wall  (Z = -15)
+  addPlane(W, H, new THREE.Vector3(cx, H/2, -15), 0, 0, wallBack.clone());
   // Front wall (Z = +1)
-  addPlane(W, H, new THREE.Vector3(cx, H/2,  1),  0, Math.PI, wallFront.clone());
-  // Left wall (X = -7)
-  addPlane(D, H, new THREE.Vector3(-7, H/2, cz),  0,  Math.PI/2, wallWood.clone());
-  // Right wall (X = +7)
-  addPlane(D, H, new THREE.Vector3( 7, H/2, cz),  0, -Math.PI/2, wallWood.clone());
+  addPlane(W, H, new THREE.Vector3(cx, H/2,   1), 0, Math.PI, wallFront.clone());
+  // Left wall  (X = -10)
+  addPlane(D, H, new THREE.Vector3(-10, H/2, cz), 0,  Math.PI/2, wallWood.clone());
+  // Right wall (X = +10)
+  addPlane(D, H, new THREE.Vector3( 10, H/2, cz), 0, -Math.PI/2, wallWood.clone());
 
-  // Emissive ceiling panels (stage area)
+  // Emissive ceiling panels above each instrument
   const panMat = new THREE.MeshStandardMaterial({
-    color: 0xffead0, emissive: new THREE.Color(0xffead0), emissiveIntensity: 0.25
+    color: 0xffead0, emissive: new THREE.Color(0xffead0), emissiveIntensity: 0.22
   });
-  for (const [x, z] of [[-3,-6],[0,-7.5],[3.5,-5.5]]) {
-    const p = new THREE.Mesh(new THREE.PlaneGeometry(1.5, 0.8), panMat.clone());
-    p.position.set(x, 3.98, z); p.rotation.x = Math.PI/2; scene.add(p);
+  for (const [x, z] of [[-5,-9],[0,-11],[5,-8]]) {
+    const p = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.0), panMat.clone());
+    p.position.set(x, 4.98, z); p.rotation.x = Math.PI/2; scene.add(p);
   }
 
-  // Stage riser (slightly elevated platform at the back)
+  // Stage riser — big enough for all three instruments, 3 m clearance from walls
   const riserMat = new THREE.MeshStandardMaterial({ color: 0x1a1208, roughness: 0.9 });
-  box(12, 0.12, 6, [0, 0.06, -6.5], riserMat);
+  box(16, 0.12, 9, [0, 0.06, -10], riserMat);
 }
 
 function buildFurniture() {
   const M = c => new THREE.MeshStandardMaterial(c);
 
-  // Stage monitor wedges (3 × front edge of riser)
-  for (const x of [-4, 0, 4]) {
-    // Wedge shape approximated as a tilted box
-    const wm = box(0.5, 0.18, 0.32, [x, 0.14, -3.7], M({color:0x0a0a12,roughness:0.7,metalness:0.2}));
-    wm.rotation.x = -0.3;
+  // Stage monitor wedges — front edge of riser, one per instrument
+  for (const [x, z] of [[-5,-5.7],[0,-5.7],[5,-5.7]]) {
+    const wm = box(0.55, 0.20, 0.36, [x, 0.15, z], M({color:0x0a0a12,roughness:0.7,metalness:0.2}));
+    wm.rotation.x = -0.28;
   }
 
-  // DI box / cable snakes on stage
-  box(0.3, 0.06, 0.2, [-1.5, 0.12, -4.5], M({color:0x111820,roughness:0.5,metalness:0.6}));
-  box(0.3, 0.06, 0.2, [ 1.5, 0.12, -4.5], M({color:0x111820,roughness:0.5,metalness:0.6}));
-
-  // PA speaker stacks — left and right of stage
-  for (const sx of [-6, 6]) {
-    // Cabinet
-    box(0.5, 1.2, 0.5, [sx, 0.6, -3], M({color:0x060609,roughness:0.6,metalness:0.1}));
-    // Grille cloth texture
-    const grille = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.44, 1.14),
-      M({color:0x1a1a22,roughness:0.9})
-    );
-    grille.position.set(sx > 0 ? sx-0.26 : sx+0.26, 0.6, -3);
-    grille.rotation.y = sx > 0 ? -Math.PI/2 : Math.PI/2;
-    scene.add(grille);
-    // Sub woofer
-    box(0.55, 0.65, 0.55, [sx, 0.325, -3], M({color:0x040406,roughness:0.6,metalness:0.1}));
+  // DI boxes / cable snakes on stage floor
+  for (const [x, z] of [[-3,-7],[-1,-9.5],[2,-8],[1,-11.5]]) {
+    box(0.28, 0.06, 0.18, [x, 0.15, z], M({color:0x111820,roughness:0.5,metalness:0.6}));
   }
 
-  // Lighting rig (horizontal bar with par cans)
+  // PA speaker stacks — flanking the stage, inset from side walls
+  for (const sx of [-8.5, 8.5]) {
+    const dir = sx < 0 ? 1 : -1;
+    // Top cabinet (mid-high)
+    box(0.55, 1.3, 0.55, [sx, 0.65, -6], M({color:0x060609,roughness:0.6,metalness:0.1}));
+    const grilleH = new THREE.Mesh(new THREE.PlaneGeometry(0.48, 1.24), M({color:0x1a1a22,roughness:0.9}));
+    grilleH.position.set(sx + dir * 0.28, 0.65, -6);
+    grilleH.rotation.y = dir * Math.PI/2; scene.add(grilleH);
+    // Sub
+    box(0.60, 0.70, 0.60, [sx, 0.35, -6], M({color:0x040406,roughness:0.6,metalness:0.1}));
+  }
+
+  // Lighting rig — two parallel bars spanning the stage width
   const rigMat = M({color:0x303040,roughness:0.3,metalness:0.8});
-  box(10, 0.06, 0.06, [0, 3.7, -5.5], rigMat);  // main bar
-  // Par cans hanging down
-  for (const x of [-4,-2,0,2,4]) {
-    const can = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.12,0.22,8), M({color:0x202028,roughness:0.3,metalness:0.7}));
-    can.position.set(x, 3.5, -5.5); scene.add(can);
-    // Emissive lens
-    const lens = new THREE.Mesh(
-      new THREE.CircleGeometry(0.07, 8),
-      M({color:0xffd080, emissive: new THREE.Color(0xffd080), emissiveIntensity: 0.4})
-    );
-    lens.position.set(x, 3.38, -5.5); lens.rotation.x = Math.PI/2; scene.add(lens);
+  for (const z of [-8, -11]) {
+    box(16, 0.07, 0.07, [0, 4.75, z], rigMat);
+    // Par cans every 2 m along the bar
+    for (let x=-6; x<=6; x+=2) {
+      const can = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.10, 0.13, 0.26, 8),
+        M({color:0x202028,roughness:0.3,metalness:0.7})
+      );
+      can.position.set(x, 4.55, z); scene.add(can);
+      // Emissive lens
+      const lens = new THREE.Mesh(
+        new THREE.CircleGeometry(0.08, 8),
+        M({color:0xffd080, emissive: new THREE.Color(0xffd080), emissiveIntensity: 0.4})
+      );
+      lens.position.set(x, 4.42, z); lens.rotation.x = Math.PI/2; scene.add(lens);
+    }
   }
 
-  // Back wall acoustic treatment (some hanging panels)
-  for (let i=0; i<4; i++) {
-    const px = -4.5 + i * 3;
-    box(1.0, 1.4, 0.08, [px, 2.0, -8.9], M({color:0x1a2030,roughness:0.95}));
+  // Back wall acoustic diffusers / treatment panels
+  for (let i=0; i<6; i++) {
+    const px = -7.5 + i * 3;
+    box(1.1, 1.6, 0.10, [px, 2.2, -14.9], M({color:0x1a2030,roughness:0.95}));
+  }
+
+  // Side-wall acoustic panels (left and right, staggered)
+  for (const [x, z, ry] of [
+    [-9.9, -7, Math.PI/2], [-9.9,-10, Math.PI/2], [-9.9,-13, Math.PI/2],
+    [ 9.9, -7,-Math.PI/2], [ 9.9,-10,-Math.PI/2], [ 9.9,-13,-Math.PI/2]
+  ]) {
+    box(1.4, 1.4, 0.10, [x, 2.0, z], M({color:0x1c2235,roughness:0.95}));
   }
 }
 
@@ -1335,9 +1365,14 @@ async function initAudio() {
     const p = src.halo.position;
     src.resonanceSrc.setPosition(p.x, p.y, p.z);
 
-    // Cardioid directivity for guitar amp (faces +Z after rotation)
-    if (SOURCE_DEFS.find(d => d.key === src.key)?.cardioid) {
-      src.resonanceSrc.setDirectivityPattern(0.5, 1.0);
+    // Set directivity from SOURCE_DEFS.
+    // CONCEPT: alpha=0 → omnidirectional (uniform in all directions).
+    //          alpha=0.5, sharpness=1.5 → cardioid (level drops behind source).
+    // The pattern lobes toward the source's local +Z axis, which for the guitar
+    // amp (rotY=Math.PI) points toward the listener — walk behind to hear the drop.
+    const def = SOURCE_DEFS.find(d => d.key === src.key);
+    if (def?.directivity) {
+      src.resonanceSrc.setDirectivityPattern(def.directivity.alpha, def.directivity.sharpness);
     }
 
     src.analyser  = audioContext.createAnalyser();
