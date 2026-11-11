@@ -19,10 +19,15 @@
     [-10..+10 x,  0..5 y,  -15..+1 z]
     Listener starts at (0, 1.65, -1) facing −Z (into the stage)
 
-  Instrument positions (3 m+ clearance on all sides for walk-around):
-    Guitar Amp  [-5,  0,  -9]   left stage, facing +Z  (toward listener)
-    Drum Kit    [ 0,  0,  -11]  centre back
-    Grand Piano [ 5,  0,  -8]   right stage
+  Stage riser: 16 m wide × 9 m deep × 0.30 m high — top surface at y = 0.30 m
+  Guitar amp stand: 0.45 m wide × 0.30 m tall black road-case riser on stage
+
+  Instrument positions on stage (Y = stage surface height):
+    Guitar Amp  [-5, 0.60, -9]   left stage — on 0.30 m stand, facing +Z
+    Drum Kit    [ 0, 0.30, -11]  centre back — directly on stage
+    Grand Piano [ 5, 0.30, -8]   right stage — directly on stage
+
+  PA stacks: flush against side walls at x = ±9.74, z ≈ -6.5
 
   ── DIRECTIVITY ──────────────────────────────────────────────────────────────
   Guitar Amp  — cardioid  alpha=0.5, sharpness=1.5  (walk behind → level drops)
@@ -668,16 +673,23 @@ const ACOUSTIC_MODES = {
 // SOURCE DEFINITIONS
 // pos: world-space [x, y, z] — matches the instrument placement.
 // ════════════════════════════════════════════════════════════════
+// Stage riser surface height — all instruments and props on stage use this as their floor Y.
+// The riser box is 0.30 m tall (a proper performance stage), so its top surface is at 0.30 m.
+const STAGE_H = 0.30;
+
+// Guitar amp stand height — the amp sits on a low road-case style riser on stage.
+const AMP_STAND_H = 0.30;
+
 const SOURCE_DEFS = [
   // directivity: { alpha, sharpness } — set on the Resonance source after init
   // alpha=0 → omni, alpha=0.5 → cardioid, alpha=1 → hyper-cardioid
-  { key: 'guitar', name: 'Guitar Amp',  pos: [-5.0, 0.0,  -9.0], color: 0xfb923c,
+  { key: 'guitar', name: 'Guitar Amp',  pos: [-5.0, STAGE_H + AMP_STAND_H,  -9.0], color: 0xfb923c,
     directivity: { alpha: 0.5, sharpness: 1.5 },  // cardioid — walk behind to hear drop
     directivityLabel: 'cardioid  α=0.5' },
-  { key: 'drums',  name: 'Drum Kit',    pos: [ 0.0, 0.0, -11.0], color: 0xf87171,
+  { key: 'drums',  name: 'Drum Kit',    pos: [ 0.0, STAGE_H, -11.0], color: 0xf87171,
     directivity: { alpha: 0.0, sharpness: 1.0 },  // omni — kit radiates 360°
     directivityLabel: 'omni  α=0.0' },
-  { key: 'piano',  name: 'Grand Piano', pos: [ 5.0, 0.0,  -8.0], color: 0xa78bfa,
+  { key: 'piano',  name: 'Grand Piano', pos: [ 5.0, STAGE_H,  -8.0], color: 0xa78bfa,
     directivity: { alpha: 0.0, sharpness: 1.0 },  // omni — open lid is diffuse
     directivityLabel: 'omni  α=0.0' }
 ];
@@ -855,15 +867,18 @@ async function fetchAllModelFiles() {
 
 // Per-model transform overrides — tuned for typical Sketchfab exports.
 // scale is a uniform scalar; rotY is rotation around Y in radians.
-// offsetY shifts the model up/down after auto-floor alignment.
+// floorY is the Y position of the surface the model sits on (stage or stand top).
 const MODEL_OVERRIDES = {
   // guitar amp: target height ~0.65 m (realistic 1×12 combo cabinet)
   // rotY: Math.PI so front speaker faces +Z toward the listener
-  guitar: { targetHeight: 0.65, rotY: Math.PI,      offsetY: 0 },
+  // sits on top of the amp stand (STAGE_H + AMP_STAND_H)
+  guitar: { targetHeight: 0.65, rotY: Math.PI,      floorY: STAGE_H + AMP_STAND_H },
   // drums: target height ~1.4 m (floor tom + cymbal overhead)
-  drums:  { targetHeight: 1.4,  rotY: 0,            offsetY: 0 },
+  // sits directly on stage surface
+  drums:  { targetHeight: 1.4,  rotY: 0,            floorY: STAGE_H },
   // piano: target height ~1.0 m (grand piano body, lid closed)
-  piano:  { targetHeight: 1.0,  rotY: -Math.PI / 2, offsetY: 0 }
+  // sits directly on stage surface
+  piano:  { targetHeight: 1.0,  rotY: -Math.PI / 2, floorY: STAGE_H }
 };
 
 async function loadAndPlaceModel(key) {
@@ -896,7 +911,7 @@ async function loadAndPlaceModel(key) {
       // Apply Y rotation
       model.rotation.y = ov.rotY;
 
-      // Position: use SOURCE_DEFS pos, then push floor to y=0
+      // Position: use SOURCE_DEFS pos X/Z, floor the model on its designated surface (floorY).
       const def = SOURCE_DEFS.find(d => d.key === key);
       const px = def.pos[0];
       const pz = def.pos[2];
@@ -905,7 +920,8 @@ async function loadAndPlaceModel(key) {
       model.updateMatrixWorld(true);
       const box2 = new THREE.Box3().setFromObject(model);
       const bottomY = box2.min.y;
-      model.position.set(px, -bottomY + ov.offsetY, pz);
+      // Place bottom of model exactly on floorY (stage surface or stand top)
+      model.position.set(px, ov.floorY - bottomY, pz);
 
       // Enable shadows on all meshes
       model.traverse(child => {
@@ -1162,10 +1178,10 @@ function buildScene() {
   buildFurniture();
   buildSourceVisuals();
 
-  // Floor grid — covers entire room
-  const grid = new THREE.GridHelper(30, 60, 0x1e2535, 0x1e2535);
-  grid.material.opacity = 0.30; grid.material.transparent = true;
-  grid.position.set(0, 0.003, -7);
+  // Floor grid — covers the audience floor area (not the stage)
+  const grid = new THREE.GridHelper(10, 20, 0x1e2535, 0x1e2535);
+  grid.material.opacity = 0.25; grid.material.transparent = true;
+  grid.position.set(0, 0.002, -2.5);
   scene.add(grid);
 }
 
@@ -1186,9 +1202,10 @@ function buildLighting() {
   const fillB = new THREE.DirectionalLight(0xd0e8ff, 0.30); fillB.position.set(  0, 4,  8);  scene.add(fillB);
 
   // Instrument spot lights — one per source position, warm overhead
+  // lookAt STAGE_H so light aims at stage surface, not through it
   for (const [x, z] of [[-5,-9],[0,-11],[5,-8]]) {
     const rl = new THREE.RectAreaLight(0xffead0, 2.2, 2.0, 1.0);
-    rl.position.set(x, 4.85, z); rl.lookAt(x, 0, z); scene.add(rl);
+    rl.position.set(x, 4.85, z); rl.lookAt(x, STAGE_H, z); scene.add(rl);
   }
 
   // General stage wash (cooler, wide)
@@ -1232,69 +1249,128 @@ function buildRoom() {
     p.position.set(x, 4.98, z); p.rotation.x = Math.PI/2; scene.add(p);
   }
 
-  // Stage riser — big enough for all three instruments, 3 m clearance from walls
-  const riserMat = new THREE.MeshStandardMaterial({ color: 0x1a1208, roughness: 0.9 });
-  box(16, 0.12, 9, [0, 0.06, -10], riserMat);
+  // Stage riser — 0.30 m tall (proper performance stage), top surface at y = STAGE_H
+  // 16 m wide × 9 m deep, centred at z = -10
+  const riserMat = new THREE.MeshStandardMaterial({ color: 0x120e08, roughness: 0.88, metalness: 0.0 });
+  box(16, STAGE_H, 9, [0, STAGE_H / 2, -10], riserMat);
+
+  // Stage front edge — a slightly lighter fascia strip for visual definition
+  const fascMat = new THREE.MeshStandardMaterial({ color: 0x1e170a, roughness: 0.85 });
+  box(16, STAGE_H, 0.06, [0, STAGE_H / 2, -5.47], fascMat);
+
+  // Stage floor surface — parquet on top of riser
+  addPlane(16, 9, new THREE.Vector3(0, STAGE_H + 0.001, -10), -Math.PI/2, 0,
+    new THREE.MeshStandardMaterial({ map: texParquet(), roughness: 0.65, metalness: 0 }));
 }
 
 function buildFurniture() {
   const M = c => new THREE.MeshStandardMaterial(c);
 
-  // Stage monitor wedges — front edge of riser, one per instrument
-  for (const [x, z] of [[-5,-5.7],[0,-5.7],[5,-5.7]]) {
-    const wm = box(0.55, 0.20, 0.36, [x, 0.15, z], M({color:0x0a0a12,roughness:0.7,metalness:0.2}));
-    wm.rotation.x = -0.28;
+  // ── Guitar amp stand ─────────────────────────────────────────────
+  // A solid black road-case style riser: 0.45 m wide × AMP_STAND_H tall × 0.40 m deep
+  // Sits on stage surface (bottom at STAGE_H, top at STAGE_H + AMP_STAND_H)
+  box(0.45, AMP_STAND_H, 0.40,
+    [-5, STAGE_H + AMP_STAND_H / 2, -9],
+    M({color:0x080808, roughness:0.5, metalness:0.3}));
+
+  // Stand front face grille detail
+  const standGrille = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.38, AMP_STAND_H - 0.04),
+    M({color:0x111111, roughness:0.9})
+  );
+  standGrille.position.set(-5, STAGE_H + AMP_STAND_H / 2, -9 + 0.201);
+  scene.add(standGrille);
+
+  // ── Stage monitor wedges ─────────────────────────────────────────
+  // Sit ON stage surface: bottom at STAGE_H, centre at STAGE_H + wedge_h/2
+  const wedgeH = 0.22;
+  for (const [x, z] of [[-5, -6.0],[0, -6.0],[5, -6.0]]) {
+    const wm = box(0.60, wedgeH, 0.40,
+      [x, STAGE_H + wedgeH / 2, z],
+      M({color:0x0a0a12, roughness:0.7, metalness:0.2}));
+    wm.rotation.x = -0.30;
   }
 
-  // DI boxes / cable snakes on stage floor
-  for (const [x, z] of [[-3,-7],[-1,-9.5],[2,-8],[1,-11.5]]) {
-    box(0.28, 0.06, 0.18, [x, 0.15, z], M({color:0x111820,roughness:0.5,metalness:0.6}));
+  // ── DI boxes / cable snakes on stage floor ───────────────────────
+  const diH = 0.07;
+  for (const [x, z] of [[-3,-7.5],[-1,-9.8],[2,-8.5],[1,-11.8]]) {
+    box(0.28, diH, 0.18, [x, STAGE_H + diH / 2, z],
+      M({color:0x111820, roughness:0.5, metalness:0.6}));
   }
 
-  // PA speaker stacks — flanking the stage, inset from side walls
-  for (const sx of [-8.5, 8.5]) {
-    const dir = sx < 0 ? 1 : -1;
-    // Top cabinet (mid-high)
-    box(0.55, 1.3, 0.55, [sx, 0.65, -6], M({color:0x060609,roughness:0.6,metalness:0.1}));
-    const grilleH = new THREE.Mesh(new THREE.PlaneGeometry(0.48, 1.24), M({color:0x1a1a22,roughness:0.9}));
-    grilleH.position.set(sx + dir * 0.28, 0.65, -6);
-    grilleH.rotation.y = dir * Math.PI/2; scene.add(grilleH);
-    // Sub
-    box(0.60, 0.70, 0.60, [sx, 0.35, -6], M({color:0x040406,roughness:0.6,metalness:0.1}));
+  // ── PA speaker stacks — flush against side walls ─────────────────
+  // Walls at x = ±10. Cabinets are 0.52 m deep, so centre at x = ±(10 - 0.26) = ±9.74.
+  // This puts the cabinet back face exactly on the wall with no gap.
+  // Stack: sub (0–1.0 m), mid-high (1.0–2.4 m) — both at z ≈ -6 (front of stage area)
+  for (const sx of [-1, 1]) {
+    const cx = sx * 9.74;         // cabinet centre X
+    const face = -sx;             // direction the grille faces (inward)
+    const cz = -6.5;              // Z position along wall
+
+    // Sub-bass cabinet — sits on floor, 1.0 m tall × 0.70 m wide × 0.52 m deep
+    box(0.70, 1.0, 0.52, [cx, 0.50, cz],
+      M({color:0x040406, roughness:0.65, metalness:0.08}));
+    // Sub grille (inward-facing)
+    const subGrille = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.63, 0.94),
+      M({color:0x111118, roughness:0.95})
+    );
+    subGrille.position.set(cx + face * 0.361, 0.50, cz);
+    subGrille.rotation.y = face * Math.PI / 2;
+    scene.add(subGrille);
+
+    // Mid-high cabinet — stacked on sub, 1.4 m tall × 0.60 m wide × 0.52 m deep
+    box(0.60, 1.4, 0.52, [cx, 1.70, cz],
+      M({color:0x060609, roughness:0.60, metalness:0.10}));
+    // Mid-high grille
+    const topGrille = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.53, 1.34),
+      M({color:0x1a1a24, roughness:0.9})
+    );
+    topGrille.position.set(cx + face * 0.361, 1.70, cz);
+    topGrille.rotation.y = face * Math.PI / 2;
+    scene.add(topGrille);
   }
 
-  // Lighting rig — two parallel bars spanning the stage width
-  const rigMat = M({color:0x303040,roughness:0.3,metalness:0.8});
-  for (const z of [-8, -11]) {
+  // ── Lighting rig — two parallel truss bars spanning the stage ───
+  const rigMat = M({color:0x303040, roughness:0.3, metalness:0.8});
+  for (const z of [-8.0, -11.5]) {
     box(16, 0.07, 0.07, [0, 4.75, z], rigMat);
     // Par cans every 2 m along the bar
-    for (let x=-6; x<=6; x+=2) {
+    for (let x = -6; x <= 6; x += 2) {
       const can = new THREE.Mesh(
         new THREE.CylinderGeometry(0.10, 0.13, 0.26, 8),
-        M({color:0x202028,roughness:0.3,metalness:0.7})
+        M({color:0x202028, roughness:0.3, metalness:0.7})
       );
       can.position.set(x, 4.55, z); scene.add(can);
-      // Emissive lens
+      // Emissive lens (facing down)
       const lens = new THREE.Mesh(
         new THREE.CircleGeometry(0.08, 8),
-        M({color:0xffd080, emissive: new THREE.Color(0xffd080), emissiveIntensity: 0.4})
+        M({color:0xffd080, emissive: new THREE.Color(0xffd080), emissiveIntensity: 0.45})
       );
-      lens.position.set(x, 4.42, z); lens.rotation.x = Math.PI/2; scene.add(lens);
+      lens.position.set(x, 4.42, z); lens.rotation.x = Math.PI / 2; scene.add(lens);
     }
   }
 
-  // Back wall acoustic diffusers / treatment panels
-  for (let i=0; i<6; i++) {
+  // ── Back wall acoustic diffusers — flush against back wall (z = -15) ─
+  // Panels: 1.1 m wide × 1.6 m tall × 0.08 m deep.
+  // Back face at z = -15, centre at z = -15 + 0.04 = -14.96
+  for (let i = 0; i < 6; i++) {
     const px = -7.5 + i * 3;
-    box(1.1, 1.6, 0.10, [px, 2.2, -14.9], M({color:0x1a2030,roughness:0.95}));
+    box(1.1, 1.6, 0.08, [px, 2.2, -14.96],
+      M({color:0x1a2030, roughness:0.95}));
   }
 
-  // Side-wall acoustic panels (left and right, staggered)
-  for (const [x, z, ry] of [
-    [-9.9, -7, Math.PI/2], [-9.9,-10, Math.PI/2], [-9.9,-13, Math.PI/2],
-    [ 9.9, -7,-Math.PI/2], [ 9.9,-10,-Math.PI/2], [ 9.9,-13,-Math.PI/2]
+  // ── Side-wall acoustic panels — flush against side walls (x = ±10) ─
+  // Panels: 1.4 m wide × 1.4 m tall × 0.08 m deep.
+  // Left wall (x=-10): centre at x = -10 + 0.04 = -9.96
+  // Right wall (x=+10): centre at x = 10 - 0.04 = +9.96
+  for (const [cx, z] of [
+    [-9.96, -7.5], [-9.96, -10.5], [-9.96, -13.5],
+    [ 9.96, -7.5], [ 9.96, -10.5], [ 9.96, -13.5]
   ]) {
-    box(1.4, 1.4, 0.10, [x, 2.0, z], M({color:0x1c2235,roughness:0.95}));
+    box(0.08, 1.4, 1.4, [cx, 2.0, z],
+      M({color:0x1c2235, roughness:0.95}));
   }
 }
 
@@ -1303,9 +1379,10 @@ function buildSourceVisuals() {
     const color = new THREE.Color(def.color);
 
     // Halo sphere — audio energy indicator floating near the instrument
+    // Y is offset +1.0 m above the instrument's base position (which already includes stage height)
     const haloMat  = new THREE.MeshStandardMaterial({ color, transparent:true, opacity:0.05, roughness:1, depthWrite:false });
     const haloMesh = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), haloMat);
-    haloMesh.position.set(...def.pos).y += 1.0;
+    haloMesh.position.set(def.pos[0], def.pos[1] + 1.0, def.pos[2]);
     scene.add(haloMesh);
 
     // PointLight — drives bloom from halo
