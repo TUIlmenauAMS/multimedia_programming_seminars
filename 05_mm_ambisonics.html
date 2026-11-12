@@ -411,6 +411,16 @@ html, body {
   color: var(--accent2);
   background: rgba(167,139,250,0.08);
 }
+.action-btn.running {
+  border-color: var(--red);
+  color: var(--red);
+  background: rgba(248,113,113,0.08);
+}
+.action-btn.running:hover {
+  border-color: var(--red);
+  color: var(--red);
+  background: rgba(248,113,113,0.16);
+}
 
 /* ── Nav hint (bottom-centre) ───────────────────────────────────────────── */
 #navHint {
@@ -571,6 +581,10 @@ html, body {
 
   <div class="ctrl-section">
     <button class="action-btn" id="freezeBtn" onclick="toggleFreeze()">❄ Freeze Field</button>
+  </div>
+
+  <div class="ctrl-section">
+    <button class="action-btn running" id="audioToggleBtn" onclick="toggleAudio()">⏹ Stop Audio</button>
   </div>
 </div>
 
@@ -1195,9 +1209,24 @@ function initResonance(order) {
   // See rebuildResonance() for the full crossfade pattern.
   masterGain = audioContext.createGain();
   masterGain.gain.value = 1.0;
+
+  // CONCEPT: DynamicsCompressorNode acts as a brickwall limiter here.
+  // With threshold at -3 dBFS, ratio 20:1, zero attack and 50ms release it
+  // prevents inter-source summation from clipping the output stage without
+  // audible pumping at normal listening levels. This is essential when 5
+  // synthesized sources all drive Resonance simultaneously at full scale.
+  const limiter = audioContext.createDynamicsCompressor();
+  limiter.threshold.value = -3;
+  limiter.knee.value      =  0;
+  limiter.ratio.value     = 20;
+  limiter.attack.value    =  0.001;
+  limiter.release.value   =  0.05;
+
   resonanceAudio.output.connect(masterGain);
-  masterGain.connect(audioContext.destination);
+  masterGain.connect(limiter);
+  limiter.connect(audioContext.destination);
   window._resonanceMasterGain = masterGain; // persistent reference for rebuild
+  window._resonanceLimiter    = limiter;
 
   // Create a Resonance source for each spatial source
   SOURCES.forEach((src, i) => {
@@ -1234,14 +1263,25 @@ function buildSynthSources() {
   // Sources A, B, C: use audio files if loaded; fall back to synthesis.
   // Sources D and E: always synthesized.
 
+  // Per-source trim gains inserted between synth/file and the analyser.
+  // Raw oscillators sit at 0 dBFS peak; with 5 sources all running simultaneously
+  // their sum through Resonance can clip badly. Each source gets an independent
+  // trim so the mix is balanced and headroom is preserved.
+  // Chain: source → trimGain → analyser → gainNode → resonanceSource.input
+  SOURCES.forEach(src => {
+    src.trimGain = audioContext.createGain();
+    src.trimGain.gain.value = 0.35; // −9 dBFS floor; individual sources override below
+  });
+
   // ── Source A: Speech (or synthesis fallback: warm bass pad)
   if (SOURCES[0].buffer) {
     SOURCES[0].bufNode = createLoopingBufferSource(SOURCES[0].buffer);
-    SOURCES[0].bufNode.connect(SOURCES[0].analyser);
+    SOURCES[0].trimGain.gain.value = 0.55; // speech files tend to be normalised; give a bit more
+    SOURCES[0].bufNode.connect(SOURCES[0].trimGain);
   } else {
     // Fallback: warm bass sine pad with vibrato
     // Signal flow: osc(sine,110Hz) → vibrato gain ← lfo(sine,0.3Hz)
-    //              → lowpass(800Hz) → analyser
+    //              → lowpass(800Hz) → trimGain → analyser
     const osc = audioContext.createOscillator();
     osc.type = 'sine'; osc.frequency.value = 110;
     const lfo = audioContext.createOscillator();
@@ -1251,7 +1291,7 @@ function buildSynthSources() {
     const lpf = audioContext.createBiquadFilter();
     lpf.type = 'lowpass'; lpf.frequency.value = 800;
     lfo.connect(vibGain); vibGain.connect(osc.detune);
-    osc.connect(lpf); lpf.connect(SOURCES[0].analyser);
+    osc.connect(lpf); lpf.connect(SOURCES[0].trimGain);
     osc.start(); lfo.start();
     SOURCES[0].oscNodes = [osc, lfo];
   }
@@ -1259,16 +1299,19 @@ function buildSynthSources() {
   // ── Source B: Beep (or synthesis fallback: bright pluck)
   if (SOURCES[1].buffer) {
     SOURCES[1].bufNode = createLoopingBufferSource(SOURCES[1].buffer);
-    SOURCES[1].bufNode.connect(SOURCES[1].analyser);
+    SOURCES[1].trimGain.gain.value = 0.5;
+    SOURCES[1].bufNode.connect(SOURCES[1].trimGain);
   } else {
     // Fallback: sawtooth through resonant bandpass
+    // ampEnv already attenuates to 0.4; trim brings it down further
     const osc = audioContext.createOscillator();
     osc.type = 'sawtooth'; osc.frequency.value = 440;
     const bpf = audioContext.createBiquadFilter();
     bpf.type = 'bandpass'; bpf.frequency.value = 2200; bpf.Q.value = 8;
     const ampEnv = audioContext.createGain();
     ampEnv.gain.value = 0.4;
-    osc.connect(bpf); bpf.connect(ampEnv); ampEnv.connect(SOURCES[1].analyser);
+    SOURCES[1].trimGain.gain.value = 0.3;
+    osc.connect(bpf); bpf.connect(ampEnv); ampEnv.connect(SOURCES[1].trimGain);
     osc.start();
     SOURCES[1].oscNodes = [osc];
   }
@@ -1276,11 +1319,12 @@ function buildSynthSources() {
   // ── Source C: Alarm (or synthesis fallback: siren)
   if (SOURCES[2].buffer) {
     SOURCES[2].bufNode = createLoopingBufferSource(SOURCES[2].buffer);
-    SOURCES[2].bufNode.connect(SOURCES[2].analyser);
+    SOURCES[2].trimGain.gain.value = 0.45;
+    SOURCES[2].bufNode.connect(SOURCES[2].trimGain);
   } else {
     // Fallback: frequency-modulated tone simulating alarm sweep
     // Signal flow: osc(sine, 880Hz) → FM from lfo(sine, 2Hz, depth 200Hz)
-    //              → bandpass(880Hz, Q=3) → analyser
+    //              → bandpass(880Hz, Q=3) → trimGain → analyser
     const osc = audioContext.createOscillator();
     osc.type = 'sine'; osc.frequency.value = 880;
     const lfo = audioContext.createOscillator();
@@ -1290,15 +1334,19 @@ function buildSynthSources() {
     const bpf = audioContext.createBiquadFilter();
     bpf.type = 'bandpass'; bpf.frequency.value = 880; bpf.Q.value = 3;
     lfo.connect(fmGain); fmGain.connect(osc.frequency);
-    osc.connect(bpf); bpf.connect(SOURCES[2].analyser);
+    osc.connect(bpf); bpf.connect(SOURCES[2].trimGain);
     osc.start(); lfo.start();
     SOURCES[2].oscNodes = [osc, lfo];
   }
 
   // ── Source D: Synthesized deep drone
-  // Signal flow: osc(sine, 55Hz) → detune LFO(0.1Hz, ±4ct) →
-  //              lowpass(180Hz) → amplitude envelope(1Hz throb) → analyser
-  // This is a deliberately cinematic sub-bass breath — not an oscillator test tone.
+  // Signal flow: osc(sine, 55Hz) → detune LFO(0.1Hz, ±4ct) → lowpass(180Hz)
+  //              → trimGain → analyser
+  // BUGFIX: The old pattern connected an LFO oscillator to ampDC.gain (an AudioParam),
+  // which causes the AudioParam to swing between –0.45 and +0.97, going negative and
+  // producing full-scale signal bursts every half-cycle. The correct pattern for a
+  // positive-only amplitude LFO is a ConstantSourceNode DC offset plus a GainNode
+  // attenuator, keeping amplitude strictly in [DC−depth, DC+depth] ⊂ [0,1].
   {
     const osc = audioContext.createOscillator();
     osc.type = 'sine'; osc.frequency.value = 55;
@@ -1310,15 +1358,20 @@ function buildSynthSources() {
     const lpf = audioContext.createBiquadFilter();
     lpf.type = 'lowpass'; lpf.frequency.value = 180; lpf.Q.value = 1.2;
     osc.connect(lpf);
-    // Amplitude throb: 0.5 + 0.5*sin(2π*0.4t) → gain stays positive [0,1]
+    // Amplitude throb using ConstantSourceNode for the DC offset.
+    // gain.value starts at DC (0.55), then the LFO modulates ±0.35 around it,
+    // keeping amplitude in [0.20, 0.90] — strictly positive, no polarity flips.
+    const ampNode = audioContext.createGain();
+    ampNode.gain.value = 0.55;
     const ampLfo = audioContext.createOscillator();
     ampLfo.type = 'sine'; ampLfo.frequency.value = 0.4;
     const ampLfoGain = audioContext.createGain();
-    ampLfoGain.gain.value = 0.45;
-    const ampDC = audioContext.createGain();
-    ampDC.gain.value = 0.52;
-    ampLfo.connect(ampLfoGain); ampLfoGain.connect(ampDC.gain);
-    lpf.connect(ampDC); ampDC.connect(SOURCES[3].analyser);
+    ampLfoGain.gain.value = 0.35; // LFO depth: ±0.35
+    ampLfo.connect(ampLfoGain);
+    ampLfoGain.connect(ampNode.gain); // modulates gain param around 0.55
+    lpf.connect(ampNode);
+    SOURCES[3].trimGain.gain.value = 0.35;
+    ampNode.connect(SOURCES[3].trimGain);
     osc.start(); detLfo.start(); ampLfo.start();
     SOURCES[3].oscNodes = [osc, detLfo, ampLfo];
   }
@@ -1328,9 +1381,8 @@ function buildSynthSources() {
   // Placing a distinctive sound overhead, with a bright spectral character, helps
   // students perceive whether their HRTF rendering is working correctly.
   // Signal flow: noise buffer (white) → highpass(3800Hz) → bandpass(5500Hz, Q=10)
-  //              → tremolo(7Hz) → analyser
+  //              → tremolo(7Hz, positive-only) → trimGain → analyser
   {
-    // Create a 2-second white noise buffer, looping
     const bufLength = audioContext.sampleRate * 2;
     const noiseBuffer = audioContext.createBuffer(1, bufLength, audioContext.sampleRate);
     const data = noiseBuffer.getChannelData(0);
@@ -1345,23 +1397,27 @@ function buildSynthSources() {
     hpf.type = 'highpass'; hpf.frequency.value = 3800;
     const bpf = audioContext.createBiquadFilter();
     bpf.type = 'bandpass'; bpf.frequency.value = 5500; bpf.Q.value = 10;
-    // Tremolo: gain modulated at 7Hz with offset +0.5 so it stays positive
+    // Tremolo: same positive-only LFO pattern as Source D.
+    // gain.value = 0.6 DC, LFO depth ±0.35 → amplitude in [0.25, 0.95].
+    const tremNode = audioContext.createGain();
+    tremNode.gain.value = 0.6;
     const tremLfo = audioContext.createOscillator();
     tremLfo.type = 'sine'; tremLfo.frequency.value = 7;
-    const tremGain = audioContext.createGain();
-    tremGain.gain.value = 0.4;
-    const tremDC = audioContext.createGain();
-    tremDC.gain.value = 0.55;
-    tremLfo.connect(tremGain); tremGain.connect(tremDC.gain);
-    noiseNode.connect(hpf); hpf.connect(bpf); bpf.connect(tremDC);
-    tremDC.connect(SOURCES[4].analyser);
+    const tremLfoGain = audioContext.createGain();
+    tremLfoGain.gain.value = 0.35;
+    tremLfo.connect(tremLfoGain);
+    tremLfoGain.connect(tremNode.gain);
+    noiseNode.connect(hpf); hpf.connect(bpf); bpf.connect(tremNode);
+    SOURCES[4].trimGain.gain.value = 0.3;
+    tremNode.connect(SOURCES[4].trimGain);
     noiseNode.start(); tremLfo.start();
     SOURCES[4].bufNode = noiseNode;
     SOURCES[4].oscNodes = [tremLfo];
   }
 
-  // Connect all analysers to their gain nodes
+  // Connect trimGain → analyser → gainNode (gainNode already connected to resonanceSource.input)
   SOURCES.forEach(src => {
+    src.trimGain.connect(src.analyser);
     src.analyser.connect(src.gainNode);
   });
 }
@@ -1413,18 +1469,23 @@ function rebuildResonance(newOrder) {
     SOURCES.forEach(src => {
       try { src.gainNode.disconnect(); } catch(e) {}
     });
-    // Disconnect old Resonance output
+    // Disconnect old Resonance output and limiter
     try { resonanceAudio.output.disconnect(); } catch(e) {}
+    try { mg.disconnect(); } catch(e) {}
+    if (window._resonanceLimiter) {
+      try { window._resonanceLimiter.disconnect(); } catch(e) {}
+    }
 
-    // Build new Resonance instance
+    // Build new Resonance instance (creates new masterGain and limiter internally)
     currentOrder = newOrder;
     orderExponent = newOrder === 1 ? 2 : 6;
     initResonance(newOrder);
 
-    // Reconnect analyser → gainNode (analyser output is already connected to gainNode)
-    // gainNode is reconnected inside initResonance via src.gainNode.connect(src.resonanceSource.input)
-    // But we need to re-attach synthesized nodes to analyser
-    // (they are still connected from buildSynthSources — analyser output reconnected here)
+    // Re-wire: trimGain → analyser → gainNode (gainNode already connected to new resonanceSource.input)
+    // trimGain→analyser was set during buildSynthSources and survives; only gainNode output changed.
+    SOURCES.forEach(src => {
+      src.analyser.connect(src.gainNode);
+    });
 
     // Fade in over 150ms
     const mg2 = window._resonanceMasterGain;
