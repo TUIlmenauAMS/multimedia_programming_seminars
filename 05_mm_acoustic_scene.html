@@ -802,13 +802,14 @@ const ACOUSTIC_MODES = {
     rt60:       0.25,
     dimensions: { width: 20, height: 5, depth: 16 },
     // Maximum absorption — thick broadband panels everywhere
+    // Web SDK uses kebab-case: 'fiber-glass-insulation', 'uniform'
     materials: {
-      left:  'fiber_glass_insulation',
-      right: 'fiber_glass_insulation',
-      front: 'fiber_glass_insulation',
-      back:  'fiber_glass_insulation',
-      down:  'uniform_average_absorption',
-      up:    'fiber_glass_insulation'
+      left:  'fiber-glass-insulation',
+      right: 'fiber-glass-insulation',
+      front: 'fiber-glass-insulation',
+      back:  'fiber-glass-insulation',
+      down:  'uniform',
+      up:    'fiber-glass-insulation'
     }
   },
   wet: {
@@ -817,12 +818,13 @@ const ACOUSTIC_MODES = {
     // Larger virtual room → longer mean free path → more reverb buildup
     dimensions: { width: 32, height: 9, depth: 28 },
     // Hard, near-zero-absorption surfaces — bare concrete hall
+    // Web SDK: 'brick-bare', 'concrete-block-coarse', 'glass-thin'
     materials: {
       left:  'brick-bare',
       right: 'brick-bare',
-      front: 'concrete-block',
-      back:  'concrete-block',
-      down:  'concrete-block',
+      front: 'concrete-block-coarse',
+      back:  'concrete-block-coarse',
+      down:  'concrete-block-coarse',
       up:    'glass-thin'
     }
   }
@@ -1626,7 +1628,14 @@ async function initAudio() {
 
   // Resonance Audio — third-order ambisonics
   resonanceAudio = new ResonanceAudio(audioContext, { ambisonicOrder: 3 });
-  resonanceAudio.output.connect(audioContext.destination);
+
+  // Master crossfade gain — sits between Resonance output and destination.
+  // setRoomProperties triggers an HOARenderer reinit (audible glitch/silence).
+  // We dip this to 0 before the swap and ramp back up after, hiding the reinit.
+  window._resonanceMasterGain = audioContext.createGain();
+  window._resonanceMasterGain.gain.value = 1.0;
+  resonanceAudio.output.connect(window._resonanceMasterGain);
+  window._resonanceMasterGain.connect(audioContext.destination);
 
   // Apply current acoustic mode
   applyAcousticMode(acousticMode);
@@ -1792,21 +1801,78 @@ function setSourceLevel(key, value) {
 function setAcousticMode(mode) {
   acousticMode = mode;
 
-  // Update button states
+  // Update button states immediately so UI feels responsive
   document.getElementById('btnDry').className = 'acoustic-btn' + (mode === 'dry' ? ' active-dry' : '');
   document.getElementById('btnWet').className = 'acoustic-btn' + (mode === 'wet' ? ' active-wet' : '');
 
-  applyAcousticMode(mode);
+  // Update HUD immediately (no need to wait for audio)
+  updateAcousticHUD(mode);
+
+  console.log('[AcousticMode] setAcousticMode called:', mode,
+    '| isRunning:', isRunning,
+    '| resonanceAudio:', !!resonanceAudio,
+    '| audioContext:', audioContext ? audioContext.state : 'null',
+    '| masterGain:', !!window._resonanceMasterGain);
+
+  if (!isRunning || !resonanceAudio || !audioContext) {
+    console.warn('[AcousticMode] Bailing early — guard failed');
+    return;
+  }
+
+  // Resume context if suspended (browser autoplay policy)
+  const doApply = () => applyAcousticModeCrossfaded(mode);
+  if (audioContext.state === 'suspended') {
+    console.log('[AcousticMode] context suspended — resuming first');
+    audioContext.resume().then(doApply).catch(doApply);
+  } else {
+    doApply();
+  }
+}
+
+function applyAcousticModeCrossfaded(mode) {
+  const m    = ACOUSTIC_MODES[mode];
+  const gain = window._resonanceMasterGain;
+  const now  = audioContext.currentTime;
+
+  console.log('[AcousticMode] applyAcousticModeCrossfaded:', mode,
+    '| dimensions:', m.dimensions,
+    '| materials:', m.materials,
+    '| gain node:', !!gain);
+
+  const DIP_TIME    = 0.06;
+  const HOLD_TIME   = 0.18;
+  const FADEIN_TIME = 0.12;
+
+  if (gain) {
+    gain.gain.cancelScheduledValues(now);
+    gain.gain.setValueAtTime(gain.gain.value, now);
+    gain.gain.linearRampToValueAtTime(0, now + DIP_TIME);
+  }
+
+  setTimeout(() => {
+    console.log('[AcousticMode] calling setRoomProperties now');
+    resonanceAudio.setRoomProperties(m.dimensions, m.materials);
+
+    if (gain && audioContext) {
+      const t = audioContext.currentTime;
+      gain.gain.cancelScheduledValues(t);
+      gain.gain.setValueAtTime(0, t);
+      gain.gain.linearRampToValueAtTime(1.0, t + FADEIN_TIME);
+    }
+  }, (DIP_TIME + HOLD_TIME) * 1000);
 }
 
 function applyAcousticMode(mode) {
+  // Called only during initAudio (no audio playing yet — no crossfade needed)
   const m = ACOUSTIC_MODES[mode];
-
   if (resonanceAudio) {
     resonanceAudio.setRoomProperties(m.dimensions, m.materials);
   }
+  updateAcousticHUD(mode);
+}
 
-  // Update HUD
+function updateAcousticHUD(mode) {
+  const m = ACOUSTIC_MODES[mode];
   const chip = document.getElementById('hudModeChip');
   if (chip) {
     chip.className = `mode-chip ${mode}`;
@@ -1922,8 +1988,8 @@ function stopDemo() {
   document.getElementById('btnStop').disabled  = true;
   document.getElementById('hudCtx').textContent = 'suspended';
   document.getElementById('hudCtx').className   = 'hud-row-value';
-  audioContext = null; resonanceAudio = null;
-  sources.forEach(src => { src.resonanceSrc=null; src.analyser=null; src.dataArray=null; });
+  audioContext = null; resonanceAudio = null; window._resonanceMasterGain = null;
+  sources.forEach(src => { src.resonanceSrc=null; src.analyser=null; src.dataArray=null; src.gainNode=null; });
   Object.keys(audioBuffers).forEach(k => { audioBuffers[k] = null; });
 }
 
