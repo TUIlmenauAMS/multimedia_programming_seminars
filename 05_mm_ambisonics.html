@@ -455,6 +455,57 @@ html, body {
   transition: opacity 0.08s;
 }
 
+/* ── File-protocol upload strip (shown only on file://) ─────────────────── */
+#fileProtocolWarn {
+  display: none;
+  margin: 0 0 10px;
+  padding: 8px 14px;
+  background: rgba(251,146,60,0.10);
+  border: 1px solid rgba(251,146,60,0.35);
+  border-radius: 8px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--orange);
+  line-height: 1.55;
+  max-width: 340px;
+  text-align: center;
+}
+#fileProtocolWarn.visible { display: block; }
+#uploadStrip {
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+#uploadStrip.visible { display: flex; }
+.upload-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.upload-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  min-width: 52px;
+  text-align: right;
+}
+.upload-btn {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+  position: relative;
+}
+.upload-btn:hover { border-color: var(--accent); color: var(--accent); }
+.upload-btn.loaded { border-color: var(--green); color: var(--green); }
+.upload-btn input[type=file] { display: none; }
+
 /* ── Error display ───────────────────────────────────────────────────────── */
 #errorBox {
   display: none;
@@ -508,6 +559,35 @@ html, body {
     <div class="lo-progress-fill" id="loProgress"></div>
   </div>
   <div class="lo-hint" id="loStatus" style="font-size:11px;">Initializing renderer…</div>
+  <!-- File:// protocol warning + upload strip -->
+  <div id="fileProtocolWarn" class="">
+    Running locally — browsers block audio file access on <code>file://</code>.<br>
+    Upload the audio files below, or serve via a local web server.
+  </div>
+  <div id="uploadStrip">
+    <div class="upload-row">
+      <span class="upload-label">Speech</span>
+      <label class="upload-btn" id="lbl-speech">
+        Upload WAV
+        <input type="file" accept="audio/*" onchange="handleUpload(event,'speech')">
+      </label>
+    </div>
+    <div class="upload-row">
+      <span class="upload-label">Beep</span>
+      <label class="upload-btn" id="lbl-beep">
+        Upload MP3
+        <input type="file" accept="audio/*" onchange="handleUpload(event,'beep')">
+      </label>
+    </div>
+    <div class="upload-row">
+      <span class="upload-label">Alarm</span>
+      <label class="upload-btn" id="lbl-alarm">
+        Upload MP3
+        <input type="file" accept="audio/*" onchange="handleUpload(event,'alarm')">
+      </label>
+    </div>
+  </div>
+
   <button class="lo-start-btn" id="startBtn">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
     Start Experience
@@ -949,34 +1029,48 @@ function buildHeadProxy() {
   headGroup = new THREE.Group();
   scene.add(headGroup);
 
-  // Head — slightly flattened sphere (Y scale 0.85) for a stylized human head shape
-  const headMesh = new THREE.Mesh(
-    new THREE.SphereGeometry(0.12, 16, 12),
-    new THREE.MeshStandardMaterial({ color: 0x2a2a3a, roughness: 0.9, metalness: 0.1 })
-  );
+  // Head — slightly flattened sphere (Y scale 0.85) for a stylized human head shape.
+  // Warm off-white with a gentle emissive glow so it reads clearly against the dark
+  // Ambisonic sphere at any rotation angle.
+  const headMat = new THREE.MeshStandardMaterial({
+    color:            0xf0e8d8,
+    emissive:         new THREE.Color(0xc8a96e),
+    emissiveIntensity: 0.45,
+    roughness: 0.55,
+    metalness: 0.05,
+  });
+  const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.12, 20, 14), headMat);
   headMesh.scale.y = 0.85;
   headGroup.add(headMesh);
 
-  // Ears — tiny accent spheres offset ±0.13m on X axis
-  // These make head rotation immediately legible — the ears sweep visibly.
+  // Subtle rim-light point positioned slightly behind/above the head so the
+  // back of the head does not go fully black when facing the camera.
+  const headRimLight = new THREE.PointLight(0xffe0a0, 0.8, 1.2);
+  headRimLight.position.set(0, 0.18, 0.22);
+  headGroup.add(headRimLight);
+
+  // Ears — warm amber to contrast against the blue arrow, clearly showing
+  // which side is left/right as the head rotates.
   const earMat = new THREE.MeshStandardMaterial({
-    color: 0x4f9cf9, emissive: new THREE.Color(0x4f9cf9), emissiveIntensity: 0.6,
-    roughness: 0.5,
+    color:            0xfb923c,
+    emissive:         new THREE.Color(0xfb923c),
+    emissiveIntensity: 0.9,
+    roughness: 0.4,
   });
-  const leftEar = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), earMat);
-  leftEar.position.set(-0.13, 0, 0);
+  const leftEar = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), earMat);
+  leftEar.position.set(-0.135, 0, 0);
   headGroup.add(leftEar);
-  const rightEar = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), earMat.clone());
-  rightEar.position.set(0.13, 0, 0);
+  const rightEar = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), earMat.clone());
+  rightEar.position.set(0.135, 0, 0);
   headGroup.add(rightEar);
 
-  // Forward arrow — indicates the listener's look direction
+  // Forward arrow — bright cyan, slightly longer so it reads at distance
   const arrow = new THREE.ArrowHelper(
     new THREE.Vector3(0, 0, -1),
     new THREE.Vector3(0, 0, 0),
-    0.28,
+    0.32,
     0x4f9cf9,
-    0.07, 0.04
+    0.09, 0.05
   );
   headGroup.add(arrow);
 
@@ -1442,6 +1536,30 @@ function startAudio() {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+// Toggle audio on / off — suspends or resumes the AudioContext.
+// CONCEPT: AudioContext.suspend() pauses all processing and scheduling
+// on the audio thread without disconnecting any nodes. resume() picks up
+// exactly where it left off. This is the correct pattern for a pause
+// button — stopping and restarting individual BufferSourceNodes would
+// lose playback position and require rebuilding the whole signal chain.
+// ═══════════════════════════════════════════════════════════════════════════
+function toggleAudio() {
+  if (!audioContext) return;
+  const btn = document.getElementById('audioToggleBtn');
+  if (audioContext.state === 'running') {
+    audioContext.suspend().then(() => {
+      btn.textContent = '▶ Start Audio';
+      btn.classList.remove('running');
+    });
+  } else {
+    audioContext.resume().then(() => {
+      btn.textContent = '⏹ Stop Audio';
+      btn.classList.add('running');
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
 // STEP 13: rebuildResonance — full crossfaded instance rebuild
 // ═══════════════════════════════════════════════════════════════════════════
 // CONCEPT: ambisonicOrder cannot be changed on a live ResonanceAudio instance.
@@ -1476,15 +1594,25 @@ function rebuildResonance(newOrder) {
       try { window._resonanceLimiter.disconnect(); } catch(e) {}
     }
 
-    // Build new Resonance instance (creates new masterGain and limiter internally)
+    // Build new Resonance instance.
+    // IMPORTANT: initResonance() creates brand-new gainNode and analyser on
+    // every source object. The old trimGain→analyser connection therefore
+    // points at stale (disconnected) nodes and must be fully re-wired.
+    // Full chain after rebuild: trimGain → new analyser → new gainNode → new resonanceSource.input
     currentOrder = newOrder;
     orderExponent = newOrder === 1 ? 2 : 6;
     initResonance(newOrder);
 
-    // Re-wire: trimGain → analyser → gainNode (gainNode already connected to new resonanceSource.input)
-    // trimGain→analyser was set during buildSynthSources and survives; only gainNode output changed.
+    // Disconnect trimGain from the old (now stale) analyser, then rebuild
+    // the full downstream chain with the fresh nodes from initResonance().
     SOURCES.forEach(src => {
+      try { src.trimGain.disconnect(); } catch(e) {}
+      src.trimGain.connect(src.analyser);
       src.analyser.connect(src.gainNode);
+      // Restore the source-count gain so sources D/E stay muted if count === 3
+      if (src.gainNode) {
+        src.gainNode.gain.value = src.active ? 1.0 : 0.0;
+      }
     });
 
     // Fade in over 150ms
