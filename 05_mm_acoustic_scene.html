@@ -173,7 +173,41 @@ html, body {
   display: flex; flex-direction: column;
   padding-top: var(--safe-top); padding-bottom: var(--safe-bottom);
   overflow: hidden;
+  transition: transform 0.3s ease;
 }
+#sidebar.collapsed { transform: translateX(-100%); }
+
+/* Sidebar toggle button — floats on left edge */
+#sidebarToggle {
+  position: fixed; top: 50%; left: 0; transform: translateY(-50%);
+  z-index: 11;
+  background: var(--panel-bg); border: 1px solid var(--panel-border);
+  backdrop-filter: blur(var(--panel-blur)); -webkit-backdrop-filter: blur(var(--panel-blur));
+  border-left: none; border-radius: 0 8px 8px 0;
+  width: 20px; height: 48px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; color: var(--muted); font-size: 12px;
+  transition: color 0.15s, background 0.15s, left 0.3s ease;
+}
+#sidebarToggle:hover { color: var(--text); background: var(--surface2); }
+#sidebar:not(.collapsed) ~ #sidebarToggle { left: var(--sidebar-w); }
+
+/* HUD toggle button — sits in rightCol below author panel */
+#hudToggle {
+  background: var(--panel-bg); border: 1px solid var(--panel-border);
+  backdrop-filter: blur(var(--panel-blur)); -webkit-backdrop-filter: blur(var(--panel-blur));
+  border-radius: 10px; padding: 7px 14px;
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; color: var(--muted);
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  transition: color 0.15s, background 0.15s; user-select: none;
+}
+#hudToggle:hover { color: var(--text); background: var(--surface2); }
+#hudToggle .ht-chevron { font-size: 11px; transition: transform 0.3s ease; }
+#hudToggle.collapsed .ht-chevron { transform: rotate(180deg); }
+
+#hud { transition: opacity 0.25s ease, transform 0.25s ease; transform-origin: top center; }
+#hud.collapsed { opacity: 0; pointer-events: none; transform: scaleY(0.92); }
 .sb-header { flex-shrink: 0; padding: 16px 18px 12px; border-bottom: 1px solid var(--panel-border); }
 .sb-chapter { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
 .sb-title   { font-family: var(--sans); font-size: 15px; font-weight: 500; color: #f0f2f7; margin-bottom: 2px; }
@@ -657,6 +691,9 @@ html, body {
   </div><!-- /#sb-scroll -->
 </div><!-- /#sidebar -->
 
+<!-- Sidebar toggle button -->
+<button id="sidebarToggle" onclick="toggleSidebar()" title="Toggle sidebar">‹</button>
+
 <!-- ══════════════════════════════════════════
      RIGHT COLUMN — author panel + HUD
 ══════════════════════════════════════════ -->
@@ -673,6 +710,11 @@ html, body {
     </a>
   </div>
 </div>
+
+<button id="hudToggle" onclick="toggleHud()">
+  <span>Room Diagnostics</span>
+  <span class="ht-chevron">▲</span>
+</button>
 
 <div id="hud">
   <div class="hud-title">Room Diagnostics</div>
@@ -1888,6 +1930,24 @@ function stopDemo() {
 // ════════════════════════════════════════════════════════════════
 // STEP 9: Helpers
 // ════════════════════════════════════════════════════════════════
+
+function toggleSidebar() {
+  const sidebar   = document.getElementById('sidebar');
+  const btn       = document.getElementById('sidebarToggle');
+  const collapsed = sidebar.classList.toggle('collapsed');
+  // › when collapsed (click to open), ‹ when open (click to close)
+  btn.textContent = collapsed ? '›' : '‹';
+}
+
+function toggleHud() {
+  const hud = document.getElementById('hud');
+  const btn = document.getElementById('hudToggle');
+  const collapsed = hud.classList.toggle('collapsed');
+  btn.classList.toggle('collapsed', collapsed);
+  // ▲ when open, ▼ when collapsed
+  btn.querySelector('.ht-chevron').textContent = collapsed ? '▼' : '▲';
+}
+
 function updateStartReadiness() {
   if (typeof window.THREE !== 'undefined' && typeof ResonanceAudio !== 'undefined') {
     document.getElementById('btnStart').disabled = false;
