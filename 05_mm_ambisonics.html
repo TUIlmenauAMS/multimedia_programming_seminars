@@ -4,29 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Demo 4: Ambisonics — Multimediaprogrammierung · TU Ilmenau</title>
-<script type="importmap">
-{
-  "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
-  }
-}
-</script>
-<script type="module">
-  import * as THREE from 'three';
-  import { EffectComposer }  from 'three/addons/postprocessing/EffectComposer.js';
-  import { RenderPass }      from 'three/addons/postprocessing/RenderPass.js';
-  import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
-  import { OutputPass }      from 'three/addons/postprocessing/OutputPass.js';
-  window.THREE           = THREE;
-  window._EffectComposer  = EffectComposer;
-  window._RenderPass      = RenderPass;
-  window._UnrealBloomPass = UnrealBloomPass;
-  window._OutputPass      = OutputPass;
-  window._threeReady = true;
-  window.dispatchEvent(new Event('threeReady'));
-</script>
+
+<!-- Three.js UMD — works on file:// and served origins alike -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- Resonance Audio UMD -->
 <script defer src="https://cdn.jsdelivr.net/npm/resonance-audio@1.0.0/build/resonance-audio.min.js"></script>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
@@ -48,9 +31,9 @@
   --mono:         'IBM Plex Mono', monospace;
   --jb:           'JetBrains Mono', monospace;
   --sans:         'IBM Plex Sans', sans-serif;
-  --panel-bg:     rgba(10,10,14,0.88);
-  --panel-border: rgba(255,255,255,0.07);
-  --panel-blur:   18px;
+  --panel-bg:     rgba(10,10,14,0.90);
+  --panel-border: rgba(255,255,255,0.08);
+  --panel-blur:   20px;
   --src-a: #fb923c;
   --src-b: #4fc3f7;
   --src-c: #f87171;
@@ -62,13 +45,13 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 
 /* ── Top bar ── */
 #topbar {
-  position: fixed; top: 0; left: 0; right: 0; height: 52px;
-  background: rgba(13,15,20,0.92); border-bottom: 1px solid var(--border);
+  position: fixed; top: 0; left: 0; right: 0; height: 48px;
+  background: rgba(13,15,20,0.94); border-bottom: 1px solid var(--border);
   backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-  display: flex; align-items: center; padding: 0 20px; gap: 14px; z-index: 200;
+  display: flex; align-items: center; padding: 0 18px; gap: 12px; z-index: 200;
 }
-#topbar .tb-logo img { height: 32px; border-radius: 6px; display: block; }
-#topbar .tb-sep { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
+#topbar .tb-logo img { height: 28px; border-radius: 5px; display: block; }
+#topbar .tb-sep { width: 1px; height: 22px; background: var(--border); flex-shrink: 0; }
 #topbar .tb-course { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.04em; white-space: nowrap; }
 #topbar .tb-course strong { color: var(--text); font-weight: 500; }
 #topbar .tb-badge {
@@ -89,88 +72,121 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 #topbar .tb-author .li-badge:hover { background: rgba(79,156,249,0.2); }
 
 /* ── Canvas ── */
-#canvasMount { position: fixed; top: 52px; left: 0; right: 0; bottom: 0; z-index: 0; }
+#canvasMount {
+  position: fixed; top: 48px; left: 0; right: 0; bottom: 0; z-index: 0;
+}
 #canvasMount canvas { display: block; width: 100% !important; height: 100% !important; }
 
-/* ── Loading overlay ── */
+/* ── Source labels overlay ── */
+#srcLabels { position: fixed; top: 48px; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 50; }
+.src-label {
+  position: absolute; transform: translate(-50%, -130%);
+  font-family: var(--mono); font-size: 10px; color: var(--text);
+  background: rgba(10,10,18,0.84); border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 4px; padding: 3px 7px; white-space: nowrap; pointer-events: none;
+  opacity: 0; transition: opacity 0.3s;
+}
+.src-label.visible { opacity: 1; }
+.src-label::after {
+  content: ''; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%);
+  border: 3px solid transparent; border-top-color: rgba(255,255,255,0.09);
+}
+
+/* ════════════════════════════════════════
+   LOADING OVERLAY
+   ════════════════════════════════════════ */
 #loadOverlay {
   position: fixed; inset: 0; background: #07080d;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 0; z-index: 500; transition: opacity 0.6s ease;
+  z-index: 500; transition: opacity 0.6s ease;
 }
 #loadOverlay.hidden { opacity: 0; pointer-events: none; }
 
-.lo-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; max-width: 480px; padding: 0 24px; }
+.lo-inner {
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  width: 100%; max-width: 460px; padding: 0 28px;
+}
 
-.lo-chapter { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.14em; text-transform: uppercase; }
-.lo-title { font-family: var(--sans); font-size: clamp(22px,3vw,30px); font-weight: 500; color: #f0f2f7; text-align: center; line-height: 1.2; }
-.lo-headphone { font-size: 32px; }
-.lo-hint { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: center; line-height: 1.6; }
+.lo-identity { display: flex; align-items: center; gap: 12px; }
+.lo-identity-logo { height: 34px; border-radius: 5px; }
+.lo-identity-text { display: flex; flex-direction: column; gap: 2px; }
+.lo-identity-course { font-family: var(--mono); font-size: 12px; color: var(--text); font-weight: 500; }
+.lo-identity-uni    { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+
+.lo-chapter { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.14em; text-transform: uppercase; }
+.lo-title   { font-family: var(--sans); font-size: clamp(20px,3vw,28px); font-weight: 500; color: #f0f2f7; text-align: center; line-height: 1.2; }
+.lo-headphone { font-size: 30px; }
+.lo-hint    { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: center; line-height: 1.6; }
 
 .lo-progress-track { width: 220px; height: 2px; background: var(--border); border-radius: 2px; overflow: hidden; }
-.lo-progress-fill { height: 100%; background: var(--accent2); border-radius: 2px; transition: width 0.3s ease; width: 0%; }
+.lo-progress-fill  { height: 100%; background: var(--accent2); border-radius: 2px; transition: width 0.3s ease; width: 0%; }
 
-/* Upload section */
+/* ── Upload panel inside overlay ── */
 #uploadSection {
   width: 100%; border: 1px solid var(--border);
-  border-radius: 10px; overflow: hidden; margin-top: 4px;
+  border-radius: 10px; overflow: hidden;
 }
 .upload-header {
   background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border);
-  padding: 10px 14px;
+  padding: 9px 14px;
   display: flex; align-items: center; justify-content: space-between;
 }
 .upload-header-title { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
-.upload-header-note { font-family: var(--mono); font-size: 10px; color: var(--muted); opacity: 0.6; }
+.upload-header-note  { font-family: var(--mono); font-size: 10px; color: var(--muted); opacity: 0.65; }
 .upload-body { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
-.upload-row { display: flex; align-items: center; gap: 10px; }
-.upload-src-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.upload-src-name { font-family: var(--mono); font-size: 11px; color: var(--text); min-width: 60px; }
-.upload-src-hint { font-family: var(--mono); font-size: 10px; color: var(--muted); flex: 1; }
+.upload-row  { display: flex; align-items: center; gap: 10px; }
+.upload-src-dot  { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.upload-src-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.upload-src-name { font-family: var(--mono); font-size: 11px; color: var(--text); }
+.upload-src-filename { font-family: var(--mono); font-size: 9px; color: var(--accent); opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .upload-btn {
   font-family: var(--mono); font-size: 10px; color: var(--muted);
   background: rgba(255,255,255,0.04); border: 1px solid var(--border);
   border-radius: 5px; padding: 5px 12px; cursor: pointer;
   transition: border-color 0.15s, color 0.15s; white-space: nowrap; flex-shrink: 0;
-  position: relative;
 }
 .upload-btn:hover { border-color: var(--accent); color: var(--accent); }
 .upload-btn.loaded { border-color: var(--green); color: var(--green); }
 .upload-btn input[type=file] { display: none; }
-
 .upload-synth-note {
   font-family: var(--mono); font-size: 10px; color: var(--muted);
-  text-align: center; padding: 8px 14px 10px;
-  border-top: 1px solid var(--border);
-  opacity: 0.7;
+  text-align: center; padding: 7px 14px 10px;
+  border-top: 1px solid var(--border); opacity: 0.65;
 }
+
+.lo-author-credit {
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  display: flex; align-items: center; flex-wrap: wrap; justify-content: center; gap: 2px;
+}
+.lo-author-credit strong { color: var(--text); }
+.lo-li-link {
+  display: inline-flex; align-items: center; gap: 4px; margin-left: 4px;
+  background: rgba(79,156,249,0.10); color: var(--accent); font-family: var(--mono);
+  font-size: 10px; padding: 2px 8px; border-radius: 20px;
+  border: 1px solid rgba(79,156,249,0.22); text-decoration: none; transition: background 0.15s;
+}
+.lo-li-link:hover { background: rgba(79,156,249,0.2); }
 
 .lo-start-btn {
   display: none; align-items: center; gap: 8px;
-  padding: 12px 36px; background: transparent;
+  padding: 11px 34px; background: transparent;
   border: 1px solid var(--accent2); color: var(--accent2);
-  font-family: var(--mono); font-size: 14px; border-radius: 8px;
+  font-family: var(--mono); font-size: 13px; border-radius: 8px;
   cursor: pointer; transition: background 0.2s, transform 0.1s;
-  letter-spacing: 0.04em; margin-top: 4px;
+  letter-spacing: 0.04em;
 }
-.lo-start-btn:hover { background: rgba(167,139,250,0.12); }
-.lo-start-btn:active { transform: scale(0.98); }
+.lo-start-btn:hover   { background: rgba(167,139,250,0.12); }
+.lo-start-btn:active  { transform: scale(0.98); }
 .lo-start-btn.visible { display: inline-flex; }
+.lo-start-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* HRTF loading indicator */
-#hrtfLoadingBar {
-  display: none; flex-direction: column; align-items: center; gap: 10px; width: 100%; padding: 0 20px;
-}
-#hrtfLoadingBar.visible { display: flex; }
-.hrtf-label { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: center; }
-.hrtf-progress-track { width: 220px; height: 2px; background: var(--border); border-radius: 2px; overflow: hidden; }
-.hrtf-progress-fill { height: 100%; background: var(--accent); border-radius: 2px; width: 0%; transition: width 0.1s linear; }
-
-/* ── Glass panel base ── */
+/* ════════════════════════════════════════
+   GLASS PANEL BASE
+   ════════════════════════════════════════ */
 .gpanel {
-  position: fixed; background: var(--panel-bg); border: 1px solid var(--panel-border);
+  background: var(--panel-bg); border: 1px solid var(--panel-border);
   backdrop-filter: blur(var(--panel-blur)); -webkit-backdrop-filter: blur(var(--panel-blur));
-  border-radius: 12px; z-index: 100;
+  border-radius: 12px;
 }
 .gpanel-label {
   font-family: var(--mono); font-size: 10px; color: var(--muted);
@@ -178,19 +194,34 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--panel-border);
 }
 
-/* ── Info panel (top-left) ── */
-#infoPanel { top: 64px; left: 16px; width: 260px; padding: 14px 16px; max-height: calc(100vh - 90px); overflow-y: auto; }
-.info-concept {
-  font-size: 12px; color: var(--text); line-height: 1.6; margin-bottom: 10px;
+/* ════════════════════════════════════════
+   LAYOUT: fixed sidebars, never overlapping
+   ════════════════════════════════════════ */
+
+/* Left column */
+#leftCol {
+  position: fixed; top: 56px; left: 14px; bottom: 14px;
+  width: 254px; display: flex; flex-direction: column; gap: 10px;
+  z-index: 100; pointer-events: none;
 }
+#leftCol > * { pointer-events: auto; }
+
+/* Right column */
+#rightCol {
+  position: fixed; top: 56px; right: 14px; bottom: 14px;
+  width: 234px; display: flex; flex-direction: column; gap: 10px;
+  z-index: 100; pointer-events: none;
+}
+#rightCol > * { pointer-events: auto; }
+
+/* Info panel occupies top of left col, can scroll */
+#infoPanel { padding: 14px 15px; overflow-y: auto; flex-shrink: 1; min-height: 0; }
+.info-concept { font-size: 11.5px; color: var(--text); line-height: 1.65; margin-bottom: 10px; }
 .info-concept strong { color: var(--accent2); font-weight: 500; }
 .info-divider { height: 1px; background: var(--panel-border); margin: 10px 0; }
 .info-row { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px; }
 .info-row:last-child { margin-bottom: 0; }
-.info-key {
-  font-family: var(--mono); font-size: 10px; color: var(--accent);
-  min-width: 68px; padding-top: 1px; flex-shrink: 0;
-}
+.info-key { font-family: var(--mono); font-size: 10px; color: var(--accent); min-width: 70px; padding-top: 1px; flex-shrink: 0; }
 .info-val { font-family: var(--mono); font-size: 10px; color: var(--muted); line-height: 1.5; }
 .info-collapse-btn {
   display: flex; align-items: center; gap: 6px; cursor: pointer;
@@ -200,47 +231,40 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   width: 100%; text-align: left; transition: color 0.15s;
 }
 .info-collapse-btn:hover { color: var(--text); }
-#infoBody { overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease; max-height: 400px; opacity: 1; }
+#infoBody { overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease; max-height: 600px; opacity: 1; }
 #infoBody.collapsed { max-height: 0; opacity: 0; }
 
-/* ── Right sidebar — holds HUD + Controls stacked, never overlapping ── */
-#rightSidebar {
-  position: fixed; top: 64px; right: 16px; bottom: 16px;
-  width: 240px; display: flex; flex-direction: column; gap: 10px;
-  z-index: 100; pointer-events: none;
-}
-#rightSidebar > * { pointer-events: auto; }
+/* Polar panel sits below info in left col, pushes to bottom */
+#polarPanel { padding: 13px 14px; flex-shrink: 0; }
+#polarCanvases { display: flex; gap: 12px; justify-content: center; margin-bottom: 8px; }
+.polar-canvas-wrap  { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+#polarCanvas, #elevCanvas { display: block; border-radius: 50%; }
+.polar-ring-label   { font-family: var(--mono); font-size: 9px; color: var(--muted); text-align: center; }
+.polar-explain      { font-family: var(--mono); font-size: 10px; color: var(--muted); text-align: center; margin-bottom: 8px; line-height: 1.5; }
+.source-legend      { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; }
+.src-leg-item       { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.src-dot            { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.src-leg-item.inactive { opacity: 0.3; }
 
-/* ── HUD panel ── (now inside #rightSidebar, no position:fixed) */
-#hudPanel { padding: 14px 16px; flex-shrink: 0; }
-.hud-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+/* HUD panel at top of right col */
+#hudPanel { padding: 13px 15px; flex-shrink: 0; }
+.hud-row  { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; }
 .hud-row:last-child { margin-bottom: 0; }
-.hud-key { font-family: var(--mono); font-size: 10px; color: var(--muted); }
-.hud-val { font-family: var(--jb); font-size: 13px; color: var(--accent); letter-spacing: 0.03em; }
+.hud-key  { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.hud-hint { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.55; margin-left: 3px; }
+.hud-val  { font-family: var(--jb); font-size: 13px; color: var(--accent); letter-spacing: 0.03em; }
 .hud-val.purple { color: var(--accent2); }
 .hud-val.green  { color: var(--green); }
 .hud-val.orange { color: var(--orange); }
-.hud-hint { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.6; margin-left: 4px; }
 .order-badge {
   display: inline-block; background: rgba(167,139,250,0.14); color: var(--accent2);
   font-family: var(--mono); font-size: 10px; padding: 2px 8px;
   border-radius: 20px; border: 1px solid rgba(167,139,250,0.3);
 }
 
-/* ── Controls panel ── (now inside #rightSidebar, no position:fixed) */
-#ctrlPanel { padding: 14px 16px; flex-shrink: 0; }
-
-/* ── Polar ring panel (bottom-left) ── */
-#polarPanel { bottom: 16px; left: 16px; padding: 14px 16px; width: 290px; max-height: calc(100vh - 90px); overflow-y: auto; }
-#polarCanvases { display: flex; gap: 10px; justify-content: center; margin-bottom: 10px; }
-#polarCanvas, #elevCanvas { display: block; border-radius: 50%; }
-.polar-ring-label { font-family: var(--mono); font-size: 9px; color: var(--muted); text-align: center; margin-top: 3px; }
-.polar-explain { font-family: var(--mono); font-size: 10px; color: var(--muted); text-align: center; margin-bottom: 10px; line-height: 1.5; }
-.source-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; margin-top: 4px; }
-.src-leg-item { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
-.src-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
-.src-leg-item.inactive { opacity: 0.3; }
-.ctrl-section { margin-bottom: 14px; }
+/* Controls panel below HUD in right col */
+#ctrlPanel { padding: 13px 15px; flex-shrink: 0; }
+.ctrl-section { margin-bottom: 13px; }
 .ctrl-section:last-child { margin-bottom: 0; }
 .ctrl-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 7px; letter-spacing: 0.08em; text-transform: uppercase; }
 .ctrl-sublabel { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.65; margin-top: 5px; line-height: 1.4; }
@@ -253,32 +277,51 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   font-family: var(--mono); font-size: 11px; padding: 5px 0; border-radius: 20px;
   cursor: pointer; transition: background 0.2s, color 0.2s; text-align: center;
 }
-.pill-btn.active { background: var(--accent2); color: #0d0f14; font-weight: 500; }
+.pill-btn.active        { background: var(--accent2); color: #0d0f14; font-weight: 500; }
 .pill-btn:hover:not(.active) { color: var(--text); }
 .action-btn {
   width: 100%; padding: 9px 0; background: transparent; border: 1px solid var(--border);
   color: var(--text); font-family: var(--mono); font-size: 12px; border-radius: 8px;
   cursor: pointer; transition: border-color 0.2s, color 0.2s, background 0.2s; letter-spacing: 0.03em;
 }
-.action-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(79,156,249,0.07); }
-.action-btn.frozen { border-color: var(--accent2); color: var(--accent2); background: rgba(167,139,250,0.08); }
-.action-btn.playing { border-color: var(--green); color: var(--green); background: rgba(52,211,153,0.08); }
-.action-btn.playing:hover { border-color: var(--green); color: var(--green); background: rgba(52,211,153,0.16); }
+.action-btn:hover         { border-color: var(--accent);  color: var(--accent);  background: rgba(79,156,249,0.07); }
+.action-btn.frozen        { border-color: var(--accent2); color: var(--accent2); background: rgba(167,139,250,0.08); }
+.action-btn.frozen:hover  { background: rgba(167,139,250,0.14); }
+.action-btn.playing       { border-color: var(--green);   color: var(--green);   background: rgba(52,211,153,0.08); }
+.action-btn.playing:hover { border-color: var(--green);   color: var(--green);   background: rgba(52,211,153,0.16); }
 
-/* Freeze state indicator badge on the sphere */
+/* Audio upload panel inside the demo (floating, right col bottom) */
+#audioUploadPanel { padding: 12px 14px; flex-shrink: 0; }
+#audioUploadPanel .gpanel-label { margin-bottom: 8px; }
+.aup-row  { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.aup-row:last-of-type { margin-bottom: 0; }
+.aup-dot  { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.aup-name { font-family: var(--mono); font-size: 10px; color: var(--muted); flex: 1; }
+.aup-btn {
+  font-family: var(--mono); font-size: 9px; color: var(--muted);
+  background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+  border-radius: 4px; padding: 3px 9px; cursor: pointer;
+  transition: border-color 0.15s, color 0.15s; white-space: nowrap; flex-shrink: 0;
+}
+.aup-btn:hover  { border-color: var(--accent); color: var(--accent); }
+.aup-btn.loaded { border-color: var(--green);  color: var(--green); }
+.aup-btn input[type=file] { display: none; }
+.aup-note { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.55; margin-top: 6px; line-height: 1.4; }
+
+/* ════════════════════════════════════════
+   MISC OVERLAYS
+   ════════════════════════════════════════ */
 #frozenBadge {
   position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
   background: rgba(167,139,250,0.15); border: 1px solid rgba(167,139,250,0.4);
   color: var(--accent2); font-family: var(--mono); font-size: 11px;
   padding: 6px 16px; border-radius: 20px; pointer-events: none; z-index: 90;
-  opacity: 0; transition: opacity 0.3s;
-  letter-spacing: 0.08em;
+  opacity: 0; transition: opacity 0.3s; letter-spacing: 0.08em;
 }
 #frozenBadge.visible { opacity: 1; }
 
-/* ── Nav hint ── */
 #navHint {
-  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
   background: var(--panel-bg); border: 1px solid var(--panel-border);
   backdrop-filter: blur(var(--panel-blur)); -webkit-backdrop-filter: blur(var(--panel-blur));
   border-radius: 24px; padding: 7px 20px; font-family: var(--mono); font-size: 11px;
@@ -287,16 +330,8 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 }
 #navHint.hidden { opacity: 0; }
 
-/* ── Order rebuild flash ── */
-#orderFlash { position: fixed; inset: 52px 0 0 0; background: rgba(167,139,250,0.08); pointer-events: none; opacity: 0; z-index: 90; transition: opacity 0.08s; }
+#orderFlash { position: fixed; inset: 48px 0 0 0; background: rgba(167,139,250,0.08); pointer-events: none; opacity: 0; z-index: 90; transition: opacity 0.08s; }
 
-/* ── HRTF status strip (shown while Resonance is loading) ── */
-#hrtfStrip {
-  position: fixed; bottom: 0; left: 0; right: 0; height: 3px;
-  background: rgba(167,139,250,0.08); z-index: 150; pointer-events: none;
-  display: none;
-}
-#hrtfStripFill { height: 100%; background: var(--accent2); width: 0%; transition: width 0.1s linear; }
 #hrtfToast {
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
   background: var(--panel-bg); border: 1px solid var(--panel-border);
@@ -313,27 +348,12 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── Error ── */
-#errorBox { display: none; position: fixed; inset: 52px 0 0 0; background: var(--bg); align-items: center; justify-content: center; flex-direction: column; gap: 12px; z-index: 600; }
+/* Error */
+#errorBox { display: none; position: fixed; inset: 48px 0 0 0; background: var(--bg); align-items: center; justify-content: center; flex-direction: column; gap: 12px; z-index: 600; }
 #errorBox.visible { display: flex; }
-.err-icon { font-size: 36px; }
+.err-icon  { font-size: 36px; }
 .err-title { font-family: var(--sans); font-size: 18px; color: var(--red); font-weight: 500; }
-.err-msg { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; max-width: 420px; line-height: 1.6; }
-
-/* Source label tooltips in 3D scene (CSS positioned) */
-#srcLabels { position: fixed; top: 52px; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 50; }
-.src-label {
-  position: absolute; transform: translate(-50%, -130%);
-  font-family: var(--mono); font-size: 10px; color: var(--text);
-  background: rgba(10,10,18,0.82); border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 4px; padding: 3px 7px; white-space: nowrap; pointer-events: none;
-  opacity: 0; transition: opacity 0.3s;
-}
-.src-label.visible { opacity: 1; }
-.src-label::after {
-  content: ''; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%);
-  border: 3px solid transparent; border-top-color: rgba(255,255,255,0.08);
-}
+.err-msg   { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; max-width: 460px; line-height: 1.6; }
 </style>
 </head>
 <body>
@@ -351,40 +371,54 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   <div class="tb-spacer"></div>
   <div class="tb-author">
     <span>Renato Fera P.</span>
-    <a class="li-badge" href="https://www.linkedin.com/in/renato-fera/" target="_blank" rel="noopener">
+    <a class="li-badge" href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">
       <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
       LinkedIn
     </a>
   </div>
 </div>
 
-<!-- ── Canvas ── -->
+<!-- ── 3D Canvas ── -->
 <div id="canvasMount"></div>
 
-<!-- ── Source labels overlay ── -->
+<!-- ── Source labels (projected from 3D) ── -->
 <div id="srcLabels"></div>
 
-<!-- ── Loading overlay ── -->
+<!-- ════════════════════════════════════════
+     LOADING OVERLAY — stays on top until "Start Experience"
+     ════════════════════════════════════════ -->
 <div id="loadOverlay">
   <div class="lo-inner">
+
+    <div class="lo-identity">
+      <img src="ams_group_tui.png" alt="AMS TU Ilmenau" onerror="this.style.display='none'" class="lo-identity-logo">
+      <div class="lo-identity-text">
+        <div class="lo-identity-course">Multimediaprogrammierung</div>
+        <div class="lo-identity-uni">Technische Universität Ilmenau</div>
+      </div>
+    </div>
+
     <div class="lo-chapter">Chapter 05 · Spatial Audio</div>
     <div class="lo-title">Ambisonic Sound Field</div>
     <div class="lo-headphone">🎧</div>
-    <div class="lo-hint">Use headphones. Spatial audio requires headphones<br>to perceive 3D positioning.</div>
-    <div class="lo-progress-track"><div class="lo-progress-fill" id="loProgress"></div></div>
-    <div class="lo-hint" id="loStatus" style="font-size:11px;">Initializing renderer…</div>
+    <div class="lo-hint">Use headphones — spatial audio requires headphones<br>to perceive 3D positioning correctly.</div>
 
-    <!-- Audio file upload — always visible, always optional -->
+    <div class="lo-progress-track"><div class="lo-progress-fill" id="loProgress"></div></div>
+    <div class="lo-hint" id="loStatus" style="font-size:10px;">Loading…</div>
+
+    <!-- Audio sources — auto-fetched when served, manual upload on file:// -->
     <div id="uploadSection">
       <div class="upload-header">
-        <span class="upload-header-title">Audio Sources (optional)</span>
-        <span class="upload-header-note">fallback: synthesis</span>
+        <span class="upload-header-title">Audio Sources</span>
+        <span class="upload-header-note" id="uploadHeaderNote">checking…</span>
       </div>
       <div class="upload-body">
         <div class="upload-row">
           <div class="upload-src-dot" style="background:var(--src-a)"></div>
-          <span class="upload-src-name">Speech</span>
-          <span class="upload-src-hint">.wav / .mp3</span>
+          <div class="upload-src-info">
+            <span class="upload-src-name">Speech</span>
+            <span class="upload-src-filename">p020_freeform_speech_01.wav</span>
+          </div>
           <label class="upload-btn" id="lbl-speech">
             Upload
             <input type="file" accept="audio/*" onchange="handleUpload(event,'speech')">
@@ -392,8 +426,10 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
         </div>
         <div class="upload-row">
           <div class="upload-src-dot" style="background:var(--src-b)"></div>
-          <span class="upload-src-name">Beep</span>
-          <span class="upload-src-hint">.wav / .mp3</span>
+          <div class="upload-src-info">
+            <span class="upload-src-name">Notification</span>
+            <span class="upload-src-filename">1298.mp3</span>
+          </div>
           <label class="upload-btn" id="lbl-beep">
             Upload
             <input type="file" accept="audio/*" onchange="handleUpload(event,'beep')">
@@ -401,21 +437,32 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
         </div>
         <div class="upload-row">
           <div class="upload-src-dot" style="background:var(--src-c)"></div>
-          <span class="upload-src-name">Alarm</span>
-          <span class="upload-src-hint">.wav / .mp3</span>
+          <div class="upload-src-info">
+            <span class="upload-src-name">Fire Alarm</span>
+            <span class="upload-src-filename">3411.mp3</span>
+          </div>
           <label class="upload-btn" id="lbl-alarm">
             Upload
             <input type="file" accept="audio/*" onchange="handleUpload(event,'alarm')">
           </label>
         </div>
       </div>
-      <div class="upload-synth-note">Files not uploaded? Each source uses a synthesized fallback.</div>
+      <div class="upload-synth-note">Files next to the HTML are loaded automatically when served. Missing files use synthesized fallbacks — the demo always works.</div>
+    </div>
+
+    <div class="lo-author-credit">
+      Demo by <strong>Renato Fera P.</strong> &nbsp;·&nbsp;
+      <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener" class="lo-li-link">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
+        LinkedIn
+      </a>
     </div>
 
     <button class="lo-start-btn" id="startBtn">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
       Start Experience
     </button>
+
   </div>
 </div>
 
@@ -426,228 +473,339 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   <div class="err-msg" id="errMsg"></div>
 </div>
 
-<!-- ── HRTF loading toast (shown while Resonance initializes ~15s) ── -->
+<!-- ── HRTF loading toast ── -->
 <div id="hrtfToast">
   <div class="hrtf-spinner"></div>
-  <span id="hrtfToastMsg">Loading binaural filters… this takes ~15 seconds</span>
+  <span id="hrtfToastMsg">Loading binaural filters… ~15 seconds</span>
 </div>
 
-<!-- ── Info panel (top-left) ── -->
-<div class="gpanel" id="infoPanel" style="display:none;">
-  <div class="gpanel-label">What is this?</div>
-  <div id="infoBody">
-    <div class="info-concept">
-      <strong>Ambisonics</strong> encodes multiple sound sources into a single 360° <strong>sound field</strong> — a property of the space, not the listener. The glowing sphere is that field: color = acoustic energy arriving from each direction (dark = silent, bright yellow = loud).
+<!-- ════════════════════════════════════════
+     DEMO UI — hidden until onStart() completes
+     ════════════════════════════════════════ -->
+
+<!-- Left column: Info + Polar ring -->
+<div id="leftCol" style="display:none;">
+
+  <div class="gpanel" id="infoPanel">
+    <div class="gpanel-label">What is this?</div>
+    <div id="infoBody">
+      <div class="info-concept">
+        <strong>Ambisonics</strong> encodes multiple sound sources into a single 360° <strong>sound field</strong> — a property of the space, not the listener. The glowing sphere is that field: colour = acoustic energy arriving from each direction (dark = silent, bright = loud).
+      </div>
+      <div class="info-concept">
+        The <strong>head</strong> at the centre is you. <strong>Drag</strong> to rotate your head inside the fixed field — the audio panning changes but the field itself does not. This is the core difference from stereo panning.
+      </div>
+      <div class="info-divider"></div>
+      <div class="info-row"><span class="info-key">Drag</span><span class="info-val">Rotate head — hear the field from a new direction</span></div>
+      <div class="info-row"><span class="info-key">Scroll</span><span class="info-val">Zoom in / out (visual only)</span></div>
+      <div class="info-row"><span class="info-key">Order 1→3</span><span class="info-val">More channels = sharper spatial resolution.</span></div>
+      <div class="info-row"><span class="info-key">3→5 sources</span><span class="info-val">Adds Drone (below) and Shimmer (above).</span></div>
+      <div class="info-row"><span class="info-key">Freeze</span><span class="info-val">Pauses the sphere — rotate to hear the same frozen field from different directions.</span></div>
     </div>
-    <div class="info-concept">
-      The <strong>head</strong> at the center is you. <strong>Drag to rotate</strong> your head inside the fixed field — the audio panning changes but the field does not. This is the fundamental difference from stereo panning.
+    <button class="info-collapse-btn" id="infoCollapseBtn" onclick="toggleInfoPanel()">
+      <svg id="infoCollapseArrow" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="transition:transform 0.3s"><path d="M7 10l5 5 5-5z"/></svg>
+      <span id="infoCollapseLabel">Hide explanation</span>
+    </button>
+  </div>
+
+  <div class="gpanel" id="polarPanel">
+    <div class="gpanel-label">Sound Field · Spatial Views</div>
+    <div id="polarCanvases">
+      <div class="polar-canvas-wrap">
+        <canvas id="polarCanvas" width="140" height="140"></canvas>
+        <div class="polar-ring-label">Horizontal Plane</div>
+      </div>
+      <div class="polar-canvas-wrap">
+        <canvas id="elevCanvas" width="140" height="140"></canvas>
+        <div class="polar-ring-label">Vertical Plane</div>
+      </div>
     </div>
-    <div class="info-divider"></div>
-    <div class="info-row">
-      <span class="info-key">Drag</span>
-      <span class="info-val">Rotate your head · hear the field from a new direction</span>
-    </div>
-    <div class="info-row">
-      <span class="info-key">Scroll</span>
-      <span class="info-val">Zoom in/out (visual only, no effect on audio)</span>
-    </div>
-    <div class="info-row">
-      <span class="info-key">Order 1→3</span>
-      <span class="info-val">More channels = sharper spatial resolution. Listen for tighter source localization at Order 3.</span>
-    </div>
-    <div class="info-row">
-      <span class="info-key">3→5 sources</span>
-      <span class="info-val">Adds Drone (below-right) and Shimmer (directly above). Watch the sphere change.</span>
-    </div>
-    <div class="info-row">
-      <span class="info-key">Freeze Field</span>
-      <span class="info-val">Pauses the sphere colors. Rotate your head — you change what you hear from the same frozen field.</span>
+    <div class="polar-explain">Energy per direction · White needle = listening direction</div>
+    <div class="source-legend" id="srcLegend">
+      <div class="src-leg-item" id="leg-a"><div class="src-dot" style="background:var(--src-a)"></div>A · Speech</div>
+      <div class="src-leg-item" id="leg-b"><div class="src-dot" style="background:var(--src-b)"></div>B · Notification</div>
+      <div class="src-leg-item" id="leg-c"><div class="src-dot" style="background:var(--src-c)"></div>C · Fire Alarm</div>
+      <div class="src-leg-item inactive" id="leg-d"><div class="src-dot" style="background:var(--src-d)"></div>D · Drone</div>
+      <div class="src-leg-item inactive" id="leg-e"><div class="src-dot" style="background:var(--src-e)"></div>E · Shimmer ↑</div>
     </div>
   </div>
-  <button class="info-collapse-btn" id="infoCollapseBtn" onclick="toggleInfoPanel()">
-    <svg id="infoCollapseArrow" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="transition:transform 0.3s"><path d="M7 10l5 5 5-5z"/></svg>
-    <span id="infoCollapseLabel">Hide explanation</span>
-  </button>
+
 </div>
 
-<!-- ── HUD panel (top-right) ── -->
-<div class="gpanel" id="hudPanel" style="display:none;">
-  <div class="gpanel-label">Listener State</div>
-  <div class="hud-row">
-    <span class="hud-key">Azimuth <span class="hud-hint">left/right</span></span>
-    <span class="hud-val" id="hudAz">0.0°</span>
-  </div>
-  <div class="hud-row">
-    <span class="hud-key">Elevation <span class="hud-hint">up/down</span></span>
-    <span class="hud-val" id="hudEl">0.0°</span>
-  </div>
-  <div class="hud-row">
-    <span class="hud-key">Order <span class="hud-hint">channels</span></span>
-    <span class="hud-val purple" id="hudOrder"><span class="order-badge">Order 3 — 16ch</span></span>
-  </div>
-  <div class="hud-row">
-    <span class="hud-key">Active sources</span>
-    <span class="hud-val green" id="hudSrc">3</span>
-  </div>
-  <div class="hud-row">
-    <span class="hud-key">Audio</span>
-    <span class="hud-val orange" id="hudCtx">paused</span>
-  </div>
-</div>
+<!-- Right column: HUD + Controls + Audio upload -->
+<div id="rightCol" style="display:none;">
 
-<!-- ── Polar ring panel (bottom-left) ── -->
-<div class="gpanel" id="polarPanel" style="display:none;">
-  <div class="gpanel-label">Top-Down View · Horizontal Plane</div>
-  <canvas id="polarCanvas" width="180" height="180"></canvas>
-  <div class="polar-explain">Energy in the horizontal plane only.<br>White needle = your listening direction.</div>
-  <div class="source-legend" id="srcLegend">
-    <div class="src-leg-item" id="leg-a"><div class="src-dot" style="background:var(--src-a)"></div>A · Speech</div>
-    <div class="src-leg-item" id="leg-b"><div class="src-dot" style="background:var(--src-b)"></div>B · Beep</div>
-    <div class="src-leg-item" id="leg-c"><div class="src-dot" style="background:var(--src-c)"></div>C · Alarm</div>
-    <div class="src-leg-item inactive" id="leg-d"><div class="src-dot" style="background:var(--src-d)"></div>D · Drone</div>
-    <div class="src-leg-item inactive" id="leg-e"><div class="src-dot" style="background:var(--src-e)"></div>E · Shimmer ↑</div>
-  </div>
-</div>
-
-<!-- ── Controls panel (bottom-right) ── -->
-<div class="gpanel" id="ctrlPanel" style="display:none;">
-  <div class="gpanel-label">Controls</div>
-
-  <div class="ctrl-section">
-    <div class="ctrl-label">Ambisonic Order</div>
-    <div class="pill-row">
-      <button class="pill-btn" id="ord1Btn" onclick="setOrder(1)">1st — 4ch</button>
-      <button class="pill-btn active" id="ord3Btn" onclick="setOrder(3)">3rd — 16ch</button>
+  <div class="gpanel" id="hudPanel">
+    <div class="gpanel-label">Listener State</div>
+    <div class="hud-row">
+      <span class="hud-key">Azimuth <span class="hud-hint">left/right</span></span>
+      <span class="hud-val" id="hudAz">0.0°</span>
     </div>
-    <div class="ctrl-sublabel">Order 1: wide, blurry localization · Order 3: sharp, precise. Listen with headphones to hear the difference.</div>
-  </div>
-
-  <div class="ctrl-section">
-    <div class="ctrl-label">Sources</div>
-    <div class="pill-row">
-      <button class="pill-btn active" id="src3Btn" onclick="setSourceCount(3)">3 sources</button>
-      <button class="pill-btn" id="src5Btn" onclick="setSourceCount(5)">5 sources</button>
+    <div class="hud-row">
+      <span class="hud-key">Elevation <span class="hud-hint">up/down</span></span>
+      <span class="hud-val" id="hudEl">0.0°</span>
     </div>
-    <div class="ctrl-sublabel">3 sources: Speech · Beep · Alarm &nbsp;|&nbsp; +2: Drone (below) · Shimmer (above)</div>
+    <div class="hud-row">
+      <span class="hud-key">Order <span class="hud-hint">channels</span></span>
+      <span class="hud-val purple" id="hudOrder"><span class="order-badge">Order 3 — 16ch</span></span>
+    </div>
+    <div class="hud-row">
+      <span class="hud-key">Active sources</span>
+      <span class="hud-val green" id="hudSrc">3</span>
+    </div>
+    <div class="hud-row">
+      <span class="hud-key">Audio</span>
+      <span class="hud-val orange" id="hudCtx">paused</span>
+    </div>
   </div>
 
-  <div class="ctrl-section">
-    <button class="action-btn" id="freezeBtn" onclick="toggleFreeze()">❄ Freeze Field</button>
-    <div class="ctrl-sublabel">Pause the sphere — rotate your head to hear the same frozen field from different directions.</div>
+  <div class="gpanel" id="ctrlPanel">
+    <div class="gpanel-label">Controls</div>
+
+    <div class="ctrl-section">
+      <div class="ctrl-label">Ambisonic Order</div>
+      <div class="pill-row">
+        <button class="pill-btn" id="ord1Btn" onclick="setOrder(1)">1st — 4ch</button>
+        <button class="pill-btn active" id="ord3Btn" onclick="setOrder(3)">3rd — 16ch</button>
+      </div>
+      <div class="ctrl-sublabel">Order 1: wide, blurry · Order 3: sharp, precise. Use headphones.</div>
+    </div>
+
+    <div class="ctrl-section">
+      <div class="ctrl-label">Sources</div>
+      <div class="pill-row">
+        <button class="pill-btn active" id="src3Btn" onclick="setSourceCount(3)">3 sources</button>
+        <button class="pill-btn" id="src5Btn" onclick="setSourceCount(5)">5 sources</button>
+      </div>
+      <div class="ctrl-sublabel">+2 adds Drone (below-right) · Shimmer (directly above)</div>
+    </div>
+
+    <div class="ctrl-section">
+      <button class="action-btn" id="freezeBtn" onclick="toggleFreeze()">❄ Freeze Field</button>
+      <div class="ctrl-sublabel">Pause the sphere — rotate head to hear the frozen field from different angles.</div>
+    </div>
+
+    <div class="ctrl-section">
+      <button class="action-btn" id="audioToggleBtn" onclick="toggleAudio()">▶ Start Audio</button>
+    </div>
   </div>
 
-  <div class="ctrl-section">
-    <button class="action-btn" id="audioToggleBtn" onclick="toggleAudio()">▶ Start Audio</button>
+  <!-- In-demo audio file upload (always accessible) -->
+  <div class="gpanel" id="audioUploadPanel">
+    <div class="gpanel-label">Swap Audio Files</div>
+    <div class="aup-row">
+      <div class="aup-dot" style="background:var(--src-a)"></div>
+      <div class="aup-name">Speech</div>
+      <label class="aup-btn" id="aup-speech">Upload <input type="file" accept="audio/*" onchange="handleUploadLive(event,'speech')"></label>
+    </div>
+    <div class="aup-row">
+      <div class="aup-dot" style="background:var(--src-b)"></div>
+      <div class="aup-name">Notification</div>
+      <label class="aup-btn" id="aup-beep">Upload <input type="file" accept="audio/*" onchange="handleUploadLive(event,'beep')"></label>
+    </div>
+    <div class="aup-row">
+      <div class="aup-dot" style="background:var(--src-c)"></div>
+      <div class="aup-name">Fire Alarm</div>
+      <label class="aup-btn" id="aup-alarm">Upload <input type="file" accept="audio/*" onchange="handleUploadLive(event,'alarm')"></label>
+    </div>
+    <div class="aup-note">Replace any source while the demo runs. Files are decoded and hot-swapped instantly.</div>
   </div>
+
 </div>
 
-<!-- ── Frozen badge (center screen) ── -->
+<!-- ── Misc overlays ── -->
 <div id="frozenBadge">❄ FIELD FROZEN — rotate head to hear it</div>
-
-<!-- ── Nav hint ── -->
 <div id="navHint">Drag to rotate head &nbsp;·&nbsp; Scroll to zoom</div>
-<div id="navHint" style="display:none"></div>
-
-<!-- ── Order rebuild flash ── -->
 <div id="orderFlash"></div>
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════════
 // GLOBALS
 // ═══════════════════════════════════════════════════════════════════════════
-let THREE = null;
 let renderer, scene, camera, composer, clock;
 let ambiSphere, ambiColorsAttr, vertexDirs, wireSphere;
 let headGroup, headEuler;
-let labelElements = []; // CSS label divs for each source
+let labelElements = [];
 
 const SOURCES = [
-  { id:'A', label:'Speech',  color:0xfb923c, pos:[-2.17, 1.03, -1.80], file:'p020_freeform_speech_01.wav', uploadKey:'speech' },
-  { id:'B', label:'Beep',    color:0x4fc3f7, pos:[ 2.05,-0.78,  1.97], file:'1298.mp3',                    uploadKey:'beep'   },
-  { id:'C', label:'Alarm',   color:0xf87171, pos:[-1.73, 1.72,  1.73], file:'3411.mp3',                    uploadKey:'alarm'  },
-  { id:'D', label:'Drone',   color:0xa78bfa, pos:[ 1.90,-1.27, -1.90], file: null,                         uploadKey: null    },
-  { id:'E', label:'Shimmer', color:0x34d399, pos:[ 0.00, 2.98,  0.00], file: null,                         uploadKey: null    },
+  { id:'A', label:'Speech',     color:0xfb923c, pos:[-2.17, 1.03,-1.80], file:'p020_freeform_speech_01.wav', uploadKey:'speech' },
+  { id:'B', label:'Notification',color:0x4fc3f7, pos:[ 2.05,-0.78, 1.97], file:'1298.mp3',                   uploadKey:'beep'   },
+  { id:'C', label:'Fire Alarm', color:0xf87171, pos:[-1.73, 1.72, 1.73], file:'3411.mp3',                   uploadKey:'alarm'  },
+  { id:'D', label:'Drone',      color:0xa78bfa, pos:[ 1.90,-1.27,-1.90], file:null,                         uploadKey:null     },
+  { id:'E', label:'Shimmer',    color:0x34d399, pos:[ 0.00, 2.98, 0.00], file:null,                         uploadKey:null     },
 ];
 
-// Uploaded file ArrayBuffers — stored before AudioContext exists
-const uploadedBuffers = { speech: null, beep: null, alarm: null };
+// Pre-start: ArrayBuffers from file uploads
+const uploadedBuffers = { speech:null, beep:null, alarm:null };
 
-let audioContext    = null;
-let resonanceAudio  = null;
-let masterGain      = null;
-let currentOrder    = 3;
+let audioContext   = null;
+let resonanceAudio = null;
+let masterGain     = null;
+let currentOrder   = 3;
 let rebuildInProgress = false;
-let audioStarted    = false; // has startAudio() been called yet?
-let hrtfReady       = false; // has Resonance finished loading HRIRs?
+let audioStarted   = false;
+let hrtfReady      = false;
 
-let polarCtx        = null;
-let fieldFrozen     = false;
-let activeSourceCount = 3; // start at 3
+let polarCtx = null, elevCtx = null;
+let fieldFrozen = false;
+let activeSourceCount = 3;
 
-let headEulerYaw   = 0;
-let headEulerPitch = 0;
-let isDragging     = false;
-let lastMouseX = 0, lastMouseY = 0;
+let headEulerYaw = 0, headEulerPitch = 0;
+let isDragging = false, lastMouseX = 0, lastMouseY = 0;
 
 let orderExponent  = 6;
 const VIRIDIS      = new Float32Array(256 * 3);
 const srcDirs      = [];
 const ENERGY_SCALE = 0.28;
 
-// ── Error display
+// ─── Three.js post-processing classes (loaded via UMD addons alternative)
+// r128 UMD does not ship EffectComposer in the main bundle.
+// We implement a minimal inline pass-through composer so the scene renders.
+// This avoids CDN addon imports that break on file://.
+class MinimalComposer {
+  constructor(renderer, scene, camera) {
+    this._renderer = renderer;
+    this._scene    = scene;
+    this._camera   = camera;
+    // Bloom via renderer tone mapping (approximated)
+  }
+  setSize(w, h) { this._renderer.setSize(w, h); }
+  render()      { this._renderer.render(this._scene, this._camera); }
+}
+
+// ─── Helpers
 function showError(msg) {
   document.getElementById('loadOverlay').style.display = 'none';
   document.getElementById('errMsg').textContent = msg;
   document.getElementById('errorBox').classList.add('visible');
 }
-
-// ── Progress bar
 function setProgress(pct, msg) {
   document.getElementById('loProgress').style.width = pct + '%';
   if (msg) document.getElementById('loStatus').textContent = msg;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// BOOTSTRAP — wait for Three.js module + Resonance Audio defer
+// BOOTSTRAP — wait for THREE and ResonanceAudio (both deferred)
 // ═══════════════════════════════════════════════════════════════════════════
-function tryInit() {
-  if (!window.THREE) { showError('Three.js failed to load. Check your internet connection.'); return; }
-  if (!window.ResonanceAudio) { setTimeout(tryInit, 50); return; }
+function checkDeps() {
+  if (typeof THREE === 'undefined') {
+    showError('Three.js failed to load. Check your internet connection.');
+    return;
+  }
+  if (typeof ResonanceAudio === 'undefined') {
+    setTimeout(checkDeps, 50);
+    return;
+  }
   if (!window.AudioContext && !window.webkitAudioContext) {
-    showError('Web Audio API not supported. Please use Chrome 120+, Firefox 120+, or Edge 120+.'); return;
+    showError('Web Audio API not supported. Use Chrome 120+, Firefox 120+, or Edge 120+.');
+    return;
   }
   const testCanvas = document.createElement('canvas');
-  if (!testCanvas.getContext('webgl2')) {
-    showError('WebGL2 not supported. Please use Chrome 120+, Firefox 120+, or Edge 120+.'); return;
+  if (!testCanvas.getContext('webgl2') && !testCanvas.getContext('webgl')) {
+    showError('WebGL not supported. Use Chrome 120+, Firefox 120+, or Edge 120+.');
+    return;
   }
-  THREE = window.THREE;
   initRenderer();
 }
-if (window._threeReady) tryInit();
-else window.addEventListener('threeReady', tryInit);
+
+// Start dependency check after DOM is ready and scripts have had time to load
+window.addEventListener('DOMContentLoaded', () => setTimeout(checkDeps, 100));
 
 // ═══════════════════════════════════════════════════════════════════════════
-// UPLOAD HANDLER — reads file into ArrayBuffer before AudioContext exists
+// AUDIO FILE AUTO-FETCH (served context only — not file://)
+// ═══════════════════════════════════════════════════════════════════════════
+const isFileProtocol = location.protocol === 'file:';
+
+function tryAutoFetch() {
+  if (isFileProtocol) {
+    document.getElementById('uploadHeaderNote').textContent = 'upload files or use synth fallbacks';
+    return;
+  }
+  // Served: attempt to fetch each audio file from the same directory
+  document.getElementById('uploadHeaderNote').textContent = 'fetching from server…';
+  let loaded = 0, total = 0;
+  SOURCES.filter(s => s.file && s.uploadKey).forEach(src => {
+    total++;
+    fetch(src.file)
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+      .then(buf => {
+        uploadedBuffers[src.uploadKey] = buf;
+        loaded++;
+        const btn = document.getElementById('lbl-' + src.uploadKey);
+        if (btn) { btn.textContent = '✓ ' + src.file.slice(0, 18); btn.classList.add('loaded'); }
+        if (loaded === total) document.getElementById('uploadHeaderNote').textContent = 'all files loaded ✓';
+      })
+      .catch(() => {
+        // Silently fall back to synthesis for this source
+        if (++loaded === total) {
+          const anyFailed = SOURCES.some(s => s.uploadKey && !uploadedBuffers[s.uploadKey]);
+          document.getElementById('uploadHeaderNote').textContent = anyFailed ? 'some files missing — synth used' : 'all files loaded ✓';
+        }
+      });
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PRE-START UPLOAD HANDLER
 // ═══════════════════════════════════════════════════════════════════════════
 function handleUpload(event, key) {
   const file = event.target.files[0];
   if (!file) return;
   const btn = document.getElementById('lbl-' + key);
   btn.textContent = '…';
-
   const reader = new FileReader();
   reader.onload = (e) => {
-    uploadedBuffers[key] = e.target.result; // ArrayBuffer
+    uploadedBuffers[key] = e.target.result;
     btn.textContent = '✓ ' + file.name.slice(0, 16) + (file.name.length > 16 ? '…' : '');
     btn.classList.add('loaded');
-    // Re-add hidden file input so label still works
+    // Re-add hidden input
     const inp = document.createElement('input');
     inp.type = 'file'; inp.accept = 'audio/*'; inp.style.display = 'none';
     inp.onchange = (ev) => handleUpload(ev, key);
     btn.appendChild(inp);
   };
-  reader.onerror = () => {
-    btn.textContent = '✗ Error';
+  reader.onerror = () => { btn.textContent = '✗ Error'; };
+  reader.readAsArrayBuffer(file);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LIVE UPLOAD HANDLER (inside the demo, hot-swaps the source)
+// ═══════════════════════════════════════════════════════════════════════════
+function handleUploadLive(event, key) {
+  const file = event.target.files[0];
+  if (!file || !audioContext) return;
+  const btn = document.getElementById('aup-' + key);
+  btn.textContent = '…';
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    try {
+      const buffer = await audioContext.decodeAudioData(e.target.result.slice(0));
+      const srcIdx = SOURCES.findIndex(s => s.uploadKey === key);
+      if (srcIdx < 0) return;
+      const src = SOURCES[srcIdx];
+      // Stop old nodes
+      if (src.bufNode) { try { src.bufNode.stop(); } catch(ex) {} src.bufNode = null; }
+      if (src.oscNodes) { src.oscNodes.forEach(n => { try { n.stop(); } catch(ex) {} }); src.oscNodes = null; }
+      if (src.trimGain) { try { src.trimGain.disconnect(); } catch(ex) {} }
+      // Create new buffer node
+      src.buffer = buffer;
+      src.trimGain = audioContext.createGain(); src.trimGain.gain.value = 0.5;
+      src.bufNode  = audioContext.createBufferSource();
+      src.bufNode.buffer = buffer; src.bufNode.loop = true;
+      src.bufNode.connect(src.trimGain);
+      src.trimGain.connect(src.analyser);
+      if (audioStarted) src.bufNode.start();
+      btn.textContent = '✓ ' + file.name.slice(0, 12) + (file.name.length > 12 ? '…' : '');
+      btn.classList.add('loaded');
+      // Re-add hidden input
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'audio/*'; inp.style.display = 'none';
+      inp.onchange = (ev) => handleUploadLive(ev, key);
+      btn.appendChild(inp);
+    } catch(e) {
+      btn.textContent = '✗ Error';
+      console.warn('Live upload decode error:', e);
+    }
   };
   reader.readAsArrayBuffer(file);
 }
@@ -663,8 +821,8 @@ function initRenderer() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.0;
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMappingExposure = 1.1;
+  if (THREE.SRGBColorSpace) renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const mount = document.getElementById('canvasMount');
   mount.appendChild(renderer.domElement);
@@ -677,28 +835,21 @@ function initRenderer() {
   camera.lookAt(0, 0, 0);
 
   clock = new THREE.Clock();
+  composer = new MinimalComposer(renderer, scene, camera);
 
-  setProgress(25, 'Building post-processing stack…');
-  initPostProcessing();
   setProgress(40, 'Building scene geometry…');
   buildScene();
   buildSourceLabels();
-  setProgress(100, 'Ready — upload audio files or start directly');
 
+  setProgress(70, 'Checking audio files…');
+  tryAutoFetch();
+
+  // Start rendering immediately (sphere visible before audio starts)
+  startRenderLoop();
+
+  setProgress(100, 'Ready — click Start Experience');
   document.getElementById('startBtn').classList.add('visible');
   document.getElementById('startBtn').addEventListener('click', onStart);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// POST-PROCESSING
-// ═══════════════════════════════════════════════════════════════════════════
-function initPostProcessing() {
-  const mount = document.getElementById('canvasMount');
-  const W = mount.clientWidth, H = mount.clientHeight;
-  composer = new window._EffectComposer(renderer);
-  composer.addPass(new window._RenderPass(scene, camera));
-  composer.addPass(new window._UnrealBloomPass(new THREE.Vector2(W, H), 0.9, 0.5, 0.3));
-  composer.addPass(new window._OutputPass());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -728,7 +879,7 @@ function buildStarField() {
 }
 
 function buildAmbiSphere() {
-  const geo = new THREE.SphereGeometry(1.5, 64, 32);
+  const geo     = new THREE.SphereGeometry(1.5, 64, 32);
   const posAttr = geo.attributes.position;
   const nVerts  = posAttr.count;
   vertexDirs    = [];
@@ -757,22 +908,36 @@ function buildHeadProxy() {
   headGroup = new THREE.Group();
   scene.add(headGroup);
 
-  const headMat = new THREE.MeshStandardMaterial({ color: 0xf0e8d8, emissive: new THREE.Color(0xc8a96e), emissiveIntensity: 0.45, roughness: 0.55, metalness: 0.05 });
+  // Head skull
+  const headMat = new THREE.MeshStandardMaterial({
+    color: 0xf0e8d8, emissive: new THREE.Color(0xc8a96e),
+    emissiveIntensity: 0.45, roughness: 0.55, metalness: 0.05
+  });
   const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.12, 20, 14), headMat);
   headMesh.scale.y = 0.85;
   headGroup.add(headMesh);
 
+  // Rim light on head
   const headRimLight = new THREE.PointLight(0xffe0a0, 0.8, 1.2);
   headRimLight.position.set(0, 0.18, 0.22);
   headGroup.add(headRimLight);
 
+  // Ears
   const earMat = new THREE.MeshStandardMaterial({ color: 0xfb923c, emissive: new THREE.Color(0xfb923c), emissiveIntensity: 0.9, roughness: 0.4 });
-  const leftEar = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), earMat);
-  leftEar.position.set(-0.135, 0, 0); headGroup.add(leftEar);
+  const leftEar  = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), earMat);
+  leftEar.position.set(-0.135, 0, 0);
+  headGroup.add(leftEar);
   const rightEar = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), earMat.clone());
-  rightEar.position.set(0.135, 0, 0); headGroup.add(rightEar);
+  rightEar.position.set(0.135, 0, 0);
+  headGroup.add(rightEar);
 
-  headGroup.add(new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0, 0), 0.32, 0x4f9cf9, 0.09, 0.05));
+  // Forward direction arrow
+  headGroup.add(new THREE.ArrowHelper(
+    new THREE.Vector3(0, 0, -1),
+    new THREE.Vector3(0, 0, 0),
+    0.32, 0x4f9cf9, 0.09, 0.05
+  ));
+
   headEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 }
 
@@ -801,7 +966,9 @@ function buildSourceMeshes() {
 
     const spherePoint = pos.clone().normalize().multiplyScalar(1.5);
     const lineGeo = new THREE.BufferGeometry().setFromPoints([pos, spherePoint]);
-    const connLine = new THREE.Line(lineGeo, new THREE.LineDashedMaterial({ color: src.color, transparent: true, opacity: 0.3, dashSize: 0.06, gapSize: 0.04 }));
+    const connLine = new THREE.Line(lineGeo, new THREE.LineDashedMaterial({
+      color: src.color, transparent: true, opacity: 0.3, dashSize: 0.06, gapSize: 0.04
+    }));
     connLine.computeLineDistances();
     scene.add(connLine);
 
@@ -810,22 +977,21 @@ function buildSourceMeshes() {
     SOURCES[i].light       = ptLight;
     SOURCES[i].line        = connLine;
     SOURCES[i].rms         = 0;
-    SOURCES[i].scaleTarget = i < 3 ? 1.0 : 0.0; // D and E start hidden
-    SOURCES[i].active      = i < 3; // only A, B, C active at start
+    SOURCES[i].scaleTarget = i < 3 ? 1.0 : 0.0;
+    SOURCES[i].active      = i < 3;
 
     srcDirs.push(pos.clone().normalize());
   });
 }
 
-// ── CSS label div for each source (projected into 3D scene)
 function buildSourceLabels() {
   const container = document.getElementById('srcLabels');
+  const colors = ['#fb923c','#4fc3f7','#f87171','#a78bfa','#34d399'];
   SOURCES.forEach((src, i) => {
     const div = document.createElement('div');
     div.className = 'src-label';
     div.id = 'srclabel-' + i;
-    // Show label colored letter and name
-    div.innerHTML = `<span style="color:${['#fb923c','#4fc3f7','#f87171','#a78bfa','#34d399'][i]};font-weight:600">${src.id}</span> ${src.label}`;
+    div.innerHTML = `<span style="color:${colors[i]};font-weight:600">${src.id}</span> ${src.label}`;
     container.appendChild(div);
     labelElements.push(div);
   });
@@ -844,13 +1010,13 @@ function buildLights() {
 function buildViridisLUT() {
   function viridisRGB(t) {
     t = Math.max(0, Math.min(1, t));
-    const c0 = [0.2777273272234177, 0.005407344544966578, 0.3340998053353061];
-    const c1 = [0.1050930431085774, 1.404613529898575,   1.384590162594685];
-    const c2 = [-0.3308618287255563, 0.214847559468213,   0.09509516302823659];
-    const c3 = [-4.634230498983486, -5.799100973351585,  -19.33244095627987];
-    const c4 = [6.228269936347081,  14.17993336680509,   56.69055260068105];
-    const c5 = [4.776384997670288, -13.74514537774601,  -65.35303416955069];
-    const c6 = [-5.435455855934631, 4.645852612178535,   26.3124352495832];
+    const c0=[0.2777273272234177,0.005407344544966578,0.3340998053353061];
+    const c1=[0.1050930431085774,1.404613529898575,1.384590162594685];
+    const c2=[-0.3308618287255563,0.214847559468213,0.09509516302823659];
+    const c3=[-4.634230498983486,-5.799100973351585,-19.33244095627987];
+    const c4=[6.228269936347081,14.17993336680509,56.69055260068105];
+    const c5=[4.776384997670288,-13.74514537774601,-65.35303416955069];
+    const c6=[-5.435455855934631,4.645852612178535,26.3124352495832];
     return [
       c0[0]+t*(c1[0]+t*(c2[0]+t*(c3[0]+t*(c4[0]+t*(c5[0]+t*c6[0]))))),
       c0[1]+t*(c1[1]+t*(c2[1]+t*(c3[1]+t*(c4[1]+t*(c5[1]+t*c6[1]))))),
@@ -871,7 +1037,8 @@ function viridisColor(t) {
 // START EXPERIENCE
 // ═══════════════════════════════════════════════════════════════════════════
 async function onStart() {
-  document.getElementById('startBtn').disabled = true;
+  const startBtn = document.getElementById('startBtn');
+  startBtn.disabled = true;
   setProgress(70, 'Creating audio context…');
 
   try {
@@ -883,20 +1050,16 @@ async function onStart() {
 
   buildViridisLUT();
 
-  // Decode any uploaded ArrayBuffers
-  setProgress(80, 'Decoding uploaded audio files…');
+  setProgress(80, 'Decoding audio files…');
   for (const src of SOURCES.filter(s => s.uploadKey && uploadedBuffers[s.uploadKey])) {
     try {
       src.buffer = await audioContext.decodeAudioData(uploadedBuffers[src.uploadKey].slice(0));
-      console.log('[Audio] Decoded uploaded file for source', src.id);
     } catch(e) {
-      console.warn('[Audio] Failed to decode uploaded file for source', src.id, '— using synthesis');
       src.buffer = null;
     }
   }
 
   setProgress(90, 'Initializing spatial audio engine…');
-
   try {
     initResonance(currentOrder);
   } catch(e) {
@@ -905,83 +1068,65 @@ async function onStart() {
 
   buildSynthSources();
 
-  // Initial source count — set D and E to gain 0 (they start inactive)
   SOURCES.forEach((src, i) => {
     if (src.gainNode) src.gainNode.gain.value = i < 3 ? 1.0 : 0.0;
   });
 
   setProgress(100, 'Starting…');
 
-  // Fade out loading overlay — show experience
+  // Fade out overlay and show demo UI
+  const overlay = document.getElementById('loadOverlay');
+  overlay.classList.add('hidden');
   setTimeout(() => {
-    document.getElementById('loadOverlay').classList.add('hidden');
-    setTimeout(() => {
-      document.getElementById('loadOverlay').style.display = 'none';
-      document.getElementById('hudPanel').style.display  = 'block';
-      document.getElementById('polarPanel').style.display = 'block';
-      document.getElementById('ctrlPanel').style.display  = 'block';
-      document.getElementById('infoPanel').style.display  = 'block';
-      polarCtx = document.getElementById('polarCanvas').getContext('2d');
-      startRenderLoop();
-      // Nav hint fades after 10 seconds
-      setTimeout(() => document.getElementById('navHint').classList.add('hidden'), 10000);
-      // Show HRTF loading toast — Resonance Audio loads HRIRs asynchronously
-      showHrtfToast();
-    }, 500);
-  }, 300);
+    overlay.style.display = 'none';
 
-  // Audio starts PAUSED — user must click "Start Audio"
-  // The audio context is running but no sources are started yet
-  updateAudioBtn();
+    // Show all demo UI panels
+    document.getElementById('leftCol').style.display  = 'flex';
+    document.getElementById('rightCol').style.display = 'flex';
+
+    // Init polar canvas contexts now that panels are visible
+    polarCtx = document.getElementById('polarCanvas').getContext('2d');
+    elevCtx  = document.getElementById('elevCanvas').getContext('2d');
+
+    updateAudioBtn();
+    showHrtfToast();
+
+    // Nav hint fades after 8 seconds
+    setTimeout(() => document.getElementById('navHint').classList.add('hidden'), 8000);
+  }, 500);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HRTF LOADING TOAST
-// Resonance Audio loads its binaural HRIRs asynchronously from base64.
-// This takes ~15 seconds and is invisible to the user without this feedback.
 // ═══════════════════════════════════════════════════════════════════════════
 function showHrtfToast() {
   const toast = document.getElementById('hrtfToast');
   toast.classList.add('visible');
-
-  // Simulate progress: Resonance gives no progress events, so we animate
-  // a progress fill that reaches ~95% over 18 seconds then waits.
-  let pct = 0;
   const startTime = Date.now();
-  const totalMs = 18000;
-  const interval = setInterval(() => {
+  const totalMs   = 18000;
+  const interval  = setInterval(() => {
     const elapsed = Date.now() - startTime;
-    pct = Math.min(94, (elapsed / totalMs) * 100);
-
-    // Poll: Resonance has no public 'ready' event, but once HRIRs load,
-    // the audio will have proper binaural rendering. We detect this by
-    // checking if the audioContext has been running for >15s.
     if (elapsed > 15000 && !hrtfReady) {
       hrtfReady = true;
       clearInterval(interval);
       document.getElementById('hrtfToastMsg').textContent = '✓ Binaural filters ready';
-      setTimeout(() => { toast.classList.remove('visible'); }, 2000);
+      setTimeout(() => toast.classList.remove('visible'), 2000);
     }
   }, 200);
 }
-
-// ═══════════════════════════════════════════════════════════════════════════
-// AUDIO FILE LOADING — now only from uploaded buffers (no XHR)
-// ═══════════════════════════════════════════════════════════════════════════
-// (Handled inline in onStart via uploadedBuffers — no XHR needed)
 
 // ═══════════════════════════════════════════════════════════════════════════
 // RESONANCE AUDIO INIT
 // ═══════════════════════════════════════════════════════════════════════════
 function initResonance(order) {
   resonanceAudio = new ResonanceAudio(audioContext, {
-    ambisonicOrder: order,
+    ambisonicOrder:   order,
     listenerPosition: [0, 0, 0],
     listenerForward:  [0, 0, -1],
     listenerUp:       [0, 1,  0],
   });
 
-  // Anechoic room — eliminate reverb so spatial imaging is unmasked
+  // Anechoic room — eliminate reverb for clean spatial imaging
   resonanceAudio.setRoomProperties(
     { width: 100, height: 100, depth: 100 },
     { left:'fiber-glass-insulation', right:'fiber-glass-insulation',
@@ -1018,7 +1163,7 @@ function initResonance(order) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SYNTHESIS — distinct, clearly different timbres per source
+// SYNTHESIS — distinct timbres per source
 // ═══════════════════════════════════════════════════════════════════════════
 function buildSynthSources() {
   SOURCES.forEach(src => {
@@ -1026,47 +1171,38 @@ function buildSynthSources() {
     src.trimGain.gain.value = 0.35;
   });
 
-  // ── A: Speech — if uploaded, use it. Fallback: warm vowel-like formant synth
+  // ── A: Speech
   if (SOURCES[0].buffer) {
     SOURCES[0].bufNode = createLoopingBufferSource(SOURCES[0].buffer);
     SOURCES[0].trimGain.gain.value = 0.55;
     SOURCES[0].bufNode.connect(SOURCES[0].trimGain);
   } else {
-    // Two-formant vowel: fundamental 160Hz (male voice) with two resonant peaks
-    // First formant ~700Hz (vowel "ah"), second formant ~1200Hz
-    const osc  = audioContext.createOscillator();  osc.type = 'sawtooth'; osc.frequency.value = 160;
+    const osc  = audioContext.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 160;
     const f1   = audioContext.createBiquadFilter(); f1.type = 'bandpass'; f1.frequency.value = 700;  f1.Q.value = 5;
     const f2   = audioContext.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 1200; f2.Q.value = 4;
     const mix  = audioContext.createGain(); mix.gain.value = 0.5;
-    // Slow pitch LFO — natural speech inflection
     const lfo  = audioContext.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.18;
     const lfoG = audioContext.createGain(); lfoG.gain.value = 8;
     lfo.connect(lfoG); lfoG.connect(osc.frequency);
-    // Amplitude envelope: gentle swell (makes it feel like continuous speech)
     const ampLfo  = audioContext.createOscillator(); ampLfo.type = 'sine'; ampLfo.frequency.value = 0.5;
     const ampLfoG = audioContext.createGain(); ampLfoG.gain.value = 0.25;
     const ampNode = audioContext.createGain(); ampNode.gain.value = 0.6;
     ampLfo.connect(ampLfoG); ampLfoG.connect(ampNode.gain);
-    osc.connect(f1); osc.connect(f2);
-    f1.connect(mix); f2.connect(mix);
+    osc.connect(f1); osc.connect(f2); f1.connect(mix); f2.connect(mix);
     mix.connect(ampNode); ampNode.connect(SOURCES[0].trimGain);
     SOURCES[0].trimGain.gain.value = 0.4;
     osc.start(); lfo.start(); ampLfo.start();
     SOURCES[0].oscNodes = [osc, lfo, ampLfo];
   }
 
-  // ── B: Beep — if uploaded, use it. Fallback: clear repeating electronic beep
+  // ── B: Notification beep
   if (SOURCES[1].buffer) {
     SOURCES[1].bufNode = createLoopingBufferSource(SOURCES[1].buffer);
     SOURCES[1].trimGain.gain.value = 0.5;
     SOURCES[1].bufNode.connect(SOURCES[1].trimGain);
   } else {
-    // Pure sine beep at 880Hz, rhythmically gated (on/off every 0.6s)
-    // This sounds nothing like the speech or alarm
     const osc     = audioContext.createOscillator(); osc.type = 'sine'; osc.frequency.value = 880;
     const gateEnv = audioContext.createGain(); gateEnv.gain.value = 0;
-    // Schedule repeating beep pattern using AudioParam automation
-    const ctx = audioContext;
     function scheduleBeeps(startTime, count) {
       for (let i = 0; i < count; i++) {
         const t = startTime + i * 1.2;
@@ -1076,23 +1212,20 @@ function buildSynthSources() {
         gateEnv.gain.linearRampToValueAtTime(0, t + 0.22);
       }
     }
-    scheduleBeeps(ctx.currentTime + 0.1, 1000);
+    scheduleBeeps(audioContext.currentTime + 0.1, 1000);
     osc.connect(gateEnv); gateEnv.connect(SOURCES[1].trimGain);
     SOURCES[1].trimGain.gain.value = 0.5;
     osc.start();
     SOURCES[1].oscNodes = [osc];
-    SOURCES[1]._gateEnv = gateEnv;
   }
 
-  // ── C: Alarm — if uploaded, use it. Fallback: rising/falling two-tone siren
+  // ── C: Fire alarm siren
   if (SOURCES[2].buffer) {
     SOURCES[2].bufNode = createLoopingBufferSource(SOURCES[2].buffer);
     SOURCES[2].trimGain.gain.value = 0.45;
     SOURCES[2].bufNode.connect(SOURCES[2].trimGain);
   } else {
-    // Classic two-tone siren: alternates between 660Hz and 440Hz every 0.4s
     const osc = audioContext.createOscillator(); osc.type = 'sine'; osc.frequency.value = 660;
-    const ctx = audioContext;
     function scheduleSiren(startTime, cycles) {
       for (let i = 0; i < cycles; i++) {
         const t = startTime + i * 0.8;
@@ -1102,17 +1235,16 @@ function buildSynthSources() {
         osc.frequency.linearRampToValueAtTime(660, t + 0.8);
       }
     }
-    scheduleSiren(ctx.currentTime + 0.1, 500);
+    scheduleSiren(audioContext.currentTime + 0.1, 500);
     osc.connect(SOURCES[2].trimGain);
     SOURCES[2].trimGain.gain.value = 0.4;
     osc.start();
     SOURCES[2].oscNodes = [osc];
   }
 
-  // ── D: Drone — deep sub-bass rumble (clearly "below" in character)
+  // ── D: Drone (sub-bass, below-right)
   {
-    const osc = audioContext.createOscillator(); osc.type = 'sine'; osc.frequency.value = 60;
-    // Add harmonics via second oscillator one octave up for presence on small speakers
+    const osc  = audioContext.createOscillator(); osc.type = 'sine'; osc.frequency.value = 60;
     const osc2 = audioContext.createOscillator(); osc2.type = 'sine'; osc2.frequency.value = 120;
     const osc2G = audioContext.createGain(); osc2G.gain.value = 0.3;
     const detLfo = audioContext.createOscillator(); detLfo.type = 'sine'; detLfo.frequency.value = 0.08;
@@ -1130,7 +1262,7 @@ function buildSynthSources() {
     SOURCES[3].oscNodes = [osc, osc2, detLfo, ampLfo];
   }
 
-  // ── E: Shimmer — high crystalline shimmer from directly above
+  // ── E: Shimmer (high crystalline, directly above)
   {
     const bufLength  = audioContext.sampleRate * 2;
     const noiseBuffer = audioContext.createBuffer(1, bufLength, audioContext.sampleRate);
@@ -1140,8 +1272,7 @@ function buildSynthSources() {
     noiseNode.buffer = noiseBuffer; noiseNode.loop = true; noiseNode.loopEnd = 2.0;
     const hpf = audioContext.createBiquadFilter(); hpf.type = 'highpass'; hpf.frequency.value = 5000;
     const bpf = audioContext.createBiquadFilter(); bpf.type = 'bandpass'; bpf.frequency.value = 7000; bpf.Q.value = 12;
-    // Add a chime tone for extra distinctiveness
-    const chime = audioContext.createOscillator(); chime.type = 'sine'; chime.frequency.value = 2093; // high C
+    const chime  = audioContext.createOscillator(); chime.type = 'sine'; chime.frequency.value = 2093;
     const chimeG = audioContext.createGain(); chimeG.gain.value = 0.4;
     const tremNode = audioContext.createGain(); tremNode.gain.value = 0.6;
     const tremLfo  = audioContext.createOscillator(); tremLfo.type = 'sine'; tremLfo.frequency.value = 6;
@@ -1170,8 +1301,7 @@ function createLoopingBufferSource(buffer) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// AUDIO START / STOP
-// Audio starts PAUSED. User must click "Start Audio" in the control panel.
+// AUDIO TOGGLE
 // ═══════════════════════════════════════════════════════════════════════════
 function startAudio() {
   if (audioStarted) return;
@@ -1183,9 +1313,7 @@ function startAudio() {
 
 function toggleAudio() {
   if (!audioContext) return;
-  const btn = document.getElementById('audioToggleBtn');
   if (!audioStarted) {
-    // First press: actually start audio sources
     startAudio();
     audioContext.resume().then(updateAudioBtn);
   } else if (audioContext.state === 'running') {
@@ -1197,6 +1325,7 @@ function toggleAudio() {
 
 function updateAudioBtn() {
   const btn = document.getElementById('audioToggleBtn');
+  if (!btn) return;
   if (!audioStarted || !audioContext || audioContext.state !== 'running') {
     btn.textContent = '▶ Start Audio';
     btn.classList.remove('playing');
@@ -1229,7 +1358,7 @@ function rebuildResonance(newOrder) {
     orderExponent = newOrder === 1 ? 2 : 6;
     initResonance(newOrder);
 
-    SOURCES.forEach((src, i) => {
+    SOURCES.forEach((src) => {
       try { src.trimGain.disconnect(); } catch(e) {}
       src.trimGain.connect(src.analyser);
       src.analyser.connect(src.gainNode);
@@ -1283,7 +1412,6 @@ function setSourceCount(count) {
       src.gainNode.gain.setTargetAtTime(show ? 1.0 : 0.0, now, 0.05);
     }
     if (show && src.resonanceSource) src.resonanceSource.setPosition(...src.pos);
-    // Update legend opacity
     const legIds = ['leg-d', 'leg-e'];
     document.getElementById(legIds[i-3]).classList.toggle('inactive', !show);
   });
@@ -1337,6 +1465,7 @@ document.addEventListener('touchmove', e => {
 }, { passive: true });
 document.addEventListener('touchend', () => { isDragging = false; });
 document.addEventListener('wheel', e => {
+  if (!camera) return;
   camera.position.z = Math.max(1.2, Math.min(4.5, camera.position.z + e.deltaY * 0.002));
   camera.lookAt(0, 0, 0);
 }, { passive: true });
@@ -1360,8 +1489,8 @@ function updateSourceRMS() {
 // AMBI SPHERE UPDATE
 // ═══════════════════════════════════════════════════════════════════════════
 function updateAmbiSphere() {
-  const nVerts    = vertexDirs.length;
-  const colors    = ambiColorsAttr.array;
+  const nVerts     = vertexDirs.length;
+  const colors     = ambiColorsAttr.array;
   const activeSrcs = SOURCES.filter(s => s.active);
 
   for (let i = 0; i < nVerts; i++) {
@@ -1372,9 +1501,9 @@ function updateAmbiSphere() {
       const dot = Math.max(0, d.x*srcDirs[idx].x + d.y*srcDirs[idx].y + d.z*srcDirs[idx].z);
       energy += activeSrcs[j].rms * Math.pow(dot, orderExponent);
     }
-    // When audio is paused, show a dim ambient pattern so the sphere isn't dead
+    // Dim ambient pattern when paused so sphere isn't totally dead
     if (!audioStarted || audioContext.state !== 'running') {
-      energy = 0.02 + 0.01 * Math.abs(d.y); // subtle ambient gradient
+      energy = 0.02 + 0.01 * Math.abs(d.y);
     }
     const t = Math.min(1, energy / ENERGY_SCALE);
     const c = viridisColor(t);
@@ -1389,8 +1518,8 @@ function updateAmbiSphere() {
 // ═══════════════════════════════════════════════════════════════════════════
 function updatePolarRing() {
   if (!polarCtx) return;
-  const C = 90, R = 83;
-  polarCtx.clearRect(0, 0, 180, 180);
+  const C = 70, R = 63;
+  polarCtx.clearRect(0, 0, 140, 140);
 
   polarCtx.beginPath();
   polarCtx.arc(C, C, R, 0, Math.PI*2);
@@ -1403,14 +1532,13 @@ function updatePolarRing() {
     polarCtx.strokeStyle = 'rgba(255,255,255,0.04)'; polarCtx.stroke();
   });
 
-  // Cardinal directions
-  polarCtx.font = '8px IBM Plex Mono, monospace';
+  polarCtx.font = '7px IBM Plex Mono, monospace';
   polarCtx.fillStyle = 'rgba(255,255,255,0.18)';
   polarCtx.textAlign = 'center';
-  polarCtx.fillText('F', C, C - R + 11);
-  polarCtx.fillText('B', C, C + R - 3);
-  polarCtx.fillText('L', C - R + 4, C + 3);
-  polarCtx.fillText('R', C + R - 4, C + 3);
+  polarCtx.fillText('F', C, C - R + 9);
+  polarCtx.fillText('B', C, C + R - 2);
+  polarCtx.fillText('L', C - R + 3, C + 3);
+  polarCtx.fillText('R', C + R - 3, C + 3);
 
   const activeSrcs = SOURCES.filter(s => s.active);
   const steps = 180;
@@ -1430,23 +1558,21 @@ function updatePolarRing() {
     polarCtx.beginPath();
     polarCtx.moveTo(C + Math.sin(theta)*minR, C - Math.cos(theta)*minR);
     polarCtx.lineTo(C + Math.sin(theta)*r,    C - Math.cos(theta)*r);
-    polarCtx.lineWidth = 2.2;
+    polarCtx.lineWidth = 2;
     polarCtx.strokeStyle = `rgb(${Math.round(c.r*255)},${Math.round(c.g*255)},${Math.round(c.b*255)})`;
     polarCtx.stroke();
   }
 
-  // Source azimuth markers
   const srcColors = ['#fb923c','#4fc3f7','#f87171','#a78bfa','#34d399'];
   SOURCES.forEach((src, i) => {
     if (!src.active) return;
     const az = Math.atan2(src.pos[0], -src.pos[2]);
     const mr = R * 0.90;
     polarCtx.beginPath();
-    polarCtx.arc(C + Math.sin(az)*mr, C - Math.cos(az)*mr, 4.5, 0, Math.PI*2);
+    polarCtx.arc(C + Math.sin(az)*mr, C - Math.cos(az)*mr, 4, 0, Math.PI*2);
     polarCtx.fillStyle = srcColors[i]; polarCtx.fill();
   });
 
-  // Listener needle
   const needleLen = R * 0.88;
   polarCtx.beginPath();
   polarCtx.moveTo(C, C);
@@ -1457,15 +1583,87 @@ function updatePolarRing() {
   polarCtx.fillStyle = 'white'; polarCtx.fill();
 
   polarCtx.beginPath();
-  polarCtx.arc(C, C, 3.5, 0, Math.PI*2);
+  polarCtx.arc(C, C, 3, 0, Math.PI*2);
   polarCtx.fillStyle = 'rgba(79,156,249,0.9)'; polarCtx.fill();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PROJECT 3D POSITION → SCREEN for source labels
+// ELEVATION RING UPDATE
+// ═══════════════════════════════════════════════════════════════════════════
+function updateElevRing() {
+  if (!elevCtx) return;
+  const C = 70, R = 63;
+  elevCtx.clearRect(0, 0, 140, 140);
+
+  elevCtx.beginPath(); elevCtx.arc(C, C, R, 0, Math.PI*2);
+  elevCtx.fillStyle = 'rgba(10,10,18,0.9)'; elevCtx.fill();
+  elevCtx.strokeStyle = 'rgba(255,255,255,0.06)'; elevCtx.lineWidth = 1; elevCtx.stroke();
+
+  [R*0.33, R*0.66].forEach(r => {
+    elevCtx.beginPath(); elevCtx.arc(C, C, r, 0, Math.PI*2);
+    elevCtx.strokeStyle = 'rgba(255,255,255,0.04)'; elevCtx.stroke();
+  });
+
+  elevCtx.font = '7px IBM Plex Mono, monospace';
+  elevCtx.fillStyle = 'rgba(255,255,255,0.18)';
+  elevCtx.textAlign = 'center';
+  elevCtx.fillText('U', C, C - R + 9);
+  elevCtx.fillText('D', C, C + R - 2);
+  elevCtx.fillText('F', C - R + 3, C + 3);
+  elevCtx.fillText('B', C + R - 3, C + 3);
+
+  const activeSrcs = SOURCES.filter(s => s.active);
+  const steps = 180;
+  for (let step = 0; step < steps; step++) {
+    const theta = (step / steps) * Math.PI * 2;
+    const dy = Math.sin(theta), dz = -Math.cos(theta);
+    let energy = 0;
+    for (let j = 0; j < activeSrcs.length; j++) {
+      const idx = SOURCES.indexOf(activeSrcs[j]);
+      const dot = Math.max(0, dy*srcDirs[idx].y + dz*srcDirs[idx].z);
+      energy += activeSrcs[j].rms * Math.pow(dot, orderExponent);
+    }
+    const t = Math.min(1, energy / ENERGY_SCALE);
+    const c = viridisColor(t);
+    const minR = R*0.38, maxR = R*0.95;
+    const r = minR + (maxR-minR)*t;
+    elevCtx.beginPath();
+    elevCtx.moveTo(C + Math.sin(theta)*minR, C - Math.cos(theta)*minR);
+    elevCtx.lineTo(C + Math.sin(theta)*r,    C - Math.cos(theta)*r);
+    elevCtx.lineWidth = 2;
+    elevCtx.strokeStyle = `rgb(${Math.round(c.r*255)},${Math.round(c.g*255)},${Math.round(c.b*255)})`;
+    elevCtx.stroke();
+  }
+
+  const srcColors = ['#fb923c','#4fc3f7','#f87171','#a78bfa','#34d399'];
+  SOURCES.forEach((src, i) => {
+    if (!src.active) return;
+    const el = Math.atan2(src.pos[1], -src.pos[2]);
+    const mr = R * 0.90;
+    elevCtx.beginPath();
+    elevCtx.arc(C + Math.sin(el)*mr, C - Math.cos(el)*mr, 4, 0, Math.PI*2);
+    elevCtx.fillStyle = srcColors[i]; elevCtx.fill();
+  });
+
+  const pLen = R * 0.88;
+  elevCtx.beginPath();
+  elevCtx.moveTo(C, C);
+  elevCtx.lineTo(C + Math.sin(headEulerPitch)*pLen, C - Math.cos(headEulerPitch)*pLen);
+  elevCtx.lineWidth = 1.5; elevCtx.strokeStyle = 'rgba(255,255,255,0.75)'; elevCtx.stroke();
+  elevCtx.beginPath();
+  elevCtx.arc(C + Math.sin(headEulerPitch)*pLen, C - Math.cos(headEulerPitch)*pLen, 3, 0, Math.PI*2);
+  elevCtx.fillStyle = 'white'; elevCtx.fill();
+
+  elevCtx.beginPath();
+  elevCtx.arc(C, C, 3, 0, Math.PI*2);
+  elevCtx.fillStyle = 'rgba(79,156,249,0.9)'; elevCtx.fill();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PROJECT 3D → SCREEN (source labels)
 // ═══════════════════════════════════════════════════════════════════════════
 function projectToScreen(pos3d) {
-  const v = pos3d.clone().project(camera);
+  const v     = pos3d.clone().project(camera);
   const mount = document.getElementById('canvasMount');
   const W = mount.clientWidth, H = mount.clientHeight;
   return {
@@ -1479,27 +1677,33 @@ function projectToScreen(pos3d) {
 // RENDER LOOP
 // ═══════════════════════════════════════════════════════════════════════════
 function startRenderLoop() {
-  const origin       = new THREE.Vector3(0, 0, 0);
-  const unitScale    = new THREE.Vector3(1, 1, 1);
-  const listenerMtx  = new THREE.Matrix4();
-  const headQuat     = new THREE.Quaternion();
+  const origin      = new THREE.Vector3(0, 0, 0);
+  const unitScale   = new THREE.Vector3(1, 1, 1);
+  const listenerMtx = new THREE.Matrix4();
+  const headQuat    = new THREE.Quaternion();
 
   function loop() {
     requestAnimationFrame(loop);
     clock.getDelta();
 
-    if (!audioContext) { composer.render(); return; }
+    if (audioContext) {
+      updateSourceRMS();
 
-    updateSourceRMS();
+      headEuler.set(headEulerPitch, headEulerYaw, 0, 'YXZ');
+      headGroup.rotation.copy(headEuler);
 
-    headEuler.set(headEulerPitch, headEulerYaw, 0, 'YXZ');
-    headGroup.rotation.copy(headEuler);
+      headQuat.setFromEuler(headEuler);
+      listenerMtx.compose(origin, headQuat, unitScale);
+      if (resonanceAudio) resonanceAudio.setListenerFromMatrix({ elements: listenerMtx.elements });
+    } else {
+      // Still allow head rotation visually before audio starts
+      if (headGroup) {
+        headEuler.set(headEulerPitch, headEulerYaw, 0, 'YXZ');
+        headGroup.rotation.copy(headEuler);
+      }
+    }
 
-    headQuat.setFromEuler(headEuler);
-    listenerMtx.compose(origin, headQuat, unitScale);
-    if (resonanceAudio) resonanceAudio.setListenerFromMatrix(listenerMtx);
-
-    // Update source visual properties
+    // Source visual updates
     SOURCES.forEach((src) => {
       const rms = src.rms;
       if (!src.mesh) return;
@@ -1516,11 +1720,12 @@ function startRenderLoop() {
     });
 
     if (!fieldFrozen) {
-      updateAmbiSphere();
+      if (audioContext) updateAmbiSphere();
       updatePolarRing();
+      updateElevRing();
     }
 
-    // Update source label positions
+    // Source label positions
     SOURCES.forEach((src, i) => {
       const lbl = labelElements[i];
       if (!lbl) return;
@@ -1535,15 +1740,14 @@ function startRenderLoop() {
     });
 
     // HUD
-    document.getElementById('hudAz').textContent  = ((headEulerYaw   * 180 / Math.PI)).toFixed(1) + '°';
-    document.getElementById('hudEl').textContent  = ((headEulerPitch * 180 / Math.PI)).toFixed(1) + '°';
-    // Audio state updated via updateAudioBtn — just keep ctx state fresh
-    if (audioStarted) {
-      document.getElementById('hudCtx').textContent = audioContext.state;
-    }
+    const hudAz = document.getElementById('hudAz');
+    const hudEl = document.getElementById('hudEl');
+    if (hudAz) hudAz.textContent = (headEulerYaw   * 180 / Math.PI).toFixed(1) + '°';
+    if (hudEl) hudEl.textContent = (headEulerPitch * 180 / Math.PI).toFixed(1) + '°';
 
     composer.render();
   }
+
   loop();
 }
 
@@ -1557,7 +1761,6 @@ new ResizeObserver(() => {
   camera.aspect = W / H;
   camera.updateProjectionMatrix();
   renderer.setSize(W, H);
-  if (composer) composer.setSize(W, H);
 }).observe(document.getElementById('canvasMount'));
 </script>
 </body>
