@@ -4,28 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Demo 4: Ambisonics — Multimediaprogrammierung · TU Ilmenau</title>
-<!--
-  ╔══════════════════════════════════════════════════════════════════════════╗
-  ║  Demo 4: Ambisonic Sound Field Visualizer                               ║
-  ║  Course:  Multimediaprogrammierung                                      ║
-  ║  Chapter: 05 — Google Resonance Audio for Web                           ║
-  ║  Author:  Renato Fera P.                                                 ║
-  ║  Institute: TU Ilmenau · AMS Group                                      ║
-  ║                                                                          ║
-  ║  What this demo teaches:                                                 ║
-  ║  · How multiple spatial sources encode into a full 3D Ambisonic field   ║
-  ║  · Head rotation in the Ambisonic domain — the field is fixed in space  ║
-  ║  · Order 1 vs Order 3: visible and audible spatial resolution           ║
-  ║  · Binaural decode: from spherical harmonics to headphone audio         ║
-  ║                                                                          ║
-  ║  Three.js world units = meters. Y-up. Right-handed coordinate system.   ║
-  ║  Resonance Audio uses the same convention — no conversion needed.       ║
-  ╚══════════════════════════════════════════════════════════════════════════╝
-
-  IMPORTMAP: Three.js resolved from ES module CDN.
-  Addons (EffectComposer, UnrealBloomPass, OutputPass) imported as ES modules.
-  Resonance Audio loaded as UMD via defer — assigns window.ResonanceAudio.
--->
 <script type="importmap">
 {
   "imports": {
@@ -35,36 +13,27 @@
 }
 </script>
 <script type="module">
-  // Bootstrap: import Three.js and all addons needed, expose as globals.
-  // This pattern is required because Resonance Audio is a UMD script (no ES module
-  // build), so the main logic runs in a classic script that cannot use import().
   import * as THREE from 'three';
   import { EffectComposer }  from 'three/addons/postprocessing/EffectComposer.js';
   import { RenderPass }      from 'three/addons/postprocessing/RenderPass.js';
   import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
   import { OutputPass }      from 'three/addons/postprocessing/OutputPass.js';
-
   window.THREE           = THREE;
   window._EffectComposer  = EffectComposer;
   window._RenderPass      = RenderPass;
   window._UnrealBloomPass = UnrealBloomPass;
   window._OutputPass      = OutputPass;
-
-  // Signal that Three.js and addons are ready.
   window._threeReady = true;
   window.dispatchEvent(new Event('threeReady'));
 </script>
-<!-- Resonance Audio UMD bundle — assigns window.ResonanceAudio -->
 <script defer src="https://cdn.jsdelivr.net/npm/resonance-audio@1.0.0/build/resonance-audio.min.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 
 <style>
-/* ── Reset ──────────────────────────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-/* ── Design tokens (match template exactly) ─────────────────────────────── */
 :root {
   --bg:           #0d0f14;
   --surface:      #161a22;
@@ -79,454 +48,287 @@
   --mono:         'IBM Plex Mono', monospace;
   --jb:           'JetBrains Mono', monospace;
   --sans:         'IBM Plex Sans', sans-serif;
-  --panel-bg:     rgba(10, 10, 14, 0.85);
-  --panel-border: rgba(255, 255, 255, 0.07);
+  --panel-bg:     rgba(10,10,14,0.88);
+  --panel-border: rgba(255,255,255,0.07);
   --panel-blur:   18px;
-
-  /* Source identity colors */
-  --src-a: #fb923c;   /* Speech  — warm amber  */
-  --src-b: #4fc3f7;   /* Beep    — cool cyan   */
-  --src-c: #f87171;   /* Alarm   — red-orange  */
-  --src-d: #a78bfa;   /* Drone   — violet      */
-  --src-e: #34d399;   /* Shimmer — jade green  */
+  --src-a: #fb923c;
+  --src-b: #4fc3f7;
+  --src-c: #f87171;
+  --src-d: #a78bfa;
+  --src-e: #34d399;
 }
 
-html, body {
-  height: 100%;
-  overflow: hidden;
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--sans);
-}
+html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--sans); }
 
-/* ── Top bar ─────────────────────────────────────────────────────────────── */
+/* ── Top bar ── */
 #topbar {
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  height: 52px;
-  background: rgba(13, 15, 20, 0.92);
-  border-bottom: 1px solid var(--border);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  display: flex;
-  align-items: center;
-  padding: 0 20px;
-  gap: 14px;
-  z-index: 200;
+  position: fixed; top: 0; left: 0; right: 0; height: 52px;
+  background: rgba(13,15,20,0.92); border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  display: flex; align-items: center; padding: 0 20px; gap: 14px; z-index: 200;
 }
-#topbar .tb-logo img {
-  height: 32px;
-  border-radius: 6px;
-  display: block;
-}
-#topbar .tb-sep {
-  width: 1px; height: 24px;
-  background: var(--border);
-  flex-shrink: 0;
-}
-#topbar .tb-course {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--muted);
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-}
-#topbar .tb-course strong {
-  color: var(--text);
-  font-weight: 500;
-}
+#topbar .tb-logo img { height: 32px; border-radius: 6px; display: block; }
+#topbar .tb-sep { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
+#topbar .tb-course { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.04em; white-space: nowrap; }
+#topbar .tb-course strong { color: var(--text); font-weight: 500; }
 #topbar .tb-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  background: rgba(167,139,250,0.10);
-  color: var(--accent2);
-  font-family: var(--mono);
-  font-size: 10px;
-  padding: 3px 10px;
-  border-radius: 20px;
-  border: 1px solid rgba(167,139,250,0.28);
-  white-space: nowrap;
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(167,139,250,0.10); color: var(--accent2);
+  font-family: var(--mono); font-size: 10px; padding: 3px 10px;
+  border-radius: 20px; border: 1px solid rgba(167,139,250,0.28); white-space: nowrap;
 }
 #topbar .tb-spacer { flex: 1; }
-#topbar .tb-author {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  color: var(--muted);
-  white-space: nowrap;
-}
+#topbar .tb-author { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); white-space: nowrap; }
 #topbar .tb-author span { color: var(--text); font-weight: 500; }
 #topbar .tb-author .li-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  background: rgba(79,156,249,0.10);
-  color: var(--accent);
-  font-family: var(--mono);
-  font-size: 10px;
-  padding: 2px 9px;
-  border-radius: 20px;
-  border: 1px solid rgba(79,156,249,0.22);
-  text-decoration: none;
-  transition: background 0.15s;
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(79,156,249,0.10); color: var(--accent); font-family: var(--mono);
+  font-size: 10px; padding: 2px 9px; border-radius: 20px;
+  border: 1px solid rgba(79,156,249,0.22); text-decoration: none; transition: background 0.15s;
 }
 #topbar .tb-author .li-badge:hover { background: rgba(79,156,249,0.2); }
 
-/* ── Canvas fills viewport below topbar ─────────────────────────────────── */
-#canvasMount {
-  position: fixed;
-  top: 52px; left: 0; right: 0; bottom: 0;
-  z-index: 0;
-}
-#canvasMount canvas {
-  display: block;
-  width: 100% !important;
-  height: 100% !important;
-}
+/* ── Canvas ── */
+#canvasMount { position: fixed; top: 52px; left: 0; right: 0; bottom: 0; z-index: 0; }
+#canvasMount canvas { display: block; width: 100% !important; height: 100% !important; }
 
-/* ── Loading overlay ─────────────────────────────────────────────────────── */
+/* ── Loading overlay ── */
 #loadOverlay {
-  position: fixed;
-  inset: 0;
-  background: #07080d;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 18px;
-  z-index: 500;
-  transition: opacity 0.5s ease;
+  position: fixed; inset: 0; background: #07080d;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0; z-index: 500; transition: opacity 0.6s ease;
 }
 #loadOverlay.hidden { opacity: 0; pointer-events: none; }
-.lo-chapter {
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--muted);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-}
-.lo-title {
-  font-family: var(--sans);
-  font-size: clamp(22px, 3vw, 32px);
-  font-weight: 500;
-  color: #f0f2f7;
-  text-align: center;
-  line-height: 1.25;
-}
-.lo-headphone { font-size: 36px; }
-.lo-hint {
-  font-family: var(--mono);
-  font-size: 12px;
-  color: var(--muted);
-  text-align: center;
-  max-width: 320px;
-  line-height: 1.6;
-}
-.lo-progress-track {
-  width: 220px; height: 2px;
-  background: var(--border);
-  border-radius: 2px;
-  overflow: hidden;
-}
-.lo-progress-fill {
-  height: 100%;
-  background: var(--accent2);
-  border-radius: 2px;
-  transition: width 0.3s ease;
-  width: 0%;
-}
-.lo-start-btn {
-  display: none;
-  align-items: center;
-  gap: 8px;
-  padding: 12px 32px;
-  background: transparent;
-  border: 1px solid var(--accent2);
-  color: var(--accent2);
-  font-family: var(--mono);
-  font-size: 14px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background 0.2s;
-  letter-spacing: 0.04em;
-}
-.lo-start-btn:hover { background: rgba(167,139,250,0.12); }
-.lo-start-btn.visible { display: inline-flex; }
 
-/* ── Glass panel base ────────────────────────────────────────────────────── */
-.gpanel {
-  position: fixed;
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  backdrop-filter: blur(var(--panel-blur));
-  -webkit-backdrop-filter: blur(var(--panel-blur));
-  border-radius: 12px;
-  z-index: 100;
-}
-.gpanel-label {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--muted);
-  letter-spacing: 0.10em;
-  text-transform: uppercase;
-  margin-bottom: 10px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--panel-border);
-}
+.lo-inner { display: flex; flex-direction: column; align-items: center; gap: 14px; width: 100%; max-width: 480px; padding: 0 24px; }
 
-/* ── HUD panel (top-right) ───────────────────────────────────────────────── */
-#hudPanel {
-  top: 64px; right: 16px;
-  width: 210px;
-  padding: 14px 16px;
-}
-.hud-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  margin-bottom: 7px;
-}
-.hud-row:last-child { margin-bottom: 0; }
-.hud-key {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--muted);
-}
-.hud-val {
-  font-family: var(--jb);
-  font-size: 13px;
-  color: var(--accent);
-  letter-spacing: 0.03em;
-}
-.hud-val.purple { color: var(--accent2); }
-.hud-val.green  { color: var(--green); }
-.hud-val.orange { color: var(--orange); }
-.order-badge {
-  display: inline-block;
-  background: rgba(167,139,250,0.14);
-  color: var(--accent2);
-  font-family: var(--mono);
-  font-size: 10px;
-  padding: 2px 8px;
-  border-radius: 20px;
-  border: 1px solid rgba(167,139,250,0.3);
-}
+.lo-chapter { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.14em; text-transform: uppercase; }
+.lo-title { font-family: var(--sans); font-size: clamp(22px,3vw,30px); font-weight: 500; color: #f0f2f7; text-align: center; line-height: 1.2; }
+.lo-headphone { font-size: 32px; }
+.lo-hint { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: center; line-height: 1.6; }
 
-/* ── Polar ring panel (bottom-left) ─────────────────────────────────────── */
-#polarPanel {
-  bottom: 16px; left: 16px;
-  padding: 14px 16px;
-  width: 254px;
-}
-#polarCanvas {
-  display: block;
-  margin: 0 auto 10px;
-  border-radius: 50%;
-}
-.source-legend {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px 10px;
-  margin-top: 4px;
-}
-.src-leg-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--muted);
-}
-.src-dot {
-  width: 7px; height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
+.lo-progress-track { width: 220px; height: 2px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.lo-progress-fill { height: 100%; background: var(--accent2); border-radius: 2px; transition: width 0.3s ease; width: 0%; }
 
-/* ── Controls panel (bottom-right) ──────────────────────────────────────── */
-#ctrlPanel {
-  bottom: 16px; right: 16px;
-  padding: 14px 16px;
-  width: 230px;
+/* Upload section */
+#uploadSection {
+  width: 100%; border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden; margin-top: 4px;
 }
-.ctrl-section { margin-bottom: 14px; }
-.ctrl-section:last-child { margin-bottom: 0; }
-.ctrl-label {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--muted);
-  margin-bottom: 7px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.upload-header {
+  background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border);
+  padding: 10px 14px;
+  display: flex; align-items: center; justify-content: space-between;
 }
-.pill-row {
-  display: flex;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 24px;
-  padding: 3px;
-  gap: 2px;
-}
-.pill-btn {
-  flex: 1;
-  border: none;
-  background: transparent;
-  color: var(--muted);
-  font-family: var(--mono);
-  font-size: 11px;
-  padding: 5px 0;
-  border-radius: 20px;
-  cursor: pointer;
-  transition: background 0.2s, color 0.2s;
-  text-align: center;
-}
-.pill-btn.active {
-  background: var(--accent2);
-  color: #0d0f14;
-  font-weight: 500;
-}
-.pill-btn:hover:not(.active) { color: var(--text); }
-.action-btn {
-  width: 100%;
-  padding: 8px 0;
-  background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: 12px;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: border-color 0.2s, color 0.2s, background 0.2s;
-  letter-spacing: 0.03em;
-}
-.action-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: rgba(79,156,249,0.07);
-}
-.action-btn.frozen {
-  border-color: var(--accent2);
-  color: var(--accent2);
-  background: rgba(167,139,250,0.08);
-}
-.action-btn.running {
-  border-color: var(--red);
-  color: var(--red);
-  background: rgba(248,113,113,0.08);
-}
-.action-btn.running:hover {
-  border-color: var(--red);
-  color: var(--red);
-  background: rgba(248,113,113,0.16);
-}
-
-/* ── Nav hint (bottom-centre) ───────────────────────────────────────────── */
-#navHint {
-  position: fixed;
-  bottom: 24px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  backdrop-filter: blur(var(--panel-blur));
-  -webkit-backdrop-filter: blur(var(--panel-blur));
-  border-radius: 24px;
-  padding: 7px 20px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--muted);
-  z-index: 100;
-  pointer-events: none;
-  transition: opacity 1s ease;
-  white-space: nowrap;
-}
-#navHint.hidden { opacity: 0; }
-
-/* ── Order rebuild flash overlay ────────────────────────────────────────── */
-#orderFlash {
-  position: fixed;
-  inset: 52px 0 0 0;
-  background: rgba(167,139,250,0.08);
-  pointer-events: none;
-  opacity: 0;
-  z-index: 90;
-  transition: opacity 0.08s;
-}
-
-/* ── File-protocol upload strip (shown only on file://) ─────────────────── */
-#fileProtocolWarn {
-  display: none;
-  margin: 0 0 10px;
-  padding: 8px 14px;
-  background: rgba(251,146,60,0.10);
-  border: 1px solid rgba(251,146,60,0.35);
-  border-radius: 8px;
-  font-family: var(--mono);
-  font-size: 11px;
-  color: var(--orange);
-  line-height: 1.55;
-  max-width: 340px;
-  text-align: center;
-}
-#fileProtocolWarn.visible { display: block; }
-#uploadStrip {
-  display: none;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 4px;
-}
-#uploadStrip.visible { display: flex; }
-.upload-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.upload-label {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--muted);
-  min-width: 52px;
-  text-align: right;
-}
+.upload-header-title { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
+.upload-header-note { font-family: var(--mono); font-size: 10px; color: var(--muted); opacity: 0.6; }
+.upload-body { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
+.upload-row { display: flex; align-items: center; gap: 10px; }
+.upload-src-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.upload-src-name { font-family: var(--mono); font-size: 11px; color: var(--text); min-width: 60px; }
+.upload-src-hint { font-family: var(--mono); font-size: 10px; color: var(--muted); flex: 1; }
 .upload-btn {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: var(--muted);
-  background: rgba(255,255,255,0.04);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  padding: 4px 10px;
-  cursor: pointer;
-  transition: border-color 0.15s, color 0.15s;
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+  border-radius: 5px; padding: 5px 12px; cursor: pointer;
+  transition: border-color 0.15s, color 0.15s; white-space: nowrap; flex-shrink: 0;
   position: relative;
 }
 .upload-btn:hover { border-color: var(--accent); color: var(--accent); }
 .upload-btn.loaded { border-color: var(--green); color: var(--green); }
 .upload-btn input[type=file] { display: none; }
 
-/* ── Error display ───────────────────────────────────────────────────────── */
-#errorBox {
-  display: none;
-  position: fixed;
-  inset: 52px 0 0 0;
-  background: var(--bg);
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
-  gap: 12px;
-  z-index: 600;
+.upload-synth-note {
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  text-align: center; padding: 8px 14px 10px;
+  border-top: 1px solid var(--border);
+  opacity: 0.7;
 }
+
+.lo-start-btn {
+  display: none; align-items: center; gap: 8px;
+  padding: 12px 36px; background: transparent;
+  border: 1px solid var(--accent2); color: var(--accent2);
+  font-family: var(--mono); font-size: 14px; border-radius: 8px;
+  cursor: pointer; transition: background 0.2s, transform 0.1s;
+  letter-spacing: 0.04em; margin-top: 4px;
+}
+.lo-start-btn:hover { background: rgba(167,139,250,0.12); }
+.lo-start-btn:active { transform: scale(0.98); }
+.lo-start-btn.visible { display: inline-flex; }
+
+/* HRTF loading indicator */
+#hrtfLoadingBar {
+  display: none; flex-direction: column; align-items: center; gap: 10px; width: 100%; padding: 0 20px;
+}
+#hrtfLoadingBar.visible { display: flex; }
+.hrtf-label { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: center; }
+.hrtf-progress-track { width: 220px; height: 2px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.hrtf-progress-fill { height: 100%; background: var(--accent); border-radius: 2px; width: 0%; transition: width 0.1s linear; }
+
+/* ── Glass panel base ── */
+.gpanel {
+  position: fixed; background: var(--panel-bg); border: 1px solid var(--panel-border);
+  backdrop-filter: blur(var(--panel-blur)); -webkit-backdrop-filter: blur(var(--panel-blur));
+  border-radius: 12px; z-index: 100;
+}
+.gpanel-label {
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  letter-spacing: 0.10em; text-transform: uppercase;
+  margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--panel-border);
+}
+
+/* ── Info panel (top-left) ── */
+#infoPanel { top: 64px; left: 16px; width: 260px; padding: 14px 16px; }
+.info-concept {
+  font-size: 12px; color: var(--text); line-height: 1.6; margin-bottom: 10px;
+}
+.info-concept strong { color: var(--accent2); font-weight: 500; }
+.info-divider { height: 1px; background: var(--panel-border); margin: 10px 0; }
+.info-row { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 8px; }
+.info-row:last-child { margin-bottom: 0; }
+.info-key {
+  font-family: var(--mono); font-size: 10px; color: var(--accent);
+  min-width: 68px; padding-top: 1px; flex-shrink: 0;
+}
+.info-val { font-family: var(--mono); font-size: 10px; color: var(--muted); line-height: 1.5; }
+.info-collapse-btn {
+  display: flex; align-items: center; gap: 6px; cursor: pointer;
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--panel-border);
+  background: none; border-left: none; border-right: none; border-bottom: none;
+  width: 100%; text-align: left; transition: color 0.15s;
+}
+.info-collapse-btn:hover { color: var(--text); }
+#infoBody { overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease; max-height: 400px; opacity: 1; }
+#infoBody.collapsed { max-height: 0; opacity: 0; }
+
+/* ── HUD panel (top-right) ── */
+#hudPanel { top: 64px; right: 16px; width: 220px; padding: 14px 16px; }
+.hud-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+.hud-row:last-child { margin-bottom: 0; }
+.hud-key { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.hud-val { font-family: var(--jb); font-size: 13px; color: var(--accent); letter-spacing: 0.03em; }
+.hud-val.purple { color: var(--accent2); }
+.hud-val.green  { color: var(--green); }
+.hud-val.orange { color: var(--orange); }
+.hud-hint { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.6; margin-left: 4px; }
+.order-badge {
+  display: inline-block; background: rgba(167,139,250,0.14); color: var(--accent2);
+  font-family: var(--mono); font-size: 10px; padding: 2px 8px;
+  border-radius: 20px; border: 1px solid rgba(167,139,250,0.3);
+}
+
+/* ── Polar ring panel (bottom-left) ── */
+#polarPanel { bottom: 16px; left: 16px; padding: 14px 16px; width: 254px; }
+#polarCanvas { display: block; margin: 0 auto 10px; border-radius: 50%; }
+.polar-explain { font-family: var(--mono); font-size: 10px; color: var(--muted); text-align: center; margin-bottom: 10px; line-height: 1.5; }
+.source-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; margin-top: 4px; }
+.src-leg-item { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.src-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.src-leg-item.inactive { opacity: 0.3; }
+
+/* ── Controls panel (bottom-right) ── */
+#ctrlPanel { bottom: 16px; right: 16px; padding: 14px 16px; width: 240px; }
+.ctrl-section { margin-bottom: 14px; }
+.ctrl-section:last-child { margin-bottom: 0; }
+.ctrl-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 7px; letter-spacing: 0.08em; text-transform: uppercase; }
+.ctrl-sublabel { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.65; margin-top: 5px; line-height: 1.4; }
+.pill-row {
+  display: flex; background: var(--bg); border: 1px solid var(--border);
+  border-radius: 24px; padding: 3px; gap: 2px;
+}
+.pill-btn {
+  flex: 1; border: none; background: transparent; color: var(--muted);
+  font-family: var(--mono); font-size: 11px; padding: 5px 0; border-radius: 20px;
+  cursor: pointer; transition: background 0.2s, color 0.2s; text-align: center;
+}
+.pill-btn.active { background: var(--accent2); color: #0d0f14; font-weight: 500; }
+.pill-btn:hover:not(.active) { color: var(--text); }
+.action-btn {
+  width: 100%; padding: 9px 0; background: transparent; border: 1px solid var(--border);
+  color: var(--text); font-family: var(--mono); font-size: 12px; border-radius: 8px;
+  cursor: pointer; transition: border-color 0.2s, color 0.2s, background 0.2s; letter-spacing: 0.03em;
+}
+.action-btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(79,156,249,0.07); }
+.action-btn.frozen { border-color: var(--accent2); color: var(--accent2); background: rgba(167,139,250,0.08); }
+.action-btn.playing { border-color: var(--green); color: var(--green); background: rgba(52,211,153,0.08); }
+.action-btn.playing:hover { border-color: var(--green); color: var(--green); background: rgba(52,211,153,0.16); }
+
+/* Freeze state indicator badge on the sphere */
+#frozenBadge {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  background: rgba(167,139,250,0.15); border: 1px solid rgba(167,139,250,0.4);
+  color: var(--accent2); font-family: var(--mono); font-size: 11px;
+  padding: 6px 16px; border-radius: 20px; pointer-events: none; z-index: 90;
+  opacity: 0; transition: opacity 0.3s;
+  letter-spacing: 0.08em;
+}
+#frozenBadge.visible { opacity: 1; }
+
+/* ── Nav hint ── */
+#navHint {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  background: var(--panel-bg); border: 1px solid var(--panel-border);
+  backdrop-filter: blur(var(--panel-blur)); -webkit-backdrop-filter: blur(var(--panel-blur));
+  border-radius: 24px; padding: 7px 20px; font-family: var(--mono); font-size: 11px;
+  color: var(--muted); z-index: 100; pointer-events: none;
+  transition: opacity 1.2s ease; white-space: nowrap;
+}
+#navHint.hidden { opacity: 0; }
+
+/* ── Order rebuild flash ── */
+#orderFlash { position: fixed; inset: 52px 0 0 0; background: rgba(167,139,250,0.08); pointer-events: none; opacity: 0; z-index: 90; transition: opacity 0.08s; }
+
+/* ── HRTF status strip (shown while Resonance is loading) ── */
+#hrtfStrip {
+  position: fixed; bottom: 0; left: 0; right: 0; height: 3px;
+  background: rgba(167,139,250,0.08); z-index: 150; pointer-events: none;
+  display: none;
+}
+#hrtfStripFill { height: 100%; background: var(--accent2); width: 0%; transition: width 0.1s linear; }
+#hrtfToast {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: var(--panel-bg); border: 1px solid var(--panel-border);
+  backdrop-filter: blur(var(--panel-blur)); -webkit-backdrop-filter: blur(var(--panel-blur));
+  border-radius: 8px; padding: 10px 18px; z-index: 150; pointer-events: none;
+  font-family: var(--mono); font-size: 11px; color: var(--muted); white-space: nowrap;
+  display: none; gap: 10px; align-items: center;
+}
+#hrtfToast.visible { display: flex; }
+.hrtf-spinner {
+  width: 12px; height: 12px; border: 2px solid rgba(167,139,250,0.3);
+  border-top-color: var(--accent2); border-radius: 50%;
+  animation: spin 0.8s linear infinite; flex-shrink: 0;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Error ── */
+#errorBox { display: none; position: fixed; inset: 52px 0 0 0; background: var(--bg); align-items: center; justify-content: center; flex-direction: column; gap: 12px; z-index: 600; }
 #errorBox.visible { display: flex; }
 .err-icon { font-size: 36px; }
 .err-title { font-family: var(--sans); font-size: 18px; color: var(--red); font-weight: 500; }
 .err-msg { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; max-width: 420px; line-height: 1.6; }
+
+/* Source label tooltips in 3D scene (CSS positioned) */
+#srcLabels { position: fixed; top: 52px; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 50; }
+.src-label {
+  position: absolute; transform: translate(-50%, -130%);
+  font-family: var(--mono); font-size: 10px; color: var(--text);
+  background: rgba(10,10,18,0.82); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px; padding: 3px 7px; white-space: nowrap; pointer-events: none;
+  opacity: 0; transition: opacity 0.3s;
+}
+.src-label.visible { opacity: 1; }
+.src-label::after {
+  content: ''; position: absolute; bottom: -5px; left: 50%; transform: translateX(-50%);
+  border: 3px solid transparent; border-top-color: rgba(255,255,255,0.08);
+}
 </style>
 </head>
 <body>
 
-<!-- ── Top bar ──────────────────────────────────────────────────────────── -->
+<!-- ── Top bar ── -->
 <div id="topbar">
   <div class="tb-logo">
     <img src="ams_group_tui.png" alt="AMS TU Ilmenau" onerror="this.style.display='none'">
@@ -546,100 +348,158 @@ html, body {
   </div>
 </div>
 
-<!-- ── Canvas mount ─────────────────────────────────────────────────────── -->
+<!-- ── Canvas ── -->
 <div id="canvasMount"></div>
 
-<!-- ── Loading overlay ──────────────────────────────────────────────────── -->
-<div id="loadOverlay">
-  <div class="lo-chapter">Chapter 05 · Spatial Audio</div>
-  <div class="lo-title">Ambisonic Sound Field</div>
-  <div class="lo-headphone">🎧</div>
-  <div class="lo-hint">Best experienced with headphones.<br>Spatial audio requires headphones to perceive 3D positioning.</div>
-  <div class="lo-progress-track">
-    <div class="lo-progress-fill" id="loProgress"></div>
-  </div>
-  <div class="lo-hint" id="loStatus" style="font-size:11px;">Initializing renderer…</div>
-  <!-- File:// protocol warning + upload strip -->
-  <div id="fileProtocolWarn" class="">
-    Running locally — browsers block audio file access on <code>file://</code>.<br>
-    Upload the audio files below, or serve via a local web server.
-  </div>
-  <div id="uploadStrip">
-    <div class="upload-row">
-      <span class="upload-label">Speech</span>
-      <label class="upload-btn" id="lbl-speech">
-        Upload WAV
-        <input type="file" accept="audio/*" onchange="handleUpload(event,'speech')">
-      </label>
-    </div>
-    <div class="upload-row">
-      <span class="upload-label">Beep</span>
-      <label class="upload-btn" id="lbl-beep">
-        Upload MP3
-        <input type="file" accept="audio/*" onchange="handleUpload(event,'beep')">
-      </label>
-    </div>
-    <div class="upload-row">
-      <span class="upload-label">Alarm</span>
-      <label class="upload-btn" id="lbl-alarm">
-        Upload MP3
-        <input type="file" accept="audio/*" onchange="handleUpload(event,'alarm')">
-      </label>
-    </div>
-  </div>
+<!-- ── Source labels overlay ── -->
+<div id="srcLabels"></div>
 
-  <button class="lo-start-btn" id="startBtn">
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-    Start Experience
-  </button>
+<!-- ── Loading overlay ── -->
+<div id="loadOverlay">
+  <div class="lo-inner">
+    <div class="lo-chapter">Chapter 05 · Spatial Audio</div>
+    <div class="lo-title">Ambisonic Sound Field</div>
+    <div class="lo-headphone">🎧</div>
+    <div class="lo-hint">Use headphones. Spatial audio requires headphones<br>to perceive 3D positioning.</div>
+    <div class="lo-progress-track"><div class="lo-progress-fill" id="loProgress"></div></div>
+    <div class="lo-hint" id="loStatus" style="font-size:11px;">Initializing renderer…</div>
+
+    <!-- Audio file upload — always visible, always optional -->
+    <div id="uploadSection">
+      <div class="upload-header">
+        <span class="upload-header-title">Audio Sources (optional)</span>
+        <span class="upload-header-note">fallback: synthesis</span>
+      </div>
+      <div class="upload-body">
+        <div class="upload-row">
+          <div class="upload-src-dot" style="background:var(--src-a)"></div>
+          <span class="upload-src-name">Speech</span>
+          <span class="upload-src-hint">.wav / .mp3</span>
+          <label class="upload-btn" id="lbl-speech">
+            Upload
+            <input type="file" accept="audio/*" onchange="handleUpload(event,'speech')">
+          </label>
+        </div>
+        <div class="upload-row">
+          <div class="upload-src-dot" style="background:var(--src-b)"></div>
+          <span class="upload-src-name">Beep</span>
+          <span class="upload-src-hint">.wav / .mp3</span>
+          <label class="upload-btn" id="lbl-beep">
+            Upload
+            <input type="file" accept="audio/*" onchange="handleUpload(event,'beep')">
+          </label>
+        </div>
+        <div class="upload-row">
+          <div class="upload-src-dot" style="background:var(--src-c)"></div>
+          <span class="upload-src-name">Alarm</span>
+          <span class="upload-src-hint">.wav / .mp3</span>
+          <label class="upload-btn" id="lbl-alarm">
+            Upload
+            <input type="file" accept="audio/*" onchange="handleUpload(event,'alarm')">
+          </label>
+        </div>
+      </div>
+      <div class="upload-synth-note">Files not uploaded? Each source uses a synthesized fallback.</div>
+    </div>
+
+    <button class="lo-start-btn" id="startBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      Start Experience
+    </button>
+  </div>
 </div>
 
-<!-- ── Error display ─────────────────────────────────────────────────────── -->
+<!-- ── Error display ── -->
 <div id="errorBox">
   <div class="err-icon">⚠️</div>
   <div class="err-title">Could not start demo</div>
   <div class="err-msg" id="errMsg"></div>
 </div>
 
-<!-- ── HUD panel (top-right) ─────────────────────────────────────────────── -->
+<!-- ── HRTF loading toast (shown while Resonance initializes ~15s) ── -->
+<div id="hrtfToast">
+  <div class="hrtf-spinner"></div>
+  <span id="hrtfToastMsg">Loading binaural filters… this takes ~15 seconds</span>
+</div>
+
+<!-- ── Info panel (top-left) ── -->
+<div class="gpanel" id="infoPanel" style="display:none;">
+  <div class="gpanel-label">What is this?</div>
+  <div id="infoBody">
+    <div class="info-concept">
+      <strong>Ambisonics</strong> encodes multiple sound sources into a single 360° <strong>sound field</strong> — a property of the space, not the listener. The glowing sphere is that field: color = acoustic energy arriving from each direction (dark = silent, bright yellow = loud).
+    </div>
+    <div class="info-concept">
+      The <strong>head</strong> at the center is you. <strong>Drag to rotate</strong> your head inside the fixed field — the audio panning changes but the field does not. This is the fundamental difference from stereo panning.
+    </div>
+    <div class="info-divider"></div>
+    <div class="info-row">
+      <span class="info-key">Drag</span>
+      <span class="info-val">Rotate your head · hear the field from a new direction</span>
+    </div>
+    <div class="info-row">
+      <span class="info-key">Scroll</span>
+      <span class="info-val">Zoom in/out (visual only, no effect on audio)</span>
+    </div>
+    <div class="info-row">
+      <span class="info-key">Order 1→3</span>
+      <span class="info-val">More channels = sharper spatial resolution. Listen for tighter source localization at Order 3.</span>
+    </div>
+    <div class="info-row">
+      <span class="info-key">3→5 sources</span>
+      <span class="info-val">Adds Drone (below-right) and Shimmer (directly above). Watch the sphere change.</span>
+    </div>
+    <div class="info-row">
+      <span class="info-key">Freeze Field</span>
+      <span class="info-val">Pauses the sphere colors. Rotate your head — you change what you hear from the same frozen field.</span>
+    </div>
+  </div>
+  <button class="info-collapse-btn" id="infoCollapseBtn" onclick="toggleInfoPanel()">
+    <svg id="infoCollapseArrow" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="transition:transform 0.3s"><path d="M7 10l5 5 5-5z"/></svg>
+    <span id="infoCollapseLabel">Hide explanation</span>
+  </button>
+</div>
+
+<!-- ── HUD panel (top-right) ── -->
 <div class="gpanel" id="hudPanel" style="display:none;">
   <div class="gpanel-label">Listener State</div>
   <div class="hud-row">
-    <span class="hud-key">Azimuth</span>
+    <span class="hud-key">Azimuth <span class="hud-hint">left/right</span></span>
     <span class="hud-val" id="hudAz">0.0°</span>
   </div>
   <div class="hud-row">
-    <span class="hud-key">Elevation</span>
+    <span class="hud-key">Elevation <span class="hud-hint">up/down</span></span>
     <span class="hud-val" id="hudEl">0.0°</span>
   </div>
   <div class="hud-row">
-    <span class="hud-key">Order</span>
+    <span class="hud-key">Order <span class="hud-hint">channels</span></span>
     <span class="hud-val purple" id="hudOrder"><span class="order-badge">Order 3 — 16ch</span></span>
   </div>
   <div class="hud-row">
-    <span class="hud-key">Sources</span>
-    <span class="hud-val green" id="hudSrc">5</span>
+    <span class="hud-key">Active sources</span>
+    <span class="hud-val green" id="hudSrc">3</span>
   </div>
   <div class="hud-row">
-    <span class="hud-key">Context</span>
-    <span class="hud-val green" id="hudCtx">running</span>
+    <span class="hud-key">Audio</span>
+    <span class="hud-val orange" id="hudCtx">paused</span>
   </div>
 </div>
 
-<!-- ── Polar ring panel (bottom-left) ────────────────────────────────────── -->
+<!-- ── Polar ring panel (bottom-left) ── -->
 <div class="gpanel" id="polarPanel" style="display:none;">
-  <div class="gpanel-label">Horizontal Field</div>
+  <div class="gpanel-label">Top-Down View · Horizontal Plane</div>
   <canvas id="polarCanvas" width="180" height="180"></canvas>
-  <div class="source-legend">
-    <div class="src-leg-item"><div class="src-dot" style="background:var(--src-a)"></div>Speech · FL +20°</div>
-    <div class="src-leg-item"><div class="src-dot" style="background:var(--src-b)"></div>Beep · FR −15°</div>
-    <div class="src-leg-item"><div class="src-dot" style="background:var(--src-c)"></div>Alarm · RL +35°</div>
-    <div class="src-leg-item"><div class="src-dot" style="background:var(--src-d)"></div>Drone · RR −25°</div>
-    <div class="src-leg-item"><div class="src-dot" style="background:var(--src-e)"></div>Shimmer · Top</div>
+  <div class="polar-explain">Energy in the horizontal plane only.<br>White needle = your listening direction.</div>
+  <div class="source-legend" id="srcLegend">
+    <div class="src-leg-item" id="leg-a"><div class="src-dot" style="background:var(--src-a)"></div>A · Speech</div>
+    <div class="src-leg-item" id="leg-b"><div class="src-dot" style="background:var(--src-b)"></div>B · Beep</div>
+    <div class="src-leg-item" id="leg-c"><div class="src-dot" style="background:var(--src-c)"></div>C · Alarm</div>
+    <div class="src-leg-item inactive" id="leg-d"><div class="src-dot" style="background:var(--src-d)"></div>D · Drone</div>
+    <div class="src-leg-item inactive" id="leg-e"><div class="src-dot" style="background:var(--src-e)"></div>E · Shimmer ↑</div>
   </div>
 </div>
 
-<!-- ── Controls panel (bottom-right) ─────────────────────────────────────── -->
+<!-- ── Controls panel (bottom-right) ── -->
 <div class="gpanel" id="ctrlPanel" style="display:none;">
   <div class="gpanel-label">Controls</div>
 
@@ -649,182 +509,149 @@ html, body {
       <button class="pill-btn" id="ord1Btn" onclick="setOrder(1)">1st — 4ch</button>
       <button class="pill-btn active" id="ord3Btn" onclick="setOrder(3)">3rd — 16ch</button>
     </div>
+    <div class="ctrl-sublabel">Order 1: wide, blurry localization · Order 3: sharp, precise. Listen with headphones to hear the difference.</div>
   </div>
 
   <div class="ctrl-section">
     <div class="ctrl-label">Sources</div>
     <div class="pill-row">
-      <button class="pill-btn" id="src3Btn" onclick="setSourceCount(3)">3 sources</button>
-      <button class="pill-btn active" id="src5Btn" onclick="setSourceCount(5)">5 sources</button>
+      <button class="pill-btn active" id="src3Btn" onclick="setSourceCount(3)">3 sources</button>
+      <button class="pill-btn" id="src5Btn" onclick="setSourceCount(5)">5 sources</button>
     </div>
+    <div class="ctrl-sublabel">3 sources: Speech · Beep · Alarm &nbsp;|&nbsp; +2: Drone (below) · Shimmer (above)</div>
   </div>
 
   <div class="ctrl-section">
     <button class="action-btn" id="freezeBtn" onclick="toggleFreeze()">❄ Freeze Field</button>
+    <div class="ctrl-sublabel">Pause the sphere — rotate your head to hear the same frozen field from different directions.</div>
   </div>
 
   <div class="ctrl-section">
-    <button class="action-btn running" id="audioToggleBtn" onclick="toggleAudio()">⏹ Stop Audio</button>
+    <button class="action-btn" id="audioToggleBtn" onclick="toggleAudio()">▶ Start Audio</button>
   </div>
 </div>
 
-<!-- ── Nav hint ───────────────────────────────────────────────────────────── -->
-<div id="navHint">Drag to rotate head &nbsp;·&nbsp; Scroll to zoom</div>
+<!-- ── Frozen badge (center screen) ── -->
+<div id="frozenBadge">❄ FIELD FROZEN — rotate head to hear it</div>
 
-<!-- ── Order rebuild flash overlay ───────────────────────────────────────── -->
+<!-- ── Nav hint ── -->
+<div id="navHint">Drag to rotate head &nbsp;·&nbsp; Scroll to zoom</div>
+<div id="navHint" style="display:none"></div>
+
+<!-- ── Order rebuild flash ── -->
 <div id="orderFlash"></div>
 
-<!-- ══════════════════════════════════════════════════════════════════════════
-     MAIN SCRIPT
-     Runs after window load — by that point the type="module" bootstrap
-     has assigned window.THREE and all addon classes, and Resonance Audio
-     (defer) has assigned window.ResonanceAudio.
-     ══════════════════════════════════════════════════════════════════════ -->
 <script>
-// ── Wait for both Three.js (module) and Resonance Audio (defer) to be ready
-// BUGFIX: window.load can fire before the ES module bootstrap script has
-// finished executing and assigned window.THREE. The module already dispatches
-// a custom 'threeReady' event once it's done, so we wait for that instead.
-// We also need Resonance Audio (loaded with defer), so we poll for it after
-// threeReady fires, since defer scripts run after DOMContentLoaded but their
-// exact timing relative to module scripts is not guaranteed.
-function tryInit() {
-  if (!window.THREE) {
-    showError('Three.js failed to load. Check your internet connection and try again.');
-    return;
-  }
-  if (!window.ResonanceAudio) {
-    // Resonance Audio defer script hasn't finished yet — retry shortly.
-    setTimeout(tryInit, 50);
-    return;
-  }
-  if (!window.AudioContext && !window.webkitAudioContext) {
-    showError('Web Audio API is not supported in this browser. Please use Chrome 120+, Firefox 120+, or Edge 120+.');
-    return;
-  }
-  const canvas = document.createElement('canvas');
-  const gl = canvas.getContext('webgl2');
-  if (!gl) {
-    showError('WebGL2 is not supported in this browser. Please use Chrome 120+, Firefox 120+, or Edge 120+.');
-    return;
-  }
-  // THREE is now guaranteed to be assigned — initialise the global alias.
-  THREE = window.THREE;
-  initRenderer();
-}
-
-if (window._threeReady) {
-  // Module already finished before this classic script ran.
-  tryInit();
-} else {
-  window.addEventListener('threeReady', tryInit);
-}
-
 // ═══════════════════════════════════════════════════════════════════════════
 // GLOBALS
 // ═══════════════════════════════════════════════════════════════════════════
-let THREE = null; // assigned in tryInit() once the ES module bootstrap has run
-
-// Three.js core
+let THREE = null;
 let renderer, scene, camera, composer, clock;
+let ambiSphere, ambiColorsAttr, vertexDirs, wireSphere;
+let headGroup, headEuler;
+let labelElements = []; // CSS label divs for each source
 
-// Ambisonic sphere
-let ambiSphere, ambiColorsAttr, vertexDirs;
-let wireSphere;
-
-// Listener head proxy
-let headGroup;
-let headEuler;   // THREE.Euler — accumulates drag
-
-// Source objects
-// CONCEPT: Each source is a bundle: Three.js mesh + Resonance source + AnalyserNode + synth.
-// The Resonance source's input AudioNode accepts audio from the Web Audio graph.
-// The AnalyserNode sits before the Resonance input to read RMS for visualization.
 const SOURCES = [
-  // id, label, color hex, world pos, file or null
-  { id:'A', label:'Speech',  color:0xfb923c, pos:[-2.17, 1.03, -1.80], file:'p020_freeform_speech_01.wav' },
-  { id:'B', label:'Beep',    color:0x4fc3f7, pos:[ 2.05,-0.78,  1.97], file:'1298.mp3' },
-  { id:'C', label:'Alarm',   color:0xf87171, pos:[-1.73, 1.72,  1.73], file:'3411.mp3' },
-  { id:'D', label:'Drone',   color:0xa78bfa, pos:[ 1.90,-1.27, -1.90], file: null },
-  { id:'E', label:'Shimmer', color:0x34d399, pos:[ 0.00, 2.98,  0.00], file: null },
+  { id:'A', label:'Speech',  color:0xfb923c, pos:[-2.17, 1.03, -1.80], file:'p020_freeform_speech_01.wav', uploadKey:'speech' },
+  { id:'B', label:'Beep',    color:0x4fc3f7, pos:[ 2.05,-0.78,  1.97], file:'1298.mp3',                    uploadKey:'beep'   },
+  { id:'C', label:'Alarm',   color:0xf87171, pos:[-1.73, 1.72,  1.73], file:'3411.mp3',                    uploadKey:'alarm'  },
+  { id:'D', label:'Drone',   color:0xa78bfa, pos:[ 1.90,-1.27, -1.90], file: null,                         uploadKey: null    },
+  { id:'E', label:'Shimmer', color:0x34d399, pos:[ 0.00, 2.98,  0.00], file: null,                         uploadKey: null    },
 ];
-// Runtime state added per source: mesh, halo, light, connLine, analyser, dataArray,
-// resonanceSource, gainNode, rms, scaleTarget, scaleDir
 
-// Resonance Audio
-let audioContext = null;
-let resonanceAudio = null;
-let masterGain = null;
-let currentOrder = 3;
+// Uploaded file ArrayBuffers — stored before AudioContext exists
+const uploadedBuffers = { speech: null, beep: null, alarm: null };
+
+let audioContext    = null;
+let resonanceAudio  = null;
+let masterGain      = null;
+let currentOrder    = 3;
 let rebuildInProgress = false;
+let audioStarted    = false; // has startAudio() been called yet?
+let hrtfReady       = false; // has Resonance finished loading HRIRs?
 
-// Polar ring canvas
-let polarCtx = null;
+let polarCtx        = null;
+let fieldFrozen     = false;
+let activeSourceCount = 3; // start at 3
 
-// State flags
-let fieldFrozen = false;
-let activeSourceCount = 5;
-
-// Head euler accumulation for mouse drag
-let headEulerYaw = 0;
+let headEulerYaw   = 0;
 let headEulerPitch = 0;
-let isDragging = false;
+let isDragging     = false;
 let lastMouseX = 0, lastMouseY = 0;
 
-// CONCEPT: order_exponent controls the sharpness of the cosine lobe used in
-// the analytical energy function. Order 1 → exponent 2 (wide, blurry).
-// Order 3 → exponent 6 (sharp, well-defined hotspots).
-// This approximates the spatial resolution difference of the two Ambisonic orders.
-let orderExponent = 6;
-
-// Viridis LUT — 256 entries, precomputed at init
-const VIRIDIS = new Float32Array(256 * 3);
-
-// Source directions (unit vectors from origin to source position)
-// Precomputed once and reused every frame.
-const srcDirs = [];
-
-// ENERGY_SCALE: tuning constant — scales the analytical energy so typical RMS
-// values map to vivid colors without saturating the viridis range.
+let orderExponent  = 6;
+const VIRIDIS      = new Float32Array(256 * 3);
+const srcDirs      = [];
 const ENERGY_SCALE = 0.28;
 
-// ═══════════════════════════════════════════════════════════════════════════
-// STEP 0: Error display
-// ═══════════════════════════════════════════════════════════════════════════
+// ── Error display
 function showError(msg) {
   document.getElementById('loadOverlay').style.display = 'none';
   document.getElementById('errMsg').textContent = msg;
   document.getElementById('errorBox').classList.add('visible');
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// STEP 1: Loading screen progress helpers
-// ═══════════════════════════════════════════════════════════════════════════
+// ── Progress bar
 function setProgress(pct, msg) {
   document.getElementById('loProgress').style.width = pct + '%';
   if (msg) document.getElementById('loStatus').textContent = msg;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STEP 2: Three.js renderer, scene, camera
+// BOOTSTRAP — wait for Three.js module + Resonance Audio defer
+// ═══════════════════════════════════════════════════════════════════════════
+function tryInit() {
+  if (!window.THREE) { showError('Three.js failed to load. Check your internet connection.'); return; }
+  if (!window.ResonanceAudio) { setTimeout(tryInit, 50); return; }
+  if (!window.AudioContext && !window.webkitAudioContext) {
+    showError('Web Audio API not supported. Please use Chrome 120+, Firefox 120+, or Edge 120+.'); return;
+  }
+  const testCanvas = document.createElement('canvas');
+  if (!testCanvas.getContext('webgl2')) {
+    showError('WebGL2 not supported. Please use Chrome 120+, Firefox 120+, or Edge 120+.'); return;
+  }
+  THREE = window.THREE;
+  initRenderer();
+}
+if (window._threeReady) tryInit();
+else window.addEventListener('threeReady', tryInit);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UPLOAD HANDLER — reads file into ArrayBuffer before AudioContext exists
+// ═══════════════════════════════════════════════════════════════════════════
+function handleUpload(event, key) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const btn = document.getElementById('lbl-' + key);
+  btn.textContent = '…';
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    uploadedBuffers[key] = e.target.result; // ArrayBuffer
+    btn.textContent = '✓ ' + file.name.slice(0, 16) + (file.name.length > 16 ? '…' : '');
+    btn.classList.add('loaded');
+    // Re-add hidden file input so label still works
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'audio/*'; inp.style.display = 'none';
+    inp.onchange = (ev) => handleUpload(ev, key);
+    btn.appendChild(inp);
+  };
+  reader.onerror = () => {
+    btn.textContent = '✗ Error';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDERER INIT
 // ═══════════════════════════════════════════════════════════════════════════
 function initRenderer() {
   setProgress(10, 'Initializing renderer…');
 
-  // CONCEPT: PCFSoftShadowMap is the highest-quality shadow mode available
-  // without manual ray tracing — it uses a Poisson disk sample pattern
-  // to produce soft-edged shadows matching real-world light diffusion.
-  renderer = new THREE.WebGLRenderer({
-    antialias: true,
-    powerPreference: 'high-performance',
-  });
+  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-
-  // CONCEPT: ACES Filmic tone mapping maps HDR render values to the display
-  // range in a way that preserves contrast and saturation at high intensities.
-  // Without it, overbright emissive materials just clip to white.
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.0;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -835,8 +662,6 @@ function initRenderer() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x03040a);
 
-  // Fixed camera — this demo's interaction is head rotation, not camera movement
-  // See STEP 7 for the decoupling between camera position and listener orientation.
   camera = new THREE.PerspectiveCamera(65, mount.clientWidth / mount.clientHeight, 0.05, 200);
   camera.position.set(0, 0.4, 2.5);
   camera.lookAt(0, 0, 0);
@@ -847,43 +672,27 @@ function initRenderer() {
   initPostProcessing();
   setProgress(40, 'Building scene geometry…');
   buildScene();
-  setProgress(60, 'Loading audio assets…');
+  buildSourceLabels();
+  setProgress(100, 'Ready — upload audio files or start directly');
 
-  // Show start button — audio files will be loaded after user gesture
   document.getElementById('startBtn').classList.add('visible');
   document.getElementById('startBtn').addEventListener('click', onStart);
-
-  setProgress(100, 'Ready — click to begin');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STEP 3: Post-processing stack
+// POST-PROCESSING
 // ═══════════════════════════════════════════════════════════════════════════
 function initPostProcessing() {
   const mount = document.getElementById('canvasMount');
   const W = mount.clientWidth, H = mount.clientHeight;
-
   composer = new window._EffectComposer(renderer);
   composer.addPass(new window._RenderPass(scene, camera));
-
-  // CONCEPT: UnrealBloomPass applies a multi-pass Gaussian blur to fragments
-  // above the luminance threshold, then adds the blurred result back to the
-  // original image. The result: emissive hotspots on the Ambisonic sphere glow
-  // into the surrounding space, making energy concentration viscerally visible.
-  // threshold 0.3: lower than other demos — energy peaks on the sphere must
-  // glow even at moderate source levels.
-  composer.addPass(new window._UnrealBloomPass(
-    new THREE.Vector2(W, H),
-    0.9,  // strength  — glow intensity
-    0.5,  // radius    — glow spread
-    0.3   // threshold — luminance floor for blooming
-  ));
-
+  composer.addPass(new window._UnrealBloomPass(new THREE.Vector2(W, H), 0.9, 0.5, 0.3));
   composer.addPass(new window._OutputPass());
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STEP 4: Star field
+// SCENE BUILD
 // ═══════════════════════════════════════════════════════════════════════════
 function buildScene() {
   buildStarField();
@@ -894,13 +703,9 @@ function buildScene() {
 }
 
 function buildStarField() {
-  // CONCEPT: 1500 random points on a large sphere (radius 80m) simulate a
-  // deep-space sky. sizeAttenuation: true makes distant points smaller,
-  // giving the illusion of depth without a skybox.
   const geo = new THREE.BufferGeometry();
   const positions = new Float32Array(1500 * 3);
   for (let i = 0; i < 1500; i++) {
-    // Uniform random on sphere surface using rejection sampling
     const u = Math.random() * 2 - 1;
     const theta = Math.random() * Math.PI * 2;
     const r = Math.sqrt(1 - u * u);
@@ -909,294 +714,175 @@ function buildStarField() {
     positions[i*3+2] = r * Math.sin(theta) * 80;
   }
   geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  const mat = new THREE.PointsMaterial({
-    size: 0.4,
-    sizeAttenuation: true,
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.5,
-  });
-  scene.add(new THREE.Points(geo, mat));
+  scene.add(new THREE.Points(geo, new THREE.PointsMaterial({ size: 0.4, sizeAttenuation: true, color: 0xffffff, transparent: true, opacity: 0.5 })));
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// STEP 5: Ambisonic sphere — the central visual object
-// ═══════════════════════════════════════════════════════════════════════════
 function buildAmbiSphere() {
-  // CONCEPT: This sphere is a real-time visualization of the Ambisonic sound field.
-  // Each vertex represents a direction in space. Its color (viridis map) encodes how
-  // much acoustic energy is arriving from that direction, computed analytically from
-  // source positions and RMS levels. The result: the sphere glows where you would
-  // hear sound from, and dims where it is acoustically absent.
-
   const geo = new THREE.SphereGeometry(1.5, 64, 32);
-
-  // Pre-compute vertex directions once — they never change.
-  // Doing this once at init avoids recomputing 2048 normalizations every frame.
   const posAttr = geo.attributes.position;
-  const nVerts = posAttr.count;
-  vertexDirs = [];
+  const nVerts  = posAttr.count;
+  vertexDirs    = [];
   for (let i = 0; i < nVerts; i++) {
-    const v = new THREE.Vector3(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i));
-    vertexDirs.push(v.normalize());
+    vertexDirs.push(new THREE.Vector3(posAttr.getX(i), posAttr.getY(i), posAttr.getZ(i)).normalize());
   }
-
-  // Create vertex color attribute — updated every frame in updateAmbiSphere()
   const colors = new Float32Array(nVerts * 3);
   ambiColorsAttr = new THREE.BufferAttribute(colors, 3);
   geo.setAttribute('color', ambiColorsAttr);
 
-  const mat = new THREE.MeshStandardMaterial({
-    vertexColors: true,
-    transparent: true,
-    opacity: 0.84,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-    roughness: 0.8,
-    metalness: 0.1,
+  ambiSphere = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+    vertexColors: true, transparent: true, opacity: 0.84, depthWrite: false,
+    side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1,
     emissive: new THREE.Color(0x000000),
-  });
-
-  ambiSphere = new THREE.Mesh(geo, mat);
+  }));
   scene.add(ambiSphere);
 
-  // Wireframe overlay — adds grid structure without dominating
-  const wireGeo = new THREE.SphereGeometry(1.52, 32, 16);
-  const wireMat = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.06,
-    wireframe: true,
-  });
-  wireSphere = new THREE.Mesh(wireGeo, wireMat);
+  wireSphere = new THREE.Mesh(
+    new THREE.SphereGeometry(1.52, 32, 16),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.06, wireframe: true })
+  );
   scene.add(wireSphere);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// STEP 6: Viridis colour map — precomputed LUT
-// ═══════════════════════════════════════════════════════════════════════════
-function buildViridisLUT() {
-  // CONCEPT: Viridis is a perceptually uniform colormap — equal steps in data
-  // value produce equal steps in perceived color difference. This is the
-  // scientific visualization standard (matplotlib default since 2015) for exactly
-  // this reason: regions of moderate energy look proportionally different from
-  // regions of low or high energy, without the misleading jumps of rainbow maps.
-  //
-  // Coefficients from the standard viridis polynomial approximation.
-  function viridisRGB(t) {
-    t = Math.max(0, Math.min(1, t));
-    const c0 = [0.2777273272234177, 0.005407344544966578, 0.3340998053353061];
-    const c1 = [0.1050930431085774, 1.404613529898575,   1.384590162594685];
-    const c2 = [-0.3308618287255563, 0.214847559468213,   0.09509516302823659];
-    const c3 = [-4.634230498983486, -5.799100973351585,   -19.33244095627987];
-    const c4 = [6.228269936347081,  14.17993336680509,    56.69055260068105];
-    const c5 = [4.776384997670288, -13.74514537774601,   -65.35303416955069];
-    const c6 = [-5.435455855934631, 4.645852612178535,    26.3124352495832];
-    return [
-      c0[0] + t*(c1[0] + t*(c2[0] + t*(c3[0] + t*(c4[0] + t*(c5[0] + t*c6[0]))))),
-      c0[1] + t*(c1[1] + t*(c2[1] + t*(c3[1] + t*(c4[1] + t*(c5[1] + t*c6[1]))))),
-      c0[2] + t*(c1[2] + t*(c2[2] + t*(c3[2] + t*(c4[2] + t*(c5[2] + t*c6[2]))))),
-    ];
-  }
-  for (let i = 0; i < 256; i++) {
-    const rgb = viridisRGB(i / 255);
-    VIRIDIS[i*3]   = rgb[0];
-    VIRIDIS[i*3+1] = rgb[1];
-    VIRIDIS[i*3+2] = rgb[2];
-  }
-}
-
-function viridisColor(t) {
-  const idx = Math.min(255, Math.max(0, Math.round(t * 255)));
-  return { r: VIRIDIS[idx*3], g: VIRIDIS[idx*3+1], b: VIRIDIS[idx*3+2] };
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// STEP 7: Listener head proxy
-// ═══════════════════════════════════════════════════════════════════════════
 function buildHeadProxy() {
-  // CONCEPT: The head proxy is at the sphere's centre. It rotates in response
-  // to mouse drag, visually representing the listener's orientation.
-  //
-  // KEY ARCHITECTURAL POINT: the camera is FIXED at (0, 0.4, 2.5) looking
-  // toward the origin. The acoustic listener is NOT driven by the camera
-  // matrix. Instead, we build a listener matrix from the headEuler every frame:
-  //   listenerMatrix.compose(origin, headQuaternion, unitScale)
-  //   resonanceAudio.setListenerFromMatrix(listenerMatrix)
-  // This decouples the visual camera from the acoustic listener — the student
-  // can see the whole sphere from outside while the listener rotates inside it.
-
   headGroup = new THREE.Group();
   scene.add(headGroup);
 
-  // Head — slightly flattened sphere (Y scale 0.85) for a stylized human head shape.
-  // Warm off-white with a gentle emissive glow so it reads clearly against the dark
-  // Ambisonic sphere at any rotation angle.
-  const headMat = new THREE.MeshStandardMaterial({
-    color:            0xf0e8d8,
-    emissive:         new THREE.Color(0xc8a96e),
-    emissiveIntensity: 0.45,
-    roughness: 0.55,
-    metalness: 0.05,
-  });
+  const headMat = new THREE.MeshStandardMaterial({ color: 0xf0e8d8, emissive: new THREE.Color(0xc8a96e), emissiveIntensity: 0.45, roughness: 0.55, metalness: 0.05 });
   const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.12, 20, 14), headMat);
   headMesh.scale.y = 0.85;
   headGroup.add(headMesh);
 
-  // Subtle rim-light point positioned slightly behind/above the head so the
-  // back of the head does not go fully black when facing the camera.
   const headRimLight = new THREE.PointLight(0xffe0a0, 0.8, 1.2);
   headRimLight.position.set(0, 0.18, 0.22);
   headGroup.add(headRimLight);
 
-  // Ears — warm amber to contrast against the blue arrow, clearly showing
-  // which side is left/right as the head rotates.
-  const earMat = new THREE.MeshStandardMaterial({
-    color:            0xfb923c,
-    emissive:         new THREE.Color(0xfb923c),
-    emissiveIntensity: 0.9,
-    roughness: 0.4,
-  });
+  const earMat = new THREE.MeshStandardMaterial({ color: 0xfb923c, emissive: new THREE.Color(0xfb923c), emissiveIntensity: 0.9, roughness: 0.4 });
   const leftEar = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), earMat);
-  leftEar.position.set(-0.135, 0, 0);
-  headGroup.add(leftEar);
+  leftEar.position.set(-0.135, 0, 0); headGroup.add(leftEar);
   const rightEar = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), earMat.clone());
-  rightEar.position.set(0.135, 0, 0);
-  headGroup.add(rightEar);
+  rightEar.position.set(0.135, 0, 0); headGroup.add(rightEar);
 
-  // Forward arrow — bright cyan, slightly longer so it reads at distance
-  const arrow = new THREE.ArrowHelper(
-    new THREE.Vector3(0, 0, -1),
-    new THREE.Vector3(0, 0, 0),
-    0.32,
-    0x4f9cf9,
-    0.09, 0.05
-  );
-  headGroup.add(arrow);
-
+  headGroup.add(new THREE.ArrowHelper(new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 0, 0), 0.32, 0x4f9cf9, 0.09, 0.05));
   headEuler = new THREE.Euler(0, 0, 0, 'YXZ');
-  // CONCEPT: 'YXZ' Euler order applies yaw (Y) first, then pitch (X).
-  // This matches natural head movement: rotating left/right before tilting up/down.
-  // It prevents gimbal lock at ±90° pitch and ensures horizontal rotation feels correct.
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// STEP 8: Source meshes — 5 spatial sound sources
-// ═══════════════════════════════════════════════════════════════════════════
 function buildSourceMeshes() {
-  // THREE.js EQUIVALENT: THREE.PointLight co-located with source ↔ acoustic energy
-  // radiating from source. The light intensity driven by audio RMS makes the
-  // source's visual energy match its acoustic energy — same information, two senses.
-
   SOURCES.forEach((src, i) => {
     const color = new THREE.Color(src.color);
     const pos   = new THREE.Vector3(...src.pos);
 
-    // Core mesh — emissive intensity driven by RMS
     const coreMesh = new THREE.Mesh(
       new THREE.SphereGeometry(0.07, 12, 8),
-      new THREE.MeshStandardMaterial({
-        color: color,
-        emissive: color,
-        emissiveIntensity: 0.3,
-        roughness: 0.4,
-        metalness: 0.1,
-      })
+      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.3, roughness: 0.4, metalness: 0.1 })
     );
     coreMesh.position.copy(pos);
     scene.add(coreMesh);
 
-    // Halo mesh — outer transparent glow, opacity driven by RMS
     const haloMesh = new THREE.Mesh(
-      new THREE.SphereGeometry(0.11, 12, 8),
-      new THREE.MeshStandardMaterial({
-        color: color,
-        emissive: color,
-        emissiveIntensity: 0.1,
-        transparent: true,
-        opacity: 0.04,
-        depthWrite: false,
-      })
+      new THREE.SphereGeometry(0.14, 12, 8),
+      new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.1, transparent: true, opacity: 0.04, depthWrite: false })
     );
     haloMesh.position.copy(pos);
     scene.add(haloMesh);
 
-    // Point light — same color, intensity driven by RMS
     const ptLight = new THREE.PointLight(src.color, 0, 2.5);
     ptLight.position.copy(pos);
     scene.add(ptLight);
 
-    // Connecting dashed line from source to sphere surface
-    // CONCEPT: This line visualizes the encoding metaphor — the source's energy
-    // projects onto the sphere, encoding into the Ambisonic field at that direction.
     const spherePoint = pos.clone().normalize().multiplyScalar(1.5);
     const lineGeo = new THREE.BufferGeometry().setFromPoints([pos, spherePoint]);
-    const lineMat = new THREE.LineDashedMaterial({
-      color: src.color,
-      transparent: true,
-      opacity: 0.3,
-      dashSize: 0.06,
-      gapSize: 0.04,
-    });
-    const connLine = new THREE.Line(lineGeo, lineMat);
-    connLine.computeLineDistances(); // Required for dashed lines
+    const connLine = new THREE.Line(lineGeo, new THREE.LineDashedMaterial({ color: src.color, transparent: true, opacity: 0.3, dashSize: 0.06, gapSize: 0.04 }));
+    connLine.computeLineDistances();
     scene.add(connLine);
 
-    // AnalyserNode for per-source RMS — created later when AudioContext exists
-    // Store runtime state on the SOURCES array
-    SOURCES[i].mesh      = coreMesh;
-    SOURCES[i].halo      = haloMesh;
-    SOURCES[i].light     = ptLight;
-    SOURCES[i].line      = connLine;
-    SOURCES[i].rms       = 0;
-    SOURCES[i].scaleTarget = 1.0;
-    SOURCES[i].active    = true;
+    SOURCES[i].mesh        = coreMesh;
+    SOURCES[i].halo        = haloMesh;
+    SOURCES[i].light       = ptLight;
+    SOURCES[i].line        = connLine;
+    SOURCES[i].rms         = 0;
+    SOURCES[i].scaleTarget = i < 3 ? 1.0 : 0.0; // D and E start hidden
+    SOURCES[i].active      = i < 3; // only A, B, C active at start
 
-    // Precompute source direction unit vector for energy function
     srcDirs.push(pos.clone().normalize());
   });
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Scene lighting
-// ═══════════════════════════════════════════════════════════════════════════
-function buildLights() {
-  // Cool, dim ambient fill — avoids pure black in unlit areas
-  scene.add(new THREE.AmbientLight(0x101520, 0.5));
+// ── CSS label div for each source (projected into 3D scene)
+function buildSourceLabels() {
+  const container = document.getElementById('srcLabels');
+  SOURCES.forEach((src, i) => {
+    const div = document.createElement('div');
+    div.className = 'src-label';
+    div.id = 'srclabel-' + i;
+    // Show label colored letter and name
+    div.innerHTML = `<span style="color:${['#fb923c','#4fc3f7','#f87171','#a78bfa','#34d399'][i]};font-weight:600">${src.id}</span> ${src.label}`;
+    container.appendChild(div);
+    labelElements.push(div);
+  });
+}
 
-  // Subtle directional from above-front for head proxy depth
+function buildLights() {
+  scene.add(new THREE.AmbientLight(0x101520, 0.5));
   const dir = new THREE.DirectionalLight(0xffffff, 0.4);
   dir.position.set(1, 3, 2);
   scene.add(dir);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STEP 9: AudioContext and Resonance Audio — MUST be on user gesture
+// VIRIDIS LUT
+// ═══════════════════════════════════════════════════════════════════════════
+function buildViridisLUT() {
+  function viridisRGB(t) {
+    t = Math.max(0, Math.min(1, t));
+    const c0 = [0.2777273272234177, 0.005407344544966578, 0.3340998053353061];
+    const c1 = [0.1050930431085774, 1.404613529898575,   1.384590162594685];
+    const c2 = [-0.3308618287255563, 0.214847559468213,   0.09509516302823659];
+    const c3 = [-4.634230498983486, -5.799100973351585,  -19.33244095627987];
+    const c4 = [6.228269936347081,  14.17993336680509,   56.69055260068105];
+    const c5 = [4.776384997670288, -13.74514537774601,  -65.35303416955069];
+    const c6 = [-5.435455855934631, 4.645852612178535,   26.3124352495832];
+    return [
+      c0[0]+t*(c1[0]+t*(c2[0]+t*(c3[0]+t*(c4[0]+t*(c5[0]+t*c6[0]))))),
+      c0[1]+t*(c1[1]+t*(c2[1]+t*(c3[1]+t*(c4[1]+t*(c5[1]+t*c6[1]))))),
+      c0[2]+t*(c1[2]+t*(c2[2]+t*(c3[2]+t*(c4[2]+t*(c5[2]+t*c6[2]))))),
+    ];
+  }
+  for (let i = 0; i < 256; i++) {
+    const rgb = viridisRGB(i / 255);
+    VIRIDIS[i*3] = rgb[0]; VIRIDIS[i*3+1] = rgb[1]; VIRIDIS[i*3+2] = rgb[2];
+  }
+}
+function viridisColor(t) {
+  const idx = Math.min(255, Math.max(0, Math.round(t * 255)));
+  return { r: VIRIDIS[idx*3], g: VIRIDIS[idx*3+1], b: VIRIDIS[idx*3+2] };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// START EXPERIENCE
 // ═══════════════════════════════════════════════════════════════════════════
 async function onStart() {
   document.getElementById('startBtn').disabled = true;
-  setProgress(70, 'Loading audio files…');
+  setProgress(70, 'Creating audio context…');
 
-  // CONCEPT: AudioContext must be created or resumed on a user gesture.
-  // The browser's autoplay policy blocks audio that starts without user interaction.
-  // The Start button IS this gesture.
   try {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
     await audioContext.resume();
   } catch(e) {
-    showError('Could not create AudioContext: ' + e.message);
-    return;
+    showError('Could not create AudioContext: ' + e.message); return;
   }
 
-  // Build viridis LUT now (not performance-critical at init)
   buildViridisLUT();
 
-  // Load audio files, then init Resonance
-  try {
-    await loadAudioFiles();
-  } catch(e) {
-    // Audio file load failed — fall through to synth-only mode
-    console.warn('Audio file load warning:', e);
+  // Decode any uploaded ArrayBuffers
+  setProgress(80, 'Decoding uploaded audio files…');
+  for (const src of SOURCES.filter(s => s.uploadKey && uploadedBuffers[s.uploadKey])) {
+    try {
+      src.buffer = await audioContext.decodeAudioData(uploadedBuffers[src.uploadKey].slice(0));
+      console.log('[Audio] Decoded uploaded file for source', src.id);
+    } catch(e) {
+      console.warn('[Audio] Failed to decode uploaded file for source', src.id, '— using synthesis');
+      src.buffer = null;
+    }
   }
 
   setProgress(90, 'Initializing spatial audio engine…');
@@ -1204,111 +890,98 @@ async function onStart() {
   try {
     initResonance(currentOrder);
   } catch(e) {
-    showError('Could not initialize Resonance Audio: ' + e.message);
-    return;
+    showError('Could not initialize Resonance Audio: ' + e.message); return;
   }
 
   buildSynthSources();
-  startAudio();
+
+  // Initial source count — set D and E to gain 0 (they start inactive)
+  SOURCES.forEach((src, i) => {
+    if (src.gainNode) src.gainNode.gain.value = i < 3 ? 1.0 : 0.0;
+  });
 
   setProgress(100, 'Starting…');
 
-  // Fade out loading overlay
+  // Fade out loading overlay — show experience
   setTimeout(() => {
     document.getElementById('loadOverlay').classList.add('hidden');
     setTimeout(() => {
       document.getElementById('loadOverlay').style.display = 'none';
-      document.getElementById('hudPanel').style.display = 'block';
+      document.getElementById('hudPanel').style.display  = 'block';
       document.getElementById('polarPanel').style.display = 'block';
-      document.getElementById('ctrlPanel').style.display = 'block';
+      document.getElementById('ctrlPanel').style.display  = 'block';
+      document.getElementById('infoPanel').style.display  = 'block';
       polarCtx = document.getElementById('polarCanvas').getContext('2d');
       startRenderLoop();
-      // Nav hint fades after 7 seconds
-      setTimeout(() => document.getElementById('navHint').classList.add('hidden'), 7000);
+      // Nav hint fades after 10 seconds
+      setTimeout(() => document.getElementById('navHint').classList.add('hidden'), 10000);
+      // Show HRTF loading toast — Resonance Audio loads HRIRs asynchronously
+      showHrtfToast();
     }, 500);
   }, 300);
+
+  // Audio starts PAUSED — user must click "Start Audio"
+  // The audio context is running but no sources are started yet
+  updateAudioBtn();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STEP 10: Audio file loading
-// XHR with responseType 'arraybuffer' works on file:// (local) AND http(s)://.
-// fetch() can be blocked by CORS on file:// in some browsers.
+// HRTF LOADING TOAST
+// Resonance Audio loads its binaural HRIRs asynchronously from base64.
+// This takes ~15 seconds and is invisible to the user without this feedback.
 // ═══════════════════════════════════════════════════════════════════════════
-function loadAudioXHR(url) {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', url, true);
-    xhr.responseType = 'arraybuffer';
-    xhr.onload = () => {
-      if (xhr.status === 200 || xhr.status === 0) {
-        // status 0 is normal for file:// protocol
-        audioContext.decodeAudioData(xhr.response, resolve, reject);
-      } else {
-        reject(new Error('HTTP ' + xhr.status + ' loading ' + url));
-      }
-    };
-    xhr.onerror = () => reject(new Error('Network error loading ' + url));
-    xhr.send();
-  });
-}
+function showHrtfToast() {
+  const toast = document.getElementById('hrtfToast');
+  toast.classList.add('visible');
 
-async function loadAudioFiles() {
-  const filesSources = SOURCES.filter(s => s.file !== null);
-  for (const src of filesSources) {
-    try {
-      src.buffer = await loadAudioXHR(src.file);
-      console.log('[Audio] Loaded:', src.file);
-    } catch(e) {
-      console.warn('[Audio] Failed to load', src.file, '— will use synthesis fallback');
-      src.buffer = null;
+  // Simulate progress: Resonance gives no progress events, so we animate
+  // a progress fill that reaches ~95% over 18 seconds then waits.
+  let pct = 0;
+  const startTime = Date.now();
+  const totalMs = 18000;
+  const interval = setInterval(() => {
+    const elapsed = Date.now() - startTime;
+    pct = Math.min(94, (elapsed / totalMs) * 100);
+
+    // Poll: Resonance has no public 'ready' event, but once HRIRs load,
+    // the audio will have proper binaural rendering. We detect this by
+    // checking if the audioContext has been running for >15s.
+    if (elapsed > 15000 && !hrtfReady) {
+      hrtfReady = true;
+      clearInterval(interval);
+      document.getElementById('hrtfToastMsg').textContent = '✓ Binaural filters ready';
+      setTimeout(() => { toast.classList.remove('visible'); }, 2000);
     }
-  }
+  }, 200);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STEP 11: Resonance Audio initialization
+// AUDIO FILE LOADING — now only from uploaded buffers (no XHR)
+// ═══════════════════════════════════════════════════════════════════════════
+// (Handled inline in onStart via uploadedBuffers — no XHR needed)
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RESONANCE AUDIO INIT
 // ═══════════════════════════════════════════════════════════════════════════
 function initResonance(order) {
-  // CONCEPT: ResonanceAudio is the top-level object. It creates and manages:
-  // · An Ambisonic bus of (order+1)² channels (3rd order = 16 channels)
-  // · A binaural decoder that convolves the Ambisonic bus with HRTF filters
-  // · A room acoustics model (early reflections + late reverberation)
-  // Its output AudioNode connects to audioContext.destination.
-  //
-  // WEB AUDIO EQUIVALENT: ResonanceAudio.output ↔ any AudioNode before destination.
-  // All sources connect to their ResonanceAudio.Source.input AudioNode, which is
-  // equivalent to connecting to the input of any processing chain.
-
   resonanceAudio = new ResonanceAudio(audioContext, {
     ambisonicOrder: order,
-    // Listener starts at origin, facing -Z (into the sphere)
     listenerPosition: [0, 0, 0],
     listenerForward:  [0, 0, -1],
     listenerUp:       [0, 1,  0],
   });
 
-  // CONCEPT: Anechoic room — all surfaces set to maximum absorption (fiber glass
-  // insulation). This eliminates reverb, which would mask the spatial imaging
-  // the demo is designed to demonstrate. Students must hear the HRTF, not the room.
+  // Anechoic room — eliminate reverb so spatial imaging is unmasked
   resonanceAudio.setRoomProperties(
     { width: 100, height: 100, depth: 100 },
-    {
-      left:  'fiber-glass-insulation', right: 'fiber-glass-insulation',
-      front: 'fiber-glass-insulation', back:  'fiber-glass-insulation',
-      down:  'fiber-glass-insulation', up:    'fiber-glass-insulation',
-    }
+    { left:'fiber-glass-insulation', right:'fiber-glass-insulation',
+      front:'fiber-glass-insulation', back:'fiber-glass-insulation',
+      down:'fiber-glass-insulation',  up:'fiber-glass-insulation' }
   );
 
-  // Master gain node — used for crossfade during order rebuild
-  // See rebuildResonance() for the full crossfade pattern.
   masterGain = audioContext.createGain();
   masterGain.gain.value = 1.0;
 
-  // CONCEPT: DynamicsCompressorNode acts as a brickwall limiter here.
-  // With threshold at -3 dBFS, ratio 20:1, zero attack and 50ms release it
-  // prevents inter-source summation from clipping the output stage without
-  // audible pumping at normal listening levels. This is essential when 5
-  // synthesized sources all drive Resonance simultaneously at full scale.
   const limiter = audioContext.createDynamicsCompressor();
   limiter.threshold.value = -3;
   limiter.knee.value      =  0;
@@ -1319,419 +992,434 @@ function initResonance(order) {
   resonanceAudio.output.connect(masterGain);
   masterGain.connect(limiter);
   limiter.connect(audioContext.destination);
-  window._resonanceMasterGain = masterGain; // persistent reference for rebuild
+  window._resonanceMasterGain = masterGain;
   window._resonanceLimiter    = limiter;
 
-  // Create a Resonance source for each spatial source
-  SOURCES.forEach((src, i) => {
-    src.resonanceSource = resonanceAudio.createSource({
-      minDistance: 0.5,
-      maxDistance: 20,
-      rolloff: 'logarithmic',
-    });
-
-    // Set source position — matches the Three.js world position exactly
-    // THREE.js EQUIVALENT: mesh.matrixWorld ↔ source transform in Resonance.
-    // Here we set position directly since the sources are static in this demo.
+  SOURCES.forEach((src) => {
+    src.resonanceSource = resonanceAudio.createSource({ minDistance: 0.5, maxDistance: 20, rolloff: 'logarithmic' });
     src.resonanceSource.setPosition(...src.pos);
-
-    // Per-source gain node — used for smooth fade during source count toggle
     src.gainNode = audioContext.createGain();
     src.gainNode.gain.value = 1.0;
-
-    // AnalyserNode — WEB AUDIO EQUIVALENT: used in both raw Web Audio and
-    // Resonance integration for visual energy readouts.
     src.analyser = audioContext.createAnalyser();
     src.analyser.fftSize = 256;
     src.dataArray = new Float32Array(src.analyser.frequencyBinCount);
-
-    // Signal chain: synthesis/file → analyser → gainNode → resonanceSource.input
     src.gainNode.connect(src.resonanceSource.input);
   });
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STEP 12: Audio synthesis — per-source signal chains
+// SYNTHESIS — distinct, clearly different timbres per source
 // ═══════════════════════════════════════════════════════════════════════════
 function buildSynthSources() {
-  // Sources A, B, C: use audio files if loaded; fall back to synthesis.
-  // Sources D and E: always synthesized.
-
-  // Per-source trim gains inserted between synth/file and the analyser.
-  // Raw oscillators sit at 0 dBFS peak; with 5 sources all running simultaneously
-  // their sum through Resonance can clip badly. Each source gets an independent
-  // trim so the mix is balanced and headroom is preserved.
-  // Chain: source → trimGain → analyser → gainNode → resonanceSource.input
   SOURCES.forEach(src => {
     src.trimGain = audioContext.createGain();
-    src.trimGain.gain.value = 0.35; // −9 dBFS floor; individual sources override below
+    src.trimGain.gain.value = 0.35;
   });
 
-  // ── Source A: Speech (or synthesis fallback: warm bass pad)
+  // ── A: Speech — if uploaded, use it. Fallback: warm vowel-like formant synth
   if (SOURCES[0].buffer) {
     SOURCES[0].bufNode = createLoopingBufferSource(SOURCES[0].buffer);
-    SOURCES[0].trimGain.gain.value = 0.55; // speech files tend to be normalised; give a bit more
+    SOURCES[0].trimGain.gain.value = 0.55;
     SOURCES[0].bufNode.connect(SOURCES[0].trimGain);
   } else {
-    // Fallback: warm bass sine pad with vibrato
-    // Signal flow: osc(sine,110Hz) → vibrato gain ← lfo(sine,0.3Hz)
-    //              → lowpass(800Hz) → trimGain → analyser
-    const osc = audioContext.createOscillator();
-    osc.type = 'sine'; osc.frequency.value = 110;
-    const lfo = audioContext.createOscillator();
-    lfo.type = 'sine'; lfo.frequency.value = 0.3;
-    const vibGain = audioContext.createGain();
-    vibGain.gain.value = 3;
-    const lpf = audioContext.createBiquadFilter();
-    lpf.type = 'lowpass'; lpf.frequency.value = 800;
-    lfo.connect(vibGain); vibGain.connect(osc.detune);
-    osc.connect(lpf); lpf.connect(SOURCES[0].trimGain);
-    osc.start(); lfo.start();
-    SOURCES[0].oscNodes = [osc, lfo];
+    // Two-formant vowel: fundamental 160Hz (male voice) with two resonant peaks
+    // First formant ~700Hz (vowel "ah"), second formant ~1200Hz
+    const osc  = audioContext.createOscillator();  osc.type = 'sawtooth'; osc.frequency.value = 160;
+    const f1   = audioContext.createBiquadFilter(); f1.type = 'bandpass'; f1.frequency.value = 700;  f1.Q.value = 5;
+    const f2   = audioContext.createBiquadFilter(); f2.type = 'bandpass'; f2.frequency.value = 1200; f2.Q.value = 4;
+    const mix  = audioContext.createGain(); mix.gain.value = 0.5;
+    // Slow pitch LFO — natural speech inflection
+    const lfo  = audioContext.createOscillator(); lfo.type = 'sine'; lfo.frequency.value = 0.18;
+    const lfoG = audioContext.createGain(); lfoG.gain.value = 8;
+    lfo.connect(lfoG); lfoG.connect(osc.frequency);
+    // Amplitude envelope: gentle swell (makes it feel like continuous speech)
+    const ampLfo  = audioContext.createOscillator(); ampLfo.type = 'sine'; ampLfo.frequency.value = 0.5;
+    const ampLfoG = audioContext.createGain(); ampLfoG.gain.value = 0.25;
+    const ampNode = audioContext.createGain(); ampNode.gain.value = 0.6;
+    ampLfo.connect(ampLfoG); ampLfoG.connect(ampNode.gain);
+    osc.connect(f1); osc.connect(f2);
+    f1.connect(mix); f2.connect(mix);
+    mix.connect(ampNode); ampNode.connect(SOURCES[0].trimGain);
+    SOURCES[0].trimGain.gain.value = 0.4;
+    osc.start(); lfo.start(); ampLfo.start();
+    SOURCES[0].oscNodes = [osc, lfo, ampLfo];
   }
 
-  // ── Source B: Beep (or synthesis fallback: bright pluck)
+  // ── B: Beep — if uploaded, use it. Fallback: clear repeating electronic beep
   if (SOURCES[1].buffer) {
     SOURCES[1].bufNode = createLoopingBufferSource(SOURCES[1].buffer);
     SOURCES[1].trimGain.gain.value = 0.5;
     SOURCES[1].bufNode.connect(SOURCES[1].trimGain);
   } else {
-    // Fallback: sawtooth through resonant bandpass
-    // ampEnv already attenuates to 0.4; trim brings it down further
-    const osc = audioContext.createOscillator();
-    osc.type = 'sawtooth'; osc.frequency.value = 440;
-    const bpf = audioContext.createBiquadFilter();
-    bpf.type = 'bandpass'; bpf.frequency.value = 2200; bpf.Q.value = 8;
-    const ampEnv = audioContext.createGain();
-    ampEnv.gain.value = 0.4;
-    SOURCES[1].trimGain.gain.value = 0.3;
-    osc.connect(bpf); bpf.connect(ampEnv); ampEnv.connect(SOURCES[1].trimGain);
+    // Pure sine beep at 880Hz, rhythmically gated (on/off every 0.6s)
+    // This sounds nothing like the speech or alarm
+    const osc     = audioContext.createOscillator(); osc.type = 'sine'; osc.frequency.value = 880;
+    const gateEnv = audioContext.createGain(); gateEnv.gain.value = 0;
+    // Schedule repeating beep pattern using AudioParam automation
+    const ctx = audioContext;
+    function scheduleBeeps(startTime, count) {
+      for (let i = 0; i < count; i++) {
+        const t = startTime + i * 1.2;
+        gateEnv.gain.setValueAtTime(0, t);
+        gateEnv.gain.linearRampToValueAtTime(1.0, t + 0.01);
+        gateEnv.gain.setValueAtTime(1.0, t + 0.18);
+        gateEnv.gain.linearRampToValueAtTime(0, t + 0.22);
+      }
+    }
+    scheduleBeeps(ctx.currentTime + 0.1, 1000);
+    osc.connect(gateEnv); gateEnv.connect(SOURCES[1].trimGain);
+    SOURCES[1].trimGain.gain.value = 0.5;
     osc.start();
     SOURCES[1].oscNodes = [osc];
+    SOURCES[1]._gateEnv = gateEnv;
   }
 
-  // ── Source C: Alarm (or synthesis fallback: siren)
+  // ── C: Alarm — if uploaded, use it. Fallback: rising/falling two-tone siren
   if (SOURCES[2].buffer) {
     SOURCES[2].bufNode = createLoopingBufferSource(SOURCES[2].buffer);
     SOURCES[2].trimGain.gain.value = 0.45;
     SOURCES[2].bufNode.connect(SOURCES[2].trimGain);
   } else {
-    // Fallback: frequency-modulated tone simulating alarm sweep
-    // Signal flow: osc(sine, 880Hz) → FM from lfo(sine, 2Hz, depth 200Hz)
-    //              → bandpass(880Hz, Q=3) → trimGain → analyser
-    const osc = audioContext.createOscillator();
-    osc.type = 'sine'; osc.frequency.value = 880;
-    const lfo = audioContext.createOscillator();
-    lfo.type = 'sine'; lfo.frequency.value = 2;
-    const fmGain = audioContext.createGain();
-    fmGain.gain.value = 200;
-    const bpf = audioContext.createBiquadFilter();
-    bpf.type = 'bandpass'; bpf.frequency.value = 880; bpf.Q.value = 3;
-    lfo.connect(fmGain); fmGain.connect(osc.frequency);
-    osc.connect(bpf); bpf.connect(SOURCES[2].trimGain);
-    osc.start(); lfo.start();
-    SOURCES[2].oscNodes = [osc, lfo];
+    // Classic two-tone siren: alternates between 660Hz and 440Hz every 0.4s
+    const osc = audioContext.createOscillator(); osc.type = 'sine'; osc.frequency.value = 660;
+    const ctx = audioContext;
+    function scheduleSiren(startTime, cycles) {
+      for (let i = 0; i < cycles; i++) {
+        const t = startTime + i * 0.8;
+        osc.frequency.setValueAtTime(660, t);
+        osc.frequency.linearRampToValueAtTime(440, t + 0.4);
+        osc.frequency.setValueAtTime(440, t + 0.4);
+        osc.frequency.linearRampToValueAtTime(660, t + 0.8);
+      }
+    }
+    scheduleSiren(ctx.currentTime + 0.1, 500);
+    osc.connect(SOURCES[2].trimGain);
+    SOURCES[2].trimGain.gain.value = 0.4;
+    osc.start();
+    SOURCES[2].oscNodes = [osc];
   }
 
-  // ── Source D: Synthesized deep drone
-  // Signal flow: osc(sine, 55Hz) → detune LFO(0.1Hz, ±4ct) → lowpass(180Hz)
-  //              → trimGain → analyser
-  // BUGFIX: The old pattern connected an LFO oscillator to ampDC.gain (an AudioParam),
-  // which causes the AudioParam to swing between –0.45 and +0.97, going negative and
-  // producing full-scale signal bursts every half-cycle. The correct pattern for a
-  // positive-only amplitude LFO is a ConstantSourceNode DC offset plus a GainNode
-  // attenuator, keeping amplitude strictly in [DC−depth, DC+depth] ⊂ [0,1].
+  // ── D: Drone — deep sub-bass rumble (clearly "below" in character)
   {
-    const osc = audioContext.createOscillator();
-    osc.type = 'sine'; osc.frequency.value = 55;
-    const detLfo = audioContext.createOscillator();
-    detLfo.type = 'sine'; detLfo.frequency.value = 0.1;
-    const detGain = audioContext.createGain();
-    detGain.gain.value = 4; // ±4 cents
-    detLfo.connect(detGain); detGain.connect(osc.detune);
-    const lpf = audioContext.createBiquadFilter();
-    lpf.type = 'lowpass'; lpf.frequency.value = 180; lpf.Q.value = 1.2;
-    osc.connect(lpf);
-    // Amplitude throb using ConstantSourceNode for the DC offset.
-    // gain.value starts at DC (0.55), then the LFO modulates ±0.35 around it,
-    // keeping amplitude in [0.20, 0.90] — strictly positive, no polarity flips.
-    const ampNode = audioContext.createGain();
-    ampNode.gain.value = 0.55;
-    const ampLfo = audioContext.createOscillator();
-    ampLfo.type = 'sine'; ampLfo.frequency.value = 0.4;
-    const ampLfoGain = audioContext.createGain();
-    ampLfoGain.gain.value = 0.35; // LFO depth: ±0.35
-    ampLfo.connect(ampLfoGain);
-    ampLfoGain.connect(ampNode.gain); // modulates gain param around 0.55
-    lpf.connect(ampNode);
-    SOURCES[3].trimGain.gain.value = 0.35;
-    ampNode.connect(SOURCES[3].trimGain);
-    osc.start(); detLfo.start(); ampLfo.start();
-    SOURCES[3].oscNodes = [osc, detLfo, ampLfo];
+    const osc = audioContext.createOscillator(); osc.type = 'sine'; osc.frequency.value = 60;
+    // Add harmonics via second oscillator one octave up for presence on small speakers
+    const osc2 = audioContext.createOscillator(); osc2.type = 'sine'; osc2.frequency.value = 120;
+    const osc2G = audioContext.createGain(); osc2G.gain.value = 0.3;
+    const detLfo = audioContext.createOscillator(); detLfo.type = 'sine'; detLfo.frequency.value = 0.08;
+    const detG   = audioContext.createGain(); detG.gain.value = 3;
+    detLfo.connect(detG); detG.connect(osc.detune);
+    const lpf = audioContext.createBiquadFilter(); lpf.type = 'lowpass'; lpf.frequency.value = 300; lpf.Q.value = 1.0;
+    const ampNode = audioContext.createGain(); ampNode.gain.value = 0.6;
+    const ampLfo  = audioContext.createOscillator(); ampLfo.type = 'sine'; ampLfo.frequency.value = 0.3;
+    const ampLfoG = audioContext.createGain(); ampLfoG.gain.value = 0.3;
+    ampLfo.connect(ampLfoG); ampLfoG.connect(ampNode.gain);
+    osc.connect(lpf); osc2.connect(osc2G); osc2G.connect(lpf);
+    lpf.connect(ampNode); ampNode.connect(SOURCES[3].trimGain);
+    SOURCES[3].trimGain.gain.value = 0.5;
+    osc.start(); osc2.start(); detLfo.start(); ampLfo.start();
+    SOURCES[3].oscNodes = [osc, osc2, detLfo, ampLfo];
   }
 
-  // ── Source E: Synthesized high shimmer — from directly above (+Y)
-  // CONCEPT: Elevation cues are the hardest psychoacoustic phenomenon to demonstrate.
-  // Placing a distinctive sound overhead, with a bright spectral character, helps
-  // students perceive whether their HRTF rendering is working correctly.
-  // Signal flow: noise buffer (white) → highpass(3800Hz) → bandpass(5500Hz, Q=10)
-  //              → tremolo(7Hz, positive-only) → trimGain → analyser
+  // ── E: Shimmer — high crystalline shimmer from directly above
   {
-    const bufLength = audioContext.sampleRate * 2;
+    const bufLength  = audioContext.sampleRate * 2;
     const noiseBuffer = audioContext.createBuffer(1, bufLength, audioContext.sampleRate);
     const data = noiseBuffer.getChannelData(0);
     for (let i = 0; i < bufLength; i++) data[i] = Math.random() * 2 - 1;
-
     const noiseNode = audioContext.createBufferSource();
-    noiseNode.buffer = noiseBuffer;
-    noiseNode.loop = true;
-    noiseNode.loopEnd = 2.0;
-
-    const hpf = audioContext.createBiquadFilter();
-    hpf.type = 'highpass'; hpf.frequency.value = 3800;
-    const bpf = audioContext.createBiquadFilter();
-    bpf.type = 'bandpass'; bpf.frequency.value = 5500; bpf.Q.value = 10;
-    // Tremolo: same positive-only LFO pattern as Source D.
-    // gain.value = 0.6 DC, LFO depth ±0.35 → amplitude in [0.25, 0.95].
-    const tremNode = audioContext.createGain();
-    tremNode.gain.value = 0.6;
-    const tremLfo = audioContext.createOscillator();
-    tremLfo.type = 'sine'; tremLfo.frequency.value = 7;
-    const tremLfoGain = audioContext.createGain();
-    tremLfoGain.gain.value = 0.35;
-    tremLfo.connect(tremLfoGain);
-    tremLfoGain.connect(tremNode.gain);
+    noiseNode.buffer = noiseBuffer; noiseNode.loop = true; noiseNode.loopEnd = 2.0;
+    const hpf = audioContext.createBiquadFilter(); hpf.type = 'highpass'; hpf.frequency.value = 5000;
+    const bpf = audioContext.createBiquadFilter(); bpf.type = 'bandpass'; bpf.frequency.value = 7000; bpf.Q.value = 12;
+    // Add a chime tone for extra distinctiveness
+    const chime = audioContext.createOscillator(); chime.type = 'sine'; chime.frequency.value = 2093; // high C
+    const chimeG = audioContext.createGain(); chimeG.gain.value = 0.4;
+    const tremNode = audioContext.createGain(); tremNode.gain.value = 0.6;
+    const tremLfo  = audioContext.createOscillator(); tremLfo.type = 'sine'; tremLfo.frequency.value = 6;
+    const tremLfoG = audioContext.createGain(); tremLfoG.gain.value = 0.35;
+    tremLfo.connect(tremLfoG); tremLfoG.connect(tremNode.gain);
     noiseNode.connect(hpf); hpf.connect(bpf); bpf.connect(tremNode);
-    SOURCES[4].trimGain.gain.value = 0.3;
+    chime.connect(chimeG); chimeG.connect(tremNode);
     tremNode.connect(SOURCES[4].trimGain);
-    noiseNode.start(); tremLfo.start();
-    SOURCES[4].bufNode = noiseNode;
-    SOURCES[4].oscNodes = [tremLfo];
+    SOURCES[4].trimGain.gain.value = 0.3;
+    noiseNode.start(); tremLfo.start(); chime.start();
+    SOURCES[4].bufNode  = noiseNode;
+    SOURCES[4].oscNodes = [tremLfo, chime];
   }
 
-  // Connect trimGain → analyser → gainNode (gainNode already connected to resonanceSource.input)
+  // Connect: trimGain → analyser → gainNode → resonanceSource.input
   SOURCES.forEach(src => {
     src.trimGain.connect(src.analyser);
     src.analyser.connect(src.gainNode);
   });
 }
 
-// Helper: create a looping AudioBufferSourceNode from a decoded buffer
 function createLoopingBufferSource(buffer) {
   const node = audioContext.createBufferSource();
-  node.buffer = buffer;
-  node.loop = true;
+  node.buffer = buffer; node.loop = true;
   return node;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// Start all audio sources
+// AUDIO START / STOP
+// Audio starts PAUSED. User must click "Start Audio" in the control panel.
 // ═══════════════════════════════════════════════════════════════════════════
 function startAudio() {
+  if (audioStarted) return;
+  audioStarted = true;
   SOURCES.forEach(src => {
-    if (src.bufNode) {
-      try { src.bufNode.start(); } catch(e) {}
-    }
+    if (src.bufNode) { try { src.bufNode.start(); } catch(e) {} }
   });
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// Toggle audio on / off — suspends or resumes the AudioContext.
-// CONCEPT: AudioContext.suspend() pauses all processing and scheduling
-// on the audio thread without disconnecting any nodes. resume() picks up
-// exactly where it left off. This is the correct pattern for a pause
-// button — stopping and restarting individual BufferSourceNodes would
-// lose playback position and require rebuilding the whole signal chain.
-// ═══════════════════════════════════════════════════════════════════════════
 function toggleAudio() {
   if (!audioContext) return;
   const btn = document.getElementById('audioToggleBtn');
-  if (audioContext.state === 'running') {
-    audioContext.suspend().then(() => {
-      btn.textContent = '▶ Start Audio';
-      btn.classList.remove('running');
-    });
+  if (!audioStarted) {
+    // First press: actually start audio sources
+    startAudio();
+    audioContext.resume().then(updateAudioBtn);
+  } else if (audioContext.state === 'running') {
+    audioContext.suspend().then(updateAudioBtn);
   } else {
-    audioContext.resume().then(() => {
-      btn.textContent = '⏹ Stop Audio';
-      btn.classList.add('running');
-    });
+    audioContext.resume().then(updateAudioBtn);
+  }
+}
+
+function updateAudioBtn() {
+  const btn = document.getElementById('audioToggleBtn');
+  if (!audioStarted || !audioContext || audioContext.state !== 'running') {
+    btn.textContent = '▶ Start Audio';
+    btn.classList.remove('playing');
+    if (document.getElementById('hudCtx')) document.getElementById('hudCtx').textContent = 'paused';
+  } else {
+    btn.textContent = '⏹ Stop Audio';
+    btn.classList.add('playing');
+    if (document.getElementById('hudCtx')) document.getElementById('hudCtx').textContent = 'running';
   }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STEP 13: rebuildResonance — full crossfaded instance rebuild
+// REBUILD RESONANCE (order change)
 // ═══════════════════════════════════════════════════════════════════════════
-// CONCEPT: ambisonicOrder cannot be changed on a live ResonanceAudio instance.
-// The HOA renderer is built at construction time — the channel count of internal
-// AudioNodes is fixed by the constructor. To change order, we must:
-//   1. Fade master gain to 0 (avoid click on disconnect)
-//   2. Disconnect all sources from old Resonance instance
-//   3. Destroy old instance (let GC collect it)
-//   4. Build new instance with new ambisonicOrder
-//   5. Reconnect all sources
-//   6. Fade master gain back to 1.0
-// AudioBufferSourceNodes keep playing throughout — they are never stopped.
 function rebuildResonance(newOrder) {
   if (rebuildInProgress) return;
   rebuildInProgress = true;
 
-  const mg = window._resonanceMasterGain;
+  const mg  = window._resonanceMasterGain;
   const now = audioContext.currentTime;
-
-  // Fade out over 80ms
   mg.gain.setTargetAtTime(0, now, 0.025);
 
   setTimeout(() => {
-    // Disconnect all source gain nodes from old Resonance sources
-    SOURCES.forEach(src => {
-      try { src.gainNode.disconnect(); } catch(e) {}
-    });
-    // Disconnect old Resonance output and limiter
+    SOURCES.forEach(src => { try { src.gainNode.disconnect(); } catch(e) {} });
     try { resonanceAudio.output.disconnect(); } catch(e) {}
     try { mg.disconnect(); } catch(e) {}
-    if (window._resonanceLimiter) {
-      try { window._resonanceLimiter.disconnect(); } catch(e) {}
-    }
+    if (window._resonanceLimiter) { try { window._resonanceLimiter.disconnect(); } catch(e) {} }
 
-    // Build new Resonance instance.
-    // IMPORTANT: initResonance() creates brand-new gainNode and analyser on
-    // every source object. The old trimGain→analyser connection therefore
-    // points at stale (disconnected) nodes and must be fully re-wired.
-    // Full chain after rebuild: trimGain → new analyser → new gainNode → new resonanceSource.input
-    currentOrder = newOrder;
+    currentOrder  = newOrder;
     orderExponent = newOrder === 1 ? 2 : 6;
     initResonance(newOrder);
 
-    // Disconnect trimGain from the old (now stale) analyser, then rebuild
-    // the full downstream chain with the fresh nodes from initResonance().
-    SOURCES.forEach(src => {
+    SOURCES.forEach((src, i) => {
       try { src.trimGain.disconnect(); } catch(e) {}
       src.trimGain.connect(src.analyser);
       src.analyser.connect(src.gainNode);
-      // Restore the source-count gain so sources D/E stay muted if count === 3
-      if (src.gainNode) {
-        src.gainNode.gain.value = src.active ? 1.0 : 0.0;
-      }
+      if (src.gainNode) src.gainNode.gain.value = src.active ? 1.0 : 0.0;
     });
 
-    // Fade in over 150ms
     const mg2 = window._resonanceMasterGain;
     mg2.gain.setTargetAtTime(1.0, audioContext.currentTime, 0.05);
 
-    // Update order badge
     document.getElementById('hudOrder').innerHTML =
       `<span class="order-badge">Order ${newOrder} — ${(newOrder+1)*(newOrder+1)}ch</span>`;
-
-    // Update pill buttons
     document.getElementById('ord1Btn').classList.toggle('active', newOrder === 1);
     document.getElementById('ord3Btn').classList.toggle('active', newOrder === 3);
-
     rebuildInProgress = false;
   }, 100);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STEP 14: updateAmbiSphere — per-frame vertex color computation
+// CONTROLS
 // ═══════════════════════════════════════════════════════════════════════════
-// CONCEPT: Analytical energy approximation — not a live Ambisonic channel read.
-// The energy estimate at a vertex direction d̂ is:
-//   E(d̂) = Σ_sources [ rms_i × max(0, dot(d̂, source_dir_i))^order_exponent ]
-// where rms_i is per-source RMS, source_dir_i is the unit vector from origin
-// to source i, and order_exponent is 2 (order 1) or 6 (order 3).
-//
-// Why not tap ambisonicOutput directly? The ambisonicOutput node is a
-// multi-channel internal node whose channel structure is undocumented.
-// Tapping it via ChannelSplitterNode works in some browsers and fails silently
-// in others. The analytical approach is robust and perceptually equivalent.
-// See Section 3 of the theory HTML for the full spherical harmonic treatment.
-function updateAmbiSphere() {
-  const nVerts = vertexDirs.length;
-  const colors = ambiColorsAttr.array;
+function toggleFreeze() {
+  fieldFrozen = !fieldFrozen;
+  const btn   = document.getElementById('freezeBtn');
+  const badge = document.getElementById('frozenBadge');
+  if (fieldFrozen) {
+    btn.textContent = '▶ Live Field';
+    btn.classList.add('frozen');
+    badge.classList.add('visible');
+    wireSphere.material.opacity = 0.22;
+    setTimeout(() => { wireSphere.material.opacity = 0.06; }, 500);
+  } else {
+    btn.textContent = '❄ Freeze Field';
+    btn.classList.remove('frozen');
+    badge.classList.remove('visible');
+  }
+}
 
-  // Count active sources for the energy loop
+function setSourceCount(count) {
+  if (!audioContext) return;
+  activeSourceCount = count;
+  document.getElementById('src3Btn').classList.toggle('active', count === 3);
+  document.getElementById('src5Btn').classList.toggle('active', count === 5);
+
+  [3, 4].forEach(i => {
+    const src  = SOURCES[i];
+    const show = count === 5;
+    src.active      = show;
+    src.scaleTarget = show ? 1.0 : 0.0;
+    if (src.gainNode) {
+      const now = audioContext.currentTime;
+      src.gainNode.gain.setTargetAtTime(show ? 1.0 : 0.0, now, 0.05);
+    }
+    if (show && src.resonanceSource) src.resonanceSource.setPosition(...src.pos);
+    // Update legend opacity
+    const legIds = ['leg-d', 'leg-e'];
+    document.getElementById(legIds[i-3]).classList.toggle('inactive', !show);
+  });
+
+  document.getElementById('hudSrc').textContent = count;
+}
+
+function setOrder(order) {
+  if (order === currentOrder || rebuildInProgress || !audioContext) return;
+  const flash = document.getElementById('orderFlash');
+  flash.style.opacity = '1';
+  setTimeout(() => { flash.style.opacity = '0'; }, 300);
+  rebuildResonance(order);
+}
+
+function toggleInfoPanel() {
+  const body  = document.getElementById('infoBody');
+  const arrow = document.getElementById('infoCollapseArrow');
+  const label = document.getElementById('infoCollapseLabel');
+  const collapsed = body.classList.toggle('collapsed');
+  arrow.style.transform = collapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+  label.textContent = collapsed ? 'Show explanation' : 'Hide explanation';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DRAG / SCROLL / TOUCH
+// ═══════════════════════════════════════════════════════════════════════════
+document.addEventListener('mousedown', e => {
+  if (e.button !== 0) return;
+  isDragging = true; lastMouseX = e.clientX; lastMouseY = e.clientY;
+});
+document.addEventListener('mousemove', e => {
+  if (!isDragging) return;
+  const dx = e.clientX - lastMouseX, dy = e.clientY - lastMouseY;
+  lastMouseX = e.clientX; lastMouseY = e.clientY;
+  headEulerYaw  += dx * 0.005;
+  headEulerPitch = Math.max(-1.22, Math.min(1.22, headEulerPitch + dy * 0.005));
+});
+document.addEventListener('mouseup',    () => { isDragging = false; });
+document.addEventListener('mouseleave', () => { isDragging = false; });
+document.addEventListener('touchstart', e => {
+  if (e.touches.length !== 1) return;
+  isDragging = true; lastMouseX = e.touches[0].clientX; lastMouseY = e.touches[0].clientY;
+}, { passive: true });
+document.addEventListener('touchmove', e => {
+  if (!isDragging || e.touches.length !== 1) return;
+  const dx = e.touches[0].clientX - lastMouseX, dy = e.touches[0].clientY - lastMouseY;
+  lastMouseX = e.touches[0].clientX; lastMouseY = e.touches[0].clientY;
+  headEulerYaw  += dx * 0.006;
+  headEulerPitch = Math.max(-1.22, Math.min(1.22, headEulerPitch + dy * 0.006));
+}, { passive: true });
+document.addEventListener('touchend', () => { isDragging = false; });
+document.addEventListener('wheel', e => {
+  camera.position.z = Math.max(1.2, Math.min(4.5, camera.position.z + e.deltaY * 0.002));
+  camera.lookAt(0, 0, 0);
+}, { passive: true });
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PER-SOURCE RMS
+// ═══════════════════════════════════════════════════════════════════════════
+function updateSourceRMS() {
+  SOURCES.forEach(src => {
+    if (!src.analyser || !src.active || !audioStarted || audioContext.state !== 'running') {
+      src.rms = 0; return;
+    }
+    src.analyser.getFloatTimeDomainData(src.dataArray);
+    let sum = 0;
+    for (let i = 0; i < src.dataArray.length; i++) sum += src.dataArray[i] * src.dataArray[i];
+    src.rms = Math.sqrt(sum / src.dataArray.length);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AMBI SPHERE UPDATE
+// ═══════════════════════════════════════════════════════════════════════════
+function updateAmbiSphere() {
+  const nVerts    = vertexDirs.length;
+  const colors    = ambiColorsAttr.array;
   const activeSrcs = SOURCES.filter(s => s.active);
 
   for (let i = 0; i < nVerts; i++) {
     const d = vertexDirs[i];
     let energy = 0;
-
     for (let j = 0; j < activeSrcs.length; j++) {
-      const dot = Math.max(0,
-        d.x * srcDirs[SOURCES.indexOf(activeSrcs[j])].x +
-        d.y * srcDirs[SOURCES.indexOf(activeSrcs[j])].y +
-        d.z * srcDirs[SOURCES.indexOf(activeSrcs[j])].z
-      );
+      const idx = SOURCES.indexOf(activeSrcs[j]);
+      const dot = Math.max(0, d.x*srcDirs[idx].x + d.y*srcDirs[idx].y + d.z*srcDirs[idx].z);
       energy += activeSrcs[j].rms * Math.pow(dot, orderExponent);
     }
-
+    // When audio is paused, show a dim ambient pattern so the sphere isn't dead
+    if (!audioStarted || audioContext.state !== 'running') {
+      energy = 0.02 + 0.01 * Math.abs(d.y); // subtle ambient gradient
+    }
     const t = Math.min(1, energy / ENERGY_SCALE);
     const c = viridisColor(t);
     const base = i * 3;
-    colors[base]   = c.r;
-    colors[base+1] = c.g;
-    colors[base+2] = c.b;
+    colors[base] = c.r; colors[base+1] = c.g; colors[base+2] = c.b;
   }
-
-  // CONCEPT: BufferAttribute.needsUpdate = true triggers a GPU upload of only
-  // this attribute on the next render call. Setting it on the whole geometry
-  // (geometry.computeVertexNormals()) is wasteful — do NOT use that.
   ambiColorsAttr.needsUpdate = true;
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STEP 15: updatePolarRing — 2D azimuth field canvas
+// POLAR RING UPDATE
 // ═══════════════════════════════════════════════════════════════════════════
-// CONCEPT: The polar ring shows the top-down azimuth projection of the sound field.
-// Elevation is ignored — only horizontal energy is visualized.
-// The white needle shows the listener's current forward azimuth.
 function updatePolarRing() {
   if (!polarCtx) return;
   const C = 90, R = 83;
   polarCtx.clearRect(0, 0, 180, 180);
 
-  // Background circle
   polarCtx.beginPath();
-  polarCtx.arc(C, C, R, 0, Math.PI * 2);
+  polarCtx.arc(C, C, R, 0, Math.PI*2);
   polarCtx.fillStyle = 'rgba(10,10,18,0.9)';
   polarCtx.fill();
-  polarCtx.strokeStyle = 'rgba(255,255,255,0.06)';
-  polarCtx.lineWidth = 1;
-  polarCtx.stroke();
+  polarCtx.strokeStyle = 'rgba(255,255,255,0.06)'; polarCtx.lineWidth = 1; polarCtx.stroke();
 
-  // Concentric rings at R/3 and 2R/3
   [R*0.33, R*0.66].forEach(r => {
-    polarCtx.beginPath();
-    polarCtx.arc(C, C, r, 0, Math.PI * 2);
-    polarCtx.strokeStyle = 'rgba(255,255,255,0.04)';
-    polarCtx.stroke();
+    polarCtx.beginPath(); polarCtx.arc(C, C, r, 0, Math.PI*2);
+    polarCtx.strokeStyle = 'rgba(255,255,255,0.04)'; polarCtx.stroke();
   });
 
-  // Energy arc — 360 steps in 2° increments (fast enough, 180 steps)
+  // Cardinal directions
+  polarCtx.font = '8px IBM Plex Mono, monospace';
+  polarCtx.fillStyle = 'rgba(255,255,255,0.18)';
+  polarCtx.textAlign = 'center';
+  polarCtx.fillText('F', C, C - R + 11);
+  polarCtx.fillText('B', C, C + R - 3);
+  polarCtx.fillText('L', C - R + 4, C + 3);
+  polarCtx.fillText('R', C + R - 4, C + 3);
+
   const activeSrcs = SOURCES.filter(s => s.active);
   const steps = 180;
   for (let step = 0; step < steps; step++) {
     const theta = (step / steps) * Math.PI * 2;
-    // Horizontal plane direction
     const dx = Math.sin(theta), dz = -Math.cos(theta);
     let energy = 0;
     for (let j = 0; j < activeSrcs.length; j++) {
       const idx = SOURCES.indexOf(activeSrcs[j]);
-      const dot = Math.max(0, dx * srcDirs[idx].x + dz * srcDirs[idx].z);
+      const dot = Math.max(0, dx*srcDirs[idx].x + dz*srcDirs[idx].z);
       energy += activeSrcs[j].rms * Math.pow(dot, orderExponent);
     }
     const t = Math.min(1, energy / ENERGY_SCALE);
     const c = viridisColor(t);
-    const minR = R * 0.38, maxR = R * 0.95;
-    const r = minR + (maxR - minR) * t;
-    const x0 = C + Math.sin(theta) * minR;
-    const y0 = C - Math.cos(theta) * minR;
-    const x1 = C + Math.sin(theta) * r;
-    const y1 = C - Math.cos(theta) * r;
+    const minR = R*0.38, maxR = R*0.95;
+    const r = minR + (maxR-minR)*t;
     polarCtx.beginPath();
-    polarCtx.moveTo(x0, y0);
-    polarCtx.lineTo(x1, y1);
-    // Thicker lines, slightly overlapping, fill the ring smoothly
+    polarCtx.moveTo(C + Math.sin(theta)*minR, C - Math.cos(theta)*minR);
+    polarCtx.lineTo(C + Math.sin(theta)*r,    C - Math.cos(theta)*r);
     polarCtx.lineWidth = 2.2;
     polarCtx.strokeStyle = `rgb(${Math.round(c.r*255)},${Math.round(c.g*255)},${Math.round(c.b*255)})`;
     polarCtx.stroke();
@@ -1743,241 +1431,114 @@ function updatePolarRing() {
     if (!src.active) return;
     const az = Math.atan2(src.pos[0], -src.pos[2]);
     const mr = R * 0.90;
-    const mx = C + Math.sin(az) * mr;
-    const my = C - Math.cos(az) * mr;
     polarCtx.beginPath();
-    polarCtx.arc(mx, my, 4.5, 0, Math.PI * 2);
-    polarCtx.fillStyle = srcColors[i];
-    polarCtx.fill();
+    polarCtx.arc(C + Math.sin(az)*mr, C - Math.cos(az)*mr, 4.5, 0, Math.PI*2);
+    polarCtx.fillStyle = srcColors[i]; polarCtx.fill();
   });
 
-  // Listener forward needle — driven by headEulerYaw
+  // Listener needle
   const needleLen = R * 0.88;
-  const nx = C + Math.sin(headEulerYaw) * needleLen;
-  const ny = C - Math.cos(headEulerYaw) * needleLen;
   polarCtx.beginPath();
   polarCtx.moveTo(C, C);
-  polarCtx.lineTo(nx, ny);
-  polarCtx.lineWidth = 1.5;
-  polarCtx.strokeStyle = 'rgba(255,255,255,0.75)';
-  polarCtx.stroke();
-  // Needle tip dot
+  polarCtx.lineTo(C + Math.sin(headEulerYaw)*needleLen, C - Math.cos(headEulerYaw)*needleLen);
+  polarCtx.lineWidth = 1.5; polarCtx.strokeStyle = 'rgba(255,255,255,0.75)'; polarCtx.stroke();
   polarCtx.beginPath();
-  polarCtx.arc(nx, ny, 3, 0, Math.PI * 2);
-  polarCtx.fillStyle = 'white';
-  polarCtx.fill();
+  polarCtx.arc(C + Math.sin(headEulerYaw)*needleLen, C - Math.cos(headEulerYaw)*needleLen, 3, 0, Math.PI*2);
+  polarCtx.fillStyle = 'white'; polarCtx.fill();
 
-  // Centre dot (listener)
   polarCtx.beginPath();
-  polarCtx.arc(C, C, 3.5, 0, Math.PI * 2);
-  polarCtx.fillStyle = 'rgba(79,156,249,0.9)';
-  polarCtx.fill();
+  polarCtx.arc(C, C, 3.5, 0, Math.PI*2);
+  polarCtx.fillStyle = 'rgba(79,156,249,0.9)'; polarCtx.fill();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STEP 16: Per-source RMS computation
+// PROJECT 3D POSITION → SCREEN for source labels
 // ═══════════════════════════════════════════════════════════════════════════
-function updateSourceRMS() {
-  SOURCES.forEach(src => {
-    if (!src.analyser || !src.active) { src.rms = 0; return; }
-    // CONCEPT: getFloatTimeDomainData gives instantaneous waveform samples in [-1,1].
-    // RMS (root mean square) is the standard measure of signal power — it correctly
-    // represents the perceptual loudness of the source at this moment.
-    // We use Float32 (not Byte) for precision — byte quantization (8-bit) loses
-    // detail at low levels, which is exactly when spatial imaging is most critical.
-    src.analyser.getFloatTimeDomainData(src.dataArray);
-    let sum = 0;
-    for (let i = 0; i < src.dataArray.length; i++) sum += src.dataArray[i] * src.dataArray[i];
-    src.rms = Math.sqrt(sum / src.dataArray.length);
-  });
+function projectToScreen(pos3d) {
+  const v = pos3d.clone().project(camera);
+  const mount = document.getElementById('canvasMount');
+  const W = mount.clientWidth, H = mount.clientHeight;
+  return {
+    x: (v.x  * 0.5 + 0.5) * W,
+    y: (-v.y * 0.5 + 0.5) * H,
+    behind: v.z > 1
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STEP 17: Animation loop
+// RENDER LOOP
 // ═══════════════════════════════════════════════════════════════════════════
 function startRenderLoop() {
-  const origin    = new THREE.Vector3(0, 0, 0);
-  const unitScale = new THREE.Vector3(1, 1, 1);
-  const listenerMatrix = new THREE.Matrix4();
-  const headQuat = new THREE.Quaternion();
+  const origin       = new THREE.Vector3(0, 0, 0);
+  const unitScale    = new THREE.Vector3(1, 1, 1);
+  const listenerMtx  = new THREE.Matrix4();
+  const headQuat     = new THREE.Quaternion();
 
   function loop() {
     requestAnimationFrame(loop);
-    clock.getDelta(); // consume delta (keep clock ticking)
+    clock.getDelta();
 
     if (!audioContext) { composer.render(); return; }
 
-    // 1. Read per-source RMS
     updateSourceRMS();
 
-    // 2. Update head group rotation from accumulated euler
     headEuler.set(headEulerPitch, headEulerYaw, 0, 'YXZ');
     headGroup.rotation.copy(headEuler);
 
-    // 3. Build listener matrix from head euler and call setListenerFromMatrix
-    // CONCEPT: The camera is fixed. The acoustic listener is NOT the camera.
-    // We compose a matrix from the head euler quaternion at the origin.
-    // This decouples visual camera from acoustic listener — the student can see
-    // the full sphere while the listener rotates inside it.
-    //
-    // THREE.js EQUIVALENT: camera.matrixWorld ↔ listener transform in Resonance.
-    // Here we override with the head matrix because the camera never moves.
     headQuat.setFromEuler(headEuler);
-    listenerMatrix.compose(origin, headQuat, unitScale);
-    if (resonanceAudio) resonanceAudio.setListenerFromMatrix(listenerMatrix);
+    listenerMtx.compose(origin, headQuat, unitScale);
+    if (resonanceAudio) resonanceAudio.setListenerFromMatrix(listenerMtx);
 
-    // 4. Update source visual properties from RMS
-    SOURCES.forEach((src, i) => {
+    // Update source visual properties
+    SOURCES.forEach((src) => {
       const rms = src.rms;
       if (!src.mesh) return;
       src.mesh.material.emissiveIntensity = 0.2 + rms * 20;
-      src.halo.material.opacity = 0.03 + rms * 0.3;
+      src.halo.material.opacity = 0.03 + rms * 0.35;
       src.light.intensity = rms * 2.5;
 
-      // Animate mesh scale for source count transitions
-      if (src.mesh.scale.x !== src.scaleTarget) {
-        const cur = src.mesh.scale.x;
-        const next = THREE.MathUtils.lerp(cur, src.scaleTarget, 0.12);
+      if (Math.abs(src.mesh.scale.x - src.scaleTarget) > 0.001) {
+        const next = THREE.MathUtils.lerp(src.mesh.scale.x, src.scaleTarget, 0.12);
         src.mesh.scale.setScalar(Math.max(0.001, next));
         src.halo.scale.setScalar(Math.max(0.001, next));
         src.line.visible = next > 0.1;
       }
     });
 
-    // 5. Update Ambisonic sphere and polar ring (unless frozen)
     if (!fieldFrozen) {
       updateAmbiSphere();
       updatePolarRing();
     }
 
-    // 6. Update HUD
-    const azDeg = (headEulerYaw * 180 / Math.PI).toFixed(1);
-    const elDeg = (headEulerPitch * 180 / Math.PI).toFixed(1);
-    document.getElementById('hudAz').textContent = azDeg + '°';
-    document.getElementById('hudEl').textContent = elDeg + '°';
-    document.getElementById('hudCtx').textContent = audioContext.state;
-    document.getElementById('hudSrc').textContent = SOURCES.filter(s => s.active).length;
+    // Update source label positions
+    SOURCES.forEach((src, i) => {
+      const lbl = labelElements[i];
+      if (!lbl) return;
+      if (!src.active || (src.mesh && src.mesh.scale.x < 0.1)) {
+        lbl.classList.remove('visible'); return;
+      }
+      const pos = projectToScreen(src.mesh.position);
+      if (pos.behind) { lbl.classList.remove('visible'); return; }
+      lbl.style.left = pos.x + 'px';
+      lbl.style.top  = pos.y + 'px';
+      lbl.classList.add('visible');
+    });
 
-    // 7. Render
+    // HUD
+    document.getElementById('hudAz').textContent  = ((headEulerYaw   * 180 / Math.PI)).toFixed(1) + '°';
+    document.getElementById('hudEl').textContent  = ((headEulerPitch * 180 / Math.PI)).toFixed(1) + '°';
+    // Audio state updated via updateAudioBtn — just keep ctx state fresh
+    if (audioStarted) {
+      document.getElementById('hudCtx').textContent = audioContext.state;
+    }
+
     composer.render();
   }
   loop();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// STEP 18: Freeze Field control
-// ═══════════════════════════════════════════════════════════════════════════
-// CONCEPT: Freeze Field pauses the per-frame sphere color update but keeps
-// audio playing. This lets the student examine the shape of the sound field
-// at a specific musical moment — turning their head changes what they HEAR
-// from the fixed field, not the field itself. This is the key perceptual
-// distinction between Ambisonics and simple stereo panning:
-// the field is a property of the room, not of the listener.
-function toggleFreeze() {
-  fieldFrozen = !fieldFrozen;
-  const btn = document.getElementById('freezeBtn');
-  if (fieldFrozen) {
-    btn.textContent = '▶ Live Field';
-    btn.classList.add('frozen');
-    // Brief pulse on wireframe to signal freeze
-    wireSphere.material.opacity = 0.25;
-    setTimeout(() => { wireSphere.material.opacity = 0.06; }, 400);
-  } else {
-    btn.textContent = '❄ Freeze Field';
-    btn.classList.remove('frozen');
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// STEP 19: Source count toggle
-// ═══════════════════════════════════════════════════════════════════════════
-// CONCEPT: Sources D (drone) and E (shimmer) are added/removed to show how
-// the Ambisonic field changes with source count. All sources contribute to
-// the same Ambisonic bus — Resonance handles mixing in the spatial domain.
-function setSourceCount(count) {
-  if (!audioContext) return;
-  activeSourceCount = count;
-  document.getElementById('src3Btn').classList.toggle('active', count === 3);
-  document.getElementById('src5Btn').classList.toggle('active', count === 5);
-
-  // Sources 3 and 4 (D and E) are toggled
-  [3, 4].forEach(i => {
-    const src = SOURCES[i];
-    const show = count === 5;
-    src.active = show;
-    src.scaleTarget = show ? 1.0 : 0.0;
-    if (src.gainNode) {
-      const now = audioContext.currentTime;
-      src.gainNode.gain.setTargetAtTime(show ? 1.0 : 0.0, now, 0.05);
-    }
-    if (show && src.resonanceSource) {
-      src.resonanceSource.setPosition(...src.pos);
-    }
-  });
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// STEP 20: Ambisonic order toggle
-// ═══════════════════════════════════════════════════════════════════════════
-function setOrder(order) {
-  if (order === currentOrder || rebuildInProgress || !audioContext) return;
-  // Visual flash to signal rebuild
-  const flash = document.getElementById('orderFlash');
-  flash.style.opacity = '1';
-  setTimeout(() => { flash.style.opacity = '0'; }, 300);
-  rebuildResonance(order);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// STEP 21: Mouse drag — head rotation
-// ═══════════════════════════════════════════════════════════════════════════
-// CONCEPT: Mouse drag accumulates yaw (Y axis, unlimited) and pitch (X axis,
-// clamped ±70°). Euler order 'YXZ' — yaw applied first (world Y), then pitch
-// (local X). This prevents gimbal lock and matches natural head movement.
-document.addEventListener('mousedown', e => {
-  if (e.button !== 0) return;
-  isDragging = true;
-  lastMouseX = e.clientX;
-  lastMouseY = e.clientY;
-});
-document.addEventListener('mousemove', e => {
-  if (!isDragging) return;
-  const dx = e.clientX - lastMouseX;
-  const dy = e.clientY - lastMouseY;
-  lastMouseX = e.clientX;
-  lastMouseY = e.clientY;
-  headEulerYaw   += dx * 0.005;
-  headEulerPitch  = Math.max(-1.22, Math.min(1.22, headEulerPitch + dy * 0.005));
-});
-document.addEventListener('mouseup', () => { isDragging = false; });
-document.addEventListener('mouseleave', () => { isDragging = false; });
-
-// Touch support
-document.addEventListener('touchstart', e => {
-  if (e.touches.length !== 1) return;
-  isDragging = true;
-  lastMouseX = e.touches[0].clientX;
-  lastMouseY = e.touches[0].clientY;
-}, { passive: true });
-document.addEventListener('touchmove', e => {
-  if (!isDragging || e.touches.length !== 1) return;
-  const dx = e.touches[0].clientX - lastMouseX;
-  const dy = e.touches[0].clientY - lastMouseY;
-  lastMouseX = e.touches[0].clientX;
-  lastMouseY = e.touches[0].clientY;
-  headEulerYaw   += dx * 0.006;
-  headEulerPitch  = Math.max(-1.22, Math.min(1.22, headEulerPitch + dy * 0.006));
-}, { passive: true });
-document.addEventListener('touchend', () => { isDragging = false; });
-
-// Scroll to zoom camera (cosmetic — does not affect audio)
-document.addEventListener('wheel', e => {
-  camera.position.z = Math.max(1.2, Math.min(4.5, camera.position.z + e.deltaY * 0.002));
-  camera.lookAt(0, 0, 0);
-}, { passive: true });
-
-// ═══════════════════════════════════════════════════════════════════════════
-// STEP 22: Resize handler
+// RESIZE
 // ═══════════════════════════════════════════════════════════════════════════
 new ResizeObserver(() => {
   if (!camera || !renderer) return;
