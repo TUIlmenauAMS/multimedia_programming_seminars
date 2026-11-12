@@ -530,7 +530,7 @@ html, body {
         </button>
         <button class="acoustic-btn" id="btnWet" onclick="setAcousticMode('wet')">
           <span class="ab-label">🔊 Wet</span>
-          <span class="ab-rt60">Theater · RT60 ≈ 1.80 s</span>
+          <span class="ab-rt60">Theater · RT60 ≈ 1.10 s</span>
         </button>
       </div>
     </div>
@@ -814,18 +814,18 @@ const ACOUSTIC_MODES = {
   },
   wet: {
     name:       'Theater (Wet)',
-    rt60:       1.80,
-    // Larger virtual room → longer mean free path → more reverb buildup
-    dimensions: { width: 32, height: 9, depth: 28 },
-    // Hard, near-zero-absorption surfaces — bare concrete hall
-    // Web SDK: 'brick-bare', 'concrete-block-coarse', 'glass-thin'
+    rt60:       1.10,
+    // Mid-size theater — 24×7×20 m, more believable than a sports hall
+    dimensions: { width: 24, height: 7, depth: 20 },
+    // Brick side walls + plaster front/back + wood floor + acoustic ceiling
+    // gives a warm, lively but not overwhelming theater reverb
     materials: {
       left:  'brick-bare',
       right: 'brick-bare',
-      front: 'concrete-block-coarse',
-      back:  'concrete-block-coarse',
-      down:  'concrete-block-coarse',
-      up:    'glass-thin'
+      front: 'plaster-smooth',
+      back:  'plaster-smooth',
+      down:  'parquet-on-concrete',
+      up:    'acoustic-ceiling-tiles'
     }
   }
 };
