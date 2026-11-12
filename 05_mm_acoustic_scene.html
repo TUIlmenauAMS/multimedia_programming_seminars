@@ -323,13 +323,47 @@ html, body {
   background: var(--accent); border: none; cursor: pointer;
 }
 
-/* ── HUD ── */
-#hud {
+/* ── Right column: author panel + HUD stacked ── */
+#rightCol {
   position: fixed; top: calc(16px + var(--safe-top)); right: 16px;
   z-index: 10;
+  display: flex; flex-direction: column; gap: 8px;
+  min-width: 210px;
+}
+
+/* ── Floating author panel ── */
+#authorPanel {
   background: var(--panel-bg); border: 1px solid var(--panel-border);
   backdrop-filter: blur(var(--panel-blur)); -webkit-backdrop-filter: blur(var(--panel-blur));
-  border-radius: 10px; padding: 14px 18px; min-width: 210px;
+  border-radius: 10px; padding: 10px 14px;
+  display: flex; align-items: center; gap: 10px;
+}
+#authorPanel img {
+  width: 28px; height: 28px; border-radius: 5px; flex-shrink: 0;
+}
+#authorPanel .ap-text {
+  display: flex; flex-direction: column; gap: 2px; min-width: 0;
+}
+#authorPanel .ap-course {
+  font-family: var(--mono); font-size: 9px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.08em; line-height: 1.4;
+}
+#authorPanel .ap-name {
+  font-family: var(--mono); font-size: 9px; color: var(--muted); line-height: 1.4;
+}
+#authorPanel .ap-name span { color: var(--text); font-weight: 500; }
+#authorPanel .ap-link {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-family: var(--mono); font-size: 9px; color: var(--accent);
+  text-decoration: none; opacity: 0.8; transition: opacity 0.15s;
+}
+#authorPanel .ap-link:hover { opacity: 1; }
+
+/* ── HUD ── */
+#hud {
+  background: var(--panel-bg); border: 1px solid var(--panel-border);
+  backdrop-filter: blur(var(--panel-blur)); -webkit-backdrop-filter: blur(var(--panel-blur));
+  border-radius: 10px; padding: 14px 18px;
 }
 .hud-title { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; }
 .hud-metric { margin-bottom: 10px; }
@@ -441,19 +475,6 @@ html, body {
   </div>
 
   <div id="sb-scroll">
-
-    <!-- Identity -->
-    <div class="sb-identity">
-      <img src="ams_group_tui.png" alt="AMS Group – TU Ilmenau">
-      <div class="sb-identity-text">
-        <span class="sb-identity-course">Multimediaprogrammierung<br>Technische Universität Ilmenau</span>
-        <span class="sb-identity-created">Demo created by <span>Renato Fera P.</span></span>
-        <a class="sb-identity-link" href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-          LinkedIn
-        </a>
-      </div>
-    </div>
 
     <!-- Playback controls -->
     <div class="sb-section">
@@ -637,8 +658,22 @@ html, body {
 </div><!-- /#sidebar -->
 
 <!-- ══════════════════════════════════════════
-     HUD — top right
+     RIGHT COLUMN — author panel + HUD
 ══════════════════════════════════════════ -->
+<div id="rightCol">
+
+<div id="authorPanel">
+  <img src="ams_group_tui.png" alt="AMS Group – TU Ilmenau">
+  <div class="ap-text">
+    <span class="ap-course">Multimediaprogrammierung<br>Technische Universität Ilmenau</span>
+    <span class="ap-name">Demo created by <span>Renato Fera P.</span></span>
+    <a class="ap-link" href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+      LinkedIn
+    </a>
+  </div>
+</div>
+
 <div id="hud">
   <div class="hud-title">Room Diagnostics</div>
 
@@ -680,6 +715,8 @@ html, body {
     <span class="hud-row-value" id="hudCtx">inactive</span>
   </div>
 </div>
+
+</div><!-- /#rightCol -->
 
 <!-- nav hint -->
 <div id="navHint">
