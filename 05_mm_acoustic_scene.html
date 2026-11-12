@@ -9,40 +9,69 @@
   CHAPTER:   Chapter 05: Google Resonance Audio for Web
   INSTITUTE: TU Ilmenau AMS
 
+  ── PURPOSE ───────────────────────────────────────────────────────────────────
+  This file is simultaneously a working interactive demo and a fully annotated
+  tutorial. Every HTML structure, CSS rule, and JavaScript function is documented
+  with the reasoning behind each decision — including the acoustic physics,
+  psychoacoustic principles, and Web Audio API subtleties that motivate the code.
+
+  Students are encouraged to read this source top to bottom. The structure
+  follows a deliberate pedagogical order:
+    1. HTML  — UI architecture and the autoplay-policy overlay sequence
+    2. CSS   — Design token system, layout, and cross-browser techniques
+    3. JS    — Grouped in numbered STEP blocks that mirror the initialisation order
+
   ── COORDINATE SYSTEM ────────────────────────────────────────────────────────
-  Three.js world units = meters. Y-up. Right-handed coordinate system.
-  Resonance Audio uses the same convention.
-  Origin (0,0,0) is the room centre floor.
+  Three.js uses a RIGHT-HANDED, Y-UP coordinate system. One world unit = 1 metre.
+  Resonance Audio uses the SAME convention — no conversion needed between the two.
 
-  ── LAYOUT ────────────────────────────────────────────────────────────────────
-  Single room: 20 m wide × 16 m deep × 5 m high
-    [-10..+10 x,  0..5 y,  -15..+1 z]
-    Listener starts at (0, 1.65, -7) facing −Z (into the stage, toward drum kit)
+    +X → right          -X → left
+    +Y → up             -Y → down
+    +Z → toward viewer  -Z → into screen (away from viewer, into the stage)
 
-  Stage riser: 16 m wide × 9 m deep × 0.30 m high — top surface at y = 0.30 m
+  Origin (0, 0, 0) is the room centre at floor level.
+  The listener starts at (0, 1.65, 0.5) — 1.65 m eye height, slightly in front
+  of centre, looking toward −Z (into the stage).
+
+  ── ROOM LAYOUT ───────────────────────────────────────────────────────────────
+  Single rectangular room: 20 m wide × 16 m deep × 5 m high
+    X: [−10 .. +10]   Z: [−15 .. +1]   Y: [0 .. 5]
+
+  Stage riser: 16 m wide × 7 m deep × 0.30 m high — top surface at y = 0.30 m
   Guitar amp stand: 0.45 m wide × 0.30 m tall black road-case riser on stage
 
-  Instrument positions on stage (Y = stage surface height):
-    Guitar Amp  [-5, 0.60, -9]   left stage — on 0.30 m stand, facing +Z
-    Drum Kit    [ 0, 0.30, -11]  centre back — directly on stage
-    Grand Piano [ 5, 0.30, -8]   right stage — directly on stage
+  Instrument positions on stage (Y = stage surface = 0.30 m):
+    Guitar Amp  [−5, 0.60, −9]   left stage — on 0.30 m stand, facing +Z
+    Drum Kit    [ 0, 0.30, −11]  centre back — directly on stage
+    Grand Piano [ 5, 0.30,  −8]  right stage — directly on stage
 
-  PA stacks: flush against side walls at x = ±9.74, z ≈ -6.5
+  PA stacks: flush against side walls at x = ±9.74, z ≈ −6.5
 
   ── DIRECTIVITY ──────────────────────────────────────────────────────────────
-  Guitar Amp  — cardioid  alpha=0.5, sharpness=1.5  (walk behind → level drops)
-  Drum Kit    — omni      alpha=0.0                  (accurate: kit radiates 360°)
-  Grand Piano — omni      alpha=0.0                  (accurate: open lid is diffuse)
-
-  3D Models (place in same folder as this HTML, or upload via sidebar):
-    guitar_amplifier.glb  · tama_drum_kit.glb  · grand_piano.glb
-
-  Audio files (place in same folder as this HTML, or upload via sidebar):
-    guitar.mp3  · drums.mp3  · piano.mp3
+  Guitar Amp  — wide cardioid  alpha=0.4, sharpness=1.0
+                + omni bass-bleed path: lowpass at 300 Hz, −5 dB
+                (simulates frequency-dependent cabinet radiation — see Section 7
+                of the theory page and the JSDoc for initAudio)
+  Drum Kit    — omni      alpha=0.0  (kit radiates 360° — physically accurate)
+  Grand Piano — omni      alpha=0.0  (open lid is diffuse — physically accurate)
 
   ── ACOUSTIC MODES ──────────────────────────────────────────────────────────
-  DRY  — Recording studio treatment: RT60 ≈ 0.25 s, heavy absorption panels
-  WET  — Small theater stage:        RT60 ≈ 1.10 s, reflective surfaces
+  DRY — Recording studio treatment: fiber-glass insulation on all surfaces
+        Approximated RT60 ≈ 0.25 s  (heavily damped, controlled)
+  WET — Small theater stage: brick walls, parquet floor, acoustic ceiling tiles
+        Approximated RT60 ≈ 1.10 s  (warm, lively, moderately reverberant)
+
+  Room switching is implemented by rebuilding the full ResonanceAudio instance
+  rather than calling setRoomProperties() on a live instance. See rebuildResonance()
+  for the detailed explanation of why this is necessary.
+
+  ── REQUIRED FILES ───────────────────────────────────────────────────────────
+  Audio stems (upload via sidebar or serve from same directory):
+    19_ElecGtr4DI.wav  · drums.wav  · 22_Piano.wav
+    Source: Cambridge MT Multitrack Library — "The Ferryboat Men / Winds of Gypsy Moor"
+
+  3D Models (upload via sidebar or serve from same directory):
+    guitar_amplifier.glb  · tama_drum_kit.glb  · grand_piano.glb
 
   ── 3D MODEL CREDITS ────────────────────────────────────────────────────────
   "Guitar Amplifier" by Lassi Kaukonen — CC BY 4.0  https://skfb.ly/6WpZz
@@ -56,7 +85,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Demo 3: Acoustic Scene — Multimediaprogrammierung</title>
 
-<!-- Three.js ES module import map -->
+<!--
+  ── ES MODULE IMPORT MAP ──────────────────────────────────────────────────────
+  Three.js r165 is distributed as ES modules. An import map tells the browser
+  how to resolve bare specifier strings like 'three' and 'three/addons/' to
+  actual CDN URLs. This allows the module script below (type="module") to use
+  standard import syntax rather than full CDN paths.
+
+  We pin to an EXACT version (0.165.0) rather than a floating tag like @latest.
+  Reason: CDN packages can change behaviour between patch versions, and a
+  floating tag makes the demo non-reproducible. Always pin demo dependencies.
+-->
 <script type="importmap">
 {
   "imports": {
@@ -65,6 +104,24 @@
   }
 }
 </script>
+
+<!--
+  ── THREE.JS MODULE BOOTSTRAP ─────────────────────────────────────────────────
+  ES modules cannot be accessed from classic <script> tags. This module script
+  imports Three.js and its addons, then exposes them on window.* so the main
+  classic script below (which runs in the global scope) can access them.
+
+  Why not write the whole demo as a module? Three reasons:
+    1. Inline onclick="..." handlers on HTML elements need globally scoped functions.
+       Modules are scoped — their exports are not on window by default.
+    2. Keeping UI callbacks global keeps the HTML readable without a full event
+       listener wiring layer.
+    3. This pattern matches the common teaching approach of separating concerns
+       without requiring a build toolchain (Webpack, Vite, etc.).
+
+  window._threeModuleReady is polled by the DOMContentLoaded bootstrap to know
+  when Three.js is available before attempting to use it.
+-->
 <script type="module">
   import * as THREE from 'three';
   import { GLTFLoader }              from 'three/addons/loaders/GLTFLoader.js';
@@ -73,6 +130,8 @@
   import { RenderPass }               from 'three/addons/postprocessing/RenderPass.js';
   import { UnrealBloomPass }          from 'three/addons/postprocessing/UnrealBloomPass.js';
   import { OutputPass }               from 'three/addons/postprocessing/OutputPass.js';
+
+  // Expose to global scope for access from the classic script below
   window.THREE                       = THREE;
   window._GLTFLoader                 = GLTFLoader;
   window._RectAreaLightUniformsLib   = RectAreaLightUniformsLib;
@@ -83,41 +142,91 @@
   window._threeModuleReady           = true;
 </script>
 
+<!-- Google Fonts: IBM Plex Sans (UI body text) + IBM Plex Mono (code/data labels) + JetBrains Mono (numeric readouts) -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 
 <style>
+/* ════════════════════════════════════════════════════════════════════════════
+   RESET
+   A minimal reset that normalises box-sizing across all elements. Using
+   box-sizing: border-box means padding and border are included in an element's
+   stated width/height — avoiding the classic pitfall where adding padding
+   unexpectedly increases the total size of an element.
+   ════════════════════════════════════════════════════════════════════════════ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* ════════════════════════════════════════════════════════════════════════════
+   DESIGN TOKEN SYSTEM  (:root custom properties)
+   All colours, spacing, fonts, and layout constants are defined here as CSS
+   custom properties (variables). This creates a single source of truth — if
+   the accent colour needs to change, one edit here propagates everywhere.
+
+   Naming convention:
+     --bg / --surface / --surface2   Progressive dark backgrounds (darkest → lighter)
+     --border / --border2            Subtle dividers at two levels of emphasis
+     --text / --muted                Body text and de-emphasised text
+     --accent / --accent2            Primary (blue) and secondary (purple) highlights
+     --green / --orange / --red      Semantic status colours
+     --mono / --jb / --sans          Font stack references
+     --panel-*                       Shared floating panel treatment
+     --sidebar-w                     Single-source sidebar width (used in both CSS and JS)
+     --safe-*                        iOS safe-area insets for notch/home-bar avoidance
+   ════════════════════════════════════════════════════════════════════════════ */
 :root {
-  --bg:           #07080d;
-  --surface:      #0f1118;
-  --surface2:     #161b24;
-  --border:       #1e2535;
-  --border2:      #2a3348;
-  --text:         #d8dce6;
-  --muted:        #5a6175;
-  --accent:       #4f9cf9;
-  --accent2:      #a78bfa;
-  --green:        #34d399;
-  --orange:       #fb923c;
-  --red:          #f87171;
-  --yellow:       #fbbf24;
-  --mono:         'IBM Plex Mono', monospace;
-  --jb:           'JetBrains Mono', monospace;
-  --sans:         'IBM Plex Sans', sans-serif;
-  --panel-bg:     rgba(7, 8, 13, 0.90);
-  --panel-border: rgba(255,255,255,0.07);
-  --panel-blur:   20px;
-  --sidebar-w:    308px;
+  /* Backgrounds — a dark blue-grey palette that recedes behind the 3D scene */
+  --bg:           #07080d;   /* Page/canvas background — near-black with blue cast */
+  --surface:      #0f1118;   /* Primary panel background */
+  --surface2:     #161b24;   /* Secondary surface — slightly lighter for contrast */
+  --border:       #1e2535;   /* Subtle divider */
+  --border2:      #2a3348;   /* Slightly more visible divider */
+
+  /* Typography */
+  --text:         #d8dce6;   /* Primary body text — off-white to reduce eye strain */
+  --muted:        #5a6175;   /* Secondary text — labels, metadata */
+
+  /* Accent colours */
+  --accent:       #4f9cf9;   /* Blue — listener position, distances */
+  --accent2:      #a78bfa;   /* Purple — Wet/reverb mode, piano source */
+  --green:        #34d399;   /* Success, start button, loaded state */
+  --orange:       #fb923c;   /* Guitar amp source, RT60 readout */
+  --red:          #f87171;   /* Drum source, mute state, error state */
+  --yellow:       #fbbf24;   /* Solo state */
+
+  /* Font stacks */
+  --mono:         'IBM Plex Mono', monospace;   /* Labels, code, metadata */
+  --jb:           'JetBrains Mono', monospace;  /* Numeric readouts (better digit alignment) */
+  --sans:         'IBM Plex Sans', sans-serif;  /* UI body text */
+
+  /* Floating panel treatment — shared by sidebar, HUD, author panel, nav hint.
+     backdrop-filter: blur() creates a frosted-glass effect by blurring whatever
+     is rendered behind the element. This requires the element's background to
+     have some transparency (rgba / opacity) for the blur to show through. */
+  --panel-bg:     rgba(7, 8, 13, 0.90);        /* 90% opaque — blurred scene bleeds through */
+  --panel-border: rgba(255,255,255,0.07);       /* Barely-visible white border */
+  --panel-blur:   20px;                         /* Blur radius for backdrop-filter */
+
+  /* Layout constants */
+  --sidebar-w:    308px;     /* Sidebar width — also referenced in JS for layout calculations */
+
+  /* iOS safe area insets — env() reads the device's notch/home-bar dimensions.
+     The fallback value (0px) is used on devices without notches (most desktops).
+     Without these, UI elements can be obscured by the iPhone notch or home bar.
+     viewport-fit=cover in the <meta> viewport tag is required to activate these. */
   --safe-top:     env(safe-area-inset-top, 0px);
   --safe-bottom:  env(safe-area-inset-bottom, 0px);
 }
 
+/* ════════════════════════════════════════════════════════════════════════════
+   BASE LAYOUT
+   html and body fill the full viewport with no scroll. The Three.js canvas
+   is position:fixed and covers the entire viewport independently. All UI panels
+   are layered above the canvas using z-index (see the Z-INDEX STACK below).
+   ════════════════════════════════════════════════════════════════════════════ */
 html, body {
   width: 100%; height: 100%;
-  overflow: hidden;
+  overflow: hidden;   /* No page scroll — the 3D scene is the entire experience */
   background: var(--bg);
   color: var(--text);
   font-family: var(--sans);
@@ -125,14 +234,30 @@ html, body {
   line-height: 1.5;
 }
 
+/* ── Z-INDEX STACK (highest to lowest) ───────────────────────────────────────
+   200  Loading overlay    — blocks all interaction while assets load
+   150  Start overlay      — second interaction gate (autoplay policy)
+   11   Sidebar toggle btn — must float above sidebar
+   10   Sidebar, right col, nav hint — primary UI
+   5    Crosshair          — above canvas, below UI panels
+   0    Canvas             — base layer (the 3D scene)
+   ─────────────────────────────────────────────────────────────────────────── */
+
 /* ── Canvas ── */
 #threeCanvas {
   position: fixed; inset: 0; z-index: 0;
-  display: block; cursor: grab;
+  display: block;
+  cursor: grab;      /* Communicates that drag-to-look is available */
 }
-#threeCanvas.grabbing { cursor: grabbing; }
+#threeCanvas.grabbing { cursor: grabbing; }   /* Applied while mouse is held down */
 
-/* ── Loading overlay ── */
+/* ════════════════════════════════════════════════════════════════════════════
+   LOADING OVERLAY
+   Shown while Three.js, Resonance Audio, and asset files are loading.
+   Uses opacity transition for a smooth fade-out when assets are ready.
+   The .hidden class sets opacity:0 and pointer-events:none — the element
+   remains in the DOM but is invisible and non-interactive.
+   ════════════════════════════════════════════════════════════════════════════ */
 #loadingOverlay {
   position: fixed; inset: 0; z-index: 200;
   background: var(--bg);
@@ -144,11 +269,28 @@ html, body {
 .lo-title     { font-family: var(--sans); font-size: clamp(20px,2.5vw,28px); font-weight: 500; color: #f0f2f7; }
 .lo-headphone { font-size: 36px; }
 .lo-sub       { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; max-width: 320px; line-height: 1.6; }
+/* Progress bar track + fill — width of .lo-bar-fill is set via JS (setProgress) */
 .lo-bar-track { width: 220px; height: 2px; background: var(--border2); border-radius: 1px; overflow: hidden; }
 .lo-bar-fill  { height: 100%; width: 0%; background: var(--accent); border-radius: 1px; transition: width 0.3s ease; }
 #loStatus     { font-family: var(--mono); font-size: 11px; color: var(--muted); min-height: 16px; }
 
-/* ── Start overlay ── */
+/* ════════════════════════════════════════════════════════════════════════════
+   START OVERLAY
+   A second gate shown after loading completes. The user must click to dismiss
+   it. This is the AUTOPLAY POLICY interaction gate.
+
+   Browser autoplay policy: modern browsers (Chrome 71+, Firefox, Safari) block
+   AudioContext from producing sound until the user has interacted with the page
+   (a click, tap, or key press). Creating the AudioContext before this interaction
+   is allowed, but calling resume() or starting audio nodes will fail silently.
+
+   The start overlay ensures a user gesture occurs before audio begins. When the
+   user clicks "Start" in the sidebar (or clicks anywhere on this overlay to
+   dismiss it), the click handler creates and resumes the AudioContext.
+
+   The blur backdrop gives a sense of depth — the loaded 3D scene is visible
+   but soft behind the overlay.
+   ════════════════════════════════════════════════════════════════════════════ */
 #startOverlay {
   position: fixed; inset: 0; z-index: 150;
   background: rgba(7,8,13,0.72);
@@ -163,7 +305,20 @@ html, body {
 .so-keys  { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; justify-content: center; }
 .key-badge { font-family: var(--mono); font-size: 11px; color: var(--muted); border: 1px solid var(--border2); border-radius: 4px; padding: 3px 8px; background: var(--surface2); }
 
-/* ── Left sidebar ── */
+/* ════════════════════════════════════════════════════════════════════════════
+   LEFT SIDEBAR
+   The sidebar is a fixed panel on the left edge. It uses flex column layout
+   to stack: header → scrollable content area → (implicit footer via credits).
+
+   .collapsed: a CSS class toggled by toggleSidebar(). The translateX(-100%)
+   transform slides the sidebar off-screen to the left. The transition makes
+   this animate smoothly. The sidebar toggle button position is also animated
+   (left: var(--sidebar-w) when open, left: 0 when collapsed) so it always
+   floats at the visible edge.
+
+   overflow: hidden on #sidebar prevents the scrollbar from appearing during
+   the slide animation.
+   ════════════════════════════════════════════════════════════════════════════ */
 #sidebar {
   position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w);
   z-index: 10;
@@ -177,7 +332,9 @@ html, body {
 }
 #sidebar.collapsed { transform: translateX(-100%); }
 
-/* Sidebar toggle button — floats on left edge */
+/* Sidebar toggle button — floats at the visible left edge of the sidebar.
+   The 'left' transition mirrors the sidebar's translateX animation so the
+   button follows the panel edge smoothly. */
 #sidebarToggle {
   position: fixed; top: 50%; left: 0; transform: translateY(-50%);
   z-index: 11;
@@ -190,9 +347,10 @@ html, body {
   transition: color 0.15s, background 0.15s, left 0.3s ease;
 }
 #sidebarToggle:hover { color: var(--text); background: var(--surface2); }
+/* When sidebar is NOT collapsed, push toggle button to the sidebar's right edge */
 #sidebar:not(.collapsed) ~ #sidebarToggle { left: var(--sidebar-w); }
 
-/* HUD toggle button — sits in rightCol below author panel */
+/* ── HUD toggle — collapses the Room Diagnostics panel ── */
 #hudToggle {
   background: var(--panel-bg); border: 1px solid var(--panel-border);
   backdrop-filter: blur(var(--panel-blur)); -webkit-backdrop-filter: blur(var(--panel-blur));
@@ -204,21 +362,30 @@ html, body {
 }
 #hudToggle:hover { color: var(--text); background: var(--surface2); }
 #hudToggle .ht-chevron { font-size: 11px; transition: transform 0.3s ease; }
+/* Rotate chevron 180° when collapsed — a standard UI convention for expand/collapse */
 #hudToggle.collapsed .ht-chevron { transform: rotate(180deg); }
 
+/* The HUD panel itself uses transform + opacity for the collapse animation.
+   transform-origin: top center means the panel folds toward the toggle button,
+   giving a natural "pull up" feeling. */
 #hud { transition: opacity 0.25s ease, transform 0.25s ease; transform-origin: top center; }
 #hud.collapsed { opacity: 0; pointer-events: none; transform: scaleY(0.92); }
+
+/* ── Sidebar inner structure ── */
 .sb-header { flex-shrink: 0; padding: 16px 18px 12px; border-bottom: 1px solid var(--panel-border); }
 .sb-chapter { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
 .sb-title   { font-family: var(--sans); font-size: 15px; font-weight: 500; color: #f0f2f7; margin-bottom: 2px; }
 .sb-badge   { display: inline-block; font-family: var(--mono); font-size: 10px; color: var(--accent2); background: rgba(167,139,250,0.1); border: 1px solid rgba(167,139,250,0.25); border-radius: 20px; padding: 1px 8px; margin-top: 4px; }
 
+/* #sb-scroll: the scrollable content area.
+   flex: 1 makes it consume all remaining height after the header.
+   scrollbar-width: thin is the Firefox equivalent of webkit scrollbar styling. */
 #sb-scroll  { flex: 1; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
 #sb-scroll::-webkit-scrollbar { width: 4px; }
 #sb-scroll::-webkit-scrollbar-track { background: transparent; }
 #sb-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
 
-/* identity */
+/* ── Sidebar identity block (author info) ── */
 .sb-identity { display: flex; align-items: flex-start; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--panel-border); }
 .sb-identity img { width: 30px; height: 30px; border-radius: 5px; flex-shrink: 0; display: block; margin-top: 2px; }
 .sb-identity-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
@@ -228,11 +395,11 @@ html, body {
 .sb-identity-link { display: inline-flex; align-items: center; gap: 3px; font-family: var(--mono); font-size: 9px; color: var(--accent); text-decoration: none; opacity: 0.8; transition: opacity 0.15s; margin-top: 1px; }
 .sb-identity-link:hover { opacity: 1; }
 
-/* section wrapper */
+/* ── Sidebar section wrapper ── */
 .sb-section { padding: 10px 18px; border-bottom: 1px solid var(--panel-border); }
 .sb-sec-label { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 8px; }
 
-/* playback controls */
+/* ── Playback control buttons ── */
 .sb-row   { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .sb-row:last-child { margin-bottom: 0; }
 .btn-play { display: inline-flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 11px; font-weight: 500; padding: 6px 14px; border-radius: 5px; border: none; cursor: pointer; transition: filter 0.15s, opacity 0.15s; }
@@ -244,7 +411,12 @@ html, body {
 .btn-reset { background: rgba(79,156,249,0.10); color: var(--accent); border: 1px solid rgba(79,156,249,0.25); }
 .btn-reset:hover { background: rgba(79,156,249,0.20); }
 
-/* ── Acoustic mode toggle ── */
+/* ── Acoustic mode toggle ──────────────────────────────────────────────────────
+   Two buttons side by side, sharing a border-radius container.
+   The active button changes background and text colour via modifier classes
+   (.active-dry, .active-wet) set from JS. This avoids needing :checked state
+   on a hidden radio input, keeping the DOM simpler.
+   ────────────────────────────────────────────────────────────────────────── */
 .acoustic-toggle { display: flex; gap: 0; border-radius: 6px; overflow: hidden; border: 1px solid var(--border2); width: 100%; margin-top: 2px; }
 .acoustic-btn {
   flex: 1; font-family: var(--mono); font-size: 11px; font-weight: 500;
@@ -255,18 +427,17 @@ html, body {
 }
 .acoustic-btn .ab-label { font-size: 11px; }
 .acoustic-btn .ab-rt60  { font-size: 9px; opacity: 0.6; }
-.acoustic-btn.active-dry {
-  background: rgba(79,156,249,0.15); color: var(--accent);
-  border-right: 1px solid var(--border2);
-}
+.acoustic-btn.active-dry { background: rgba(79,156,249,0.15); color: var(--accent); border-right: 1px solid var(--border2); }
 .acoustic-btn.active-dry .ab-rt60 { opacity: 1; color: var(--accent); }
-.acoustic-btn.active-wet {
-  background: rgba(167,139,250,0.15); color: var(--accent2);
-  border-left: 1px solid var(--border2);
-}
+.acoustic-btn.active-wet { background: rgba(167,139,250,0.15); color: var(--accent2); border-left: 1px solid var(--border2); }
 .acoustic-btn.active-wet .ab-rt60 { opacity: 1; color: var(--accent2); }
 
-/* upload rows */
+/* ── File upload rows ──────────────────────────────────────────────────────────
+   The upload button uses a <label> wrapping a hidden <input type="file">.
+   Clicking the label triggers the file picker without needing JS. The .loaded
+   modifier class is added from JS (markAudioLoaded / markModelLoaded) once a
+   file has been successfully read into an ArrayBuffer.
+   ─────────────────────────────────────────────────────────────────────────── */
 .upload-row  { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
 .upload-row:last-child { margin-bottom: 0; }
 .upload-icon { font-size: 14px; flex-shrink: 0; }
@@ -281,13 +452,11 @@ html, body {
 .upload-btn.loaded { border-color: var(--green); color: var(--green); }
 .upload-btn input[type=file] { display: none; }
 
-/* file warning banner */
+/* ── Status banner (file load feedback) ── */
 .file-banner {
-  margin-bottom: 8px;
-  padding: 7px 10px;
+  margin-bottom: 8px; padding: 7px 10px;
   background: rgba(248,113,113,0.08);
-  border: 1px solid rgba(248,113,113,0.3);
-  border-left: 3px solid var(--red);
+  border: 1px solid rgba(248,113,113,0.3); border-left: 3px solid var(--red);
   border-radius: 6px;
   font-family: var(--mono); font-size: 10px; color: var(--red); line-height: 1.55;
   display: none;
@@ -295,7 +464,18 @@ html, body {
 .file-banner.visible { display: block; }
 .file-banner.ok { background: rgba(52,211,153,0.07); border-color: rgba(52,211,153,0.3); border-left-color: var(--green); color: var(--green); }
 
-/* ── Sources panel ── */
+/* ════════════════════════════════════════════════════════════════════════════
+   SOURCE ROWS
+   Each audio source has a card in the sidebar showing:
+     • A colour-coded dot (matching the halo in the 3D scene)
+     • Source name and directivity label
+     • A live energy bar (RMS amplitude, updated every animation frame)
+     • Mute, Solo, and Level controls
+
+   .src-muted dims the entire row (opacity: 0.45) when the source is
+   silenced (either muted directly or excluded by another source's solo).
+   .active highlights the nearest source to the listener.
+   ════════════════════════════════════════════════════════════════════════════ */
 .source-row {
   margin-bottom: 8px; padding: 8px 8px 6px;
   border-radius: 6px; background: var(--surface2); border: 1px solid var(--border);
@@ -305,41 +485,44 @@ html, body {
 .source-row.active { border-color: var(--accent2); }
 .source-row.src-muted { opacity: 0.45; }
 
-/* top row: dot + name + dist */
 .src-top { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
 .source-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
 .source-name { font-family: var(--sans); font-size: 11px; color: var(--text); font-weight: 500; flex: 1; }
 .source-sub  { font-family: var(--mono); font-size: 9px; color: var(--muted); margin-bottom: 5px; padding-left: 15px; }
 .source-dist { font-family: var(--jb); font-size: 11px; color: var(--accent); flex-shrink: 0; min-width: 36px; text-align: right; }
 
-/* energy bar */
+/* Energy bar — width driven by JS from AnalyserNode RMS (0–100%) */
 .energy-bar-mini { margin-bottom: 6px; height: 2px; background: var(--border2); border-radius: 1px; overflow: hidden; }
 .energy-bar-mini-fill { height: 100%; width: 0%; border-radius: 1px; transition: width 0.05s linear; }
 
-/* controls row: mute + solo + level */
 .src-controls { display: flex; align-items: center; gap: 5px; }
 
-/* Mute button */
+/* Mute button — .active state uses red to signal silenced */
 .src-mute-btn {
   font-family: var(--mono); font-size: 10px; font-weight: 500;
   padding: 3px 7px; border-radius: 4px; border: 1px solid var(--border2);
-  background: var(--surface2); color: var(--muted); cursor: pointer;
-  transition: all 0.15s; flex-shrink: 0;
+  background: var(--surface2); color: var(--muted); cursor: pointer; transition: all 0.15s; flex-shrink: 0;
 }
 .src-mute-btn:hover { border-color: var(--red); color: var(--red); }
 .src-mute-btn.active { background: rgba(248,113,113,0.15); border-color: var(--red); color: var(--red); }
 
-/* Solo button */
+/* Solo button — .active state uses yellow */
 .src-solo-btn {
   font-family: var(--mono); font-size: 10px; font-weight: 500;
   padding: 3px 7px; border-radius: 4px; border: 1px solid var(--border2);
-  background: var(--surface2); color: var(--muted); cursor: pointer;
-  transition: all 0.15s; flex-shrink: 0;
+  background: var(--surface2); color: var(--muted); cursor: pointer; transition: all 0.15s; flex-shrink: 0;
 }
 .src-solo-btn:hover { border-color: var(--yellow); color: var(--yellow); }
 .src-solo-btn.active { background: rgba(251,191,36,0.15); border-color: var(--yellow); color: var(--yellow); }
 
-/* Level slider */
+/* ── Level slider ──────────────────────────────────────────────────────────────
+   Cross-browser range input styling requires duplicate rules:
+     ::-webkit-slider-thumb  for Chrome/Safari/Edge
+     ::-moz-range-thumb      for Firefox
+   There is no single standard selector that works across all browsers yet.
+   The thumb is styled as a circle. The track (the bar behind the thumb) is
+   styled via the input element itself — a thin line with --border2 background.
+   ─────────────────────────────────────────────────────────────────────────── */
 .src-level-wrap { flex: 1; display: flex; align-items: center; gap: 5px; min-width: 0; }
 .src-level-label { font-family: var(--jb); font-size: 10px; color: var(--muted); flex-shrink: 0; min-width: 30px; text-align: right; }
 .src-level {
@@ -357,7 +540,11 @@ html, body {
   background: var(--accent); border: none; cursor: pointer;
 }
 
-/* ── Right column: author panel + HUD stacked ── */
+/* ════════════════════════════════════════════════════════════════════════════
+   RIGHT COLUMN  (Author panel + HUD toggle + HUD panel)
+   position:fixed keeps this column in the top-right corner regardless of
+   camera movement. gap:8px stacks the three elements with consistent spacing.
+   ════════════════════════════════════════════════════════════════════════════ */
 #rightCol {
   position: fixed; top: calc(16px + var(--safe-top)); right: 16px;
   z-index: 10;
@@ -365,35 +552,22 @@ html, body {
   min-width: 210px;
 }
 
-/* ── Floating author panel ── */
+/* ── Author panel ── */
 #authorPanel {
   background: var(--panel-bg); border: 1px solid var(--panel-border);
   backdrop-filter: blur(var(--panel-blur)); -webkit-backdrop-filter: blur(var(--panel-blur));
   border-radius: 10px; padding: 10px 14px;
   display: flex; align-items: center; gap: 10px;
 }
-#authorPanel img {
-  width: 28px; height: 28px; border-radius: 5px; flex-shrink: 0;
-}
-#authorPanel .ap-text {
-  display: flex; flex-direction: column; gap: 2px; min-width: 0;
-}
-#authorPanel .ap-course {
-  font-family: var(--mono); font-size: 9px; color: var(--muted);
-  text-transform: uppercase; letter-spacing: 0.08em; line-height: 1.4;
-}
-#authorPanel .ap-name {
-  font-family: var(--mono); font-size: 9px; color: var(--muted); line-height: 1.4;
-}
+#authorPanel img { width: 28px; height: 28px; border-radius: 5px; flex-shrink: 0; }
+#authorPanel .ap-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+#authorPanel .ap-course { font-family: var(--mono); font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; line-height: 1.4; }
+#authorPanel .ap-name { font-family: var(--mono); font-size: 9px; color: var(--muted); line-height: 1.4; }
 #authorPanel .ap-name span { color: var(--text); font-weight: 500; }
-#authorPanel .ap-link {
-  display: inline-flex; align-items: center; gap: 3px;
-  font-family: var(--mono); font-size: 9px; color: var(--accent);
-  text-decoration: none; opacity: 0.8; transition: opacity 0.15s;
-}
+#authorPanel .ap-link { display: inline-flex; align-items: center; gap: 3px; font-family: var(--mono); font-size: 9px; color: var(--accent); text-decoration: none; opacity: 0.8; transition: opacity 0.15s; }
 #authorPanel .ap-link:hover { opacity: 1; }
 
-/* ── HUD ── */
+/* ── HUD panel ── */
 #hud {
   background: var(--panel-bg); border: 1px solid var(--panel-border);
   backdrop-filter: blur(var(--panel-blur)); -webkit-backdrop-filter: blur(var(--panel-blur));
@@ -415,12 +589,13 @@ html, body {
 .hud-row-value.green  { color: var(--green); }
 .hud-row-value.orange { color: var(--orange); }
 .hud-row-value.purple { color: var(--accent2); }
+/* RT60 bar — width is set from JS as a percentage of a 2-second scale */
 .rt60-bar-wrap { margin-top: 8px; }
 .rt60-bar-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 5px; display: flex; justify-content: space-between; }
 .rt60-bar-track { width: 100%; height: 4px; background: var(--border2); border-radius: 2px; overflow: hidden; }
 .rt60-bar-fill  { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2), var(--orange)); border-radius: 2px; transition: width 0.5s ease; }
 
-/* acoustic mode chip in HUD */
+/* Acoustic mode chip — badge showing DRY or WET inside the HUD */
 .mode-chip {
   display: inline-flex; align-items: center; gap: 5px;
   font-family: var(--mono); font-size: 10px; padding: 2px 8px;
@@ -429,7 +604,11 @@ html, body {
 .mode-chip.dry { color: var(--accent);  border-color: rgba(79,156,249,0.4); background: rgba(79,156,249,0.08); }
 .mode-chip.wet { color: var(--accent2); border-color: rgba(167,139,250,0.4); background: rgba(167,139,250,0.08); }
 
-/* nav hint */
+/* ════════════════════════════════════════════════════════════════════════════
+   NAV HINT (bottom centre keyboard shortcut bar)
+   Fades out automatically after 7 seconds (class .faded set by JS setTimeout).
+   pointer-events:none means it never blocks mouse interaction with the canvas.
+   ════════════════════════════════════════════════════════════════════════════ */
 #navHint {
   position: fixed; bottom: calc(16px + var(--safe-bottom)); left: 50%; transform: translateX(-50%);
   z-index: 10;
@@ -443,14 +622,14 @@ html, body {
 .hint-key { font-family: var(--mono); font-size: 11px; color: var(--muted); border: 1px solid var(--border2); border-radius: 3px; padding: 2px 6px; background: var(--surface2); }
 .hint-sep { color: var(--muted); font-size: 11px; }
 
-/* crosshair */
+/* ── Crosshair — shown while left-dragging to look ── */
 #crosshair { position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%); z-index: 5; pointer-events: none; opacity: 0; transition: opacity 0.2s; }
 #crosshair.visible { opacity: 1; }
 #crosshair::before, #crosshair::after { content: ''; position: absolute; background: rgba(255,255,255,0.6); }
 #crosshair::before { width: 1px; height: 14px; top: -7px; left: 0; }
 #crosshair::after  { width: 14px; height: 1px; left: -7px; top: 0; }
 
-/* credits */
+/* ── 3D model credits block ── */
 .credits-block { padding: 10px 18px 14px; }
 .credits-title { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px; }
 .credit-item { display: flex; flex-direction: column; gap: 1px; margin-bottom: 7px; }
@@ -461,12 +640,37 @@ html, body {
 .credit-link:hover { opacity: 1; }
 .credit-license { font-family: var(--mono); font-size: 9px; color: var(--green); }
 
+/* Respect user's reduced-motion system preference — disables all transitions */
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 </style>
 </head>
 <body>
 
-<!-- ── Loading overlay ── -->
+<!--
+  ════════════════════════════════════════════════════════════════════════════
+  HTML STRUCTURE OVERVIEW
+  ════════════════════════════════════════════════════════════════════════════
+  The DOM is organised into five layers (by z-index, highest first):
+
+  1. #loadingOverlay    (z:200) — Blocks interaction while Three.js + assets load
+  2. #startOverlay      (z:150) — Autoplay policy gate; must be clicked to start audio
+  3. #threeCanvas       (z:0)   — The Three.js WebGL surface; covers the full viewport
+  4. #crosshair         (z:5)   — Hair-cross shown during left-drag camera look
+  5. #sidebar           (z:10)  — Left panel: playback controls, file uploads, sources
+  6. #sidebarToggle     (z:11)  — Floats at the sidebar's visible edge
+  7. #rightCol          (z:10)  — Author panel, HUD toggle, Room Diagnostics HUD
+  8. #navHint           (z:10)  — Keyboard shortcut hint bar (bottom centre)
+
+  UI panels (#sidebar, #rightCol, #navHint) use position:fixed and sit above
+  the canvas at all times. They do NOT scroll with page content.
+  ════════════════════════════════════════════════════════════════════════════
+-->
+
+<!-- ══ 1. LOADING OVERLAY ═══════════════════════════════════════════════════
+     Shown immediately on page load, before Three.js and assets are ready.
+     Progress is communicated via the #loFill bar width (set by setProgress())
+     and the #loStatus text. Fades out when bootstrap completes.
+     ════════════════════════════════════════════════════════════════════════ -->
 <div id="loadingOverlay">
   <div class="lo-headphone">🎧</div>
   <div class="lo-chapter">Chapter 05 · Google Resonance Audio</div>
@@ -476,7 +680,23 @@ html, body {
   <div class="lo-sub">Best experienced with headphones.<br>Use the Dry / Wet toggle to hear how room acoustics change spatial perception.</div>
 </div>
 
-<!-- ── Start overlay ── -->
+<!-- ══ 2. START OVERLAY ══════════════════════════════════════════════════════
+     A second gate that appears after loading. The user must click anywhere
+     on this overlay (or the Start button in the sidebar) to dismiss it.
+
+     WHY TWO OVERLAYS?
+     The loading overlay waits for libraries and assets — it has nothing to do
+     with audio. The start overlay is specifically the autoplay policy gate:
+     the user's click on "Start" in the sidebar is the user gesture that allows
+     AudioContext.resume() to succeed. If we combined the two overlays and the
+     user clicked through loading before audio was initialised, the click might
+     not reach the AudioContext creation code at the right moment.
+
+     Clicking the overlay itself only dismisses it visually (opacity → 0).
+     Audio does NOT start from this click — the user must press "Start" in the
+     sidebar, which calls startDemo() and creates the AudioContext inside the
+     click handler (satisfying the browser's gesture requirement).
+     ════════════════════════════════════════════════════════════════════════ -->
 <div id="startOverlay" class="hidden">
   <div class="so-icon">🎵</div>
   <div class="so-title">Live Stage — Click to enter</div>
@@ -493,13 +713,24 @@ html, body {
   </div>
 </div>
 
-<!-- ── Three.js canvas ── -->
+<!-- ══ 3. THREE.JS CANVAS ════════════════════════════════════════════════════
+     The WebGL rendering surface. Three.js writes to this element directly.
+     It is position:fixed and covers the full viewport (z-index:0).
+     ════════════════════════════════════════════════════════════════════════ -->
 <canvas id="threeCanvas"></canvas>
+
+<!-- Crosshair: shown only during left-drag (look mode). JS adds .visible class. -->
 <div id="crosshair"></div>
 
-<!-- ══════════════════════════════════════════
-     LEFT SIDEBAR
-══════════════════════════════════════════ -->
+<!-- ══ 4. LEFT SIDEBAR ═══════════════════════════════════════════════════════
+     The main control panel. Contains:
+       • Playback controls (Start / Stop / Reset View)
+       • Room Acoustics toggle (Dry / Wet)
+       • Audio file upload rows (one per instrument stem)
+       • 3D model upload rows (one per GLB model)
+       • Live source panels (distance, energy bar, Mute/Solo/Level)
+       • 3D model and audio credits
+     ════════════════════════════════════════════════════════════════════════ -->
 <div id="sidebar">
 
   <div class="sb-header">
@@ -514,16 +745,21 @@ html, body {
     <div class="sb-section">
       <div class="sb-sec-label">Playback</div>
       <div class="sb-row">
+        <!-- Start is disabled until Three.js + ResonanceAudio libraries are loaded.
+             updateStartReadiness() re-enables it once both are confirmed ready. -->
         <button class="btn-play btn-start" id="btnStart" onclick="startDemo()" disabled>▶ Start</button>
         <button class="btn-play btn-stop"  id="btnStop"  onclick="stopDemo()"  disabled>■ Stop</button>
         <button class="btn-play btn-reset" onclick="resetView()">⌖ Reset View</button>
       </div>
     </div>
 
-    <!-- Acoustic mode -->
+    <!-- Room acoustics toggle -->
     <div class="sb-section">
       <div class="sb-sec-label">Room Acoustics</div>
       <div class="acoustic-toggle">
+        <!-- The active button class (active-dry / active-wet) is set from JS
+             in setAcousticMode(). RT60 values are approximate — computed via
+             the Sabine formula from the material absorption coefficients. -->
         <button class="acoustic-btn active-dry" id="btnDry" onclick="setAcousticMode('dry')">
           <span class="ab-label">🔇 Dry</span>
           <span class="ab-rt60">Studio · RT60 ≈ 0.25 s</span>
@@ -535,7 +771,9 @@ html, body {
       </div>
     </div>
 
-    <!-- Audio file uploads -->
+    <!-- Audio file uploads — one row per instrument stem.
+         Each label wraps a hidden <input type="file"> — clicking the label
+         opens the OS file picker. onchange calls handleAudioUpload(). -->
     <div class="sb-section">
       <div class="sb-sec-label">Audio files</div>
       <div class="file-banner visible" id="audioBanner">⚠ No audio files loaded. Browse or serve via GitHub Pages.</div>
@@ -556,7 +794,7 @@ html, body {
       </div>
     </div>
 
-    <!-- 3D model uploads -->
+    <!-- 3D model uploads — one row per GLB model -->
     <div class="sb-section">
       <div class="sb-sec-label">3D Models</div>
       <div class="file-banner visible" id="modelBanner">⚠ No models loaded. Browse or serve via GitHub Pages.</div>
@@ -577,7 +815,9 @@ html, body {
       </div>
     </div>
 
-    <!-- Live sources -->
+    <!-- Live source panels — one per instrument.
+         Distance, energy bar, and dB label are updated every animation frame.
+         Mute/Solo/Level controls call their respective JS functions. -->
     <div class="sb-section">
       <div class="sb-sec-label">Sources</div>
 
@@ -639,21 +879,18 @@ html, body {
     <!-- 3D Model Credits -->
     <div class="credits-block">
       <div class="credits-title">3D Model Credits</div>
-
       <div class="credit-item">
         <span class="credit-name">Guitar Amplifier</span>
         <span class="credit-author">by Lassi Kaukonen</span>
         <a class="credit-link" href="https://skfb.ly/6WpZz" target="_blank" rel="noopener">skfb.ly/6WpZz</a>
         <span class="credit-license">CC Attribution 4.0</span>
       </div>
-
       <div class="credit-item">
         <span class="credit-name">Tama Drum Kit</span>
         <span class="credit-author">by robcantuart</span>
         <a class="credit-link" href="https://skfb.ly/6rTSX" target="_blank" rel="noopener">skfb.ly/6rTSX</a>
         <span class="credit-license">CC Attribution 4.0</span>
       </div>
-
       <div class="credit-item">
         <span class="credit-name">Grand Piano</span>
         <span class="credit-author">by Chenchanchong</span>
@@ -665,102 +902,75 @@ html, body {
     <!-- Audio Credits -->
     <div class="credits-block">
       <div class="credits-title">Audio Credits</div>
-
       <div class="credit-item">
         <span class="credit-name">The Ferryboat Men</span>
         <span class="credit-author">Winds of Gypsy Moor</span>
         <a class="credit-link" href="https://multitracksearch.cambridge-mt.com/ms-mtk-search.htm" target="_blank" rel="noopener">Cambridge MT Multitrack Library</a>
       </div>
-
-      <div class="credit-item">
-        <span class="credit-name">19_ElecGtr4DI.wav</span>
-        <span class="credit-author">Electric Guitar stem</span>
-      </div>
-
-      <div class="credit-item">
-        <span class="credit-name">drums.wav</span>
-        <span class="credit-author">Drum Kit stem</span>
-      </div>
-
-      <div class="credit-item">
-        <span class="credit-name">22_Piano.wav</span>
-        <span class="credit-author">Grand Piano stem</span>
-      </div>
+      <div class="credit-item"><span class="credit-name">19_ElecGtr4DI.wav</span><span class="credit-author">Electric Guitar stem</span></div>
+      <div class="credit-item"><span class="credit-name">drums.wav</span><span class="credit-author">Drum Kit stem</span></div>
+      <div class="credit-item"><span class="credit-name">22_Piano.wav</span><span class="credit-author">Grand Piano stem</span></div>
     </div>
 
   </div><!-- /#sb-scroll -->
 </div><!-- /#sidebar -->
 
-<!-- Sidebar toggle button -->
+<!-- Sidebar toggle button — floats at the visible edge of the sidebar -->
 <button id="sidebarToggle" onclick="toggleSidebar()" title="Toggle sidebar">‹</button>
 
-<!-- ══════════════════════════════════════════
-     RIGHT COLUMN — author panel + HUD
-══════════════════════════════════════════ -->
+<!-- ══ 5. RIGHT COLUMN ═══════════════════════════════════════════════════════
+     Author panel + collapsible Room Diagnostics HUD.
+     The HUD toggle (#hudToggle) collapses/expands the #hud panel via toggleHud().
+     ════════════════════════════════════════════════════════════════════════ -->
 <div id="rightCol">
 
-<div id="authorPanel">
-  <img src="ams_group_tui.png" alt="AMS Group – TU Ilmenau">
-  <div class="ap-text">
-    <span class="ap-course">Multimediaprogrammierung<br>Technische Universität Ilmenau</span>
-    <span class="ap-name">Demo created by <span>Renato Fera P.</span></span>
-    <a class="ap-link" href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">
-      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
-      LinkedIn
-    </a>
-  </div>
-</div>
-
-<button id="hudToggle" onclick="toggleHud()">
-  <span>Room Diagnostics</span>
-  <span class="ht-chevron">▲</span>
-</button>
-
-<div id="hud">
-  <div class="hud-title">Room Diagnostics</div>
-
-  <div class="hud-metric">
-    <div class="hud-metric-label">Acoustic Mode</div>
-    <div id="hudModeChip" class="mode-chip dry">🔇 Dry — Studio</div>
-  </div>
-
-  <div class="hud-metric">
-    <div class="hud-metric-label">Reverberation Time</div>
-    <span class="hud-metric-value orange" id="hudRT60">0.25</span>
-    <span class="hud-metric-unit">s  RT60</span>
-    <div class="rt60-bar-wrap">
-      <div class="rt60-bar-label"><span>0 s</span><span>2 s</span></div>
-      <div class="rt60-bar-track"><div class="rt60-bar-fill" id="hudRT60Bar" style="width:12.5%"></div></div>
+  <div id="authorPanel">
+    <img src="ams_group_tui.png" alt="AMS Group – TU Ilmenau">
+    <div class="ap-text">
+      <span class="ap-course">Multimediaprogrammierung<br>Technische Universität Ilmenau</span>
+      <span class="ap-name">Demo created by <span>Renato Fera P.</span></span>
+      <a class="ap-link" href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+        LinkedIn
+      </a>
     </div>
   </div>
 
-  <hr class="hud-divider">
+  <button id="hudToggle" onclick="toggleHud()">
+    <span>Room Diagnostics</span>
+    <span class="ht-chevron">▲</span>
+  </button>
 
-  <div class="hud-row">
-    <span class="hud-row-label">Position</span>
-    <span class="hud-row-value accent" id="hudPos">0.0, 0.0</span>
+  <div id="hud">
+    <div class="hud-title">Room Diagnostics</div>
+    <div class="hud-metric">
+      <div class="hud-metric-label">Acoustic Mode</div>
+      <div id="hudModeChip" class="mode-chip dry">🔇 Dry — Studio</div>
+    </div>
+    <div class="hud-metric">
+      <div class="hud-metric-label">Reverberation Time</div>
+      <span class="hud-metric-value orange" id="hudRT60">0.25</span>
+      <span class="hud-metric-unit">s  RT60</span>
+      <!-- RT60 bar: a visual 0–2 s scale. Width = (RT60 / 2) × 100% -->
+      <div class="rt60-bar-wrap">
+        <div class="rt60-bar-label"><span>0 s</span><span>2 s</span></div>
+        <div class="rt60-bar-track"><div class="rt60-bar-fill" id="hudRT60Bar" style="width:12.5%"></div></div>
+      </div>
+    </div>
+    <hr class="hud-divider">
+    <div class="hud-row"><span class="hud-row-label">Position</span><span class="hud-row-value accent" id="hudPos">0.0, 0.0</span></div>
+    <div class="hud-row"><span class="hud-row-label">Azimuth</span><span class="hud-row-value orange" id="hudAz">0°</span></div>
+    <div class="hud-row"><span class="hud-row-label">Nearest source</span><span class="hud-row-value green" id="hudNearest">—</span></div>
+    <div class="hud-row"><span class="hud-row-label">Distance</span><span class="hud-row-value" id="hudNearestDist">— m</span></div>
+    <div class="hud-row"><span class="hud-row-label">Audio ctx</span><span class="hud-row-value" id="hudCtx">inactive</span></div>
   </div>
-  <div class="hud-row">
-    <span class="hud-row-label">Azimuth</span>
-    <span class="hud-row-value orange" id="hudAz">0°</span>
-  </div>
-  <div class="hud-row">
-    <span class="hud-row-label">Nearest source</span>
-    <span class="hud-row-value green" id="hudNearest">—</span>
-  </div>
-  <div class="hud-row">
-    <span class="hud-row-label">Distance</span>
-    <span class="hud-row-value" id="hudNearestDist">— m</span>
-  </div>
-  <div class="hud-row">
-    <span class="hud-row-label">Audio ctx</span>
-    <span class="hud-row-value" id="hudCtx">inactive</span>
-  </div>
-</div>
 
 </div><!-- /#rightCol -->
 
-<!-- nav hint -->
+<!-- ══ 6. NAV HINT (keyboard shortcut bar) ═══════════════════════════════════
+     Fades out after 7 seconds (set by setTimeout in startDemo).
+     pointer-events:none — never blocks canvas interaction.
+     ════════════════════════════════════════════════════════════════════════ -->
 <div id="navHint">
   <span class="hint-key">W A S D</span><span class="hint-sep">move</span>
   <span class="hint-sep">·</span>
@@ -773,36 +983,81 @@ html, body {
   <span class="hint-key">Space</span><span class="hint-sep">start/stop</span>
 </div>
 
-<!-- Resonance Audio -->
+<!--
+  Resonance Audio — loaded as a classic (non-module) script from CDN.
+  'defer' delays execution until the HTML is parsed, but does not block
+  the module script above. The bootstrap poll in DOMContentLoaded waits
+  for typeof ResonanceAudio !== 'undefined' before proceeding.
+-->
 <script defer src="https://cdn.jsdelivr.net/npm/resonance-audio@1.0.0/build/resonance-audio.min.js"></script>
 
-<!-- ══════════════════════════════════════════════════════════════
+<!-- ══════════════════════════════════════════════════════════════════════════
      MAIN SCRIPT
-══════════════════════════════════════════════════════════════ -->
+     All application logic lives here as a single classic (non-module) script
+     so that onclick="..." handlers on HTML elements resolve to global functions.
+
+     Organisation follows the initialisation order (STEP blocks):
+       STEP 1A  Audio file loading (fetch / upload → ArrayBuffer)
+       STEP 1B  3D model loading  (fetch / upload → ArrayBuffer)
+       STEP 1C  GLB model parsing and Three.js scene placement
+       STEP 2   Three.js renderer, camera, scene, navigation
+       STEP 3   Scene geometry — room, stage, furniture, source visuals
+       STEP 4   Audio initialisation — AudioContext, ResonanceAudio, sources
+       STEP 5   Per-source controls — Mute, Solo, Level
+       STEP 6   Acoustic mode switching — rebuildResonance pattern
+       STEP 7   Render / animation loop
+       STEP 8   Start / Stop demo
+       STEP 9   UI helpers
+       STEP 10  Bootstrap (DOMContentLoaded)
+     ══════════════════════════════════════════════════════════════════════════ -->
 <script>
 'use strict';
 
-/*
-  COORDINATE SYSTEM
-  Three.js: X right, Y up, Z toward viewer. One unit = 1 metre.
-  Resonance Audio uses the same convention — no conversion needed.
-
-  Room: 20 m wide × 16 m deep × 5 m high
-  X: [-10 .. +10]   Z: [-15 .. +1]   Y: [0 .. 5]
-  Listener starts at (0, 1.65, -7) looking toward −Z (the stage, drum kit centre).
-*/
-
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // ACOUSTIC MODE DEFINITIONS
-// Two Resonance room presets swapped by the Dry / Wet button.
-// ════════════════════════════════════════════════════════════════
+//
+// Two complete room configurations, each baked into a ResonanceAudio
+// constructor call. Switching between them requires a full instance rebuild —
+// see rebuildResonance() for the detailed explanation.
+//
+// Each mode specifies:
+//   name        Human-readable label shown in the HUD
+//   rt60        Approximate reverberation time in seconds (from Sabine formula)
+//   dimensions  Room geometry { width, height, depth } in metres
+//   materials   Six-wall material preset strings (Resonance Audio SDK keys)
+//
+// MATERIAL CHOICE RATIONALE:
+//
+//   DRY — fiber_glass_insulation on all surfaces.
+//     Absorption coefficients (20–8k Hz):
+//       [0.20, 0.20, 0.20, 0.45, 0.73, 0.86, 0.95, 0.97, 0.97]
+//     This material has high absorption above 250 Hz, simulating thick broadband
+//     acoustic panels. The 'uniform' floor preset (absorption ≈ 0.5 flat) adds
+//     carpet-like damping. Result: RT60 ≈ 0.25 s — a treated recording studio.
+//
+//   WET — mixed theater materials.
+//     brick_bare walls: α ≈ [0.02, 0.02, 0.02, 0.02, 0.03, 0.04, 0.05, 0.05, 0.05]
+//       Nearly spectrally flat and highly reflective — typical of a masonry hall.
+//     parquet_on_concrete floor: α ≈ [0.04, 0.04, 0.04, 0.04, 0.07, 0.06, 0.06, 0.07, 0.07]
+//       Hard wood surface — low absorption across all bands.
+//     acoustic_ceiling_tiles: α ≈ [0.57, 0.57, 0.57, 0.39, 0.41, 0.48, 0.75, 0.70, 0.70]
+//       High absorption, especially at high frequencies — standard in theaters
+//       to control flutter echo from the ceiling without killing the room entirely.
+//     plaster_smooth front/back: α ≈ [0.01, 0.01, 0.01, 0.01, 0.02, 0.02, 0.02, 0.02, 0.02]
+//       Near-zero absorption — smooth plaster is acoustically like glass.
+//     Result: RT60 ≈ 1.10 s — a warm but not overwhelmingly reverberant small theater.
+//
+// NOTE ON WET ROOM DIMENSIONS:
+//   The wet room is intentionally slightly larger (24×7×20 m vs 20×5×16 m) to
+//   simulate a more spacious theater acoustic. Volume is a primary determinant
+//   of RT60 in the Sabine formula: RT60 = 0.161 × V / A. A larger volume with
+//   the same material absorption gives a longer reverb tail.
+// ════════════════════════════════════════════════════════════════════════════
 const ACOUSTIC_MODES = {
   dry: {
     name:       'Studio (Dry)',
     rt60:       0.25,
     dimensions: { width: 20, height: 5, depth: 16 },
-    // Maximum absorption — thick broadband panels everywhere
-    // Web SDK uses kebab-case: 'fiber-glass-insulation', 'uniform'
     materials: {
       left:  'fiber-glass-insulation',
       right: 'fiber-glass-insulation',
@@ -815,10 +1070,7 @@ const ACOUSTIC_MODES = {
   wet: {
     name:       'Theater (Wet)',
     rt60:       1.10,
-    // Mid-size theater — 24×7×20 m, more believable than a sports hall
     dimensions: { width: 24, height: 7, depth: 20 },
-    // Brick side walls + plaster front/back + wood floor + acoustic ceiling
-    // gives a warm, lively but not overwhelming theater reverb
     materials: {
       left:  'brick-bare',
       right: 'brick-bare',
@@ -830,83 +1082,225 @@ const ACOUSTIC_MODES = {
   }
 };
 
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // SOURCE DEFINITIONS
-// pos: world-space [x, y, z] — matches the instrument placement.
-// ════════════════════════════════════════════════════════════════
-// Stage riser surface height — all instruments and props on stage use this as their floor Y.
-// The riser box is 0.30 m tall (a proper performance stage), so its top surface is at 0.30 m.
+//
+// Describes each spatial audio source — its acoustic properties, its position
+// in Three.js world space, and its visual colour.
+//
+// Fields:
+//   key              String identifier used for DOM IDs, buffer keys, model keys
+//   name             Human-readable label shown in the sidebar
+//   pos              [x, y, z] world position in metres
+//   color            Hex colour used for the halo sphere and energy bar
+//   directivity      { alpha, sharpness } passed to setDirectivityPattern()
+//   directivityLabel Human-readable description shown in the sidebar source card
+//   bassBleed        (guitar only) Parameters for the parallel omni LF path
+//                    { cutoff: Hz, gainDb: dB } — see initAudio() for implementation
+//
+// DIRECTIVITY RATIONALE:
+//
+//   Guitar Amp — alpha=0.4 (wide cardioid)
+//     The directivity pattern gain G(θ) is defined as:
+//       G(θ) = (1 − alpha) + alpha × cos(θ)
+//     where θ is the angle between the listener direction and the source's
+//     forward axis (+Z in source-local space).
+//
+//     At α=0.4:
+//       θ=0°  (directly in front):  G = 0.6 + 0.4×1.0  = 1.0  (0 dB)
+//       θ=90° (directly to side):   G = 0.6 + 0.4×0.0  = 0.6  (−4.4 dB)
+//       θ=180° (directly behind):   G = 0.6 + 0.4×(−1) = 0.2  (−14 dB)
+//
+//     A real 1×12 guitar amplifier drops approximately 10–15 dB behind the
+//     cabinet, making α=0.4 a physically reasonable approximation.
+//
+//     The bassBleed path compensates for the frequency-independence limitation
+//     of setDirectivityPattern — see STEP 4 (initAudio) for the implementation.
+//
+//   Drum Kit — alpha=0.0 (omnidirectional)
+//     A drum kit consists of multiple shells, cymbals, and hardware radiating
+//     in many different directions simultaneously. No single directional axis
+//     dominates — the aggregate radiation is effectively omnidirectional.
+//
+//   Grand Piano — alpha=0.0 (omnidirectional)
+//     With the lid open, the piano's sound board radiates upward into the lid
+//     reflector, which scatters energy in a broad, diffuse pattern. The combined
+//     effect at listener distances > 1 m is effectively omnidirectional.
+// ════════════════════════════════════════════════════════════════════════════
+
+/** @constant {number} STAGE_H — Stage riser surface height in metres (y = 0.30 m). */
 const STAGE_H = 0.30;
 
-// Guitar amp stand height — the amp sits on a low road-case style riser on stage.
+/** @constant {number} AMP_STAND_H — Guitar amp road-case stand height in metres. */
 const AMP_STAND_H = 0.30;
 
+/**
+ * @typedef {Object} SourceDef
+ * @property {string}   key              - Identifier ('guitar' | 'drums' | 'piano')
+ * @property {string}   name             - Human-readable name
+ * @property {number[]} pos              - World position [x, y, z] in metres
+ * @property {number}   color            - Hex colour (0xRRGGBB)
+ * @property {{alpha: number, sharpness: number}} directivity - Resonance directivity params
+ * @property {string}   directivityLabel - Sidebar display string
+ * @property {{cutoff: number, gainDb: number}} [bassBleed] - LF bleed path (guitar only)
+ */
+
+/** @type {SourceDef[]} */
 const SOURCE_DEFS = [
-  // directivity: { alpha, sharpness } — set on the Resonance source after init
-  // alpha=0 → omni, alpha=0.5 → cardioid, alpha=1 → hyper-cardioid
-  //
-  // Guitar amp uses a parallel bass-bleed path:
-  //   gainNode → lpFilter (300 Hz) → lpGain → resonanceSrcLF (omni)
-  // Low frequencies diffract around the cabinet and are heard from all angles.
-  // Resonance Audio's directivity model is frequency-independent, so this
-  // second omni source carrying only lows simulates cabinet diffraction.
-  { key: 'guitar', name: 'Guitar Amp',  pos: [-5.0, STAGE_H + AMP_STAND_H,  -9.0], color: 0xfb923c,
-    directivity: { alpha: 0.4, sharpness: 1.0 },  // wide cardioid — audible behind, drops ~6 dB
+  {
+    key:  'guitar',
+    name: 'Guitar Amp',
+    pos:  [-5.0, STAGE_H + AMP_STAND_H, -9.0],
+    color: 0xfb923c,
+    directivity: { alpha: 0.4, sharpness: 1.0 },
     directivityLabel: 'wide cardioid  α=0.4',
-    bassBleed: { cutoff: 300, gainDb: -5 } },      // omni LF bleed: lowpass at 300 Hz, -5 dB
-  { key: 'drums',  name: 'Drum Kit',    pos: [ 0.0, STAGE_H, -11.0], color: 0xf87171,
-    directivity: { alpha: 0.0, sharpness: 1.0 },  // omni — kit radiates 360°
-    directivityLabel: 'omni  α=0.0' },
-  { key: 'piano',  name: 'Grand Piano', pos: [ 5.0, STAGE_H,  -8.0], color: 0xa78bfa,
-    directivity: { alpha: 0.0, sharpness: 1.0 },  // omni — open lid is diffuse
-    directivityLabel: 'omni  α=0.0' }
+    bassBleed: { cutoff: 300, gainDb: -5 }
+  },
+  {
+    key:  'drums',
+    name: 'Drum Kit',
+    pos:  [0.0, STAGE_H, -11.0],
+    color: 0xf87171,
+    directivity: { alpha: 0.0, sharpness: 1.0 },
+    directivityLabel: 'omni  α=0.0'
+  },
+  {
+    key:  'piano',
+    name: 'Grand Piano',
+    pos:  [5.0, STAGE_H, -8.0],
+    color: 0xa78bfa,
+    directivity: { alpha: 0.0, sharpness: 1.0 },
+    directivityLabel: 'omni  α=0.0'
+  }
 ];
 
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // GLOBAL STATE
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+
+/** @type {boolean} True when running from file:// protocol (fetch will fail) */
 const isFileProtocol = location.protocol === 'file:';
 
-// Raw ArrayBuffers for audio — keyed by source key
-const rawAudioBuffers  = { guitar: null, drums: null, piano: null };
-const audioBuffers     = { guitar: null, drums: null, piano: null };
+/**
+ * Raw ArrayBuffers for audio files, keyed by source key.
+ * Stored as raw bytes so they can be decoded into AudioBuffers after the
+ * AudioContext is created. AudioContext.decodeAudioData() consumes the buffer,
+ * so we keep the original and pass a .slice(0) copy each time — see initAudio().
+ * @type {Object.<string, ArrayBuffer|null>}
+ */
+const rawAudioBuffers = { guitar: null, drums: null, piano: null };
 
-// Raw ArrayBuffers for GLB models
-const rawModelBuffers  = { guitar: null, drums: null, piano: null };
+/**
+ * Decoded AudioBuffers — reusable across multiple AudioBufferSourceNode instances.
+ * An AudioBuffer holds the decoded PCM data and can be shared by many source nodes.
+ * @type {Object.<string, AudioBuffer|null>}
+ */
+const audioBuffers = { guitar: null, drums: null, piano: null };
 
+/**
+ * Raw ArrayBuffers for GLB model files, keyed by source key.
+ * Stored so models can be re-parsed if the scene is rebuilt.
+ * @type {Object.<string, ArrayBuffer|null>}
+ */
+const rawModelBuffers = { guitar: null, drums: null, piano: null };
+
+// Three.js scene objects — initialised in initThree() and buildScene()
 let renderer, scene, camera, clock, composer;
-let audioContext  = null;
-let resonanceAudio = null;
-let isRunning     = false;
-let acousticMode  = 'dry';
-let footDisc      = null;   // shadow blob under the listener
 
-// Source runtime: { key, name, pos(THREE.Vector3),
-//                   halo, light,
-//                   resonanceSrc, analyser, dataArray, bufSrc,
-//                   gainNode, levelLinear, muted, soloed,
-//                   resonanceSrcLF, lpFilter, lpGain,   ← bass bleed (guitar only)
-//                   enabled, modelLoaded }
+// Audio objects — initialised in initAudio()
+let audioContext   = null;
+let resonanceAudio = null;
+let isRunning      = false;
+let acousticMode   = 'dry';
+
+/** @type {THREE.Group|null} Shadow blob disc that follows the listener position */
+let footDisc = null;
+
+/**
+ * @typedef {Object} SourceRuntime
+ * @property {string}              key           - 'guitar' | 'drums' | 'piano'
+ * @property {string}              name          - Human-readable name
+ * @property {THREE.Vector3}       pos           - World position (metres)
+ * @property {THREE.Mesh}          halo          - Emissive pulsing sphere in scene
+ * @property {THREE.PointLight}    light         - Co-located point light (drives bloom)
+ * @property {ResonanceAudio.Source|null} resonanceSrc  - Directional Resonance source
+ * @property {AnalyserNode|null}   analyser      - Taps audio signal for RMS readout
+ * @property {Float32Array|null}   dataArray     - Reusable buffer for analyser reads
+ * @property {AudioBufferSourceNode|null} bufSrc - Currently playing source node
+ * @property {GainNode|null}       gainNode      - Level + mute/solo gain control
+ * @property {number}              levelLinear   - Current level as linear gain [0..1]
+ * @property {boolean}             muted         - Whether source is explicitly muted
+ * @property {boolean}             soloed        - Whether source is soloed
+ * @property {ResonanceAudio.Source|null} resonanceSrcLF - Omni LF source (guitar only)
+ * @property {BiquadFilterNode|null} lpFilter    - Lowpass filter for bass bleed (guitar only)
+ * @property {GainNode|null}       lpGain        - Gain trim for bass bleed (guitar only)
+ * @property {boolean}             enabled       - Whether source has audio loaded
+ * @property {boolean}             modelLoaded   - Whether the GLB model has been placed
+ */
+
+/** @type {SourceRuntime[]} Runtime state for all three sources */
 const sources = [];
 
-// Navigation state
+// ── Navigation state ──────────────────────────────────────────────────────────
+/**
+ * Camera navigation state. Euler angles are stored separately from the camera
+ * quaternion so we can apply clamped pitch (avoid gimbal-lock-style flipping)
+ * and pure yaw increments independently.
+ */
 const navState = {
-  euler: null,
-  mouseDown: false, mouseButton: -1,
-  lastX: 0, lastY: 0,
-  keys: {}
+  euler:       null,   // THREE.Euler — updated on mouse drag, applied to camera quaternion
+  mouseDown:   false,
+  mouseButton: -1,     // 0=left (look), 1=middle or 2=right (walk)
+  lastX:       0,
+  lastY:       0,
+  keys:        {}      // keyCode → boolean, set by keydown/keyup
 };
-const LOOK_SENS  = 0.002;
-const PAN_SENS   = 0.008;
-const SCROLL_SPD = 0.012;
-const CAM_EYE_Y  = 1.65;
 
-// Camera bounds for the single room — 0.3 m inset from walls
+/**
+ * Mouse sensitivity for look (left-drag).
+ * Units: radians per pixel. 0.002 rad/px ≈ 0.11°/px — a comfortable default
+ * for desktop. Higher values feel twitchy; lower values feel sluggish.
+ * @constant {number}
+ */
+const LOOK_SENS = 0.002;
+
+/**
+ * Mouse sensitivity for walk (right-drag / middle-drag).
+ * @constant {number}
+ */
+const PAN_SENS = 0.008;
+
+/**
+ * Scroll-wheel walk speed.
+ * Units: metres per pixel of scroll delta. deltaY is in pixels for most mice.
+ * @constant {number}
+ */
+const SCROLL_SPD = 0.012;
+
+/**
+ * Camera eye height in metres.
+ * 1.65 m is the ISO 7250 standing eye-height reference for a 50th-percentile
+ * adult human — the physically correct default for a first-person camera.
+ * @constant {number}
+ */
+const CAM_EYE_Y = 1.65;
+
+/**
+ * Camera world-space bounds. Prevents the listener from walking through walls.
+ * 0.3 m inset from the room walls (which sit at x = ±10, z = −15/+1).
+ * @constant {{ xMin: number, xMax: number, zMin: number, zMax: number }}
+ */
 const CAM_BOUNDS = { xMin: -9.7, xMax: 9.7, zMin: -14.7, zMax: 0.8 };
 
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // STEP 1A: Audio file loading
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Updates the audio file status banner based on how many files are loaded.
+ * Called after every upload or fetch attempt to keep the UI in sync.
+ * @returns {void}
+ */
 function updateAudioBanner() {
   const loaded = Object.values(rawAudioBuffers).filter(v => v !== null).length;
   const banner = document.getElementById('audioBanner');
@@ -923,12 +1317,31 @@ function updateAudioBanner() {
   updateStartReadiness();
 }
 
+/**
+ * Updates the visual state of an upload button to show a file has been loaded.
+ * @param {string} key - Source key ('guitar' | 'drums' | 'piano')
+ * @returns {void}
+ */
 function markAudioLoaded(key) {
   const lbl = document.getElementById('lbl-' + key);
   if (lbl) { lbl.childNodes[0].textContent = '✓ loaded'; lbl.classList.add('loaded'); }
   updateAudioBanner();
 }
 
+/**
+ * Handles a user-uploaded audio file via the file input element.
+ *
+ * Uses FileReader.readAsArrayBuffer() to read the file into memory as a raw
+ * ArrayBuffer. The buffer is stored in rawAudioBuffers[key] for later decoding.
+ *
+ * If the AudioContext already exists (i.e. audio has already been started),
+ * the buffer is decoded immediately and playback is restarted for that source.
+ * This allows hot-swapping audio files while the demo is running.
+ *
+ * @param {Event}  event - The file input change event
+ * @param {string} key   - Source key ('guitar' | 'drums' | 'piano')
+ * @returns {void}
+ */
 function handleAudioUpload(event, key) {
   const file = event.target.files[0]; if (!file) return;
   event.stopPropagation();
@@ -937,8 +1350,13 @@ function handleAudioUpload(event, key) {
     rawAudioBuffers[key] = e.target.result;
     markAudioLoaded(key);
     if (audioContext) {
-      try { audioBuffers[key] = await audioContext.decodeAudioData(rawAudioBuffers[key].slice(0)); }
-      catch(err) { console.warn('[AcousticScene] decode on upload', key, err); }
+      try {
+        // .slice(0) is REQUIRED: decodeAudioData() transfers ownership of the
+        // ArrayBuffer (it is "detached" after the call) and the original becomes
+        // unusable. By passing a copy, we preserve rawAudioBuffers[key] for
+        // future decode calls (e.g. after a stop/start cycle).
+        audioBuffers[key] = await audioContext.decodeAudioData(rawAudioBuffers[key].slice(0));
+      } catch(err) { console.warn('[AcousticScene] decode on upload', key, err); }
       if (isRunning) {
         const src = sources.find(s => s.key === key);
         if (src && audioBuffers[key] && src.enabled) startSourcePlayback(src);
@@ -949,6 +1367,14 @@ function handleAudioUpload(event, key) {
   reader.readAsArrayBuffer(file);
 }
 
+/**
+ * Fetches a single audio file from the server via HTTP GET.
+ * Only called when NOT running from file:// protocol (fetch requires HTTP/S).
+ *
+ * @param {string} key      - Source key ('guitar' | 'drums' | 'piano')
+ * @param {string} filename - Filename to fetch (e.g. '19_ElecGtr4DI.wav')
+ * @returns {Promise<void>}
+ */
 async function fetchOneAudioFile(key, filename) {
   try {
     setProgress(null, `Fetching ${filename}…`);
@@ -961,6 +1387,14 @@ async function fetchOneAudioFile(key, filename) {
   }
 }
 
+/**
+ * Fetches all three audio stem files in parallel using Promise.all().
+ * Parallel fetch is faster than sequential — all three HTTP requests are
+ * in flight simultaneously, and we wait for the slowest one.
+ * Falls back gracefully (no-op) when running from file:// protocol.
+ *
+ * @returns {Promise<void>}
+ */
 async function fetchAllAudioFiles() {
   if (isFileProtocol) { updateAudioBanner(); return; }
   await Promise.all([
@@ -971,9 +1405,14 @@ async function fetchAllAudioFiles() {
   updateAudioBanner();
 }
 
-// ════════════════════════════════════════════════════════════════
-// STEP 1B: 3D model loading
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// STEP 1B: 3D model file loading
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Updates the 3D model status banner based on how many models are loaded.
+ * @returns {void}
+ */
 function updateModelBanner() {
   const loaded = Object.values(rawModelBuffers).filter(v => v !== null).length;
   const banner = document.getElementById('modelBanner');
@@ -989,26 +1428,45 @@ function updateModelBanner() {
   }
 }
 
+/**
+ * Updates the visual state of a model upload button to show a file has been loaded.
+ * @param {string} key - Source key
+ * @returns {void}
+ */
 function markModelLoaded(key) {
   const lbl = document.getElementById('lbl-model-' + key);
   if (lbl) { lbl.childNodes[0].textContent = '✓ loaded'; lbl.classList.add('loaded'); }
   updateModelBanner();
 }
 
-function handleModelUpload(event, key) {
+/**
+ * Handles a user-uploaded GLB model file.
+ * Reads the file into an ArrayBuffer and places the model in the scene
+ * immediately if Three.js is already initialised.
+ *
+ * @param {Event}  event - The file input change event
+ * @param {string} key   - Source key ('guitar' | 'drums' | 'piano')
+ * @returns {Promise<void>}
+ */
+async function handleModelUpload(event, key) {
   const file = event.target.files[0]; if (!file) return;
   event.stopPropagation();
   const reader = new FileReader();
   reader.onload = async e => {
     rawModelBuffers[key] = e.target.result;
     markModelLoaded(key);
-    // If scene is already built, load the model now
     if (scene) await loadAndPlaceModel(key);
     updateModelBanner();
   };
   reader.readAsArrayBuffer(file);
 }
 
+/**
+ * Fetches a single GLB model file from the server.
+ * @param {string} key      - Source key
+ * @param {string} filename - GLB filename to fetch
+ * @returns {Promise<void>}
+ */
 async function fetchOneModelFile(key, filename) {
   try {
     setProgress(null, `Fetching ${filename}…`);
@@ -1021,6 +1479,11 @@ async function fetchOneModelFile(key, filename) {
   }
 }
 
+/**
+ * Fetches all three GLB model files in parallel.
+ * Falls back gracefully (no-op) when running from file:// protocol.
+ * @returns {Promise<void>}
+ */
 async function fetchAllModelFiles() {
   if (isFileProtocol) { updateModelBanner(); return; }
   await Promise.all([
@@ -1031,28 +1494,69 @@ async function fetchAllModelFiles() {
   updateModelBanner();
 }
 
-// ════════════════════════════════════════════════════════════════
-// STEP 1C: Parse and place a GLB model into the scene
-// Called after rawModelBuffers[key] is filled (fetch or upload).
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// STEP 1C: GLB model parsing and Three.js scene placement
+// ════════════════════════════════════════════════════════════════════════════
 
-// Per-model transform overrides — tuned for typical Sketchfab exports.
-// scale is a uniform scalar; rotY is rotation around Y in radians.
-// floorY is the Y position of the surface the model sits on (stage or stand top).
+/**
+ * Per-model transform overrides for auto-scaling and positioning.
+ *
+ * GLB models from Sketchfab come at arbitrary scales. We normalise each model
+ * to a physically believable size using bounding-box analysis.
+ *
+ * Fields:
+ *   targetHeight  The reference dimension in metres to scale the model toward.
+ *                 For most instruments this is the height (Y extent).
+ *   rotY          Y-axis rotation in radians applied after loading.
+ *   floorY        World-space Y coordinate of the surface the model rests on.
+ *   scaleAxis     (optional) 'maxXZ' — scale to the longest horizontal span
+ *                 instead of height. Used for the grand piano, whose dominant
+ *                 physical dimension is length, not height.
+ *
+ * @type {Object.<string, {targetHeight: number, rotY: number, floorY: number, scaleAxis?: string}>}
+ */
 const MODEL_OVERRIDES = {
-  // guitar amp: target height ~0.65 m (realistic 1×12 combo cabinet)
-  // rotY: Math.PI so front speaker grille faces +Z toward the audience (listener at z=-7)
-  // sits on top of the amp stand (STAGE_H + AMP_STAND_H)
+  // Guitar amp: a 1×12 combo cabinet is typically ~0.65 m tall.
+  // rotY=0 keeps the front speaker grille facing the audience (+Z direction).
+  // Sits on top of the amp stand (STAGE_H + AMP_STAND_H = 0.60 m).
   guitar: { targetHeight: 0.65, rotY: 0,            floorY: STAGE_H + AMP_STAND_H },
-  // drums: target height ~1.15 m (snare + rack tom level; hi-hat top at ~1.0 m,
-  //         ride cymbal at ~1.3 m — 1.15 m gives a believable average kit silhouette)
+
+  // Drum kit: 1.65 m targets a believable average kit silhouette height
+  // (snare at ~0.9 m, ride cymbal at ~1.3 m, overhead at ~1.65 m).
   drums:  { targetHeight: 1.65, rotY: 0,            floorY: STAGE_H },
-  // piano: scale by longest horizontal span (~2.1 m for a mid-size grand) rather
-  //         than height, so the instrument reads at proper room scale.
-  //         scaleAxis:'maxXZ' triggers the longest-side logic in loadAndPlaceModel.
+
+  // Grand piano: a mid-size grand is ~2.1 m in length.
+  // scaleAxis:'maxXZ' scales by the longest horizontal dimension rather than
+  // height — a grand piano's distinctive profile is its length, not its height.
+  // rotY: -Math.PI / 2 orients the piano so its keyboard faces the audience.
   piano:  { targetHeight: 2.1,  rotY: -Math.PI / 2, floorY: STAGE_H, scaleAxis: 'maxXZ' }
 };
 
+/**
+ * Parses a GLB ArrayBuffer and places the resulting model into the Three.js scene.
+ *
+ * The placement algorithm:
+ *   1. Parse the GLB using GLTFLoader.parse() (synchronous-ish via Promise).
+ *   2. Compute the bounding box of the loaded model in its original scale.
+ *   3. Compute a uniform scale factor so the reference dimension matches MODEL_OVERRIDES.targetHeight.
+ *   4. Apply Y rotation, then scale.
+ *   5. After scaling, recompute the bounding box to find the NEW bottom Y of the model.
+ *   6. Set model.position.y so that bottom Y lands exactly on floorY.
+ *      model.position.y = floorY − bottomY(after scale)
+ *   7. Enable shadow casting and receiving on all meshes.
+ *   8. Add the model to the scene.
+ *   9. Update the corresponding source's halo and Resonance source position.
+ *
+ * WHY RECOMPUTE BOUNDING BOX AFTER SCALING?
+ * The bounding box is in world space, not model space. Applying scale changes the
+ * world-space extents. Computing bottomY before scaling and then multiplying by
+ * the scale factor would work mathematically, but calling setFromObject() after
+ * applying the transform is simpler and handles non-uniform internal transforms
+ * within the GLB (e.g. a model whose pivot is not at its geometric bottom).
+ *
+ * @param {string} key - Source key ('guitar' | 'drums' | 'piano')
+ * @returns {Promise<void>}
+ */
 async function loadAndPlaceModel(key) {
   const buffer = rawModelBuffers[key];
   if (!buffer || !scene) return;
@@ -1061,70 +1565,57 @@ async function loadAndPlaceModel(key) {
   const loader = new GLTFLoader();
 
   return new Promise((resolve) => {
+    // .slice(0) is used here too — GLTFLoader.parse() may detach the ArrayBuffer
     loader.parse(buffer.slice(0), '', gltf => {
       const model = gltf.scene;
 
-      // Auto-compute bounding box to place model flush on the floor
+      // Step 1: Measure the unscaled bounding box
       const box = new THREE.Box3().setFromObject(model);
       const size = new THREE.Vector3();
       box.getSize(size);
-      const center = new THREE.Vector3();
-      box.getCenter(center);
 
-      // Auto-scale: by default scale so model's Y (height) matches targetHeight.
-      // For the piano (scaleAxis:'maxXZ') we scale by the longest horizontal span
-      // instead — this correctly captures a grand piano's dominant length dimension.
+      // Step 2: Choose the reference dimension for scaling
       const ov = MODEL_OVERRIDES[key];
-      let refDim;
-      if (ov.scaleAxis === 'maxXZ') {
-        refDim = Math.max(size.x, size.z);
-      } else {
-        refDim = size.y;
-      }
-      const autoScale = ov.targetHeight / refDim;
-      const finalScale = autoScale;
+      const refDim = ov.scaleAxis === 'maxXZ'
+        ? Math.max(size.x, size.z)   // grand piano: scale by longest horizontal span
+        : size.y;                    // all others: scale by height
 
+      // Step 3: Compute and apply uniform scale
+      const finalScale = ov.targetHeight / refDim;
       model.scale.setScalar(finalScale);
 
-      // Apply Y rotation
+      // Step 4: Apply Y-axis rotation
       model.rotation.y = ov.rotY;
 
-      // Position: use SOURCE_DEFS pos X/Z, floor the model on its designated surface (floorY).
-      const def = SOURCE_DEFS.find(d => d.key === key);
-      const px = def.pos[0];
-      const pz = def.pos[2];
-
-      // After scaling, recompute bounding box to find the bottom
+      // Step 5: Recompute bounding box AFTER scaling to find the scaled bottom Y
       model.updateMatrixWorld(true);
       const box2 = new THREE.Box3().setFromObject(model);
       const bottomY = box2.min.y;
-      // Place bottom of model exactly on floorY (stage surface or stand top)
-      model.position.set(px, ov.floorY - bottomY, pz);
 
-      // Enable shadows on all meshes
+      // Step 6: Position the model so its bottom sits exactly on floorY
+      const def = SOURCE_DEFS.find(d => d.key === key);
+      model.position.set(def.pos[0], ov.floorY - bottomY, def.pos[2]);
+
+      // Step 7: Enable shadows on all child meshes
       model.traverse(child => {
-        if (child.isMesh) {
-          child.castShadow = true;
-          child.receiveShadow = true;
-        }
+        if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }
       });
 
       scene.add(model);
 
-      // Update source entry
+      // Step 8: Update halo and Resonance source position to model centre
       const src = sources.find(s => s.key === key);
       if (src) {
         src.modelLoaded = true;
-        // Reposition halo and light to model center
         const box3 = new THREE.Box3().setFromObject(model);
         const mc = new THREE.Vector3();
         box3.getCenter(mc);
         src.halo.position.copy(mc);
         src.light.position.copy(mc);
-        // Also update resonance source position if audio is running
         if (src.resonanceSrc) {
           src.halo.updateMatrixWorld();
           src.resonanceSrc.setPosition(mc.x, mc.y, mc.z);
+          if (src.resonanceSrcLF) src.resonanceSrcLF.setPosition(mc.x, mc.y, mc.z);
         }
       }
 
@@ -1137,21 +1628,82 @@ async function loadAndPlaceModel(key) {
   });
 }
 
+/**
+ * Loads all three instrument models sequentially.
+ * Sequential (not parallel) to avoid overloading the parser with large GLBs simultaneously.
+ * @returns {Promise<void>}
+ */
 async function loadAllModels() {
-  const keys = ['guitar', 'drums', 'piano'];
-  for (const key of keys) {
+  for (const key of ['guitar', 'drums', 'piano']) {
     if (rawModelBuffers[key]) await loadAndPlaceModel(key);
   }
 }
 
-// ════════════════════════════════════════════════════════════════
-// STEP 2: Three.js init
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// STEP 2: Three.js renderer, camera, scene, navigation
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Initialises the Three.js WebGL renderer, camera, scene, post-processing
+ * pipeline, and all input event handlers.
+ *
+ * RENDERER SETTINGS:
+ *   antialias: true
+ *     Enables MSAA (multi-sample anti-aliasing) which smooths jagged edges on
+ *     geometry. The GPU cost is roughly 2×–4× fill rate. Acceptable for a
+ *     real-time demo at 1080p; would need LOD strategy for mobile.
+ *
+ *   powerPreference: 'high-performance'
+ *     On laptops with dual GPUs (integrated + discrete), this requests the
+ *     discrete GPU. The GPU must be active anyway for the Three.js scene, so
+ *     there is no power cost penalty for this hint.
+ *
+ *   shadowMap.type: THREE.PCFSoftShadowMap
+ *     PCF (Percentage Closer Filtering) samples the shadow map at multiple
+ *     neighbouring texels and averages the results. This produces soft shadow
+ *     edges rather than the sharp, aliased edges of a standard shadow map.
+ *     The shadow map resolution is set to 2048×2048 on the key directional
+ *     light — a good balance between quality and GPU memory.
+ *
+ *   toneMapping: THREE.ACESFilmicToneMapping
+ *     The scene uses HDR values (lights can be brighter than 1.0). ACES
+ *     (Academy Color Encoding System) filmic tone mapping maps HDR values to
+ *     the [0, 1] display range with an S-curve that preserves highlights and
+ *     shadows, mimicking film response. It is the industry standard for
+ *     physically-based rendering.
+ *
+ *   outputColorSpace: THREE.SRGBColorSpace
+ *     Ensures final rendered colours are encoded in sRGB gamma for correct
+ *     display on standard monitors. Without this, colours appear washed out
+ *     (they are output as linear, but the monitor expects gamma-encoded values).
+ *
+ * POST-PROCESSING (UnrealBloomPass):
+ *   Bloom makes bright emissive objects (the halo spheres) glow, reinforcing
+ *   the visual connection between the pulsing light and the audio energy.
+ *   The pipeline is: RenderPass → UnrealBloomPass → OutputPass.
+ *   - RenderPass renders the scene normally to an internal render target.
+ *   - UnrealBloomPass extracts luminance above a threshold, blurs it into
+ *     a glow, and composites it over the render.
+ *   - OutputPass applies tone mapping and colour space conversion to the
+ *     final composited result for screen output.
+ *
+ * NAVIGATION:
+ *   Left-drag: Euler-based look (yaw + pitch).
+ *     navState.euler is a THREE.Euler with order 'YXZ' — yaw applied first
+ *     (around world Y), then pitch (around local X). This prevents gimbal lock
+ *     when looking straight up or down.
+ *   Right-drag / middle-drag: Strafe and forward/back walk.
+ *   Scroll wheel: Walk forward/backward along camera forward vector (Y=0 projected).
+ *   WASD: Continuous walk at 3 m/s, frame-rate independent via clock.getDelta().
+ *   Space: Toggle Start/Stop.
+ *
+ * @returns {void}
+ */
 function initThree() {
   const canvas = document.getElementById('threeCanvas');
 
   renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // cap at 2× — no perceptible gain above
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
@@ -1164,47 +1716,73 @@ function initThree() {
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x07080d);
+  // FogExp2: exponential fog — density increases with distance.
+  // Coefficient 0.018 gives gentle fog that starts becoming visible at ~40 m.
+  // This softens the room's hard back wall and adds atmosphere.
   scene.fog = new THREE.FogExp2(0x07080d, 0.018);
 
   clock = new THREE.Clock();
 
+  // Initialise RectAreaLight uniforms — required before any RectAreaLights are added
   window._RectAreaLightUniformsLib.init();
+
+  // Post-processing pipeline
   const EC = window._EffectComposer, RP = window._RenderPass,
         BP = window._UnrealBloomPass, OP = window._OutputPass;
-
   composer = new EC(renderer);
   composer.addPass(new RP(scene, camera));
-  composer.addPass(new BP(new THREE.Vector2(window.innerWidth, window.innerHeight), 0.55, 0.4, 0.4));
+  composer.addPass(new BP(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    0.55,  // strength  — total glow intensity
+    0.4,   // radius    — how far the glow spreads in screen space
+    0.4    // threshold — luminance above which bloom activates (0=everything glows, 1=only very bright)
+  ));
   composer.addPass(new OP());
 
-  // Navigation — yaw=0 faces -Z (toward back wall with diffusers); slight downward pitch
+  // Initial camera orientation: slight downward pitch (−0.08 rad ≈ −4.5°) so the
+  // floor is visible in the lower part of the frame — matches natural standing posture.
   navState.euler = new THREE.Euler(-0.08, 0, 0, 'YXZ');
+
+  // ── Input event handlers ──────────────────────────────────────────────────
 
   canvas.addEventListener('contextmenu', e => e.preventDefault());
 
   canvas.addEventListener('mousedown', e => {
     navState.mouseDown = true; navState.mouseButton = e.button;
     navState.lastX = e.clientX; navState.lastY = e.clientY;
-    if (e.button === 0) { canvas.classList.add('grabbing'); document.getElementById('crosshair').classList.add('visible'); }
+    if (e.button === 0) {
+      canvas.classList.add('grabbing');
+      document.getElementById('crosshair').classList.add('visible');
+    }
     if (e.button === 1 || e.button === 2) e.preventDefault();
   });
+
   window.addEventListener('mouseup', e => {
     navState.mouseDown = false;
-    if (e.button === 0) { canvas.classList.remove('grabbing'); document.getElementById('crosshair').classList.remove('visible'); }
+    if (e.button === 0) {
+      canvas.classList.remove('grabbing');
+      document.getElementById('crosshair').classList.remove('visible');
+    }
     navState.mouseButton = -1;
   });
+
   window.addEventListener('mousemove', e => {
     if (!navState.mouseDown) return;
     const dx = e.clientX - navState.lastX, dy = e.clientY - navState.lastY;
     navState.lastX = e.clientX; navState.lastY = e.clientY;
+
     if (navState.mouseButton === 0) {
+      // Left-drag: look (yaw + pitch)
       navState.euler.setFromQuaternion(camera.quaternion);
       navState.euler.y -= dx * LOOK_SENS;
       navState.euler.x -= dy * LOOK_SENS;
-      navState.euler.x = Math.max(-Math.PI/2+0.01, Math.min(Math.PI/2-0.01, navState.euler.x));
+      // Clamp pitch to ±89° to prevent looking past vertical (gimbal-lock-like instability)
+      navState.euler.x = Math.max(-Math.PI/2 + 0.01, Math.min(Math.PI/2 - 0.01, navState.euler.x));
       camera.quaternion.setFromEuler(navState.euler);
     }
+
     if (navState.mouseButton === 1 || navState.mouseButton === 2) {
+      // Right/middle-drag: strafe and walk
       const right = new THREE.Vector3();
       right.crossVectors(camera.getWorldDirection(new THREE.Vector3()), camera.up).normalize();
       camera.position.addScaledVector(right, dx * PAN_SENS);
@@ -1214,6 +1792,7 @@ function initThree() {
       clampCamera();
     }
   });
+
   canvas.addEventListener('wheel', e => {
     e.preventDefault();
     const fwd = new THREE.Vector3();
@@ -1221,15 +1800,17 @@ function initThree() {
     camera.position.addScaledVector(fwd, -e.deltaY * SCROLL_SPD);
     clampCamera();
   }, { passive: false });
+
   window.addEventListener('keydown', e => {
     if (e.code === 'Space') {
-      e.preventDefault(); // prevent page scroll
+      e.preventDefault();
       if (isRunning) stopDemo(); else startDemo();
       return;
     }
     navState.keys[e.code] = true;
   });
   window.addEventListener('keyup', e => { navState.keys[e.code] = false; });
+
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
@@ -1238,6 +1819,11 @@ function initThree() {
   });
 }
 
+/**
+ * Clamps the camera position to the room bounds and locks Y to eye height.
+ * Called after every navigation update that changes camera.position.
+ * @returns {void}
+ */
 function clampCamera() {
   const p = camera.position;
   p.x = Math.max(CAM_BOUNDS.xMin, Math.min(CAM_BOUNDS.xMax, p.x));
@@ -1245,20 +1831,36 @@ function clampCamera() {
   p.y = CAM_EYE_Y;
 }
 
+/**
+ * Resets the camera to its starting position and orientation.
+ * Called by the "Reset View" button in the sidebar.
+ * @returns {void}
+ */
 function resetView() {
   camera.position.set(0, CAM_EYE_Y, 0.5);
-  // Slight downward pitch (-0.08 rad ≈ 4.5°) so the floor is visible ahead —
-  // matches how a person naturally looks when standing still.
   navState.euler = new THREE.Euler(-0.08, 0, 0, 'YXZ');
   camera.quaternion.setFromEuler(navState.euler);
 }
 
-// ════════════════════════════════════════════════════════════════
-// STEP 3: Scene — single live-room / stage
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// STEP 3: Scene — room geometry, furniture, instrument visuals
+// ════════════════════════════════════════════════════════════════════════════
 
-// Procedural texture helpers (all 256×256, no external images)
-function makeTexture(drawFn, repeatU=2, repeatV=2) {
+/**
+ * Creates a 256×256 canvas texture using a draw callback.
+ * All textures are generated procedurally — no image files needed.
+ *
+ * WHY PROCEDURAL TEXTURES?
+ * Procedural textures avoid external file dependencies (no texture loading,
+ * no CORS issues, no CDN hosting). They load instantly and are deterministic.
+ * The trade-off is lower visual fidelity compared to photographic textures.
+ *
+ * @param {function(CanvasRenderingContext2D): void} drawFn - Receives a 2D context; draws the texture
+ * @param {number} [repeatU=2] - How many times the texture repeats along U (horizontal)
+ * @param {number} [repeatV=2] - How many times the texture repeats along V (vertical)
+ * @returns {THREE.CanvasTexture}
+ */
+function makeTexture(drawFn, repeatU = 2, repeatV = 2) {
   const c = document.createElement('canvas'); c.width = c.height = 256;
   drawFn(c.getContext('2d'));
   const t = new THREE.CanvasTexture(c);
@@ -1267,13 +1869,18 @@ function makeTexture(drawFn, repeatU=2, repeatV=2) {
   return t;
 }
 
+/**
+ * Creates a parquet wood floor texture.
+ * Simulates staggered rectangular planks with wood-grain colour variation.
+ * @returns {THREE.CanvasTexture}
+ */
 function texParquet() {
   return makeTexture(ctx => {
-    ctx.fillStyle = '#3a2a18'; ctx.fillRect(0,0,256,256);
+    ctx.fillStyle = '#3a2a18'; ctx.fillRect(0, 0, 256, 256);
     let row = 0;
-    for (let y=0; y<256; y+=10, row++) {
-      for (let x = row%2===0 ? 0 : 20; x<256; x+=40) {
-        const s = 15 + Math.random()*20;
+    for (let y = 0; y < 256; y += 10, row++) {
+      for (let x = row % 2 === 0 ? 0 : 20; x < 256; x += 40) {
+        const s = 15 + Math.random() * 20;
         ctx.fillStyle = `rgb(${55+s},${40+s},${22+s})`;
         ctx.fillRect(x, y, 39, 9);
         ctx.strokeStyle = 'rgba(0,0,0,0.3)'; ctx.lineWidth = 0.5;
@@ -1283,47 +1890,62 @@ function texParquet() {
   }, 4, 4);
 }
 
+/**
+ * Creates a horizontal wood panel wall texture.
+ * Simulates painted wood boards with subtle grain lines.
+ * @returns {THREE.CanvasTexture}
+ */
 function texWoodPanel() {
   return makeTexture(ctx => {
-    ctx.fillStyle = '#2a1f14'; ctx.fillRect(0,0,256,256);
-    for (let i=0; i<24; i++) {
+    ctx.fillStyle = '#2a1f14'; ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 24; i++) {
       const y = i * 10.6;
       ctx.fillStyle = `rgba(${80+i*2},${50+i},${25+i},0.35)`;
       ctx.fillRect(0, y, 256, 10.6);
       ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 0.5;
-      for (let g=0; g<5; g++) {
+      for (let g = 0; g < 5; g++) {
         ctx.beginPath(); ctx.moveTo(Math.random()*256, y);
-        ctx.bezierCurveTo(Math.random()*256,y+3,Math.random()*256,y+7,Math.random()*256,y+10.6);
+        ctx.bezierCurveTo(Math.random()*256, y+3, Math.random()*256, y+7, Math.random()*256, y+10.6);
         ctx.stroke();
       }
     }
   }, 2, 2);
 }
 
+/**
+ * Creates an acoustic foam panel wall texture.
+ * Simulates wedge-pattern acoustic foam tiles (commonly used in recording studios
+ * to control mid-to-high frequency reflections).
+ * @returns {THREE.CanvasTexture}
+ */
 function texAcousticPanel() {
   return makeTexture(ctx => {
-    ctx.fillStyle = '#1a1f28'; ctx.fillRect(0,0,256,256);
-    // Wedge-shaped foam panels pattern
-    for (let tx=0; tx<256; tx+=32) for (let ty=0; ty<256; ty+=32) {
-      ctx.fillStyle = `rgba(30,36,50,0.8)`;
-      ctx.fillRect(tx+2, ty+2, 28, 28);
-      // Diagonal wedge lines
-      ctx.strokeStyle = 'rgba(60,70,90,0.5)'; ctx.lineWidth = 1;
-      for (let d=0; d<4; d++) {
-        ctx.beginPath();
-        ctx.moveTo(tx + d*8, ty);
-        ctx.lineTo(tx, ty + d*8);
-        ctx.stroke();
+    ctx.fillStyle = '#1a1f28'; ctx.fillRect(0, 0, 256, 256);
+    for (let tx = 0; tx < 256; tx += 32) {
+      for (let ty = 0; ty < 256; ty += 32) {
+        ctx.fillStyle = 'rgba(30,36,50,0.8)';
+        ctx.fillRect(tx+2, ty+2, 28, 28);
+        ctx.strokeStyle = 'rgba(60,70,90,0.5)'; ctx.lineWidth = 1;
+        for (let d = 0; d < 4; d++) {
+          ctx.beginPath();
+          ctx.moveTo(tx + d*8, ty);
+          ctx.lineTo(tx, ty + d*8);
+          ctx.stroke();
+        }
       }
     }
   }, 3, 3);
 }
 
+/**
+ * Creates a bare concrete wall texture.
+ * @returns {THREE.CanvasTexture}
+ */
 function texConcrete() {
   return makeTexture(ctx => {
-    ctx.fillStyle = '#1e2028'; ctx.fillRect(0,0,256,256);
-    for (let i=0; i<800; i++) {
-      ctx.fillStyle = `rgba(255,255,255,${0.008+Math.random()*0.018})`;
+    ctx.fillStyle = '#1e2028'; ctx.fillRect(0, 0, 256, 256);
+    for (let i = 0; i < 800; i++) {
+      ctx.fillStyle = `rgba(255,255,255,${0.008 + Math.random()*0.018})`;
       ctx.beginPath();
       ctx.arc(Math.random()*256, Math.random()*256, Math.random()*1.5, 0, Math.PI*2);
       ctx.fill();
@@ -1331,34 +1953,73 @@ function texConcrete() {
   }, 2, 2);
 }
 
+/**
+ * Creates an acoustic ceiling tile texture.
+ * Simulates perforated mineral fibre tiles (high acoustic absorption at mid/high frequencies).
+ * @returns {THREE.CanvasTexture}
+ */
 function texCeiling() {
   return makeTexture(ctx => {
-    ctx.fillStyle = '#181c24'; ctx.fillRect(0,0,256,256);
-    for (let tx=0; tx<256; tx+=40) for (let ty=0; ty<256; ty+=40) {
-      ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.strokeRect(tx+1,ty+1,38,38);
-      for (let d=0; d<60; d++) {
-        ctx.fillStyle = `rgba(255,255,255,${0.006+Math.random()*0.01})`;
-        ctx.fillRect(tx+Math.random()*38, ty+Math.random()*38, 1, 1);
+    ctx.fillStyle = '#181c24'; ctx.fillRect(0, 0, 256, 256);
+    for (let tx = 0; tx < 256; tx += 40) {
+      for (let ty = 0; ty < 256; ty += 40) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.strokeRect(tx+1, ty+1, 38, 38);
+        for (let d = 0; d < 60; d++) {
+          ctx.fillStyle = `rgba(255,255,255,${0.006 + Math.random()*0.01})`;
+          ctx.fillRect(tx + Math.random()*38, ty + Math.random()*38, 1, 1);
+        }
       }
     }
   }, 3, 3);
 }
 
+/**
+ * Creates a MeshStandardMaterial with a procedurally generated texture applied as the colour map.
+ * @param {function(): THREE.CanvasTexture} texFn - Texture factory function
+ * @returns {THREE.MeshStandardMaterial}
+ */
 function matWall(texFn) {
   return new THREE.MeshStandardMaterial({ map: texFn(), roughness: 0.85, metalness: 0 });
 }
 
+/**
+ * Adds a textured plane to the scene.
+ * Used to construct room walls, floor, and ceiling.
+ *
+ * @param {number} w          - Plane width in metres
+ * @param {number} h          - Plane height in metres
+ * @param {THREE.Vector3} pos - World-space centre position
+ * @param {number} rotX       - Rotation around X axis (radians)
+ * @param {number} rotY       - Rotation around Y axis (radians)
+ * @param {THREE.Material} mat - Material to apply
+ * @returns {THREE.Mesh}
+ */
 function addPlane(w, h, pos, rotX, rotY, mat) {
-  const m = new THREE.Mesh(new THREE.PlaneGeometry(w,h), mat);
+  const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
   m.position.copy(pos); m.rotation.set(rotX, rotY, 0);
   m.receiveShadow = true; scene.add(m); return m;
 }
 
-function box(w,h,d,pos,mat) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w,h,d), mat);
+/**
+ * Creates and adds a BoxGeometry mesh to the scene.
+ * Used for furniture, the stage riser, PA stacks, and acoustic panels.
+ *
+ * @param {number} w       - Width (X extent) in metres
+ * @param {number} h       - Height (Y extent) in metres
+ * @param {number} d       - Depth (Z extent) in metres
+ * @param {number[]} pos   - [x, y, z] world position
+ * @param {THREE.Material} mat - Material to apply
+ * @returns {THREE.Mesh}
+ */
+function box(w, h, d, pos, mat) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
   m.position.set(...pos); m.castShadow = m.receiveShadow = true; scene.add(m); return m;
 }
 
+/**
+ * Builds the complete Three.js scene by calling each sub-builder in order.
+ * @returns {void}
+ */
 function buildScene() {
   buildLighting();
   buildRoom();
@@ -1366,41 +2027,60 @@ function buildScene() {
   buildSourceVisuals();
   buildFootDisc();
 
-  // Floor grid — covers the audience floor area (not the stage)
+  // Audience floor grid — visual reference for the flat floor area in front of the stage
   const grid = new THREE.GridHelper(10, 20, 0x1e2535, 0x1e2535);
   grid.material.opacity = 0.25; grid.material.transparent = true;
   grid.position.set(0, 0.002, -2.5);
   scene.add(grid);
 }
 
+/**
+ * Creates the listener foot-shadow disc — a visual indicator of the listener's position.
+ * Two overlapping circles (outer: soft, inner: sharper) simulate a contact shadow.
+ * The disc follows camera.position in the render loop, lifted to stage height when on stage.
+ * @returns {void}
+ */
 function buildFootDisc() {
-  // Soft shadow blob that shows where the listener is standing.
-  // Two discs stacked: a larger diffuse outer ring + a sharper inner spot.
-  const matOuter = new THREE.MeshBasicMaterial({
-    color: 0x000000, transparent: true, opacity: 0.38,
-    depthWrite: false, side: THREE.FrontSide
-  });
-  const matInner = new THREE.MeshBasicMaterial({
-    color: 0x000000, transparent: true, opacity: 0.55,
-    depthWrite: false, side: THREE.FrontSide
-  });
+  const matOuter = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.38, depthWrite: false });
+  const matInner = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.55, depthWrite: false });
   const outer = new THREE.Mesh(new THREE.CircleGeometry(0.28, 32), matOuter);
   const inner = new THREE.Mesh(new THREE.CircleGeometry(0.13, 32), matInner);
-  outer.rotation.x = -Math.PI / 2;
-  inner.rotation.x = -Math.PI / 2;
+  outer.rotation.x = inner.rotation.x = -Math.PI / 2;
 
   footDisc = new THREE.Group();
-  footDisc.add(outer);
-  footDisc.add(inner);
-  footDisc.position.set(0, 0.003, -2);  // start at listener start position
+  footDisc.add(outer); footDisc.add(inner);
+  footDisc.position.set(0, 0.003, 0);
   footDisc.renderOrder = 1;
   scene.add(footDisc);
 }
 
+/**
+ * Builds the scene lighting setup.
+ *
+ * LIGHTING STRATEGY:
+ *   AmbientLight (1.5 intensity) — baseline fill to prevent complete darkness in
+ *     shadowed areas. 1.5 is higher than typical because the dark colour palette
+ *     needs more ambient energy to remain readable.
+ *
+ *   DirectionalLight key (1.0, casts shadows) — the dominant light from above.
+ *     Shadow camera frustum is set to ±16 m to cover the full room.
+ *     shadow.mapSize 2048×2048 gives sharp, clean shadow edges at room scale.
+ *
+ *   DirectionalLight fill (3×, no shadows) — soften the key's harsh shadows from
+ *     three directions: left-back, right-back, front. Low intensity (0.3–0.45)
+ *     to not wash out the key-lit areas.
+ *
+ *   RectAreaLight (per instrument + stage wash + FOH fill) — simulates the
+ *     overhead theatrical lighting rig. RectAreaLight emits from a rectangular
+ *     surface area, producing softer, more realistic stage lighting than point
+ *     spotlights. Requires RectAreaLightUniformsLib.init() to be called first.
+ *
+ * @returns {void}
+ */
 function buildLighting() {
   scene.add(new THREE.AmbientLight(0x1a2030, 1.5));
 
-  // Key light — above centre, casts shadows
+  // Key directional light — casts shadows across the stage
   const key = new THREE.DirectionalLight(0xfff4e0, 1.0);
   key.position.set(4, 10, 2); key.castShadow = true;
   key.shadow.mapSize.set(2048, 2048);
@@ -1409,29 +2089,43 @@ function buildLighting() {
   key.shadow.camera.right = key.shadow.camera.top  =  16;
   scene.add(key);
 
-  const fillL = new THREE.DirectionalLight(0xc8d8ff, 0.45); fillL.position.set(-12, 6, -6);  scene.add(fillL);
-  const fillR = new THREE.DirectionalLight(0xffd8c0, 0.45); fillR.position.set( 12, 6, -6);  scene.add(fillR);
-  const fillB = new THREE.DirectionalLight(0xd0e8ff, 0.30); fillB.position.set(  0, 4,  8);  scene.add(fillB);
+  const fillL = new THREE.DirectionalLight(0xc8d8ff, 0.45); fillL.position.set(-12, 6, -6); scene.add(fillL);
+  const fillR = new THREE.DirectionalLight(0xffd8c0, 0.45); fillR.position.set( 12, 6, -6); scene.add(fillR);
+  const fillB = new THREE.DirectionalLight(0xd0e8ff, 0.30); fillB.position.set(  0, 4,  8); scene.add(fillB);
 
-  // Instrument spot lights — one per source position, warm overhead
-  // lookAt STAGE_H so light aims at stage surface, not through it
+  // Instrument spot lights — one above each source position
   for (const [x, z] of [[-5,-9],[0,-11],[5,-8]]) {
     const rl = new THREE.RectAreaLight(0xffead0, 2.2, 2.0, 1.0);
     rl.position.set(x, 4.85, z); rl.lookAt(x, STAGE_H, z); scene.add(rl);
   }
 
-  // General stage wash (cooler, wide)
+  // General stage wash (wide, cooler) + front-of-house fill
   const wash = new THREE.RectAreaLight(0xd4e8ff, 1.0, 10.0, 1.2);
   wash.position.set(0, 4.85, -9); wash.lookAt(0, 0, -9); scene.add(wash);
 
-  // Front-of-house fill
   const foh = new THREE.RectAreaLight(0xd4e8ff, 0.8, 6.0, 1.0);
   foh.position.set(0, 4.85, -2); foh.lookAt(0, 0, -2); scene.add(foh);
 }
 
+/**
+ * Builds the room shell — six walls (floor, ceiling, four sides).
+ * Also adds the stage riser, its fascia strip, a parquet stage surface,
+ * emissive ceiling light panels above each instrument, and the grid.
+ *
+ * WALL MATERIAL DESIGN:
+ *   Floor   — parquet texture (matches the acoustic 'parquet_on_concrete' material)
+ *   Ceiling — acoustic tile texture (matches 'acoustic_ceiling_tiles')
+ *   Back wall — acoustic foam panels (highest absorption — prevents strong back reflections)
+ *   Front wall — concrete (the audience entry side)
+ *   Side walls — wood panels (warm visual character, medium reflectivity)
+ *
+ * The Three.js material choices intentionally echo the Resonance Audio material
+ * presets — rough/absorbent visual materials pair with absorbent acoustic presets,
+ * smooth/hard visual materials pair with reflective acoustic presets.
+ *
+ * @returns {void}
+ */
 function buildRoom() {
-  // 20 m wide × 16 m deep × 5 m high
-  // X: [-10..+10]  Z: [-15..+1]  Y: [0..5]
   const W=20, H=5, D=16, cx=0, cz=-7;
 
   const floorMat = new THREE.MeshStandardMaterial({ map: texParquet(),      roughness: 0.75, metalness: 0 });
@@ -1440,186 +2134,194 @@ function buildRoom() {
   const wallBack = new THREE.MeshStandardMaterial({ map: texAcousticPanel(), roughness: 0.95, metalness: 0 });
   const wallFront= matWall(texConcrete);
 
-  // Floor & ceiling
   addPlane(W, D, new THREE.Vector3(cx, 0,    cz), -Math.PI/2, 0, floorMat);
   addPlane(W, D, new THREE.Vector3(cx, H,    cz),  Math.PI/2, 0, ceilMat);
-  // Back wall  (Z = -15)
   addPlane(W, H, new THREE.Vector3(cx, H/2, -15), 0, 0, wallBack.clone());
-  // Front wall (Z = +1)
   addPlane(W, H, new THREE.Vector3(cx, H/2,   1), 0, Math.PI, wallFront.clone());
-  // Left wall  (X = -10)
   addPlane(D, H, new THREE.Vector3(-10, H/2, cz), 0,  Math.PI/2, wallWood.clone());
-  // Right wall (X = +10)
   addPlane(D, H, new THREE.Vector3( 10, H/2, cz), 0, -Math.PI/2, wallWood.clone());
 
-  // Emissive ceiling panels above each instrument
-  const panMat = new THREE.MeshStandardMaterial({
-    color: 0xffead0, emissive: new THREE.Color(0xffead0), emissiveIntensity: 0.22
-  });
+  // Emissive ceiling panels — glow above each instrument position
+  const panMat = new THREE.MeshStandardMaterial({ color: 0xffead0, emissive: new THREE.Color(0xffead0), emissiveIntensity: 0.22 });
   for (const [x, z] of [[-5,-9],[0,-11],[5,-8]]) {
     const p = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.0), panMat.clone());
     p.position.set(x, 4.98, z); p.rotation.x = Math.PI/2; scene.add(p);
   }
 
-  // Stage riser — 0.30 m tall, top surface at y = STAGE_H
-  // 16 m wide × 7 m deep, centred at z = -10
-  // Front edge at z = -6.5 (gives listener at z=-7 a clear view from just in front)
-  const riserMat = new THREE.MeshStandardMaterial({ color: 0x120e08, roughness: 0.88, metalness: 0.0 });
-  box(16, STAGE_H, 7, [0, STAGE_H / 2, -10], riserMat);
-
-  // Stage front edge fascia strip
-  const fascMat = new THREE.MeshStandardMaterial({ color: 0x1e170a, roughness: 0.85 });
-  box(16, STAGE_H, 0.06, [0, STAGE_H / 2, -6.47], fascMat);
-
-  // Stage floor surface — parquet on top of riser
-  addPlane(16, 7, new THREE.Vector3(0, STAGE_H + 0.001, -10), -Math.PI/2, 0,
+  // Stage riser (0.30 m tall)
+  box(16, STAGE_H, 7, [0, STAGE_H/2, -10], new THREE.MeshStandardMaterial({ color: 0x120e08, roughness: 0.88 }));
+  // Fascia strip (front edge of stage)
+  box(16, STAGE_H, 0.06, [0, STAGE_H/2, -6.47], new THREE.MeshStandardMaterial({ color: 0x1e170a, roughness: 0.85 }));
+  // Stage floor surface (parquet on top of riser)
+  addPlane(16, 7, new THREE.Vector3(0, STAGE_H+0.001, -10), -Math.PI/2, 0,
     new THREE.MeshStandardMaterial({ map: texParquet(), roughness: 0.65, metalness: 0 }));
 }
 
+/**
+ * Builds all furniture and architectural details:
+ *   • Guitar amp road-case stand
+ *   • DI boxes / cable snakes on stage
+ *   • PA speaker stacks (sub + mid-high, both sides)
+ *   • Lighting rig (truss bars + par cans)
+ *   • Back-wall acoustic diffuser panels
+ *   • Side-wall acoustic treatment panels
+ *
+ * @returns {void}
+ */
 function buildFurniture() {
   const M = c => new THREE.MeshStandardMaterial(c);
 
-  // ── Guitar amp stand ─────────────────────────────────────────────
-  // A solid black road-case style riser: 0.45 m wide × AMP_STAND_H tall × 0.40 m deep
-  // Sits on stage surface (bottom at STAGE_H, top at STAGE_H + AMP_STAND_H)
-  box(0.45, AMP_STAND_H, 0.40,
-    [-5, STAGE_H + AMP_STAND_H / 2, -9],
-    M({color:0x080808, roughness:0.5, metalness:0.3}));
+  // Guitar amp stand — a low road-case style riser
+  box(0.45, AMP_STAND_H, 0.40, [-5, STAGE_H+AMP_STAND_H/2, -9], M({color:0x080808, roughness:0.5, metalness:0.3}));
+  const standGrille = new THREE.Mesh(new THREE.PlaneGeometry(0.38, AMP_STAND_H-0.04), M({color:0x111111, roughness:0.9}));
+  standGrille.position.set(-5, STAGE_H+AMP_STAND_H/2, -9+0.201); scene.add(standGrille);
 
-  // Stand front face grille detail
-  const standGrille = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.38, AMP_STAND_H - 0.04),
-    M({color:0x111111, roughness:0.9})
-  );
-  standGrille.position.set(-5, STAGE_H + AMP_STAND_H / 2, -9 + 0.201);
-  scene.add(standGrille);
-
-  // ── DI boxes / cable snakes on stage floor ───────────────────────
-  const diH = 0.07;
+  // DI boxes and cable snakes on stage floor
   for (const [x, z] of [[-3,-7.5],[-1,-9.8],[2,-8.5],[1,-11.8]]) {
-    box(0.28, diH, 0.18, [x, STAGE_H + diH / 2, z],
-      M({color:0x111820, roughness:0.5, metalness:0.6}));
+    box(0.28, 0.07, 0.18, [x, STAGE_H+0.035, z], M({color:0x111820, roughness:0.5, metalness:0.6}));
   }
 
-  // ── PA speaker stacks — flush against side walls ─────────────────
-  // Walls at x = ±10. Cabinets are 0.52 m deep, so centre at x = ±(10 - 0.26) = ±9.74.
-  // This puts the cabinet back face exactly on the wall with no gap.
-  // Stack: sub (0–1.0 m), mid-high (1.0–2.4 m) — both at z ≈ -6 (front of stage area)
+  // PA speaker stacks — flush against side walls (walls at x = ±10, cabinet depth 0.52 m)
   for (const sx of [-1, 1]) {
-    const cx = sx * 9.74;         // cabinet centre X
-    const face = -sx;             // direction the grille faces (inward)
-    const cz = -6.5;              // Z position along wall
-
-    // Sub-bass cabinet — sits on floor, 1.0 m tall × 0.70 m wide × 0.52 m deep
-    box(0.70, 1.0, 0.52, [cx, 0.50, cz],
-      M({color:0x040406, roughness:0.65, metalness:0.08}));
-    // Sub grille (inward-facing)
-    const subGrille = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.63, 0.94),
-      M({color:0x111118, roughness:0.95})
-    );
-    subGrille.position.set(cx + face * 0.361, 0.50, cz);
-    subGrille.rotation.y = face * Math.PI / 2;
-    scene.add(subGrille);
-
-    // Mid-high cabinet — stacked on sub, 1.4 m tall × 0.60 m wide × 0.52 m deep
-    box(0.60, 1.4, 0.52, [cx, 1.70, cz],
-      M({color:0x060609, roughness:0.60, metalness:0.10}));
-    // Mid-high grille
-    const topGrille = new THREE.Mesh(
-      new THREE.PlaneGeometry(0.53, 1.34),
-      M({color:0x1a1a24, roughness:0.9})
-    );
-    topGrille.position.set(cx + face * 0.361, 1.70, cz);
-    topGrille.rotation.y = face * Math.PI / 2;
-    scene.add(topGrille);
+    const cx = sx * 9.74, face = -sx, cz = -6.5;
+    // Sub-bass cabinet (floor to 1.0 m)
+    box(0.70, 1.0, 0.52, [cx, 0.50, cz], M({color:0x040406, roughness:0.65, metalness:0.08}));
+    const subG = new THREE.Mesh(new THREE.PlaneGeometry(0.63, 0.94), M({color:0x111118, roughness:0.95}));
+    subG.position.set(cx+face*0.361, 0.50, cz); subG.rotation.y = face*Math.PI/2; scene.add(subG);
+    // Mid-high cabinet (stacked on sub, 1.0–2.4 m)
+    box(0.60, 1.4, 0.52, [cx, 1.70, cz], M({color:0x060609, roughness:0.60, metalness:0.10}));
+    const topG = new THREE.Mesh(new THREE.PlaneGeometry(0.53, 1.34), M({color:0x1a1a24, roughness:0.9}));
+    topG.position.set(cx+face*0.361, 1.70, cz); topG.rotation.y = face*Math.PI/2; scene.add(topG);
   }
 
-  // ── Lighting rig — two parallel truss bars spanning the stage ───
+  // Lighting rig — two truss bars with par cans
   const rigMat = M({color:0x303040, roughness:0.3, metalness:0.8});
   for (const z of [-8.0, -11.5]) {
     box(16, 0.07, 0.07, [0, 4.75, z], rigMat);
-    // Par cans every 2 m along the bar
     for (let x = -6; x <= 6; x += 2) {
-      const can = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.10, 0.13, 0.26, 8),
-        M({color:0x202028, roughness:0.3, metalness:0.7})
-      );
+      const can = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.13, 0.26, 8), M({color:0x202028, roughness:0.3, metalness:0.7}));
       can.position.set(x, 4.55, z); scene.add(can);
-      // Emissive lens (facing down)
-      const lens = new THREE.Mesh(
-        new THREE.CircleGeometry(0.08, 8),
-        M({color:0xffd080, emissive: new THREE.Color(0xffd080), emissiveIntensity: 0.45})
-      );
-      lens.position.set(x, 4.42, z); lens.rotation.x = Math.PI / 2; scene.add(lens);
+      const lens = new THREE.Mesh(new THREE.CircleGeometry(0.08, 8), M({color:0xffd080, emissive:new THREE.Color(0xffd080), emissiveIntensity:0.45}));
+      lens.position.set(x, 4.42, z); lens.rotation.x = Math.PI/2; scene.add(lens);
     }
   }
 
-  // ── Back wall acoustic diffusers — flush against back wall (z = -15) ─
-  // Panels: 1.1 m wide × 1.6 m tall × 0.08 m deep.
-  // Back face at z = -15, centre at z = -15 + 0.04 = -14.96
+  // Back wall acoustic diffuser panels (flush against back wall at z = −15)
   for (let i = 0; i < 6; i++) {
-    const px = -7.5 + i * 3;
-    box(1.1, 1.6, 0.08, [px, 2.2, -14.96],
-      M({color:0x1a2030, roughness:0.95}));
+    box(1.1, 1.6, 0.08, [-7.5+i*3, 2.2, -14.96], M({color:0x1a2030, roughness:0.95}));
   }
 
-  // ── Side-wall acoustic panels — flush against side walls (x = ±10) ─
-  // Panels: 1.4 m wide × 1.4 m tall × 0.08 m deep.
-  // Left wall (x=-10): centre at x = -10 + 0.04 = -9.96
-  // Right wall (x=+10): centre at x = 10 - 0.04 = +9.96
-  for (const [cx, z] of [
-    [-9.96, -7.5], [-9.96, -10.5], [-9.96, -13.5],
-    [ 9.96, -7.5], [ 9.96, -10.5], [ 9.96, -13.5]
-  ]) {
-    box(0.08, 1.4, 1.4, [cx, 2.0, z],
-      M({color:0x1c2235, roughness:0.95}));
+  // Side wall acoustic treatment panels
+  for (const [cx, z] of [[-9.96,-7.5],[-9.96,-10.5],[-9.96,-13.5],[9.96,-7.5],[9.96,-10.5],[9.96,-13.5]]) {
+    box(0.08, 1.4, 1.4, [cx, 2.0, z], M({color:0x1c2235, roughness:0.95}));
   }
 }
 
+/**
+ * Creates the visual halo sphere and point light for each audio source.
+ * Also populates the global `sources` array with the initial runtime state.
+ *
+ * The halo sphere:
+ *   - Sits 1 m above the instrument's base position (above the cabinet/kit top)
+ *   - Very low base opacity (0.05) — driven up during audio by the AnalyserNode RMS
+ *   - depthWrite: false prevents z-fighting with nearby geometry
+ *
+ * The point light:
+ *   - Starts at intensity 0 — driven by audio RMS to create pulsing light that
+ *     interacts with the bloom post-processing pass
+ *   - Range: 5 m — localised glow around the instrument
+ *
+ * @returns {void}
+ */
 function buildSourceVisuals() {
   SOURCE_DEFS.forEach(def => {
     const color = new THREE.Color(def.color);
 
-    // Halo sphere — audio energy indicator floating near the instrument
-    // Y is offset +1.0 m above the instrument's base position (which already includes stage height)
     const haloMat  = new THREE.MeshStandardMaterial({ color, transparent:true, opacity:0.05, roughness:1, depthWrite:false });
     const haloMesh = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 16), haloMat);
-    haloMesh.position.set(def.pos[0], def.pos[1] + 1.0, def.pos[2]);
+    haloMesh.position.set(def.pos[0], def.pos[1]+1.0, def.pos[2]);
     scene.add(haloMesh);
 
-    // PointLight — drives bloom from halo
     const light = new THREE.PointLight(color, 0, 5);
     light.position.copy(haloMesh.position);
     scene.add(light);
 
     sources.push({
-      key:         def.key,
-      name:        def.name,
-      pos:         new THREE.Vector3(...def.pos),
-      halo:        haloMesh,
-      light,
-      resonanceSrc: null,
-      analyser:    null,
-      dataArray:   null,
-      bufSrc:      null,
-      gainNode:    null,
-      enabled:     true,
-      muted:       false,
-      soloed:      false,
-      levelLinear: 1.0,
-      modelLoaded: false
+      key: def.key, name: def.name,
+      pos: new THREE.Vector3(...def.pos),
+      halo: haloMesh, light,
+      resonanceSrc: null, resonanceSrcLF: null,
+      lpFilter: null, lpGain: null,
+      analyser: null, dataArray: null, bufSrc: null, gainNode: null,
+      enabled: true, muted: false, soloed: false, levelLinear: 1.0, modelLoaded: false
     });
-
-    // Set toggle button initial state
-    const tog = document.getElementById('tog-' + def.key);
-    if (tog) tog.classList.add('on');
   });
 }
 
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // STEP 4: Audio initialisation
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Creates the AudioContext, decodes audio buffers, and initialises the full
+ * Resonance Audio signal chain for all three sources.
+ *
+ * MUST be called from within a user gesture handler (e.g. a click event).
+ * The browser's autoplay policy will silently prevent AudioContext.resume()
+ * from succeeding if called before a user interaction.
+ *
+ * SIGNAL CHAIN (per source, standard path):
+ *
+ *   AudioBufferSourceNode (looping)
+ *       │
+ *       ▼
+ *   AnalyserNode ──── (RMS read each frame → drives halo opacity and energy bar)
+ *       │
+ *       ▼
+ *   GainNode (levelLinear × mute/solo gain)
+ *       │
+ *       ▼
+ *   resonanceSrc.input (HF directional source — cardioid for guitar, omni for others)
+ *
+ * GUITAR ADDITIONAL BASS BLEED PATH (parallel):
+ *
+ *   GainNode
+ *       │
+ *       ├──▶ resonanceSrc.input        (full-range cardioid)
+ *       │
+ *       └──▶ BiquadFilterNode (lowpass, f_c = 300 Hz)
+ *                 │
+ *                 ▼
+ *            GainNode (lpGain, −5 dB ≈ linear 0.562)
+ *                 │
+ *                 ▼
+ *            resonanceSrcLF.input      (full-range omni)
+ *
+ * WHY THE BASS BLEED PATH?
+ * setDirectivityPattern() applies the same angular gain function at ALL
+ * frequencies. Real speaker cabinets radiate omnidirectionally at low
+ * frequencies (wavelengths larger than the cabinet) and become increasingly
+ * directional above ~300 Hz (onset frequency: f ≈ c / (π × d), where d is
+ * driver diameter ≈ 0.30 m → f ≈ 343 / (π × 0.30) ≈ 364 Hz, rounded to 300 Hz).
+ *
+ * Without the bleed path, a listener behind the guitar amp would hear NO bass
+ * — physically wrong. With the omni LF path, bass energy is heard from all
+ * directions, correctly modelling the diffraction of long wavelengths around
+ * the cabinet.
+ *
+ * The −5 dB trim (linear ≈ 10^(−5/20) = 0.562) on the LF path prevents
+ * excessive bass level at positions directly in front where both paths sum.
+ *
+ * MASTER GAIN NODE:
+ * A persistent GainNode (window._resonanceMasterGain) sits between the
+ * ResonanceAudio output and AudioContext.destination. This node survives
+ * ResonanceAudio instance rebuilds (see rebuildResonance) — it is the stable
+ * connection point to the hardware output, allowing crossfades during room
+ * switching without touching the destination directly.
+ *
+ * @returns {Promise<void>}
+ * @throws {Error} If AudioContext creation or resume fails
+ */
 async function initAudio() {
   if (audioContext) return;
 
@@ -1628,16 +2330,22 @@ async function initAudio() {
   document.getElementById('hudCtx').textContent = 'running';
   document.getElementById('hudCtx').className   = 'hud-row-value green';
 
+  // Decode all available audio files.
+  // .slice(0) copies the ArrayBuffer because decodeAudioData() DETACHES the buffer
+  // it receives — the original ArrayBuffer becomes zero-length after the call.
+  // We preserve rawAudioBuffers[key] for future decode calls (e.g. after stop/start).
   for (const key of Object.keys(rawAudioBuffers)) {
     if (rawAudioBuffers[key]) {
-      try { audioBuffers[key] = await audioContext.decodeAudioData(rawAudioBuffers[key].slice(0)); }
-      catch(e) { console.warn('[AcousticScene] decode', key, e); }
+      try {
+        audioBuffers[key] = await audioContext.decodeAudioData(rawAudioBuffers[key].slice(0));
+      } catch(e) { console.warn('[AcousticScene] decode', key, e); }
     }
   }
 
-  // Resonance Audio — third-order ambisonics
-  // Pass room properties directly to the constructor so they are applied
-  // before the HOARenderer initialises — this is the only reliable moment.
+  // Initialise Resonance Audio — third-order Ambisonics (16 channels).
+  // Room properties are baked into the constructor because setRoomProperties()
+  // on a running instance triggers a full HOARenderer reinit that wipes reverb
+  // state. See rebuildResonance() for the full explanation.
   const initMode = ACOUSTIC_MODES[acousticMode];
   resonanceAudio = new ResonanceAudio(audioContext, {
     ambisonicOrder: 3,
@@ -1645,7 +2353,8 @@ async function initAudio() {
     materials:  initMode.materials
   });
 
-  // Master crossfade gain — sits between Resonance output and destination.
+  // Master gain node — persistent across room rebuilds.
+  // Connects Resonance output to hardware output once; survives rebuildResonance().
   window._resonanceMasterGain = audioContext.createGain();
   window._resonanceMasterGain.gain.value = 1.0;
   resonanceAudio.output.connect(window._resonanceMasterGain);
@@ -1653,42 +2362,85 @@ async function initAudio() {
 
   updateAcousticHUD(acousticMode);
 
+  // Create Resonance source, analyser, and gain chain for each instrument
   for (const src of sources) {
+    // ── Primary (HF directional) Resonance source ──────────────────────────
     src.resonanceSrc = resonanceAudio.createSource();
-
-    // Position: use halo position (which may have been updated by model load)
     const p = src.halo.position;
     src.resonanceSrc.setPosition(p.x, p.y, p.z);
 
-    // Set directivity from SOURCE_DEFS.
-    // CONCEPT: alpha=0 → omnidirectional (uniform in all directions).
-    //          alpha=0.5, sharpness=1.5 → cardioid (level drops behind source).
-    // The pattern lobes toward the source's local +Z axis, which for the guitar
-    // amp (rotY=Math.PI): cardioid cone points toward +Z (audience side) — walk behind to hear the drop.
+    // Apply directivity from SOURCE_DEFS.
+    // G(θ) = (1 − α) + α × cos(θ)
+    // α=0.0 → omnidirectional (G=1 for all θ)
+    // α=0.4 → wide cardioid (G=1 at θ=0°, G=0.2 at θ=180°)
     const def = SOURCE_DEFS.find(d => d.key === src.key);
     if (def?.directivity) {
       src.resonanceSrc.setDirectivityPattern(def.directivity.alpha, def.directivity.sharpness);
     }
 
+    // AnalyserNode — taps the signal for per-frame RMS computation.
+    // fftSize=256 gives 128 frequency bins; we use getFloatTimeDomainData()
+    // for time-domain RMS (amplitude) rather than frequency data.
     src.analyser  = audioContext.createAnalyser();
     src.analyser.fftSize = 256;
     src.dataArray = new Float32Array(src.analyser.frequencyBinCount);
 
-    // Gain node for level control — sits between analyser and resonance input
+    // Main gain node — controls per-source level and mute/solo state.
+    // Sits downstream of the analyser so the analyser always sees the full signal
+    // regardless of level, but the Resonance source receives the attenuated signal.
     src.gainNode = audioContext.createGain();
     src.gainNode.gain.value = src.levelLinear ?? 1.0;
     src.gainNode.connect(src.resonanceSrc.input);
 
+    // ── Bass bleed path (guitar only) ─────────────────────────────────────
+    if (def?.bassBleed) {
+      // Secondary omnidirectional Resonance source — same position as HF source
+      src.resonanceSrcLF = resonanceAudio.createSource();
+      src.resonanceSrcLF.setPosition(p.x, p.y, p.z);
+      src.resonanceSrcLF.setDirectivityPattern(0.0, 1.0); // omni
+
+      // Lowpass filter at the cabinet diffraction crossover frequency.
+      // Type 'lowpass': passes frequencies below f_c, attenuates above.
+      // f_c = 300 Hz ≈ c / (π × d) for a 12-inch driver (d ≈ 0.30 m)
+      src.lpFilter = audioContext.createBiquadFilter();
+      src.lpFilter.type = 'lowpass';
+      src.lpFilter.frequency.value = def.bassBleed.cutoff;
+
+      // Gain trim on the LF path.
+      // gainDb = −5 dB → linear = 10^(−5/20) ≈ 0.562
+      // Prevents excessive bass buildup at front-facing positions where both paths sum.
+      src.lpGain = audioContext.createGain();
+      src.lpGain.gain.value = Math.pow(10, def.bassBleed.gainDb / 20);
+
+      // Wire: gainNode → lpFilter → lpGain → resonanceSrcLF.input
+      src.gainNode.connect(src.lpFilter);
+      src.lpFilter.connect(src.lpGain);
+      src.lpGain.connect(src.resonanceSrcLF.input);
+    }
+
+    // Start playback if audio is available
     if (audioBuffers[src.key] && src.enabled) startSourcePlayback(src);
   }
 }
 
+/**
+ * Creates an AudioBufferSourceNode for a source and starts looped playback.
+ *
+ * AudioBufferSourceNode is SINGLE-USE: once started (or stopped), it cannot
+ * be restarted. A new node must be created for each playback. The underlying
+ * AudioBuffer is reusable at zero cost — only the node is recreated.
+ *
+ * Signal chain wired here: bufSrc → analyser → gainNode → resonanceSrc.input
+ * The analyser and gainNode already exist from initAudio(); only the bufSrc
+ * is recreated each time playback starts.
+ *
+ * @param {SourceRuntime} src - The source runtime object to start
+ * @returns {void}
+ */
 function startSourcePlayback(src) {
   if (src.bufSrc) { try { src.bufSrc.stop(); } catch(_) {} src.bufSrc = null; }
   if (!audioContext || !audioBuffers[src.key] || !src.analyser || !src.gainNode || !src.resonanceSrc) return;
 
-  // Signal chain: bufSrc → analyser → gainNode → resonanceSrc.input
-  // The gainNode handles both the level slider and mute/solo silencing.
   const node = audioContext.createBufferSource();
   node.buffer = audioBuffers[src.key];
   node.loop   = true;
@@ -1699,107 +2451,153 @@ function startSourcePlayback(src) {
   src.bufSrc = node;
 }
 
+/**
+ * Stops playback for a single source and disconnects the analyser from the gain chain.
+ * This silences the source without destroying the GainNode or ResonanceSource,
+ * which allows fast restart without rewiring the graph.
+ *
+ * @param {SourceRuntime} src - The source runtime object to stop
+ * @returns {void}
+ */
 function stopSourcePlayback(src) {
   if (src.bufSrc) { try { src.bufSrc.stop(); } catch(_) {} src.bufSrc = null; }
-  // Disconnect analyser from gain node to silence completely
   if (src.analyser && src.gainNode) {
     try { src.analyser.disconnect(src.gainNode); } catch(_) {}
   }
 }
 
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 // STEP 5: Per-source controls — Mute, Solo, Level
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
 
-// Apply the effective gain for a source, respecting mute and solo state.
-// Called whenever mute, solo, or level changes.
+/**
+ * Computes and applies the effective gain for a source, accounting for mute
+ * and solo state across all sources.
+ *
+ * MUTE/SOLO LOGIC:
+ *   • A source is silenced if explicitly muted (src.muted = true).
+ *   • A source is silenced if ANY other source is soloed and this one is not.
+ *   • If no source is soloed, only explicit mutes take effect.
+ *
+ * Uses GainNode.setTargetAtTime() for smooth gain transitions.
+ *
+ * setTargetAtTime(target, startTime, timeConstant):
+ *   Applies an exponential approach toward 'target' starting at 'startTime'
+ *   with a time constant τ (timeConstant). The value follows:
+ *
+ *     V(t) = target + (V_start − target) × e^(−(t − startTime) / τ)
+ *
+ *   At t = startTime + τ, V ≈ 63.2% of the way to target.
+ *   At t = startTime + 5τ, V ≈ 99.3% of the way to target.
+ *
+ *   With τ = 0.01 s: gain reaches target in ~50 ms — fast enough to feel
+ *   instantaneous for a button click, slow enough to avoid an audible click
+ *   (which occurs when gain changes abruptly mid-sample).
+ *
+ *   WHY NOT DIRECT ASSIGNMENT?
+ *   Direct assignment (gainNode.gain.value = x) causes a discontinuity in the
+ *   audio sample stream, which the DAC renders as a "click" or "pop". Even a
+ *   10 ms ramp is sufficient to avoid audible artefacts.
+ *
+ * @param {SourceRuntime} src - The source to update
+ * @returns {void}
+ */
 function applySourceGain(src) {
   if (!src.gainNode) return;
   const anySolo = sources.some(s => s.soloed);
-  // Silence if: explicitly muted, OR solo is active on another source and this one isn't soloed
   const shouldSilence = src.muted || (anySolo && !src.soloed);
   src.gainNode.gain.setTargetAtTime(
     shouldSilence ? 0 : (src.levelLinear ?? 1.0),
-    audioContext?.currentTime ?? 0, 0.01
+    audioContext?.currentTime ?? 0,
+    0.01   // τ = 10 ms — fast and click-free
   );
-  // Keep visual row dimmed when effectively silent
-  const row = document.getElementById('srcrow-' + src.key);
-  row?.classList.toggle('src-muted', shouldSilence);
+  // Dim the sidebar row visually when silenced
+  document.getElementById('srcrow-'+src.key)?.classList.toggle('src-muted', shouldSilence);
 }
 
+/**
+ * Toggles the mute state of a source.
+ * Mute and solo are mutually exclusive — activating mute clears solo.
+ * Re-evaluates gain on all sources because muting one source does not
+ * affect solo logic on others.
+ *
+ * @param {string} key - Source key ('guitar' | 'drums' | 'piano')
+ * @returns {void}
+ */
 function muteSource(key) {
-  const src = sources.find(s => s.key === key);
-  if (!src) return;
-
+  const src = sources.find(s => s.key === key); if (!src) return;
   src.muted = !src.muted;
-
-  // Mute and solo are mutually exclusive — turning on mute clears solo
   if (src.muted && src.soloed) {
     src.soloed = false;
-    document.getElementById('solo-' + key)?.classList.remove('active');
+    document.getElementById('solo-'+key)?.classList.remove('active');
   }
-
-  document.getElementById('mute-' + key)?.classList.toggle('active', src.muted);
-
-  // Re-evaluate all sources because solo state may have changed
-  if (isRunning) {
-    sources.forEach(s => {
-      applySourceGain(s);
-      if (!s.bufSrc && audioBuffers[s.key] && !s.muted) startSourcePlayback(s);
-      if (s.muted) {
-        s.halo.material.opacity = 0.02;
-        s.light.intensity = 0;
-        document.getElementById('ebar-' + s.key)?.style.setProperty('width', '0%');
-      }
-    });
-  }
+  document.getElementById('mute-'+key)?.classList.toggle('active', src.muted);
+  if (isRunning) sources.forEach(s => applySourceGain(s));
 }
 
+/**
+ * Toggles the solo state of a source.
+ * When any source is soloed, all non-soloed sources are silenced.
+ * Solo and mute are mutually exclusive — activating solo clears mute.
+ *
+ * @param {string} key - Source key ('guitar' | 'drums' | 'piano')
+ * @returns {void}
+ */
 function soloSource(key) {
-  const src = sources.find(s => s.key === key);
-  if (!src) return;
-
+  const src = sources.find(s => s.key === key); if (!src) return;
   src.soloed = !src.soloed;
-
-  // Mute and solo are mutually exclusive — turning on solo clears mute
   if (src.soloed && src.muted) {
     src.muted = false;
-    document.getElementById('mute-' + key)?.classList.remove('active');
+    document.getElementById('mute-'+key)?.classList.remove('active');
   }
-
-  document.getElementById('solo-' + key)?.classList.toggle('active', src.soloed);
-
-  // Re-evaluate gain on all sources — solo affects everyone
-  if (isRunning) {
-    sources.forEach(s => {
-      applySourceGain(s);
-      if (!s.bufSrc && audioBuffers[s.key]) startSourcePlayback(s);
-      const anySolo = sources.some(x => x.soloed);
-      const silent  = s.muted || (anySolo && !s.soloed);
-      if (silent) {
-        s.halo.material.opacity = 0.02;
-        s.light.intensity = 0;
-        document.getElementById('ebar-' + s.key)?.style.setProperty('width', '0%');
-      }
-    });
-  }
+  document.getElementById('solo-'+key)?.classList.toggle('active', src.soloed);
+  if (isRunning) sources.forEach(s => applySourceGain(s));
 }
 
-// Slider oninput handler — slider value 0–100 maps to linear gain 0–1,
-// with a sqrt curve so the mid-point (50) sounds like half-volume (−6 dB).
+/**
+ * Updates the linear gain of a source from the level slider value (0–100).
+ *
+ * PERCEPTUAL LINEARITY — THE SQRT (SQUARE) CURVE:
+ * Human loudness perception follows a roughly logarithmic scale (the decibel scale).
+ * A linear mapping from slider (0–1) to gain (0–1) would make the slider feel
+ * "front-heavy" — most of the perceived loudness change happens in the first
+ * 20% of slider travel.
+ *
+ * We apply a square law: gainLinear = pct²
+ * where pct = slider / 100.
+ *
+ * This means:
+ *   slider = 100 (100%) → pct = 1.0 → gain = 1.0  ( 0 dB)
+ *   slider =  71 ( 71%) → pct = 0.71 → gain ≈ 0.5 (−6 dB)
+ *   slider =  50 ( 50%) → pct = 0.5 → gain = 0.25 (−12 dB)
+ *   slider =  32 ( 32%) → pct = 0.32 → gain ≈ 0.1 (−20 dB)
+ *
+ * In dB: dB = 20 × log₁₀(gain) = 20 × log₁₀(pct²) = 40 × log₁₀(pct)
+ *
+ * This maps the slider's midpoint (50%) to −12 dB — a perceptually reasonable
+ * "half volume" position, distributing the useful gain range more evenly across
+ * the slider travel than a pure linear mapping would.
+ *
+ * A proper audio taper would use an exponential curve (e.g. gain = 10^(pct×dB_range/20)),
+ * but the square approximation is simpler, cheap to compute, and perceptually
+ * convincing for a UI slider.
+ *
+ * @param {string} key   - Source key
+ * @param {number} value - Slider value (0–100)
+ * @returns {void}
+ */
 function setSourceLevel(key, value) {
-  const src = sources.find(s => s.key === key);
-  if (!src) return;
+  const src = sources.find(s => s.key === key); if (!src) return;
 
   const pct = Number(value) / 100;
-  src.levelLinear = pct * pct;  // square for perceptual linearity
+  src.levelLinear = pct * pct; // square law for perceptual linearity
 
-  // Show dB value in the label
-  const lbl = document.getElementById('lvllbl-' + key);
+  const lbl = document.getElementById('lvllbl-'+key);
   if (lbl) {
     if (pct === 0) {
       lbl.textContent = '-∞';
     } else {
+      // Convert linear gain to dB: dB = 20 × log₁₀(gain)
       const db = 20 * Math.log10(src.levelLinear);
       lbl.textContent = (db >= 0 ? '+' : '') + db.toFixed(1) + ' dB';
     }
@@ -1808,12 +2606,20 @@ function setSourceLevel(key, value) {
   if (isRunning) applySourceGain(src);
 }
 
-// ════════════════════════════════════════════════════════════════
-// STEP 6: Acoustic mode switching
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// STEP 6: Acoustic mode switching — rebuildResonance pattern
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Switches between Dry (studio) and Wet (theater) acoustic modes.
+ * Updates button states, the HUD, and triggers a full ResonanceAudio rebuild
+ * if audio is currently running.
+ *
+ * @param {'dry'|'wet'} mode - The target acoustic mode
+ * @returns {void}
+ */
 function setAcousticMode(mode) {
   acousticMode = mode;
-
   document.getElementById('btnDry').className = 'acoustic-btn' + (mode === 'dry' ? ' active-dry' : '');
   document.getElementById('btnWet').className = 'acoustic-btn' + (mode === 'wet' ? ' active-wet' : '');
   updateAcousticHUD(mode);
@@ -1827,22 +2633,53 @@ function setAcousticMode(mode) {
   }
 }
 
-// ── rebuildResonance ────────────────────────────────────────────────────────
-// The Resonance Audio Web SDK does not support live room switching via
-// setRoomProperties — every call triggers a full HOARenderer reinit that
-// wipes the reverb state and sounds identical on both sides of the switch.
-//
-// Solution: keep the BufferSourceNodes playing untouched. Disconnect them
-// from the old ResonanceAudio instance, build a fresh one with the new room,
-// wire everything back in, and crossfade the master gain so the ~200 ms
-// HOARenderer reinit is inaudible.
-// ───────────────────────────────────────────────────────────────────────────
+/**
+ * Performs a crossfaded, glitch-free room switch by rebuilding the entire
+ * ResonanceAudio instance with the new room baked into the constructor.
+ *
+ * PROBLEM: setRoomProperties() ON A RUNNING INSTANCE IS UNRELIABLE
+ * When setRoomProperties() is called on a live ResonanceAudio instance, it
+ * triggers a full reinitialisation of the internal HOA (Higher Order Ambisonics)
+ * renderer. This reinit:
+ *   1. Wipes the existing reverb state (the current FDN — Feedback Delay Network
+ *      — tail is cut abruptly).
+ *   2. Causes the new room to sound identical to the old room for approximately
+ *      200 ms while the FDN re-converges to its steady state.
+ *   3. Produces an audible glitch at the transition point.
+ *
+ * SOLUTION: INSTANCE REBUILD WITH MASTER GAIN CROSSFADE
+ * The fix is to construct a NEW ResonanceAudio instance with the target room
+ * baked in at construction time — the only moment room properties are reliably
+ * applied. The AudioBufferSourceNodes are kept playing throughout (they are
+ * never stopped or disconnected). The transition is masked by fading the master
+ * gain to zero before the rebuild and back to 1.0 after.
+ *
+ * MASTER GAIN NODE LIFETIME:
+ * window._resonanceMasterGain is created once in initAudio() and connects
+ * directly to AudioContext.destination. It survives all rebuilds. This is
+ * critical: connecting/disconnecting from AudioContext.destination directly
+ * during playback causes audible clicks because the DAC stream is interrupted.
+ *
+ * FADE TIMING:
+ * FADE = 0.08 s (80 ms). The setTimeout delay is FADE×1000 + 20 = 100 ms.
+ * The +20 ms safety margin accounts for:
+ *   • The Web Audio API scheduler runs ahead of wall-clock time by ~128 ms
+ *     (one audio buffer); the linearRampToValueAtTime target is scheduled
+ *     accurately, but we wait for real time to pass before disconnecting nodes.
+ *   • Event loop jitter: setTimeout is not guaranteed to fire exactly on time.
+ *   • The HOA renderer takes ~20 ms to initialise after construction.
+ * Without the margin, the disconnect sometimes races with the ramp completion,
+ * causing an audible click on some browsers.
+ *
+ * @param {'dry'|'wet'} mode - The target acoustic mode
+ * @returns {void}
+ */
 function rebuildResonance(mode) {
-  const m           = ACOUSTIC_MODES[mode];
-  const masterGain  = window._resonanceMasterGain;
-  const FADE        = 0.08;   // seconds to fade out / in
+  const m          = ACOUSTIC_MODES[mode];
+  const masterGain = window._resonanceMasterGain;
+  const FADE       = 0.08; // seconds
 
-  // 1. Fade master gain to zero so the reinit is inaudible
+  // 1. Fade master gain to zero — masks the HOA renderer reinit
   const now = audioContext.currentTime;
   if (masterGain) {
     masterGain.gain.cancelScheduledValues(now);
@@ -1850,59 +2687,60 @@ function rebuildResonance(mode) {
     masterGain.gain.linearRampToValueAtTime(0, now + FADE);
   }
 
+  // Wait for fade-out to complete, then rebuild
   setTimeout(() => {
     if (!audioContext || !isRunning) return;
 
-    // 2. Disconnect every source's gainNode from the OLD resonance sources
+    // 2. Disconnect each source's gainNode from the OLD Resonance sources
     sources.forEach(src => {
       if (src.gainNode && src.resonanceSrc) {
         try { src.gainNode.disconnect(src.resonanceSrc.input); } catch(_) {}
       }
+      if (src.gainNode && src.resonanceSrcLF) {
+        try { src.lpGain?.disconnect(src.resonanceSrcLF.input); } catch(_) {}
+      }
     });
 
-    // 3. Disconnect old resonanceAudio output from master gain
+    // 3. Disconnect old Resonance output from master gain
     if (resonanceAudio && masterGain) {
       try { resonanceAudio.output.disconnect(masterGain); } catch(_) {}
     }
 
-    // 4. Build a NEW ResonanceAudio instance with the new room baked in at
-    //    construction time — this is the only moment setRoomProperties is
-    //    reliable, before the HOARenderer has started initialising.
+    // 4. Construct NEW ResonanceAudio with new room baked in at construction time
     resonanceAudio = new ResonanceAudio(audioContext, {
       ambisonicOrder: 3,
       dimensions: m.dimensions,
       materials:  m.materials
     });
 
-    // 5. Wire new output → existing master gain → destination
-    if (masterGain) {
-      resonanceAudio.output.connect(masterGain);
-    } else {
-      resonanceAudio.output.connect(audioContext.destination);
-    }
+    // 5. Wire new Resonance output → existing master gain → destination
+    if (masterGain) resonanceAudio.output.connect(masterGain);
+    else resonanceAudio.output.connect(audioContext.destination);
 
-    // 6. Create new Resonance sources and rewire each gainNode into them
-    //    The BufferSourceNodes keep playing — we never touch them
+    // 6. Create new Resonance sources; rewire each source's gainNode into them.
+    //    AudioBufferSourceNodes keep playing — they are never touched.
     sources.forEach(src => {
-      const newResSrc = resonanceAudio.createSource();
+      const def = SOURCE_DEFS.find(d => d.key === src.key);
 
-      // Restore position and directivity
+      // New HF directional source
+      const newResSrc = resonanceAudio.createSource();
       const p = src.halo.position;
       newResSrc.setPosition(p.x, p.y, p.z);
-      const def = SOURCE_DEFS.find(d => d.key === src.key);
-      if (def?.directivity) {
-        newResSrc.setDirectivityPattern(def.directivity.alpha, def.directivity.sharpness);
-      }
-
-      // Reconnect gainNode → new resonance source input
-      if (src.gainNode) {
-        src.gainNode.connect(newResSrc.input);
-      }
-
+      if (def?.directivity) newResSrc.setDirectivityPattern(def.directivity.alpha, def.directivity.sharpness);
+      if (src.gainNode) src.gainNode.connect(newResSrc.input);
       src.resonanceSrc = newResSrc;
+
+      // New omni LF source (guitar only)
+      if (def?.bassBleed && src.lpGain) {
+        const newResLF = resonanceAudio.createSource();
+        newResLF.setPosition(p.x, p.y, p.z);
+        newResLF.setDirectivityPattern(0.0, 1.0);
+        src.lpGain.connect(newResLF.input);
+        src.resonanceSrcLF = newResLF;
+      }
     });
 
-    // 7. Fade master gain back up
+    // 7. Fade master gain back to 1.0
     const t = audioContext.currentTime;
     if (masterGain) {
       masterGain.gain.cancelScheduledValues(t);
@@ -1910,14 +2748,18 @@ function rebuildResonance(mode) {
       masterGain.gain.linearRampToValueAtTime(1.0, t + FADE);
     }
 
-  }, FADE * 1000 + 20); // wait for fade-out to complete, +20ms safety margin
+  }, FADE * 1000 + 20); // FADE_MS + 20 ms safety margin
 }
 
-function applyAcousticMode(mode) {
-  // Room is now baked into the ResonanceAudio constructor — just update HUD
-  updateAcousticHUD(mode);
-}
-
+/**
+ * Updates the HUD Room Diagnostics panel to reflect the current acoustic mode.
+ * Shows the acoustic mode chip (Dry/Wet), the RT60 value, and the RT60 bar.
+ *
+ * RT60 bar scale: 0–2 s, so width% = (RT60 / 2) × 100.
+ *
+ * @param {'dry'|'wet'} mode - The acoustic mode to display
+ * @returns {void}
+ */
 function updateAcousticHUD(mode) {
   const m = ACOUSTIC_MODES[mode];
   const chip = document.getElementById('hudModeChip');
@@ -1931,69 +2773,136 @@ function updateAcousticHUD(mode) {
   if (bar) bar.style.width = Math.min(100, m.rt60 / 2 * 100) + '%';
 }
 
-// ════════════════════════════════════════════════════════════════
-// STEP 7: Render loop
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// STEP 7: Render / animation loop
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Starts the Three.js render loop using requestAnimationFrame.
+ *
+ * The loop runs the following operations on every frame:
+ *
+ *   1. WASD MOVEMENT
+ *      Computes the camera's forward and right vectors from its current yaw,
+ *      then moves along those vectors at SPEED = 3 m/s × delta.
+ *      Delta is capped at 50 ms to prevent large jumps after tab-switching.
+ *
+ *   2. RESONANCE LISTENER SYNC
+ *      camera.updateMatrixWorld() refreshes the camera's world-space matrix.
+ *      resonanceAudio.setListenerFromMatrix(camera.matrixWorld) writes both
+ *      position and orientation to Resonance in a single call. This is the
+ *      core of the Three.js ↔ Resonance integration — the acoustic listener
+ *      is always co-located with the visual camera.
+ *
+ *   3. PER-SOURCE UPDATE
+ *      For each source:
+ *        a. Compute listener→source distance (Euclidean, 3D).
+ *        b. Update the sidebar distance readout (metres).
+ *        c. Read the AnalyserNode time-domain data (getFloatTimeDomainData).
+ *        d. Compute RMS (Root Mean Square) amplitude from the sample buffer:
+ *
+ *             RMS = √( (1/N) × Σ x[n]² )
+ *
+ *           RMS is the correct measure of signal energy for audio. Peak amplitude
+ *           (max|x[n]|) would be more reactive but less perceptually meaningful
+ *           for driving a visual meter.
+ *        e. Drive halo opacity and point light intensity from RMS.
+ *        f. Drive the energy bar width (clamped to 0–100%).
+ *
+ *   4. FOOT DISC
+ *      The shadow disc tracks camera X/Z, lifted to STAGE_H when on stage.
+ *      "On stage" detection: z < −6.5 (behind the stage front edge) and
+ *      x within [−8, +8] (within the stage width).
+ *
+ *   5. HUD UPDATE
+ *      Position (X, Z in metres), azimuth (yaw in degrees, 0–360°), and
+ *      nearest source name + distance.
+ *
+ *   6. RENDER
+ *      composer.render() runs the full post-processing pipeline:
+ *      RenderPass → UnrealBloomPass → OutputPass.
+ *
+ * @returns {void}
+ */
 function startRenderLoop() {
   function loop() {
     requestAnimationFrame(loop);
+    // Cap delta at 50 ms to avoid large jumps after tab-switching or GC pauses
     const delta = Math.min(clock.getDelta(), 0.05);
 
-    // WASD movement
+    // 1. WASD movement — compute forward/right from camera yaw
     if (navState.euler) {
-      const speed = 3.0 * delta;
+      const speed = 3.0 * delta;      // 3 m/s × frame time = metres this frame
       const yaw   = navState.euler.y || 0;
-      const fwdX  = -Math.sin(yaw), fwdZ = -Math.cos(yaw);
-      const rigX  =  Math.cos(yaw), rigZ = -Math.sin(yaw);
-      let mx=0, mz=0;
-      if (navState.keys['KeyW']  || navState.keys['ArrowUp'])    { mx+=fwdX; mz+=fwdZ; }
-      if (navState.keys['KeyS']  || navState.keys['ArrowDown'])  { mx-=fwdX; mz-=fwdZ; }
-      if (navState.keys['KeyA']  || navState.keys['ArrowLeft'])  { mx-=rigX; mz-=rigZ; }
-      if (navState.keys['KeyD']  || navState.keys['ArrowRight']) { mx+=rigX; mz+=rigZ; }
-      if (mx||mz) { camera.position.x += mx*speed; camera.position.z += mz*speed; clampCamera(); }
+      // Forward vector components for the current yaw angle:
+      //   fwdX = −sin(yaw),  fwdZ = −cos(yaw)   (into the screen is −Z)
+      // Right vector (perpendicular, 90° clockwise):
+      //   rigX = cos(yaw),   rigZ = −sin(yaw)
+      const fwdX = -Math.sin(yaw), fwdZ = -Math.cos(yaw);
+      const rigX =  Math.cos(yaw), rigZ = -Math.sin(yaw);
+      let mx = 0, mz = 0;
+      if (navState.keys['KeyW']  || navState.keys['ArrowUp'])    { mx += fwdX; mz += fwdZ; }
+      if (navState.keys['KeyS']  || navState.keys['ArrowDown'])  { mx -= fwdX; mz -= fwdZ; }
+      if (navState.keys['KeyA']  || navState.keys['ArrowLeft'])  { mx -= rigX; mz -= rigZ; }
+      if (navState.keys['KeyD']  || navState.keys['ArrowRight']) { mx += rigX; mz += rigZ; }
+      if (mx || mz) { camera.position.x += mx*speed; camera.position.z += mz*speed; clampCamera(); }
     }
 
-    // Sync Resonance listener with camera
+    // 2. Sync Resonance listener with camera
     camera.updateMatrixWorld();
     if (resonanceAudio) resonanceAudio.setListenerFromMatrix(camera.matrixWorld);
 
-    // Per-source: energy readout + visual update
+    // 3. Per-source: energy readout + visual update
     let nearestDist = Infinity, nearestSrc = null;
     sources.forEach(src => {
+      // 3a. Distance from camera to source origin (3D Euclidean)
       const dist = camera.position.distanceTo(src.pos);
       if (dist < nearestDist) { nearestDist = dist; nearestSrc = src; }
 
-      document.getElementById('srcrow-' + src.key)?.classList.toggle('active', src === nearestSrc && src.enabled);
+      // Highlight nearest source row in sidebar
+      document.getElementById('srcrow-'+src.key)?.classList.toggle('active', src === nearestSrc && src.enabled);
 
-      const distEl = document.getElementById('dist-' + src.key);
+      // 3b. Update distance readout
+      const distEl = document.getElementById('dist-'+src.key);
       if (distEl) distEl.textContent = dist.toFixed(1) + ' m';
 
+      // 3c–3f. RMS computation and visual response
       if (src.analyser && src.enabled) {
+        // getFloatTimeDomainData fills src.dataArray with normalised sample values [-1, +1]
         src.analyser.getFloatTimeDomainData(src.dataArray);
+
+        // RMS = √( (1/N) × Σ x[n]² )
         let sum = 0;
-        for (let i=0; i<src.dataArray.length; i++) sum += src.dataArray[i] * src.dataArray[i];
+        for (let i = 0; i < src.dataArray.length; i++) sum += src.dataArray[i] * src.dataArray[i];
         const rms = Math.sqrt(sum / src.dataArray.length);
 
+        // Drive halo opacity: base 0.04 + audio response (rms × 2)
+        // rms ≈ 0.1 → opacity ≈ 0.24;  rms ≈ 0.3 → opacity ≈ 0.64
         src.halo.material.opacity = 0.04 + rms * 2.0;
-        src.light.intensity       = rms * 10;
 
-        const eb = document.getElementById('ebar-' + src.key);
+        // Drive point light intensity: rms × 10 (triggers UnrealBloomPass bloom)
+        src.light.intensity = rms * 10;
+
+        // Drive energy bar: rms × 400, clamped to 100%
+        const eb = document.getElementById('ebar-'+src.key);
         if (eb) eb.style.width = Math.min(100, rms * 400) + '%';
       }
     });
 
-    // Foot disc — track camera X/Z, stays on floor (or stage surface if on stage)
+    // 4. Foot disc — follows listener, lifted to stage height when on stage
     if (footDisc) {
       const fp = camera.position;
-      // If standing on stage (z < -5.5 and within stage X bounds), lift disc to stage top
       const onStage = fp.z < -6.5 && fp.x > -8 && fp.x < 8;
-      footDisc.position.set(fp.x, onStage ? STAGE_H + 0.003 : 0.003, fp.z);
+      footDisc.position.set(fp.x, onStage ? STAGE_H+0.003 : 0.003, fp.z);
     }
 
-    // HUD
+    // 5. HUD updates
     const p = camera.position;
     document.getElementById('hudPos').textContent = `${p.x.toFixed(1)}, ${p.z.toFixed(1)}`;
     if (navState.euler) {
+      // Convert yaw (radians) to azimuth (degrees, 0–360°).
+      // navState.euler.y is negative for rightward turns (right-hand rule).
+      // Negate and wrap to [0, 360°] for a compass-style display.
       const azDeg = (((-navState.euler.y * 180/Math.PI) % 360) + 360) % 360;
       document.getElementById('hudAz').textContent = Math.round(azDeg) + '°';
     }
@@ -2007,9 +2916,21 @@ function startRenderLoop() {
   loop();
 }
 
-// ════════════════════════════════════════════════════════════════
-// STEP 8: Start / Stop
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// STEP 8: Start / Stop demo
+// ════════════════════════════════════════════════════════════════════════════
+
+/**
+ * Starts the demo: initialises audio, marks the session as running,
+ * and schedules the nav hint fade-out.
+ *
+ * This function MUST be called from within a user gesture (button click or
+ * keyboard event) because it calls initAudio(), which creates and resumes
+ * the AudioContext. The browser's autoplay policy blocks AudioContext.resume()
+ * if called outside a user gesture handler.
+ *
+ * @returns {Promise<void>}
+ */
 async function startDemo() {
   if (isRunning) return;
   document.getElementById('btnStart').disabled = true;
@@ -2017,6 +2938,7 @@ async function startDemo() {
   try {
     await initAudio();
     isRunning = true;
+    // Fade the navigation hint after 7 seconds — the user has had time to read it
     setTimeout(() => document.getElementById('navHint').classList.add('faded'), 7000);
   } catch(err) {
     console.error('[AcousticScene] startDemo:', err);
@@ -2026,6 +2948,20 @@ async function startDemo() {
   }
 }
 
+/**
+ * Stops the demo: stops all source playback, suspends the AudioContext,
+ * and tears down the audio graph.
+ *
+ * WHY TEAR DOWN ON STOP?
+ * Suspending the AudioContext alone would leave all audio nodes connected,
+ * consuming memory. Setting audioContext = null and resonanceAudio = null
+ * releases the graph so the garbage collector can reclaim it.
+ * On the next startDemo(), initAudio() rebuilds the entire graph from scratch.
+ * AudioBuffers (the decoded PCM data) are NOT cleared — they are preserved
+ * in the audioBuffers object so the next start decodes instantly.
+ *
+ * @returns {void}
+ */
 function stopDemo() {
   if (!isRunning) return;
   isRunning = false;
@@ -2035,60 +2971,121 @@ function stopDemo() {
   document.getElementById('btnStop').disabled  = true;
   document.getElementById('hudCtx').textContent = 'suspended';
   document.getElementById('hudCtx').className   = 'hud-row-value';
+
+  // Tear down audio graph
   audioContext = null; resonanceAudio = null; window._resonanceMasterGain = null;
-  sources.forEach(src => { src.resonanceSrc=null; src.analyser=null; src.dataArray=null; src.gainNode=null; });
+  sources.forEach(src => {
+    src.resonanceSrc = null; src.resonanceSrcLF = null;
+    src.analyser = null; src.dataArray = null; src.gainNode = null;
+    src.lpFilter = null; src.lpGain = null;
+  });
+  // Clear decoded buffers so they are re-decoded on next start (fresh AudioContext)
   Object.keys(audioBuffers).forEach(k => { audioBuffers[k] = null; });
 }
 
-// ════════════════════════════════════════════════════════════════
-// STEP 9: Helpers
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// STEP 9: UI helpers
+// ════════════════════════════════════════════════════════════════════════════
 
+/**
+ * Toggles the sidebar's collapsed state.
+ * Updates the toggle button's chevron character to indicate the current state.
+ * @returns {void}
+ */
 function toggleSidebar() {
   const sidebar   = document.getElementById('sidebar');
   const btn       = document.getElementById('sidebarToggle');
   const collapsed = sidebar.classList.toggle('collapsed');
-  // › when collapsed (click to open), ‹ when open (click to close)
   btn.textContent = collapsed ? '›' : '‹';
 }
 
+/**
+ * Toggles the HUD panel's collapsed state.
+ * The CSS transition (scaleY + opacity) gives a "fold up" animation.
+ * @returns {void}
+ */
 function toggleHud() {
   const hud = document.getElementById('hud');
   const btn = document.getElementById('hudToggle');
   const collapsed = hud.classList.toggle('collapsed');
   btn.classList.toggle('collapsed', collapsed);
-  // ▲ when open, ▼ when collapsed
   btn.querySelector('.ht-chevron').textContent = collapsed ? '▼' : '▲';
 }
 
+/**
+ * Checks whether both Three.js and ResonanceAudio libraries are loaded,
+ * and enables the Start button if they are.
+ * Called by updateAudioBanner() after each file load, ensuring the button
+ * state is correct even if libraries finish loading after files do.
+ * @returns {void}
+ */
 function updateStartReadiness() {
   if (typeof window.THREE !== 'undefined' && typeof ResonanceAudio !== 'undefined') {
     document.getElementById('btnStart').disabled = false;
   }
 }
 
+/**
+ * Updates the loading overlay progress bar and status text.
+ *
+ * @param {number|null} pct - Progress percentage (0–100), or null to leave bar unchanged
+ * @param {string|null} msg - Status message, or null to leave unchanged
+ * @returns {void}
+ */
 function setProgress(pct, msg) {
   if (pct !== null) document.getElementById('loFill').style.width = pct + '%';
   if (msg)          document.getElementById('loStatus').textContent = msg;
 }
+
+/**
+ * Returns a Promise that resolves after one event-loop tick (setTimeout 60ms).
+ * Used in the bootstrap sequence to yield control to the browser between
+ * heavy operations, allowing the loading overlay to repaint and show progress.
+ *
+ * Without these yielding points, the browser's rendering is blocked by the
+ * synchronous JavaScript setup and the progress bar would not update until
+ * everything has finished — the loading screen would appear frozen.
+ *
+ * @returns {Promise<void>}
+ */
 function tick() { return new Promise(r => setTimeout(r, 60)); }
 
+// Clicking the start overlay dismisses it (but does not start audio —
+// the user must still press the Start button)
 document.getElementById('startOverlay').addEventListener('click', () => {
   document.getElementById('startOverlay').classList.add('hidden');
 });
 
-// ════════════════════════════════════════════════════════════════
-// STEP 10: Bootstrap
-// ════════════════════════════════════════════════════════════════
+// ════════════════════════════════════════════════════════════════════════════
+// STEP 10: Bootstrap — DOMContentLoaded
+//
+// This is the application entry point. It runs after the HTML is parsed but
+// before images and other resources finish loading.
+//
+// BOOTSTRAP SEQUENCE:
+//   1. Poll for Three.js and ResonanceAudio libraries (up to 9 s timeout).
+//      Both are loaded with 'defer' or as ES modules — they are not guaranteed
+//      to be available synchronously at DOMContentLoaded.
+//   2. Initialise the Three.js renderer, camera, and scene.
+//   3. Build the 3D scene geometry and lighting.
+//   4. Fetch audio and 3D model files from the server (if served over HTTP).
+//   5. Parse and place GLB models into the scene.
+//   6. Hide the loading overlay and show the start overlay.
+//   7. Start the render loop.
+//
+// Each step updates the progress bar (setProgress) and yields to the browser
+// (await tick()) so the loading overlay can repaint between steps.
+// ════════════════════════════════════════════════════════════════════════════
 window.addEventListener('DOMContentLoaded', async () => {
   setProgress(5, 'Loading libraries…');
 
+  // Poll until both Three.js and ResonanceAudio are available, or timeout after 9 s
   const deadline = Date.now() + 9000;
   while ((typeof window.THREE === 'undefined' || typeof ResonanceAudio === 'undefined') && Date.now() < deadline) {
     await new Promise(r => setTimeout(r, 60));
   }
-  if (typeof window.THREE === 'undefined')    { setProgress(null, '⚠ Three.js failed to load.'); return; }
-  if (typeof ResonanceAudio === 'undefined')  { setProgress(null, '⚠ Resonance Audio failed to load.'); return; }
+  if (typeof window.THREE === 'undefined')   { setProgress(null, '⚠ Three.js failed to load.'); return; }
+  if (typeof ResonanceAudio === 'undefined') { setProgress(null, '⚠ Resonance Audio failed to load.'); return; }
 
   setProgress(15, 'Initializing renderer…'); await tick();
   initThree();
@@ -2107,7 +3104,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   await loadAllModels();
 
   setProgress(100, 'Ready');
-  await new Promise(r => setTimeout(r, 350));
+  await new Promise(r => setTimeout(r, 350)); // Brief pause so "Ready" is visible
 
   document.getElementById('loadingOverlay').classList.add('hidden');
   document.getElementById('startOverlay').classList.remove('hidden');
