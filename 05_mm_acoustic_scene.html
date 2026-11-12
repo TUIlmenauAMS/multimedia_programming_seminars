@@ -607,6 +607,32 @@ html, body {
       </div>
     </div>
 
+    <!-- Audio Credits -->
+    <div class="credits-block">
+      <div class="credits-title">Audio Credits</div>
+
+      <div class="credit-item">
+        <span class="credit-name">The Ferryboat Men</span>
+        <span class="credit-author">Winds of Gypsy Moor</span>
+        <a class="credit-link" href="https://multitracksearch.cambridge-mt.com/ms-mtk-search.htm" target="_blank" rel="noopener">Cambridge MT Multitrack Library</a>
+      </div>
+
+      <div class="credit-item">
+        <span class="credit-name">19_ElecGtr4DI.wav</span>
+        <span class="credit-author">Electric Guitar stem</span>
+      </div>
+
+      <div class="credit-item">
+        <span class="credit-name">drums.wav</span>
+        <span class="credit-author">Drum Kit stem</span>
+      </div>
+
+      <div class="credit-item">
+        <span class="credit-name">22_Piano.wav</span>
+        <span class="credit-author">Grand Piano stem</span>
+      </div>
+    </div>
+
   </div><!-- /#sb-scroll -->
 </div><!-- /#sidebar -->
 
@@ -664,6 +690,8 @@ html, body {
   <span class="hint-key">R-drag</span><span class="hint-sep">walk</span>
   <span class="hint-sep">·</span>
   <span class="hint-key">Scroll</span><span class="hint-sep">fwd/back</span>
+  <span class="hint-sep">·</span>
+  <span class="hint-key">Space</span><span class="hint-sep">start/stop</span>
 </div>
 
 <!-- Resonance Audio -->
@@ -1102,8 +1130,15 @@ function initThree() {
     camera.position.addScaledVector(fwd, -e.deltaY * SCROLL_SPD);
     clampCamera();
   }, { passive: false });
-  window.addEventListener('keydown', e => { navState.keys[e.code] = true; });
-  window.addEventListener('keyup',   e => { navState.keys[e.code] = false; });
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space') {
+      e.preventDefault(); // prevent page scroll
+      if (isRunning) stopDemo(); else startDemo();
+      return;
+    }
+    navState.keys[e.code] = true;
+  });
+  window.addEventListener('keyup', e => { navState.keys[e.code] = false; });
   window.addEventListener('resize', () => {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
@@ -1596,14 +1631,25 @@ function muteSource(key) {
 
   src.muted = !src.muted;
 
-  const btn = document.getElementById('mute-' + key);
-  btn?.classList.toggle('active', src.muted);
+  // Mute and solo are mutually exclusive — turning on mute clears solo
+  if (src.muted && src.soloed) {
+    src.soloed = false;
+    document.getElementById('solo-' + key)?.classList.remove('active');
+  }
 
-  if (isRunning) applySourceGain(src);
-  if (src.muted) {
-    src.halo.material.opacity = 0.02;
-    src.light.intensity = 0;
-    document.getElementById('ebar-' + key)?.style.setProperty('width', '0%');
+  document.getElementById('mute-' + key)?.classList.toggle('active', src.muted);
+
+  // Re-evaluate all sources because solo state may have changed
+  if (isRunning) {
+    sources.forEach(s => {
+      applySourceGain(s);
+      if (!s.bufSrc && audioBuffers[s.key] && !s.muted) startSourcePlayback(s);
+      if (s.muted) {
+        s.halo.material.opacity = 0.02;
+        s.light.intensity = 0;
+        document.getElementById('ebar-' + s.key)?.style.setProperty('width', '0%');
+      }
+    });
   }
 }
 
@@ -1613,17 +1659,22 @@ function soloSource(key) {
 
   src.soloed = !src.soloed;
 
-  const btn = document.getElementById('solo-' + key);
-  btn?.classList.toggle('active', src.soloed);
+  // Mute and solo are mutually exclusive — turning on solo clears mute
+  if (src.soloed && src.muted) {
+    src.muted = false;
+    document.getElementById('mute-' + key)?.classList.remove('active');
+  }
+
+  document.getElementById('solo-' + key)?.classList.toggle('active', src.soloed);
 
   // Re-evaluate gain on all sources — solo affects everyone
   if (isRunning) {
     sources.forEach(s => {
       applySourceGain(s);
-      if (s.soloed || (!sources.some(x => x.soloed) && !s.muted)) {
-        // Source is now audible — make sure playback is running
-        if (!s.bufSrc && audioBuffers[s.key]) startSourcePlayback(s);
-      } else {
+      if (!s.bufSrc && audioBuffers[s.key]) startSourcePlayback(s);
+      const anySolo = sources.some(x => x.soloed);
+      const silent  = s.muted || (anySolo && !s.soloed);
+      if (silent) {
         s.halo.material.opacity = 0.02;
         s.light.intensity = 0;
         document.getElementById('ebar-' + s.key)?.style.setProperty('width', '0%');
