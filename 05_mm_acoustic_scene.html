@@ -263,35 +263,65 @@ html, body {
 
 /* ── Sources panel ── */
 .source-row {
-  display: flex; align-items: center; gap: 8px;
-  margin-bottom: 7px; padding: 7px 8px;
+  margin-bottom: 8px; padding: 8px 8px 6px;
   border-radius: 6px; background: var(--surface2); border: 1px solid var(--border);
   transition: border-color 0.2s;
 }
 .source-row:last-child { margin-bottom: 0; }
 .source-row.active { border-color: var(--accent2); }
-.source-row.muted  { opacity: 0.45; }
+.source-row.src-muted { opacity: 0.45; }
+
+/* top row: dot + name + dist */
+.src-top { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
 .source-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.source-info { flex: 1; min-width: 0; }
-.source-name { font-family: var(--sans); font-size: 11px; color: var(--text); font-weight: 500; }
-.source-sub  { font-family: var(--mono); font-size: 9px; color: var(--muted); margin-top: 1px; }
+.source-name { font-family: var(--sans); font-size: 11px; color: var(--text); font-weight: 500; flex: 1; }
+.source-sub  { font-family: var(--mono); font-size: 9px; color: var(--muted); margin-bottom: 5px; padding-left: 15px; }
 .source-dist { font-family: var(--jb); font-size: 11px; color: var(--accent); flex-shrink: 0; min-width: 36px; text-align: right; }
-.energy-bar-mini { margin-top: 3px; height: 2px; background: var(--border2); border-radius: 1px; overflow: hidden; }
+
+/* energy bar */
+.energy-bar-mini { margin-bottom: 6px; height: 2px; background: var(--border2); border-radius: 1px; overflow: hidden; }
 .energy-bar-mini-fill { height: 100%; width: 0%; border-radius: 1px; transition: width 0.05s linear; }
 
-/* source on/off toggle */
-.src-toggle {
-  flex-shrink: 0; width: 28px; height: 16px;
-  background: var(--border2); border-radius: 8px; border: none; cursor: pointer;
-  position: relative; transition: background 0.2s; padding: 0;
+/* controls row: mute + solo + level */
+.src-controls { display: flex; align-items: center; gap: 5px; }
+
+/* Mute button */
+.src-mute-btn {
+  font-family: var(--mono); font-size: 10px; font-weight: 500;
+  padding: 3px 7px; border-radius: 4px; border: 1px solid var(--border2);
+  background: var(--surface2); color: var(--muted); cursor: pointer;
+  transition: all 0.15s; flex-shrink: 0;
 }
-.src-toggle::after {
-  content: ''; position: absolute; top: 2px; left: 2px;
+.src-mute-btn:hover { border-color: var(--red); color: var(--red); }
+.src-mute-btn.active { background: rgba(248,113,113,0.15); border-color: var(--red); color: var(--red); }
+
+/* Solo button */
+.src-solo-btn {
+  font-family: var(--mono); font-size: 10px; font-weight: 500;
+  padding: 3px 7px; border-radius: 4px; border: 1px solid var(--border2);
+  background: var(--surface2); color: var(--muted); cursor: pointer;
+  transition: all 0.15s; flex-shrink: 0;
+}
+.src-solo-btn:hover { border-color: var(--yellow); color: var(--yellow); }
+.src-solo-btn.active { background: rgba(251,191,36,0.15); border-color: var(--yellow); color: var(--yellow); }
+
+/* Level slider */
+.src-level-wrap { flex: 1; display: flex; align-items: center; gap: 5px; min-width: 0; }
+.src-level-label { font-family: var(--jb); font-size: 10px; color: var(--muted); flex-shrink: 0; min-width: 30px; text-align: right; }
+.src-level {
+  -webkit-appearance: none; appearance: none;
+  flex: 1; height: 3px; border-radius: 2px; outline: none; cursor: pointer;
+  background: var(--border2);
+}
+.src-level::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
   width: 12px; height: 12px; border-radius: 50%;
-  background: var(--muted); transition: transform 0.2s, background 0.2s;
+  background: var(--accent); border: none; cursor: pointer;
 }
-.src-toggle.on { background: rgba(52,211,153,0.3); }
-.src-toggle.on::after { transform: translateX(12px); background: var(--green); }
+.src-level::-moz-range-thumb {
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--accent); border: none; cursor: pointer;
+}
 
 /* ── HUD ── */
 #hud {
@@ -456,18 +486,18 @@ html, body {
       <div class="file-banner visible" id="audioBanner">⚠ No audio files loaded. Browse or serve via GitHub Pages.</div>
       <div class="upload-row">
         <span class="upload-icon">🎸</span>
-        <span class="upload-name">guitar.mp3</span>
-        <label class="upload-btn" id="lbl-guitar">📂 Browse<input type="file" accept=".mp3,audio/*" onchange="handleAudioUpload(event,'guitar')"></label>
+        <span class="upload-name">19_ElecGtr4DI.wav</span>
+        <label class="upload-btn" id="lbl-guitar">📂 Browse<input type="file" accept=".wav,.mp3,audio/*" onchange="handleAudioUpload(event,'guitar')"></label>
       </div>
       <div class="upload-row">
         <span class="upload-icon">🥁</span>
-        <span class="upload-name">drums.mp3</span>
-        <label class="upload-btn" id="lbl-drums">📂 Browse<input type="file" accept=".mp3,audio/*" onchange="handleAudioUpload(event,'drums')"></label>
+        <span class="upload-name">drums.wav</span>
+        <label class="upload-btn" id="lbl-drums">📂 Browse<input type="file" accept=".wav,.mp3,audio/*" onchange="handleAudioUpload(event,'drums')"></label>
       </div>
       <div class="upload-row">
         <span class="upload-icon">🎹</span>
-        <span class="upload-name">piano.mp3</span>
-        <label class="upload-btn" id="lbl-piano">📂 Browse<input type="file" accept=".mp3,audio/*" onchange="handleAudioUpload(event,'piano')"></label>
+        <span class="upload-name">22_Piano.wav</span>
+        <label class="upload-btn" id="lbl-piano">📂 Browse<input type="file" accept=".wav,.mp3,audio/*" onchange="handleAudioUpload(event,'piano')"></label>
       </div>
     </div>
 
@@ -497,36 +527,57 @@ html, body {
       <div class="sb-sec-label">Sources</div>
 
       <div class="source-row" id="srcrow-guitar">
-        <button class="src-toggle" id="tog-guitar" onclick="toggleSource('guitar')" title="Toggle Guitar Amp"></button>
-        <div class="source-dot" style="background:#fb923c"></div>
-        <div class="source-info">
+        <div class="src-top">
+          <div class="source-dot" style="background:#fb923c"></div>
           <div class="source-name">Guitar Amp</div>
-          <div class="source-sub">Left stage · cardioid α=0.5</div>
-          <div class="energy-bar-mini"><div class="energy-bar-mini-fill" id="ebar-guitar" style="background:#fb923c"></div></div>
+          <div class="source-dist" id="dist-guitar">— m</div>
         </div>
-        <div class="source-dist" id="dist-guitar">— m</div>
+        <div class="source-sub">Left stage · wide cardioid α=0.4</div>
+        <div class="energy-bar-mini"><div class="energy-bar-mini-fill" id="ebar-guitar" style="background:#fb923c"></div></div>
+        <div class="src-controls">
+          <button class="src-mute-btn" id="mute-guitar" onclick="muteSource('guitar')">M</button>
+          <button class="src-solo-btn" id="solo-guitar" onclick="soloSource('guitar')">S</button>
+          <div class="src-level-wrap">
+            <input class="src-level" id="level-guitar" type="range" min="0" max="100" value="100" oninput="setSourceLevel('guitar',this.value)">
+            <span class="src-level-label" id="lvllbl-guitar">0 dB</span>
+          </div>
+        </div>
       </div>
 
       <div class="source-row" id="srcrow-drums">
-        <button class="src-toggle" id="tog-drums" onclick="toggleSource('drums')" title="Toggle Drum Kit"></button>
-        <div class="source-dot" style="background:#f87171"></div>
-        <div class="source-info">
+        <div class="src-top">
+          <div class="source-dot" style="background:#f87171"></div>
           <div class="source-name">Drum Kit</div>
-          <div class="source-sub">Centre back · omni α=0.0</div>
-          <div class="energy-bar-mini"><div class="energy-bar-mini-fill" id="ebar-drums" style="background:#f87171"></div></div>
+          <div class="source-dist" id="dist-drums">— m</div>
         </div>
-        <div class="source-dist" id="dist-drums">— m</div>
+        <div class="source-sub">Centre back · omni α=0.0</div>
+        <div class="energy-bar-mini"><div class="energy-bar-mini-fill" id="ebar-drums" style="background:#f87171"></div></div>
+        <div class="src-controls">
+          <button class="src-mute-btn" id="mute-drums" onclick="muteSource('drums')">M</button>
+          <button class="src-solo-btn" id="solo-drums" onclick="soloSource('drums')">S</button>
+          <div class="src-level-wrap">
+            <input class="src-level" id="level-drums" type="range" min="0" max="100" value="100" oninput="setSourceLevel('drums',this.value)">
+            <span class="src-level-label" id="lvllbl-drums">0 dB</span>
+          </div>
+        </div>
       </div>
 
       <div class="source-row" id="srcrow-piano">
-        <button class="src-toggle" id="tog-piano" onclick="toggleSource('piano')" title="Toggle Grand Piano"></button>
-        <div class="source-dot" style="background:#a78bfa"></div>
-        <div class="source-info">
+        <div class="src-top">
+          <div class="source-dot" style="background:#a78bfa"></div>
           <div class="source-name">Grand Piano</div>
-          <div class="source-sub">Right stage · omni α=0.0</div>
-          <div class="energy-bar-mini"><div class="energy-bar-mini-fill" id="ebar-piano" style="background:#a78bfa"></div></div>
+          <div class="source-dist" id="dist-piano">— m</div>
         </div>
-        <div class="source-dist" id="dist-piano">— m</div>
+        <div class="source-sub">Right stage · omni α=0.0</div>
+        <div class="energy-bar-mini"><div class="energy-bar-mini-fill" id="ebar-piano" style="background:#a78bfa"></div></div>
+        <div class="src-controls">
+          <button class="src-mute-btn" id="mute-piano" onclick="muteSource('piano')">M</button>
+          <button class="src-solo-btn" id="solo-piano" onclick="soloSource('piano')">S</button>
+          <div class="src-level-wrap">
+            <input class="src-level" id="level-piano" type="range" min="0" max="100" value="100" oninput="setSourceLevel('piano',this.value)">
+            <span class="src-level-label" id="lvllbl-piano">0 dB</span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -684,8 +735,8 @@ const SOURCE_DEFS = [
   // directivity: { alpha, sharpness } — set on the Resonance source after init
   // alpha=0 → omni, alpha=0.5 → cardioid, alpha=1 → hyper-cardioid
   { key: 'guitar', name: 'Guitar Amp',  pos: [-5.0, STAGE_H + AMP_STAND_H,  -9.0], color: 0xfb923c,
-    directivity: { alpha: 0.5, sharpness: 1.5 },  // cardioid — walk behind to hear drop
-    directivityLabel: 'cardioid  α=0.5' },
+    directivity: { alpha: 0.4, sharpness: 1.0 },  // wide cardioid — audible behind, drops ~6 dB
+    directivityLabel: 'wide cardioid  α=0.4' },
   { key: 'drums',  name: 'Drum Kit',    pos: [ 0.0, STAGE_H, -11.0], color: 0xf87171,
     directivity: { alpha: 0.0, sharpness: 1.0 },  // omni — kit radiates 360°
     directivityLabel: 'omni  α=0.0' },
@@ -794,9 +845,9 @@ async function fetchOneAudioFile(key, filename) {
 async function fetchAllAudioFiles() {
   if (isFileProtocol) { updateAudioBanner(); return; }
   await Promise.all([
-    fetchOneAudioFile('guitar', 'guitar.mp3'),
-    fetchOneAudioFile('drums',  'drums.mp3'),
-    fetchOneAudioFile('piano',  'piano.mp3')
+    fetchOneAudioFile('guitar', '19_ElecGtr4DI.wav'),
+    fetchOneAudioFile('drums',  'drums.wav'),
+    fetchOneAudioFile('piano',  '22_Piano.wav')
   ]);
   updateAudioBanner();
 }
@@ -1481,6 +1532,11 @@ async function initAudio() {
     src.analyser  = audioContext.createAnalyser();
     src.analyser.fftSize = 256;
     src.dataArray = new Float32Array(src.analyser.frequencyBinCount);
+
+    // Gain node for level control — sits between analyser and resonance input
+    src.gainNode = audioContext.createGain();
+    src.gainNode.gain.value = src.levelLinear ?? 1.0;
+    src.gainNode.connect(src.resonanceSrc.input);
 
     if (audioBuffers[src.key] && src.enabled) startSourcePlayback(src);
   }
