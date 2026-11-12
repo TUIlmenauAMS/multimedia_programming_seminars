@@ -45,24 +45,30 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 
 /* ── Top bar ── */
 #topbar {
-  position: fixed; top: 0; left: 0; right: 0; height: 48px;
-  background: rgba(13,15,20,0.94); border-bottom: 1px solid var(--border);
+  position: fixed; top: 0; left: 0; right: 0; height: 52px;
+  background: rgba(13,15,20,0.96); border-bottom: 1px solid var(--border);
   backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-  display: flex; align-items: center; padding: 0 18px; gap: 12px; z-index: 200;
+  display: flex; align-items: center; padding: 0 16px; gap: 10px; z-index: 200;
 }
-#topbar .tb-logo img { height: 28px; border-radius: 5px; display: block; }
-#topbar .tb-sep { width: 1px; height: 22px; background: var(--border); flex-shrink: 0; }
-#topbar .tb-course { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.04em; white-space: nowrap; }
-#topbar .tb-course strong { color: var(--text); font-weight: 500; }
+/* Identity block: logo + stacked text */
+#topbar .tb-identity { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+#topbar .tb-identity img { height: 30px; border-radius: 5px; display: block; }
+#topbar .tb-identity-text { display: flex; flex-direction: column; gap: 1px; }
+#topbar .tb-identity-line1 { font-family: var(--mono); font-size: 11px; color: var(--text); font-weight: 500; white-space: nowrap; letter-spacing: 0.03em; }
+#topbar .tb-identity-line2 { font-family: var(--mono); font-size: 9.5px; color: var(--muted); white-space: nowrap; }
+#topbar .tb-sep { width: 1px; height: 24px; background: var(--border); flex-shrink: 0; }
+#topbar .tb-chapter { font-family: var(--mono); font-size: 10px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
 #topbar .tb-badge {
   display: inline-flex; align-items: center; gap: 5px;
   background: rgba(167,139,250,0.10); color: var(--accent2);
   font-family: var(--mono); font-size: 10px; padding: 3px 10px;
-  border-radius: 20px; border: 1px solid rgba(167,139,250,0.28); white-space: nowrap;
+  border-radius: 20px; border: 1px solid rgba(167,139,250,0.28); white-space: nowrap; flex-shrink: 0;
 }
 #topbar .tb-spacer { flex: 1; }
-#topbar .tb-author { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); white-space: nowrap; }
-#topbar .tb-author span { color: var(--text); font-weight: 500; }
+/* Author block: "Demo by Name [LinkedIn]" */
+#topbar .tb-author { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+#topbar .tb-author-label { font-family: var(--mono); font-size: 10px; color: var(--muted); white-space: nowrap; }
+#topbar .tb-author-name { font-family: var(--mono); font-size: 10px; color: var(--text); font-weight: 500; white-space: nowrap; }
 #topbar .tb-author .li-badge {
   display: inline-flex; align-items: center; gap: 4px;
   background: rgba(79,156,249,0.10); color: var(--accent); font-family: var(--mono);
@@ -73,12 +79,12 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 
 /* ── Canvas ── */
 #canvasMount {
-  position: fixed; top: 48px; left: 0; right: 0; bottom: 0; z-index: 0;
+  position: fixed; top: 52px; left: 0; right: 0; bottom: 0; z-index: 0;
 }
 #canvasMount canvas { display: block; width: 100% !important; height: 100% !important; }
 
 /* ── Source labels overlay ── */
-#srcLabels { position: fixed; top: 48px; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 50; }
+#srcLabels { position: fixed; top: 52px; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 50; }
 .src-label {
   position: absolute; transform: translate(-50%, -130%);
   font-family: var(--mono); font-size: 10px; color: var(--text);
@@ -200,22 +206,23 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 
 /* Left column */
 #leftCol {
-  position: fixed; top: 56px; left: 14px; bottom: 14px;
-  width: 254px; display: flex; flex-direction: column; gap: 10px;
+  position: fixed; top: 60px; left: 14px; bottom: 14px;
+  width: 254px; display: flex; flex-direction: column; gap: 8px;
   z-index: 100; pointer-events: none;
 }
 #leftCol > * { pointer-events: auto; }
 
 /* Right column */
 #rightCol {
-  position: fixed; top: 56px; right: 14px; bottom: 14px;
-  width: 234px; display: flex; flex-direction: column; gap: 10px;
+  position: fixed; top: 60px; right: 14px; bottom: 14px;
+  width: 234px; display: flex; flex-direction: column; gap: 8px;
   z-index: 100; pointer-events: none;
 }
 #rightCol > * { pointer-events: auto; }
 
-/* Info panel occupies top of left col, can scroll */
-#infoPanel { padding: 14px 15px; overflow-y: auto; flex-shrink: 1; min-height: 0; }
+/* Info panel: scrollable within its own box ONLY — stop scroll events from bubbling to canvas */
+#infoPanel { padding: 12px 14px; overflow-y: auto; flex-shrink: 1; min-height: 0; max-height: 260px; }
+#infoPanel:hover { overflow-y: auto; }
 .info-concept { font-size: 11.5px; color: var(--text); line-height: 1.65; margin-bottom: 10px; }
 .info-concept strong { color: var(--accent2); font-weight: 500; }
 .info-divider { height: 1px; background: var(--panel-border); margin: 10px 0; }
@@ -235,20 +242,20 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 #infoBody.collapsed { max-height: 0; opacity: 0; }
 
 /* Polar panel sits below info in left col, pushes to bottom */
-#polarPanel { padding: 13px 14px; flex-shrink: 0; }
-#polarCanvases { display: flex; gap: 12px; justify-content: center; margin-bottom: 8px; }
-.polar-canvas-wrap  { display: flex; flex-direction: column; align-items: center; gap: 4px; }
-#polarCanvas, #elevCanvas { display: block; border-radius: 50%; }
+#polarPanel { padding: 10px 12px; flex-shrink: 0; }
+#polarCanvases { display: flex; gap: 8px; justify-content: center; margin-bottom: 7px; }
+.polar-canvas-wrap  { display: flex; flex-direction: column; align-items: center; gap: 3px; flex: 1; }
+#polarCanvas, #elevCanvas { display: block; border-radius: 50%; width: 110px !important; height: 110px !important; }
 .polar-ring-label   { font-family: var(--mono); font-size: 9px; color: var(--muted); text-align: center; }
-.polar-explain      { font-family: var(--mono); font-size: 10px; color: var(--muted); text-align: center; margin-bottom: 8px; line-height: 1.5; }
-.source-legend      { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; }
-.src-leg-item       { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.polar-explain      { font-family: var(--mono); font-size: 10px; color: var(--muted); text-align: center; margin-bottom: 7px; line-height: 1.4; }
+.source-legend      { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; }
+.src-leg-item       { display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 9.5px; color: var(--muted); }
 .src-dot            { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .src-leg-item.inactive { opacity: 0.3; }
 
 /* HUD panel at top of right col */
-#hudPanel { padding: 13px 15px; flex-shrink: 0; }
-.hud-row  { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 7px; }
+#hudPanel { padding: 11px 14px; flex-shrink: 0; }
+.hud-row  { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
 .hud-row:last-child { margin-bottom: 0; }
 .hud-key  { font-family: var(--mono); font-size: 10px; color: var(--muted); }
 .hud-hint { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.55; margin-left: 3px; }
@@ -263,8 +270,8 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 }
 
 /* Controls panel below HUD in right col */
-#ctrlPanel { padding: 13px 15px; flex-shrink: 0; }
-.ctrl-section { margin-bottom: 13px; }
+#ctrlPanel { padding: 11px 13px; flex-shrink: 0; }
+.ctrl-section { margin-bottom: 10px; }
 .ctrl-section:last-child { margin-bottom: 0; }
 .ctrl-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 7px; letter-spacing: 0.08em; text-transform: uppercase; }
 .ctrl-sublabel { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.65; margin-top: 5px; line-height: 1.4; }
@@ -330,7 +337,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 }
 #navHint.hidden { opacity: 0; }
 
-#orderFlash { position: fixed; inset: 48px 0 0 0; background: rgba(167,139,250,0.08); pointer-events: none; opacity: 0; z-index: 90; transition: opacity 0.08s; }
+#orderFlash { position: fixed; inset: 52px 0 0 0; background: rgba(167,139,250,0.08); pointer-events: none; opacity: 0; z-index: 90; transition: opacity 0.08s; }
 
 #hrtfToast {
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
@@ -360,17 +367,22 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 
 <!-- ── Top bar ── -->
 <div id="topbar">
-  <div class="tb-logo">
+  <!-- Identity block: logo + stacked course/university -->
+  <div class="tb-identity">
     <img src="ams_group_tui.png" alt="AMS TU Ilmenau" onerror="this.style.display='none'">
+    <div class="tb-identity-text">
+      <div class="tb-identity-line1">Multimediaprogrammierung</div>
+      <div class="tb-identity-line2">Technische Universität Ilmenau</div>
+    </div>
   </div>
   <div class="tb-sep"></div>
-  <div class="tb-course">
-    <strong>Multimediaprogrammierung</strong> · Chapter 05 · Google Resonance Audio
-  </div>
+  <div class="tb-chapter">Chapter 05 · Google Resonance Audio</div>
   <div class="tb-badge">Demo 4 — Ambisonics</div>
   <div class="tb-spacer"></div>
+  <!-- Author block -->
   <div class="tb-author">
-    <span>Renato Fera P.</span>
+    <span class="tb-author-label">Demo created by</span>
+    <span class="tb-author-name">Renato Fera P.</span>
     <a class="li-badge" href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">
       <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"/></svg>
       LinkedIn
@@ -487,7 +499,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 <div id="leftCol" style="display:none;">
 
   <div class="gpanel" id="infoPanel">
-    <div class="gpanel-label">What is this?</div>
+    <div class="gpanel-label">About this demo</div>
     <div id="infoBody">
       <div class="info-concept">
         <strong>Ambisonics</strong> encodes multiple sound sources into a single 360° <strong>sound field</strong> — a property of the space, not the listener. The glowing sphere is that field: colour = acoustic energy arriving from each direction (dark = silent, bright = loud).
@@ -496,11 +508,10 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
         The <strong>head</strong> at the centre is you. <strong>Drag</strong> to rotate your head inside the fixed field — the audio panning changes but the field itself does not. This is the core difference from stereo panning.
       </div>
       <div class="info-divider"></div>
-      <div class="info-row"><span class="info-key">Drag</span><span class="info-val">Rotate head — hear the field from a new direction</span></div>
-      <div class="info-row"><span class="info-key">Scroll</span><span class="info-val">Zoom in / out (visual only)</span></div>
-      <div class="info-row"><span class="info-key">Order 1→3</span><span class="info-val">More channels = sharper spatial resolution.</span></div>
-      <div class="info-row"><span class="info-key">3→5 sources</span><span class="info-val">Adds Drone (below) and Shimmer (above).</span></div>
-      <div class="info-row"><span class="info-key">Freeze</span><span class="info-val">Pauses the sphere — rotate to hear the same frozen field from different directions.</span></div>
+      <div class="info-row"><span class="info-key">Drag</span><span class="info-val">Rotate head — hear the field from a new angle</span></div>
+      <div class="info-row"><span class="info-key">Scroll</span><span class="info-val">Zoom in / out on the canvas</span></div>
+      <div class="info-row"><span class="info-key">Order 1→3</span><span class="info-val">More channels = sharper spatial resolution</span></div>
+      <div class="info-row"><span class="info-key">3→5 sources</span><span class="info-val">Adds Bass Drone (below) and Shimmer (above)</span></div>
     </div>
     <button class="info-collapse-btn" id="infoCollapseBtn" onclick="toggleInfoPanel()">
       <svg id="infoCollapseArrow" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="transition:transform 0.3s"><path d="M7 10l5 5 5-5z"/></svg>
