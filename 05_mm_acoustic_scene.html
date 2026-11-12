@@ -990,7 +990,7 @@ function initThree() {
   renderer.outputColorSpace  = THREE.SRGBColorSpace;
 
   camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.05, 600);
-  camera.position.set(0, CAM_EYE_Y, -7);
+  camera.position.set(0, CAM_EYE_Y, -2);
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x07080d);
@@ -1069,7 +1069,7 @@ function clampCamera() {
 }
 
 function resetView() {
-  camera.position.set(0, CAM_EYE_Y, -7);
+  camera.position.set(0, CAM_EYE_Y, -2);
   // Slight downward pitch (-0.08 rad ≈ 4.5°) so the floor is visible ahead —
   // matches how a person naturally looks when standing still.
   navState.euler = new THREE.Euler(-0.08, 0, 0, 'YXZ');
@@ -1215,7 +1215,7 @@ function buildFootDisc() {
   footDisc = new THREE.Group();
   footDisc.add(outer);
   footDisc.add(inner);
-  footDisc.position.set(0, 0.003, -7);  // start at listener start position
+  footDisc.position.set(0, 0.003, -2);  // start at listener start position
   footDisc.renderOrder = 1;
   scene.add(footDisc);
 }
