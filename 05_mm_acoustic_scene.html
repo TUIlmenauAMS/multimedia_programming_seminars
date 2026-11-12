@@ -530,7 +530,7 @@ html, body {
         </button>
         <button class="acoustic-btn" id="btnWet" onclick="setAcousticMode('wet')">
           <span class="ab-label">🔊 Wet</span>
-          <span class="ab-rt60">Theater · RT60 ≈ 1.10 s</span>
+          <span class="ab-rt60">Theater · RT60 ≈ 1.80 s</span>
         </button>
       </div>
     </div>
@@ -801,28 +801,29 @@ const ACOUSTIC_MODES = {
     name:       'Studio (Dry)',
     rt60:       0.25,
     dimensions: { width: 20, height: 5, depth: 16 },
-    // Heavy absorption — recording studio treatment
+    // Maximum absorption — thick broadband panels everywhere
     materials: {
       left:  'fiber_glass_insulation',
       right: 'fiber_glass_insulation',
-      front: 'acoustic_ceiling_tiles',
-      back:  'acoustic_ceiling_tiles',
+      front: 'fiber_glass_insulation',
+      back:  'fiber_glass_insulation',
       down:  'uniform_average_absorption',
-      up:    'acoustic_ceiling_tiles'
+      up:    'fiber_glass_insulation'
     }
   },
   wet: {
     name:       'Theater (Wet)',
-    rt60:       1.10,
-    dimensions: { width: 20, height: 5, depth: 16 },
-    // Reflective surfaces — small theater / concert stage
+    rt60:       1.80,
+    // Larger virtual room → longer mean free path → more reverb buildup
+    dimensions: { width: 32, height: 9, depth: 28 },
+    // Hard, near-zero-absorption surfaces — bare concrete hall
     materials: {
-      left:  'wood_panel',
-      right: 'wood_panel',
-      front: 'marble',
-      back:  'wood_panel',
-      down:  'parquet_on_concrete',
-      up:    'wood_panel'
+      left:  'brick-bare',
+      right: 'brick-bare',
+      front: 'concrete-block',
+      back:  'concrete-block',
+      down:  'concrete-block',
+      up:    'glass-thin'
     }
   }
 };
@@ -1789,7 +1790,6 @@ function setSourceLevel(key, value) {
 // STEP 6: Acoustic mode switching
 // ════════════════════════════════════════════════════════════════
 function setAcousticMode(mode) {
-  if (mode === acousticMode) return;
   acousticMode = mode;
 
   // Update button states
