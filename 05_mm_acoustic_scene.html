@@ -461,7 +461,7 @@ html, body {
       <div class="sb-row">
         <button class="btn-play btn-start" id="btnStart" onclick="startDemo()" disabled>▶ Start</button>
         <button class="btn-play btn-stop"  id="btnStop"  onclick="stopDemo()"  disabled>■ Stop</button>
-        <button class="btn-play btn-reset" onclick="resetView()">⌖ View</button>
+        <button class="btn-play btn-reset" onclick="resetView()">⌖ Reset View</button>
       </div>
     </div>
 
@@ -1041,7 +1041,7 @@ function initThree() {
   renderer.outputColorSpace  = THREE.SRGBColorSpace;
 
   camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.05, 600);
-  camera.position.set(0, CAM_EYE_Y, -2);
+  camera.position.set(0, CAM_EYE_Y, 0.5);
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x07080d);
@@ -1120,7 +1120,7 @@ function clampCamera() {
 }
 
 function resetView() {
-  camera.position.set(0, CAM_EYE_Y, -2);
+  camera.position.set(0, CAM_EYE_Y, 0.5);
   // Slight downward pitch (-0.08 rad ≈ 4.5°) so the floor is visible ahead —
   // matches how a person naturally looks when standing still.
   navState.euler = new THREE.Euler(-0.08, 0, 0, 'YXZ');
@@ -1477,7 +1477,11 @@ function buildSourceVisuals() {
       analyser:    null,
       dataArray:   null,
       bufSrc:      null,
+      gainNode:    null,
       enabled:     true,
+      muted:       false,
+      soloed:      false,
+      levelLinear: 1.0,
       modelLoaded: false
     });
 
@@ -1544,51 +1548,111 @@ async function initAudio() {
 
 function startSourcePlayback(src) {
   if (src.bufSrc) { try { src.bufSrc.stop(); } catch(_) {} src.bufSrc = null; }
-  if (!audioContext || !audioBuffers[src.key] || !src.analyser || !src.resonanceSrc) return;
+  if (!audioContext || !audioBuffers[src.key] || !src.analyser || !src.gainNode || !src.resonanceSrc) return;
 
+  // Signal chain: bufSrc → analyser → gainNode → resonanceSrc.input
+  // The gainNode handles both the level slider and mute/solo silencing.
   const node = audioContext.createBufferSource();
   node.buffer = audioBuffers[src.key];
   node.loop   = true;
   node.connect(src.analyser);
-  src.analyser.connect(src.resonanceSrc.input);
+  src.analyser.connect(src.gainNode);
+  src.gainNode.connect(src.resonanceSrc.input);
   node.start(0);
   src.bufSrc = node;
 }
 
 function stopSourcePlayback(src) {
   if (src.bufSrc) { try { src.bufSrc.stop(); } catch(_) {} src.bufSrc = null; }
-  // Disconnect analyser from resonance to silence it completely
-  if (src.analyser && src.resonanceSrc) {
-    try { src.analyser.disconnect(src.resonanceSrc.input); } catch(_) {}
+  // Disconnect analyser from gain node to silence completely
+  if (src.analyser && src.gainNode) {
+    try { src.analyser.disconnect(src.gainNode); } catch(_) {}
   }
 }
 
 // ════════════════════════════════════════════════════════════════
-// STEP 5: Per-source toggle
+// STEP 5: Per-source controls — Mute, Solo, Level
 // ════════════════════════════════════════════════════════════════
-function toggleSource(key) {
+
+// Apply the effective gain for a source, respecting mute and solo state.
+// Called whenever mute, solo, or level changes.
+function applySourceGain(src) {
+  if (!src.gainNode) return;
+  const anySolo = sources.some(s => s.soloed);
+  // Silence if: explicitly muted, OR solo is active on another source and this one isn't soloed
+  const shouldSilence = src.muted || (anySolo && !src.soloed);
+  src.gainNode.gain.setTargetAtTime(
+    shouldSilence ? 0 : (src.levelLinear ?? 1.0),
+    audioContext?.currentTime ?? 0, 0.01
+  );
+  // Keep visual row dimmed when effectively silent
+  const row = document.getElementById('srcrow-' + src.key);
+  row?.classList.toggle('src-muted', shouldSilence);
+}
+
+function muteSource(key) {
   const src = sources.find(s => s.key === key);
   if (!src) return;
 
-  src.enabled = !src.enabled;
+  src.muted = !src.muted;
 
-  const tog = document.getElementById('tog-' + key);
-  const row = document.getElementById('srcrow-' + key);
+  const btn = document.getElementById('mute-' + key);
+  btn?.classList.toggle('active', src.muted);
 
-  if (src.enabled) {
-    tog?.classList.add('on');
-    row?.classList.remove('muted');
-    if (isRunning && audioBuffers[key]) startSourcePlayback(src);
-  } else {
-    tog?.classList.remove('on');
-    row?.classList.add('muted');
-    stopSourcePlayback(src);
-    // Reset visual indicators
+  if (isRunning) applySourceGain(src);
+  if (src.muted) {
     src.halo.material.opacity = 0.02;
     src.light.intensity = 0;
-    const eb = document.getElementById('ebar-' + key);
-    if (eb) eb.style.width = '0%';
+    document.getElementById('ebar-' + key)?.style.setProperty('width', '0%');
   }
+}
+
+function soloSource(key) {
+  const src = sources.find(s => s.key === key);
+  if (!src) return;
+
+  src.soloed = !src.soloed;
+
+  const btn = document.getElementById('solo-' + key);
+  btn?.classList.toggle('active', src.soloed);
+
+  // Re-evaluate gain on all sources — solo affects everyone
+  if (isRunning) {
+    sources.forEach(s => {
+      applySourceGain(s);
+      if (s.soloed || (!sources.some(x => x.soloed) && !s.muted)) {
+        // Source is now audible — make sure playback is running
+        if (!s.bufSrc && audioBuffers[s.key]) startSourcePlayback(s);
+      } else {
+        s.halo.material.opacity = 0.02;
+        s.light.intensity = 0;
+        document.getElementById('ebar-' + s.key)?.style.setProperty('width', '0%');
+      }
+    });
+  }
+}
+
+// Slider oninput handler — slider value 0–100 maps to linear gain 0–1,
+// with a sqrt curve so the mid-point (50) sounds like half-volume (−6 dB).
+function setSourceLevel(key, value) {
+  const src = sources.find(s => s.key === key);
+  if (!src) return;
+
+  const pct = Number(value) / 100;
+  src.levelLinear = pct * pct;  // square for perceptual linearity
+
+  // Show dB value in the label
+  const lbl = document.getElementById('lvllbl-' + key);
+  if (lbl) {
+    if (pct === 0) {
+      lbl.textContent = '-∞';
+    } else {
+      const db = 20 * Math.log10(src.levelLinear);
+      lbl.textContent = (db >= 0 ? '+' : '') + db.toFixed(1) + ' dB';
+    }
+  }
+
+  if (isRunning) applySourceGain(src);
 }
 
 // ════════════════════════════════════════════════════════════════
