@@ -963,7 +963,7 @@ if (keys['KeyD'] || keys['ArrowRight']) controls.moveRight(   SPEED * dt);</code
 </p>
 
 <div class="demo-box">
-  <strong>Demo 3 — Acoustic Scene.</strong> Five spatial sources in a recording studio interior — guitar amplifier, drumkit, vocal booth, outboard rack, acoustic piano — each synthesized procedurally. Navigate in first person. Hear distance attenuation (the inverse square law is physically present in the room) and source directivity (the guitar amp is cardioid — walk behind it and the level drops noticeably). Every source pulsing visual follows the audio energy via <code>AnalyserNode</code> and <code>setFromMatrix</code>.
+  <strong>Demo 3 — Acoustic Scene: Live Stage.</strong> A 20 × 16 × 5 m concert venue with a stage riser, PA stacks, lighting rig, and three real instrument sources: Guitar Amp (left stage), Drum Kit (centre back), Grand Piano (right stage). Audio is loaded from real multitrack stem files (<code>.wav</code>) via browser upload or GitHub Pages fetch; 3D instrument models (<code>.glb</code>) are loaded via GLTFLoader with automatic bounding-box scaling and floor placement. Navigate in first person with WASD + mouse drag. The <strong>Dry / Wet toggle</strong> switches between two complete room presets — Studio (RT60 ≈ 0.25 s, fiber-glass insulation) and Theater (RT60 ≈ 1.10 s, brick walls + parquet + acoustic ceiling tiles) — by rebuilding the full <code>ResonanceAudio</code> instance with a crossfade, because live room switching via <code>setRoomProperties</code> is not reliably supported at runtime (see Section 8). The Guitar Amp uses a wide-cardioid directivity pattern (α = 0.4) with a parallel bass-bleed path — a low-pass filtered omni source carrying the sub-300 Hz content — to simulate the frequency-dependent radiation of a real speaker cabinet (see Section 7). Per-source controls include Mute, Solo, and a level slider with a sqrt curve for perceptual linearity. Energy bars and halo pulse animations are driven by <code>AnalyserNode</code> RMS read every frame.
   <br>
   <a href="05_mm_acoustic_scene.html">Open Demo 3: Acoustic Scene &#8599;</a>
 </div>
@@ -1042,6 +1042,66 @@ resonanceSource.setGain(0);    // muted — but still connected, cheap to restor
 
 <div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
 <strong>Source directivity is frequently overlooked but perceptually significant.</strong> Walk behind a guitar amplifier with cardioid directivity set — the level drop is dramatic and immediately recognizable. Walk in front of the same amplifier — the level is highest directly in front. This is exactly what you experience in a recording studio. Omitting directivity makes every source sound like a floating point in space with no physical shape; applying it makes the source feel like a real object.
+</div>
+
+<h3>Limitation: directivity in Resonance Audio is frequency-independent</h3>
+<p>Resonance Audio's <code>setDirectivityPattern</code> applies a single angle-dependent gain function uniformly across the entire frequency spectrum. This is an approximation. In reality, speaker cabinets and acoustic instruments are <strong>strongly frequency-dependent in their radiation patterns</strong>: a 1×12 guitar amplifier, for example, is nearly omnidirectional below 300 Hz — low frequencies have wavelengths large enough to diffract freely around the cabinet — but increasingly directional above 1 kHz, where the driver's radiation angle narrows and the cabinet acts as a baffle.</p>
+<p>Applying a cardioid pattern uniformly means the low-frequency content is also attenuated behind the source, which is physically inaccurate. A listener directly behind a guitar amplifier should still hear substantial bass energy; the high-frequency content should drop, but the sub-300 Hz content should be nearly as loud as from the front.</p>
+
+<h3>The bass bleed pattern: simulating frequency-dependent radiation</h3>
+<p>The workaround is a <strong>parallel bass-bleed path</strong>: a second, omnidirectional Resonance source that receives only the low-frequency content of the original signal through a lowpass filter. The directional source handles the full-range cardioid behavior; the omni source adds back the low frequencies from all directions, simulating the physical diffraction of bass energy around the cabinet.</p>
+
+<pre><code>// CONCEPT: Frequency-dependent directivity via a parallel bass-bleed source.
+//
+// Problem: setDirectivityPattern(alpha, sharpness) applies the same angular
+// attenuation at every frequency. Real speaker cabinets are omnidirectional
+// at low frequencies and increasingly directional at high frequencies.
+//
+// Solution: split the signal into two paths:
+//   Path A — directional source (cardioid) carrying the full-range signal.
+//             Attenuation behind the source is correct at mid/high frequencies.
+//   Path B — omni source (alpha=0) carrying only the low-frequency content
+//             below the crossover point. This path is audible from all directions,
+//             correctly modelling bass diffraction around the cabinet.
+//
+// The two Resonance sources are placed at the same position in the room.
+
+// 1. Create the directional (cardioid) source — full range
+const resonanceSrcHF = resonanceAudio.createSource();
+resonanceSrcHF.setPosition(-5, 0.9, -9);
+resonanceSrcHF.setDirectivityPattern(0.4, 1.0);  // wide cardioid
+
+// 2. Create the omni source — low frequencies only
+const resonanceSrcLF = resonanceAudio.createSource();
+resonanceSrcLF.setPosition(-5, 0.9, -9);
+resonanceSrcLF.setDirectivityPattern(0.0, 1.0);  // omnidirectional
+
+// 3. Lowpass filter to extract low-frequency content (crossover at 300 Hz)
+const lpFilter = audioContext.createBiquadFilter();
+lpFilter.type = 'lowpass';
+lpFilter.frequency.value = 300;   // Hz — below this, energy diffracts around the cabinet
+
+// 4. Gain trim on the LF path: -5 dB (linear ≈ 0.562) to avoid level inflation
+//    at positions directly in front where both paths sum.
+const lpGain = audioContext.createGain();
+lpGain.gain.value = 0.562;
+
+// 5. Main gain node — the slider/mute control sits here, upstream of both paths
+const gainNode = audioContext.createGain();
+gainNode.connect(resonanceSrcHF.input);  // full range → directional source
+gainNode.connect(lpFilter);              // also feeds lowpass chain
+lpFilter.connect(lpGain);
+lpGain.connect(resonanceSrcLF.input);   // filtered low end → omni source
+
+// 6. Connect audio into the shared gain node
+audioBufferSourceNode.connect(gainNode);
+
+// Result: a listener behind the cabinet hears the low-frequency content
+// (from the omni LF source) but very little mid/high content (from the
+// cardioid HF source). This matches the real acoustic behavior of a guitar amp.</code></pre>
+
+<div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
+<strong>Choosing the crossover frequency.</strong> The transition from omnidirectional to directional radiation happens when the wavelength of sound approaches the physical diameter of the radiating surface. For a typical 12-inch guitar speaker (≈ 30 cm diameter), the onset of directional behavior begins around 300–400 Hz. Set the lowpass crossover at or slightly below the driver diameter's corresponding frequency: <em>f</em> ≈ <em>c</em> / (π × <em>d</em>), where <em>c</em> is the speed of sound (343 m/s) and <em>d</em> is the driver diameter in metres. For a 30 cm driver: 343 / (π × 0.30) ≈ 364 Hz — rounding down to 300 Hz is a conservative, perceptually clean crossover. The same technique applies to any instrument with frequency-dependent radiation: a horn loudspeaker, a cello body, a kick drum port.
 </div>
 </div>
 
@@ -1176,6 +1236,90 @@ const rt60Curve = computeRT60Bands(
 
 <div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
 <strong>The anechoic approximation.</strong> An anechoic chamber is defined as having less than 10 dB of reflected energy relative to the direct sound. Resonance Audio does not have a true anechoic mode, but applying <code>'transparent'</code> to all six walls achieves the closest approximation available: all nine per-band coefficients are 1.00, meaning total absorption across the full spectrum. Demo 1 uses this configuration to isolate pure HRTF cues from room acoustics. Any other high-absorption material — <code>'fiber_glass_insulation'</code>, <code>'acoustic_ceiling_tiles'</code> — still leaves significant reflective energy at low frequencies, as the per-band table in Section 2 shows. Only <code>'transparent'</code> is fully absorptive at all bands.
+</div>
+
+<h3>Limitation: live room switching via setRoomProperties is unreliable</h3>
+<p>When <code>setRoomProperties</code> is called on a running <code>ResonanceAudio</code> instance, it triggers a full reinitialisation of the internal HOA renderer. In practice, this reinitialisation wipes the reverb state — the existing tail is cut, and the new reverb sounds identical on both sides of the switch for a brief window (~200 ms) while the FDN re-converges. The result is an audible glitch and an incorrect room response during the transition. This makes <code>setRoomProperties</code> unsuitable for perceptually clean real-time room switching.</p>
+<p>The correct approach is to <strong>rebuild the entire <code>ResonanceAudio</code> instance</strong> with the new room baked into the constructor — the only moment room properties are reliably applied — while keeping the <code>AudioBufferSourceNode</code>s playing untouched, and crossfading the master gain to mask the ~200 ms rebuild window.</p>
+
+<pre><code>// CONCEPT: Reliable room switching via full ResonanceAudio instance rebuild.
+//
+// Problem: resonanceAudio.setRoomProperties() during playback triggers a HOA
+// renderer reinit that wipes reverb state and sounds identical on both sides
+// of the switch — the new room is not audibly established for ~200 ms.
+//
+// Solution: keep BufferSourceNodes playing. Disconnect them from the old
+// ResonanceAudio instance, construct a new one with the new room baked in at
+// creation time, wire everything back, and crossfade the master gain so the
+// 200 ms rebuild window is inaudible.
+//
+// The master gain node persists across rebuilds — it is connected to
+// AudioContext.destination once and never torn down.
+
+const FADE = 0.08;  // seconds — crossfade duration
+
+function rebuildResonance(mode) {
+  const m          = ACOUSTIC_MODES[mode];     // { dimensions, materials, ... }
+  const masterGain = window._resonanceMasterGain;
+  const now        = audioContext.currentTime;
+
+  // 1. Fade master gain to zero — masks the HOARenderer reinit
+  masterGain.gain.cancelScheduledValues(now);
+  masterGain.gain.setValueAtTime(masterGain.gain.value, now);
+  masterGain.gain.linearRampToValueAtTime(0, now + FADE);
+
+  setTimeout(() => {
+    if (!audioContext || !isRunning) return;
+
+    // 2. Disconnect each source's gainNode from the OLD Resonance sources
+    sources.forEach(src => {
+      if (src.gainNode && src.resonanceSrc) {
+        try { src.gainNode.disconnect(src.resonanceSrc.input); } catch(_) {}
+      }
+    });
+
+    // 3. Disconnect old Resonance output from master gain
+    try { resonanceAudio.output.disconnect(masterGain); } catch(_) {}
+
+    // 4. Construct a NEW ResonanceAudio instance with new room baked in at
+    //    construction time — this is the only reliable moment to set room properties.
+    resonanceAudio = new ResonanceAudio(audioContext, {
+      ambisonicOrder: 3,
+      dimensions: m.dimensions,
+      materials:  m.materials
+    });
+
+    // 5. Wire new output → existing master gain → destination
+    resonanceAudio.output.connect(masterGain);
+
+    // 6. Create new Resonance sources; rewire each gainNode into them.
+    //    BufferSourceNodes keep playing — they are never touched.
+    sources.forEach(src => {
+      const newResSrc = resonanceAudio.createSource();
+      const p = src.halo.position;
+      newResSrc.setPosition(p.x, p.y, p.z);
+      // Restore directivity from the source definition
+      if (src.directivity) {
+        newResSrc.setDirectivityPattern(src.directivity.alpha, src.directivity.sharpness);
+      }
+      src.gainNode.connect(newResSrc.input);
+      src.resonanceSrc = newResSrc;
+    });
+
+    // 7. Fade master gain back up
+    const t = audioContext.currentTime;
+    masterGain.gain.cancelScheduledValues(t);
+    masterGain.gain.setValueAtTime(0, t);
+    masterGain.gain.linearRampToValueAtTime(1.0, t + FADE);
+
+  }, FADE * 1000 + 20);  // wait for fade-out + 20 ms safety margin
+}
+
+// Usage: switching from dry studio to wet theater
+rebuildResonance('wet');</code></pre>
+
+<div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
+<strong>Why the master gain node is kept alive across rebuilds.</strong> <code>AudioContext.destination</code> is the hardware output — connecting and disconnecting from it repeatedly causes clicks. The master gain node acts as a persistent, stable intermediary: it connects to <code>destination</code> once at startup and remains connected for the lifetime of the session. During a room rebuild, only the connection between the old <code>resonanceAudio.output</code> and the master gain is severed; the master gain's connection to <code>destination</code> is never touched. The crossfade to zero before the rebuild and back to 1.0 after ensures the hardware output sees a smooth signal throughout.
 </div>
 
 <div class="demo-box">
@@ -1402,7 +1546,7 @@ async function reinitializeAudio() {
       <td>3</td>
       <td><a href="05_mm_acoustic_scene.html">Acoustic Scene</a></td>
       <td><code>05_mm_acoustic_scene.html</code></td>
-      <td>Multi-source spatial scene, distance attenuation, source directivity, audio-reactive visuals, recording studio interior</td>
+      <td>Live concert stage, three real multitrack stems (<code>.wav</code>), 3D GLB models with auto-scaling, Dry/Wet room switching via full <code>ResonanceAudio</code> rebuild + master-gain crossfade, wide-cardioid guitar amp with bass-bleed omni LF path, per-source Mute/Solo/Level controls, energy bar + halo pulse via <code>AnalyserNode</code></td>
     </tr>
     <tr>
       <td>4</td>

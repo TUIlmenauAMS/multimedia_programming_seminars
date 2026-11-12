@@ -844,9 +844,16 @@ const AMP_STAND_H = 0.30;
 const SOURCE_DEFS = [
   // directivity: { alpha, sharpness } — set on the Resonance source after init
   // alpha=0 → omni, alpha=0.5 → cardioid, alpha=1 → hyper-cardioid
+  //
+  // Guitar amp uses a parallel bass-bleed path:
+  //   gainNode → lpFilter (300 Hz) → lpGain → resonanceSrcLF (omni)
+  // Low frequencies diffract around the cabinet and are heard from all angles.
+  // Resonance Audio's directivity model is frequency-independent, so this
+  // second omni source carrying only lows simulates cabinet diffraction.
   { key: 'guitar', name: 'Guitar Amp',  pos: [-5.0, STAGE_H + AMP_STAND_H,  -9.0], color: 0xfb923c,
     directivity: { alpha: 0.4, sharpness: 1.0 },  // wide cardioid — audible behind, drops ~6 dB
-    directivityLabel: 'wide cardioid  α=0.4' },
+    directivityLabel: 'wide cardioid  α=0.4',
+    bassBleed: { cutoff: 300, gainDb: -5 } },      // omni LF bleed: lowpass at 300 Hz, -5 dB
   { key: 'drums',  name: 'Drum Kit',    pos: [ 0.0, STAGE_H, -11.0], color: 0xf87171,
     directivity: { alpha: 0.0, sharpness: 1.0 },  // omni — kit radiates 360°
     directivityLabel: 'omni  α=0.0' },
@@ -877,6 +884,8 @@ let footDisc      = null;   // shadow blob under the listener
 // Source runtime: { key, name, pos(THREE.Vector3),
 //                   halo, light,
 //                   resonanceSrc, analyser, dataArray, bufSrc,
+//                   gainNode, levelLinear, muted, soloed,
+//                   resonanceSrcLF, lpFilter, lpGain,   ← bass bleed (guitar only)
 //                   enabled, modelLoaded }
 const sources = [];
 
