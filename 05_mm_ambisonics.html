@@ -179,7 +179,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 }
 
 /* ── Info panel (top-left) ── */
-#infoPanel { top: 64px; left: 16px; width: 260px; padding: 14px 16px; }
+#infoPanel { top: 64px; left: 16px; width: 260px; padding: 14px 16px; max-height: calc(100vh - 90px); overflow-y: auto; }
 .info-concept {
   font-size: 12px; color: var(--text); line-height: 1.6; margin-bottom: 10px;
 }
@@ -203,8 +203,16 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 #infoBody { overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease; max-height: 400px; opacity: 1; }
 #infoBody.collapsed { max-height: 0; opacity: 0; }
 
-/* ── HUD panel (top-right) ── */
-#hudPanel { top: 64px; right: 16px; width: 220px; padding: 14px 16px; }
+/* ── Right sidebar — holds HUD + Controls stacked, never overlapping ── */
+#rightSidebar {
+  position: fixed; top: 64px; right: 16px; bottom: 16px;
+  width: 240px; display: flex; flex-direction: column; gap: 10px;
+  z-index: 100; pointer-events: none;
+}
+#rightSidebar > * { pointer-events: auto; }
+
+/* ── HUD panel ── (now inside #rightSidebar, no position:fixed) */
+#hudPanel { padding: 14px 16px; flex-shrink: 0; }
 .hud-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
 .hud-row:last-child { margin-bottom: 0; }
 .hud-key { font-family: var(--mono); font-size: 10px; color: var(--muted); }
@@ -219,17 +227,19 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   border-radius: 20px; border: 1px solid rgba(167,139,250,0.3);
 }
 
+/* ── Controls panel ── (now inside #rightSidebar, no position:fixed) */
+#ctrlPanel { padding: 14px 16px; flex-shrink: 0; }
+
 /* ── Polar ring panel (bottom-left) ── */
-#polarPanel { bottom: 16px; left: 16px; padding: 14px 16px; width: 254px; }
-#polarCanvas { display: block; margin: 0 auto 10px; border-radius: 50%; }
+#polarPanel { bottom: 16px; left: 16px; padding: 14px 16px; width: 290px; max-height: calc(100vh - 90px); overflow-y: auto; }
+#polarCanvases { display: flex; gap: 10px; justify-content: center; margin-bottom: 10px; }
+#polarCanvas, #elevCanvas { display: block; border-radius: 50%; }
+.polar-ring-label { font-family: var(--mono); font-size: 9px; color: var(--muted); text-align: center; margin-top: 3px; }
 .polar-explain { font-family: var(--mono); font-size: 10px; color: var(--muted); text-align: center; margin-bottom: 10px; line-height: 1.5; }
 .source-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 5px 10px; margin-top: 4px; }
 .src-leg-item { display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
 .src-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .src-leg-item.inactive { opacity: 0.3; }
-
-/* ── Controls panel (bottom-right) ── */
-#ctrlPanel { bottom: 16px; right: 16px; padding: 14px 16px; width: 240px; }
 .ctrl-section { margin-bottom: 14px; }
 .ctrl-section:last-child { margin-bottom: 0; }
 .ctrl-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 7px; letter-spacing: 0.08em; text-transform: uppercase; }
