@@ -1152,14 +1152,14 @@ function buildAmbiSphere() {
   // Use MeshBasicMaterial for the ambi sphere — unlit, so vertex colors
   // show exactly as computed (not washed out by IBL/lights).
   ambiSphere = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-    vertexColors: true, transparent: true, opacity: 0.55, depthWrite: false,
+    vertexColors: true, transparent: true, opacity: 0.35, depthWrite: false,
     side: THREE.DoubleSide,
   }));
   scene.add(ambiSphere);
 
   wireSphere = new THREE.Mesh(
     new THREE.SphereGeometry(1.52, 32, 16),
-    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.18, wireframe: true, depthWrite: false })
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28, wireframe: true, depthWrite: false })
   );
   scene.add(wireSphere);
 }
