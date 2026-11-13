@@ -7,6 +7,8 @@
 
 <!-- Three.js UMD — works on file:// and served origins alike -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<!-- GLTFLoader for the toon head model — pinned to r128, works on file:// and served -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
 <!-- Resonance Audio UMD -->
 <script defer src="https://cdn.jsdelivr.net/npm/resonance-audio@1.0.0/build/resonance-audio.min.js"></script>
 
@@ -159,6 +161,13 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   text-align: center; padding: 7px 14px 10px;
   border-top: 1px solid var(--border); opacity: 0.65;
 }
+
+/* Model upload section — appears only on file:// */
+#modelUploadSection {
+  width: 100%; border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden; display: none;
+}
+#modelUploadSection.visible { display: block; }
 
 .lo-author-credit {
   font-family: var(--mono); font-size: 10px; color: var(--muted);
@@ -492,6 +501,28 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
       <div class="upload-synth-note">Files next to the HTML are loaded automatically when served. Missing files use synthesized fallbacks — the demo always works.</div>
     </div>
 
+    <!-- 3D model upload — shown only on file://, auto-fetched when served -->
+    <div id="modelUploadSection">
+      <div class="upload-header">
+        <span class="upload-header-title">3D Head Model</span>
+        <span class="upload-header-note" id="modelUploadNote">optional</span>
+      </div>
+      <div class="upload-body">
+        <div class="upload-row">
+          <div class="upload-src-dot" style="background:var(--accent2)"></div>
+          <div class="upload-src-info">
+            <span class="upload-src-name">Toon Head</span>
+            <span class="upload-src-filename">toon_head.glb</span>
+          </div>
+          <label class="upload-btn" id="lbl-model">
+            Upload
+            <input type="file" accept=".glb,.gltf" onchange="handleModelUpload(event)">
+          </label>
+        </div>
+      </div>
+      <div class="upload-synth-note">Skip to use the built-in head placeholder instead.</div>
+    </div>
+
     <div class="lo-author-credit">
       Demo by <strong>Renato Fera P.</strong> &nbsp;·&nbsp;
       <a href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener" class="lo-li-link">
@@ -694,8 +725,16 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 
     <div class="mix-note">Mute / solo any source, or drag a level to balance the mix. Speech, Beep and Alarm (⇪) can also be swapped live.</div>
     <div class="gpanel" id="creditsPanel">
-    <div class="gpanel-label">Audio Credits</div>
+    <div class="gpanel-label">Credits</div>
     <div id="creditsBody">
+      <div class="credit-item">
+        <span class="credit-emoji">🧑</span>
+        <span class="credit-text">
+          <strong>Toon Head</strong> — 3D model by <strong>CzernO</strong>.<br>
+          <a href="https://skfb.ly/oVW9o" target="_blank" rel="noopener">Sketchfab ↗</a>.
+          <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.
+        </span>
+      </div>
       <div class="credit-item">
         <span class="credit-emoji">🚨</span>
         <span class="credit-text">
@@ -741,6 +780,11 @@ let renderer, scene, camera, composer, clock;
 let ambiSphere, ambiColorsAttr, vertexDirs, wireSphere;
 let headGroup, headEuler;
 let labelElements = [];
+
+// GLB model state
+let glbArrayBuffer = null;       // ArrayBuffer from upload or auto-fetch
+let glbLoadPromise  = null;      // Promise tracked in pendingLoadPromises
+let headModelLoaded = false;     // true once GLTFLoader placed the model
 
 // Sources placed at clearly distinct, well-separated directions on a sphere
 // of radius ~3 so they sit just outside the ambi-sphere (r=1.5) and are
@@ -867,8 +911,23 @@ const isFileProtocol = location.protocol === 'file:';
 function tryAutoFetch() {
   if (isFileProtocol) {
     document.getElementById('uploadHeaderNote').textContent = 'upload files or use synth fallbacks';
+    // Show the model upload section so the user can optionally provide the GLB
+    document.getElementById('modelUploadSection').classList.add('visible');
     return;
   }
+  // Served: also auto-fetch the GLB model from the same directory
+  document.getElementById('modelUploadNote').textContent = 'fetching…';
+  glbLoadPromise = fetch('toon_head.glb')
+    .then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
+    .then(buf => {
+      glbArrayBuffer = buf;
+      document.getElementById('modelUploadNote').textContent = '✓ loaded';
+    })
+    .catch(() => {
+      document.getElementById('modelUploadNote').textContent = 'not found — using fallback';
+    });
+  pendingLoadPromises.push(glbLoadPromise);
+
   // Served: attempt to fetch each audio file from the same directory
   document.getElementById('uploadHeaderNote').textContent = 'fetching from server…';
   let loaded = 0, total = 0;
@@ -917,6 +976,35 @@ function handleUpload(event, key) {
       const inp = document.createElement('input');
       inp.type = 'file'; inp.accept = 'audio/*'; inp.style.display = 'none';
       inp.onchange = (ev) => handleUpload(ev, key);
+      btn.appendChild(inp);
+      resolve();
+    };
+    reader.onerror = () => { btn.textContent = '✗ Error'; resolve(); };
+    reader.readAsArrayBuffer(file);
+  });
+  pendingLoadPromises.push(p);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MODEL UPLOAD HANDLER (pre-start, file:// only)
+// ═══════════════════════════════════════════════════════════════════════════
+function handleModelUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const btn  = document.getElementById('lbl-model');
+  const note = document.getElementById('modelUploadNote');
+  btn.textContent = '…';
+  const p = new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      glbArrayBuffer = e.target.result;
+      btn.textContent = '✓ ' + file.name.slice(0, 16) + (file.name.length > 16 ? '…' : '');
+      btn.classList.add('loaded');
+      note.textContent = '✓ ready';
+      // Re-attach hidden input
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = '.glb,.gltf'; inp.style.display = 'none';
+      inp.onchange = handleModelUpload;
       btn.appendChild(inp);
       resolve();
     };
@@ -1020,7 +1108,11 @@ function initRenderer() {
 function buildScene() {
   buildStarField();
   buildAmbiSphere();
-  buildHeadProxy();
+  // Head is built later in onStart(), after GLB fetch/upload settles.
+  // We still create the headGroup here so the render loop references it safely.
+  headGroup = new THREE.Group();
+  scene.add(headGroup);
+  headEuler = new THREE.Euler(0, 0, 0, 'YXZ');
   buildSourceMeshes();
   buildLights();
 }
@@ -1067,24 +1159,78 @@ function buildAmbiSphere() {
 }
 
 function buildHeadProxy() {
-  headGroup = new THREE.Group();
-  scene.add(headGroup);
+  // headGroup and headEuler are already created in buildScene().
+  if (glbArrayBuffer && typeof THREE.GLTFLoader !== 'undefined') {
+    // ── GLB path: parse the ArrayBuffer we already have in memory ──────────
+    const loader = new THREE.GLTFLoader();
+    loader.parse(
+      glbArrayBuffer,
+      '',   // resource path (not needed — model is self-contained)
+      (gltf) => {
+        const model = gltf.scene;
 
-  // Head skull — MeshBasicMaterial is unlit so it ignores scene lighting and
-  // is always the same bright white regardless of the ambi-sphere colour.
-  const headMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        // ── Strip the stray ZBrush reference sphere (PM3D_Sphere3D1) that
+        //    was accidentally baked into the export — it has nothing to do
+        //    with the head mesh and renders as an ugly blob in front of the face.
+        model.traverse((child) => {
+          if (child.name && child.name.startsWith('PM3D_Sphere3D1')) {
+            child.visible = false;
+          }
+        });
+
+        // ── Orientation: the head already faces −Z in model space (Three.js
+        //    forward), so no Y rotation is needed.
+
+        // ── Scale: fit bounding box height to ≈ 0.32 units (same visual
+        //    footprint as the old sphere placeholder, r=0.15).
+        const box = new THREE.Box3().setFromObject(model);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const scaleFactor = 0.32 / size.y;
+        model.scale.setScalar(scaleFactor);
+
+        // ── Re-centre so the head sits at the origin.
+        box.setFromObject(model);   // recompute after scale
+        const centre = new THREE.Vector3();
+        box.getCenter(centre);
+        model.position.sub(centre);
+
+        headGroup.add(model);
+        headModelLoaded = true;
+
+        // Forward arrow — essential orientation cue, points −Z (nose direction).
+        headGroup.add(new THREE.ArrowHelper(
+          new THREE.Vector3(0, 0, -1),
+          new THREE.Vector3(0, -0.05, 0),
+          0.44, 0xffee00, 0.11, 0.065
+        ));
+      },
+      (err) => {
+        console.warn('[GLTFLoader] parse failed — using fallback head:', err);
+        buildFallbackHead();
+      }
+    );
+  } else {
+    // ── Fallback: procedural primitive head (always works) ─────────────────
+    buildFallbackHead();
+  }
+}
+
+function buildFallbackHead() {
+  // Head skull — MeshBasicMaterial is unlit so it ignores scene lighting
+  const headMat  = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.15, 20, 14), headMat);
   headMesh.scale.y = 0.85;
   headGroup.add(headMesh);
 
-  // Dark outline slightly larger — creates a crisp silhouette even on a white bg
-  const outlineMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide });
+  // Dark outline — crisp silhouette
+  const outlineMat  = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide });
   const outlineMesh = new THREE.Mesh(new THREE.SphereGeometry(0.155, 20, 14), outlineMat);
   outlineMesh.scale.y = 0.85;
   headGroup.add(outlineMesh);
 
-  // Ears — solid orange, unlit
-  const earMat = new THREE.MeshBasicMaterial({ color: 0xfb923c });
+  // Ears
+  const earMat   = new THREE.MeshBasicMaterial({ color: 0xfb923c });
   const leftEar  = new THREE.Mesh(new THREE.SphereGeometry(0.038, 8, 6), earMat);
   leftEar.position.set(-0.165, 0, 0);
   headGroup.add(leftEar);
@@ -1092,14 +1238,12 @@ function buildHeadProxy() {
   rightEar.position.set(0.165, 0, 0);
   headGroup.add(rightEar);
 
-  // Forward direction arrow — bright yellow so it's obvious which way head faces
+  // Forward direction arrow
   headGroup.add(new THREE.ArrowHelper(
     new THREE.Vector3(0, 0, -1),
     new THREE.Vector3(0, 0, 0),
     0.50, 0xffee00, 0.13, 0.07
   ));
-
-  headEuler = new THREE.Euler(0, 0, 0, 'YXZ');
 }
 
 function buildSourceMeshes() {
@@ -1159,10 +1303,20 @@ function buildSourceLabels() {
 }
 
 function buildLights() {
-  scene.add(new THREE.AmbientLight(0x101520, 0.5));
-  const dir = new THREE.DirectionalLight(0xffffff, 0.4);
-  dir.position.set(1, 3, 2);
-  scene.add(dir);
+  // Ambient: enough to illuminate the GLB model's shadowed areas
+  scene.add(new THREE.AmbientLight(0xd0d8f0, 1.2));
+  // Key light — front-top-right
+  const key = new THREE.DirectionalLight(0xffffff, 1.8);
+  key.position.set(2, 4, 3);
+  scene.add(key);
+  // Fill light — front-left, slightly cooler
+  const fill = new THREE.DirectionalLight(0xc8d8ff, 0.6);
+  fill.position.set(-3, 1, 2);
+  scene.add(fill);
+  // Rim light — from behind, adds depth
+  const rim = new THREE.DirectionalLight(0xffeedd, 0.4);
+  rim.position.set(0, 2, -4);
+  scene.add(rim);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1219,9 +1373,13 @@ async function onStart() {
   // decode step below see `uploadedBuffers.speech` as null and silently use
   // the synth fallback instead — even though the file had been uploaded.
   if (pendingLoadPromises.length) {
-    setProgress(75, 'Finishing audio uploads…');
+    setProgress(75, 'Finishing uploads…');
     await Promise.allSettled(pendingLoadPromises);
   }
+
+  // Build the head now that GLB data (if any) has arrived
+  setProgress(78, 'Building 3D head model…');
+  buildHeadProxy();
 
   setProgress(80, 'Decoding audio files…');
   for (const src of SOURCES.filter(s => s.uploadKey)) {
