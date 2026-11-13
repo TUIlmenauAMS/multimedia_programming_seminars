@@ -621,6 +621,7 @@
 
 <h3>Head Rotation in the Ambisonic Domain</h3>
 <p>One of the principal advantages of the Ambisonic representation is that listener head rotation — the fundamental operation in head-tracked VR audio — is computationally cheap. Rotating the listener's perspective is equivalent to rotating the spherical harmonic coordinate system, which is a matrix multiplication on the coefficient domain (a Wigner-D matrix). This costs \(O((N+1)^4)\) multiplications per frame, far less expensive than re-encoding all sources from scratch. Source positions are fixed in the Ambisonic bus; only the rotation matrix changes when the head moves.</p>
+<p>Resonance Audio encapsulates this operation entirely. The application does not construct or pass a Wigner-D matrix directly; it calls <code>resonanceAudio.setListenerFromMatrix({ elements: matrix4x4 })</code> once per animation frame with the listener's pose as a standard 4×4 transformation matrix (a Three.js <code>Matrix4</code>). Resonance Audio extracts the rotation and applies the corresponding Wigner-D transform internally on its audio thread. Demo 4 does exactly this: left-dragging the head updates the Three.js quaternion, composes it into a <code>Matrix4</code>, and passes it to <code>setListenerFromMatrix()</code> each frame.</p>
 
 <div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
 <strong>Ambisonics separates the sound field from its reproduction.</strong> A single Ambisonic master can be decoded to headphones (binaural, as Resonance Audio does), to a 7.1.4 Dolby Atmos speaker array, to a dome of 50 loudspeakers, or to any other playback geometry. The B-format file is the same in all cases — only the decoder changes. This format-agnostic design is why Ambisonics has become the standard internal representation for immersive audio in VR platforms, YouTube 360, and professional post-production.
@@ -632,7 +633,7 @@
 </p>
 
 <div class="demo-box">
-  <strong>Demo 4 — Ambisonics Visualizer.</strong> Five sources (Speech, Beep, Alarm, Rumble, Shimmer) encoded into a third-order Ambisonic bus, visualized as a Viridis-coloured spherical energy distribution. Two polar-ring canvases show the energy field from above (horizontal plane) and from the side (vertical/elevation plane), with a white needle tracking the listener's facing direction in each view. Toggle between first-order (4 ch, spatially blurry) and third-order (16 ch, sharp) and hear the resolution difference. Left-drag rotates the listener's head — the binaural decode, the sphere, and both polar rings update together, showing the Wigner-D rotation in action. Right-drag orbits the camera; scroll zooms. A per-source mixer panel (Mute / Solo / Level) lets you isolate any source to hear its contribution to the field.
+  <strong>Demo 4 — Ambisonics Visualizer.</strong> Five sources (Speech, Beep, Alarm, Rumble, Shimmer) are each placed at a fixed 3D position and fed through Resonance Audio's internal Ambisonic bus. The glowing sphere and two polar-ring canvases visualize a <em>spatial energy proxy</em>: for each direction on the sphere, the demo sums each source's RMS amplitude weighted by a spherical-harmonic-like directional kernel, then maps the result to the Viridis colour scale (dark = quiet, bright = loud). This is a didactic approximation of how the Ambisonic sound field looks, not a readout of individual B-format channel coefficients. The white needle on each ring tracks the listener's facing direction. Toggle between first-order (4 ch, spatially blurry) and third-order (16 ch, sharp) — Resonance Audio is rebuilt at the new order and the directional kernel sharpens accordingly. Left-drag rotates the listener's head: Resonance Audio applies the corresponding Wigner-D rotation internally via <code>setListenerFromMatrix()</code>, and the sphere and rings update to reflect the new listening angle. Right-drag orbits the camera; scroll zooms. The demo runs fully anechoic — room reverb is intentionally disabled so the visualization reflects pure directional rendering without a reverberation tail. A per-source mixer panel (Mute / Solo / Level) lets you isolate any source to hear its contribution to the field.
   <br>
   <a href="05_mm_ambisonics.html">Open Demo 4: Ambisonics Visualizer &#8599;</a>
 </div>
@@ -1546,7 +1547,7 @@ async function reinitializeAudio() {
       <td>4</td>
       <td><a href="05_mm_ambisonics.html">Ambisonics Visualizer</a></td>
       <td><code>05_mm_ambisonics.html</code></td>
-      <td>Ambisonic encoding, spherical energy visualization, B-format channel energy, head rotation in Ambisonic domain, order 1 vs order 3 comparison</td>
+      <td>Ambisonic encoding, spatial energy proxy visualization (RMS × directional kernel, Viridis-mapped sphere + polar rings), head rotation via <code>setListenerFromMatrix()</code> (Wigner-D internally), order 1 vs order 3 comparison, anechoic rendering (reverb bus silenced), per-source Mute/Solo/Level mixer</td>
     </tr>
     <tr>
       <td>5</td>
