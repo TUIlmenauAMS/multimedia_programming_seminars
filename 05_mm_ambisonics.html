@@ -253,6 +253,26 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .src-dot            { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .src-leg-item.inactive { opacity: 0.3; }
 
+/* Credits panel */
+#creditsPanel { padding: 10px 13px; flex-shrink: 0; }
+#creditsBody  { overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease; max-height: 600px; opacity: 1; }
+#creditsBody.collapsed { max-height: 0; opacity: 0; }
+.credit-item  { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 9px; }
+.credit-item:last-child { margin-bottom: 0; }
+.credit-emoji { font-size: 13px; flex-shrink: 0; line-height: 1.5; }
+.credit-text  { font-family: var(--mono); font-size: 9.5px; color: var(--muted); line-height: 1.6; }
+.credit-text strong { color: var(--text); font-weight: 500; }
+.credit-text a { color: var(--accent); text-decoration: none; }
+.credit-text a:hover { text-decoration: underline; }
+.credit-collapse-btn {
+  display: flex; align-items: center; gap: 6px; cursor: pointer;
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--panel-border);
+  background: none; border-left: none; border-right: none; border-bottom: none;
+  width: 100%; text-align: left; transition: color 0.15s;
+}
+.credit-collapse-btn:hover { color: var(--text); }
+
 /* HUD panel at top of right col */
 #hudPanel { padding: 11px 14px; flex-shrink: 0; }
 .hud-row  { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
@@ -449,7 +469,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
         <div class="upload-row">
           <div class="upload-src-dot" style="background:var(--src-b)"></div>
           <div class="upload-src-info">
-            <span class="upload-src-name">Notification</span>
+            <span class="upload-src-name">Beep</span>
             <span class="upload-src-filename">1298.mp3</span>
           </div>
           <label class="upload-btn" id="lbl-beep">
@@ -460,7 +480,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
         <div class="upload-row">
           <div class="upload-src-dot" style="background:var(--src-c)"></div>
           <div class="upload-src-info">
-            <span class="upload-src-name">Fire Alarm</span>
+            <span class="upload-src-name">Alarm</span>
             <span class="upload-src-filename">3411.mp3</span>
           </div>
           <label class="upload-btn" id="lbl-alarm">
@@ -544,9 +564,9 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
     <div class="polar-explain">Energy per direction · White needle = listening direction</div>
     <div class="source-legend" id="srcLegend">
       <div class="src-leg-item" id="leg-a"><div class="src-dot" style="background:var(--src-a)"></div>A · Speech</div>
-      <div class="src-leg-item" id="leg-b"><div class="src-dot" style="background:var(--src-b)"></div>B · Notification</div>
-      <div class="src-leg-item" id="leg-c"><div class="src-dot" style="background:var(--src-c)"></div>C · Fire Alarm</div>
-      <div class="src-leg-item" id="leg-d"><div class="src-dot" style="background:var(--src-d)"></div>D · Drone</div>
+      <div class="src-leg-item" id="leg-b"><div class="src-dot" style="background:var(--src-b)"></div>B · Beep</div>
+      <div class="src-leg-item" id="leg-c"><div class="src-dot" style="background:var(--src-c)"></div>C · Alarm</div>
+      <div class="src-leg-item" id="leg-d"><div class="src-dot" style="background:var(--src-d)"></div>D · Rumble</div>
       <div class="src-leg-item" id="leg-e"><div class="src-dot" style="background:var(--src-e)"></div>E · Shimmer ↑</div>
     </div>
   </div>
@@ -619,7 +639,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
     <div class="mix-row" id="mixrow-B">
       <div class="mix-row-top">
         <span class="mix-dot" style="background:var(--src-b)"></span>
-        <span class="mix-label">B · Notification</span>
+        <span class="mix-label">B · Beep</span>
         <span class="mix-status" id="st-beep"></span>
       </div>
       <div class="mix-row-controls">
@@ -634,7 +654,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
     <div class="mix-row" id="mixrow-C">
       <div class="mix-row-top">
         <span class="mix-dot" style="background:var(--src-c)"></span>
-        <span class="mix-label">C · Fire Alarm</span>
+        <span class="mix-label">C · Alarm</span>
         <span class="mix-status" id="st-alarm"></span>
       </div>
       <div class="mix-row-controls">
@@ -649,7 +669,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
     <div class="mix-row" id="mixrow-D">
       <div class="mix-row-top">
         <span class="mix-dot" style="background:var(--src-d)"></span>
-        <span class="mix-label">D · Drone</span>
+        <span class="mix-label">D · Rumble</span>
       </div>
       <div class="mix-row-controls">
         <button class="mix-btn mute" id="mute-D" onclick="toggleMute('D')" title="Mute">M</button>
@@ -672,7 +692,39 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
       </div>
     </div>
 
-    <div class="mix-note">Mute / solo any source, or drag a level to balance the mix. Speech, Notification and Fire Alarm (⇪) can also be swapped live.</div>
+    <div class="mix-note">Mute / solo any source, or drag a level to balance the mix. Speech, Beep and Alarm (⇪) can also be swapped live.</div>
+    <div class="gpanel" id="creditsPanel">
+    <div class="gpanel-label">Audio Credits</div>
+    <div id="creditsBody">
+      <div class="credit-item">
+        <span class="credit-emoji">🚨</span>
+        <span class="credit-text">
+          <strong>Alarm</strong> — Fire alarm sound effect.<br>
+          <a href="https://bigsoundbank.com/detail-3411.html" target="_blank" rel="noopener">BigSoundBank.com #3411 ↗</a>. Free with attribution.
+        </span>
+      </div>
+      <div class="credit-item">
+        <span class="credit-emoji">🔔</span>
+        <span class="credit-text">
+          <strong>Beep</strong> — Electronic beep sound effect.<br>
+          <a href="https://bigsoundbank.com/detail-1298.html" target="_blank" rel="noopener">BigSoundBank.com #1298 ↗</a>. Free with attribution.
+        </span>
+      </div>
+      <div class="credit-item">
+        <span class="credit-emoji">🗣</span>
+        <span class="credit-text">
+          <strong>Speech</strong> — EARS dataset, speaker p020 (freeform).<br>
+          J. Richter et al., "EARS: An Anechoic Fullband Speech Dataset…," Interspeech 2024.<br>
+          <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noopener">CC BY-NC 4.0</a>.
+          Converted to mono and level-normalised at playback.<br>
+          <a href="https://sp-uhh.github.io/ears_dataset/" target="_blank" rel="noopener">Source ↗</a>
+        </span>
+      </div>
+    </div>
+    <button class="credit-collapse-btn" id="creditsCollapseBtn" onclick="toggleCreditsPanel()">
+      <svg id="creditsCollapseArrow" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="transition:transform 0.3s"><path d="M7 10l5 5 5-5z"/></svg>
+      <span id="creditsCollapseLabel">Hide credits</span>
+    </button>
   </div>
 
 </div>
@@ -694,16 +746,16 @@ let labelElements = [];
 // of radius ~3 so they sit just outside the ambi-sphere (r=1.5) and are
 // visible even at the default camera distance.
 //   A Speech      — front-left,  slight elevation   (-45° az, +20° el)
-//   B Notification — right,       ear level           (+90° az,   0° el)
-//   C Fire Alarm  — rear,         high elevation      (180° az, +45° el)
-//   D Drone       — front-right,  below ear level     (+45° az, -30° el)
+//   B Beep        — right,        ear level           (+90° az,   0° el)
+//   C Alarm       — rear,         high elevation      (180° az, +45° el)
+//   D Rumble      — front-right,  below ear level     (+45° az, -30° el)
 //   E Shimmer     — directly above                    (  0° az, +90° el)
 const R3 = 3.0;
 const SOURCES = [
   { id:'A', label:'Speech',      color:0xfb923c, pos:[ -R3*Math.sin(Math.PI/4)*Math.cos(20*Math.PI/180),  R3*Math.sin(20*Math.PI/180), -R3*Math.cos(Math.PI/4)*Math.cos(20*Math.PI/180)], file:'p020_freeform_speech_01.wav', uploadKey:'speech', muted:false, solo:false, userLevel:1.0 },
-  { id:'B', label:'Notification', color:0x4fc3f7, pos:[ R3, 0, 0],                                                                                                                         file:'1298.mp3',                   uploadKey:'beep',   muted:false, solo:false, userLevel:1.0 },
-  { id:'C', label:'Fire Alarm',  color:0xf87171, pos:[ 0,  R3*Math.sin(45*Math.PI/180),  R3*Math.cos(45*Math.PI/180)],                                                                    file:'3411.mp3',                   uploadKey:'alarm',  muted:false, solo:false, userLevel:1.0 },
-  { id:'D', label:'Drone',       color:0xa78bfa, pos:[ R3*Math.sin(Math.PI/4)*Math.cos(30*Math.PI/180), -R3*Math.sin(30*Math.PI/180), -R3*Math.cos(Math.PI/4)*Math.cos(30*Math.PI/180)], file:null,                         uploadKey:null,     muted:false, solo:false, userLevel:1.0 },
+  { id:'B', label:'Beep',        color:0x4fc3f7, pos:[ R3, 0, 0],                                                                                                                         file:'1298.mp3',                   uploadKey:'beep',   muted:false, solo:false, userLevel:1.0 },
+  { id:'C', label:'Alarm',       color:0xf87171, pos:[ 0,  R3*Math.sin(45*Math.PI/180),  R3*Math.cos(45*Math.PI/180)],                                                                    file:'3411.mp3',                   uploadKey:'alarm',  muted:false, solo:false, userLevel:1.0 },
+  { id:'D', label:'Rumble',      color:0xa78bfa, pos:[ R3*Math.sin(Math.PI/4)*Math.cos(30*Math.PI/180), -R3*Math.sin(30*Math.PI/180), -R3*Math.cos(Math.PI/4)*Math.cos(30*Math.PI/180)], file:null,                         uploadKey:null,     muted:false, solo:false, userLevel:1.0 },
   { id:'E', label:'Shimmer',     color:0x34d399, pos:[ 0,  R3, 0],                                                                                                                         file:null,                         uploadKey:null,     muted:false, solo:false, userLevel:1.0 },
 ];
 
@@ -1338,7 +1390,7 @@ function buildSynthSources() {
     SOURCES[0].oscNodes = [osc, lfo, ampLfo];
   }
 
-  // ── B: Notification beep
+  // ── B: Beep
   if (SOURCES[1].buffer) {
     const norm = computeNormalizationGain(SOURCES[1].buffer);
     SOURCES[1].bufNode = createLoopingBufferSource(SOURCES[1].buffer);
@@ -1364,7 +1416,7 @@ function buildSynthSources() {
     SOURCES[1].oscNodes = [osc];
   }
 
-  // ── C: Fire alarm siren
+  // ── C: Alarm siren
   if (SOURCES[2].buffer) {
     const norm = computeNormalizationGain(SOURCES[2].buffer);
     SOURCES[2].bufNode = createLoopingBufferSource(SOURCES[2].buffer);
@@ -1389,7 +1441,7 @@ function buildSynthSources() {
     SOURCES[2].oscNodes = [osc];
   }
 
-  // ── D: Drone (sub-bass, below-right)
+  // ── D: Rumble (sub-bass, below-right)
   {
     const osc  = audioContext.createOscillator(); osc.type = 'sine'; osc.frequency.value = 60;
     const osc2 = audioContext.createOscillator(); osc2.type = 'sine'; osc2.frequency.value = 120;
@@ -1655,6 +1707,10 @@ let rightDrag = false;
 document.addEventListener('contextmenu', e => e.preventDefault()); // suppress right-click menu on canvas
 
 document.addEventListener('mousedown', e => {
+  // Ignore drags that start inside a UI panel — only the canvas should drive
+  // head rotation and camera orbit.
+  const uiPanels = ['leftCol', 'rightCol', 'topbar', 'loadOverlay', 'hrtfToast', 'navHint'];
+  if (uiPanels.some(id => { const el = document.getElementById(id); return el && el.contains(e.target); })) return;
   if (e.button === 0) { leftDrag  = true; lastMouseX = e.clientX; lastMouseY = e.clientY; }
   if (e.button === 2) { rightDrag = true; lastMouseX = e.clientX; lastMouseY = e.clientY; }
 });
@@ -1689,7 +1745,9 @@ document.addEventListener('touchmove', e => {
 }, { passive: true });
 document.addEventListener('touchend', () => { leftDrag = false; });
 
-document.addEventListener('wheel', e => {
+// Wheel zoom is scoped to the canvas mount only — scrolling over any UI
+// panel (mixer, info, polar ring, controls) does not affect the camera.
+document.getElementById('canvasMount').addEventListener('wheel', e => {
   if (!camera) return;
   cameraRadius = Math.max(1.8, Math.min(9.0, cameraRadius + e.deltaY * 0.005));
   updateCameraFromSpherical();
