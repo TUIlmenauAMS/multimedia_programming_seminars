@@ -218,13 +218,21 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
    LAYOUT: fixed sidebars, never overlapping
    ════════════════════════════════════════ */
 
-/* Left column */
+/* Left column — single scrollable bar */
 #leftCol {
   position: fixed; top: 60px; left: 14px; bottom: 14px;
   width: 254px; display: flex; flex-direction: column; gap: 8px;
+  overflow-y: auto; overflow-x: hidden;
+  overscroll-behavior: contain;
   z-index: 100; pointer-events: none;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.10) transparent;
 }
-#leftCol > * { pointer-events: auto; }
+#leftCol::-webkit-scrollbar { width: 4px; }
+#leftCol::-webkit-scrollbar-track { background: transparent; }
+#leftCol::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 2px; }
+#leftCol::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+#leftCol > * { pointer-events: auto; flex-shrink: 0; }
 
 /* Right column — single scrollable bar */
 #rightCol {
@@ -244,9 +252,8 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 #rightCol::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
 #rightCol > * { pointer-events: auto; flex-shrink: 0; }
 
-/* Info panel: scrollable within its own box ONLY — stop scroll events from bubbling to canvas */
-#infoPanel { padding: 12px 14px; overflow-y: auto; flex-shrink: 1; min-height: 0; max-height: 260px; }
-#infoPanel:hover { overflow-y: auto; }
+/* Info panel — natural height, column scrolls */
+#infoPanel { padding: 12px 14px; flex-shrink: 0; }
 .info-concept { font-size: 11.5px; color: var(--text); line-height: 1.65; margin-bottom: 10px; }
 .info-concept strong { color: var(--accent2); font-weight: 500; }
 .info-divider { height: 1px; background: var(--panel-border); margin: 10px 0; }
@@ -573,29 +580,8 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
      DEMO UI — hidden until onStart() completes
      ════════════════════════════════════════ -->
 
-<!-- Left column: Info + Polar ring -->
+<!-- Left column: Polar ring + Info -->
 <div id="leftCol" style="display:none;">
-
-  <div class="gpanel" id="infoPanel">
-    <div class="gpanel-label">About this demo</div>
-    <div id="infoBody">
-      <div class="info-concept">
-        <strong>Ambisonics</strong> encodes multiple sound sources into a single 360° <strong>sound field</strong> — a property of the space, not the listener. The glowing sphere is that field: colour = acoustic energy arriving from each direction (dark = silent, bright = loud).
-      </div>
-      <div class="info-concept">
-        The <strong>head</strong> at the centre is you. <strong>Drag</strong> to rotate your head inside the fixed field — the audio panning changes but the field itself does not. This is the core difference from stereo panning.
-      </div>
-      <div class="info-divider"></div>
-      <div class="info-row"><span class="info-key">Drag</span><span class="info-val">Rotate head — hear the field from a new angle</span></div>
-      <div class="info-row"><span class="info-key">Scroll</span><span class="info-val">Zoom in / out on the canvas</span></div>
-      <div class="info-row"><span class="info-key">Order 1→3</span><span class="info-val">More channels = sharper spatial resolution</span></div>
-      <div class="info-row"><span class="info-key">Mixer</span><span class="info-val">Mute, solo or set the level of any of the 5 sources</span></div>
-    </div>
-    <button class="info-collapse-btn" id="infoCollapseBtn" onclick="toggleInfoPanel()">
-      <svg id="infoCollapseArrow" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="transition:transform 0.3s"><path d="M7 10l5 5 5-5z"/></svg>
-      <span id="infoCollapseLabel">Hide explanation</span>
-    </button>
-  </div>
 
   <div class="gpanel" id="polarPanel">
     <div class="gpanel-label">Sound Field · Spatial Views</div>
@@ -617,6 +603,27 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
       <div class="src-leg-item" id="leg-d"><div class="src-dot" style="background:var(--src-d)"></div>D · Rumble</div>
       <div class="src-leg-item" id="leg-e"><div class="src-dot" style="background:var(--src-e)"></div>E · Shimmer ↑</div>
     </div>
+  </div>
+
+  <div class="gpanel" id="infoPanel">
+    <div class="gpanel-label">About this demo</div>
+    <div id="infoBody">
+      <div class="info-concept">
+        <strong>Ambisonics</strong> encodes multiple sound sources into a single 360° <strong>sound field</strong> — a property of the space, not the listener. The glowing sphere is that field: colour = acoustic energy arriving from each direction (dark = silent, bright = loud).
+      </div>
+      <div class="info-concept">
+        The <strong>head</strong> at the centre is you. <strong>Drag</strong> to rotate your head inside the fixed field — the audio panning changes but the field itself does not. This is the core difference from stereo panning.
+      </div>
+      <div class="info-divider"></div>
+      <div class="info-row"><span class="info-key">Drag</span><span class="info-val">Rotate head — hear the field from a new angle</span></div>
+      <div class="info-row"><span class="info-key">Scroll</span><span class="info-val">Zoom in / out on the canvas</span></div>
+      <div class="info-row"><span class="info-key">Order 1→3</span><span class="info-val">More channels = sharper spatial resolution</span></div>
+      <div class="info-row"><span class="info-key">Mixer</span><span class="info-val">Mute, solo or set the level of any of the 5 sources</span></div>
+    </div>
+    <button class="info-collapse-btn" id="infoCollapseBtn" onclick="toggleInfoPanel()">
+      <svg id="infoCollapseArrow" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="transition:transform 0.3s"><path d="M7 10l5 5 5-5z"/></svg>
+      <span id="infoCollapseLabel">Hide explanation</span>
+    </button>
   </div>
 
 </div>
@@ -1997,10 +2004,9 @@ document.getElementById('canvasMount').addEventListener('wheel', e => {
   updateCameraFromSpherical();
 }, { passive: true });
 
-// Prevent right-column scroll from ever bubbling to the canvas zoom handler.
-document.getElementById('rightCol').addEventListener('wheel', e => {
-  e.stopPropagation();
-}, { passive: true });
+// Prevent sidebar scroll from ever bubbling to the canvas zoom handler.
+document.getElementById('rightCol').addEventListener('wheel', e => { e.stopPropagation(); }, { passive: true });
+document.getElementById('leftCol').addEventListener('wheel',  e => { e.stopPropagation(); }, { passive: true });
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PER-SOURCE RMS
