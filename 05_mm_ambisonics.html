@@ -7,9 +7,8 @@
 
 <!-- Three.js UMD — works on file:// and served origins alike -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<!-- GLTFLoader + specular-glossiness extension — pinned to r128, works on file:// and served -->
+<!-- GLTFLoader — pinned to r128, works on file:// and served -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/gltf/KHRMaterialsPbrSpecularGlossiness.js"></script>
 <!-- Resonance Audio UMD -->
 <script defer src="https://cdn.jsdelivr.net/npm/resonance-audio@1.0.0/build/resonance-audio.min.js"></script>
 
@@ -518,8 +517,8 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
         <div class="upload-row">
           <div class="upload-src-dot" style="background:var(--accent2)"></div>
           <div class="upload-src-info">
-            <span class="upload-src-name">Angelica</span>
-            <span class="upload-src-filename">angelica.glb</span>
+            <span class="upload-src-name">Girl with Glasses</span>
+            <span class="upload-src-filename">girl_with_glasses.glb</span>
           </div>
           <label class="upload-btn" id="lbl-model">
             Upload
@@ -527,7 +526,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
           </label>
         </div>
       </div>
-      <div class="upload-synth-note">Skip to use the built-in head placeholder instead.</div>
+      <div class="upload-synth-note">Skip to use the built-in head placeholder instead. Expects girl_with_glasses.glb.</div>
     </div>
     </div><!-- /uploadsRow -->
 
@@ -736,10 +735,10 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
     <div class="gpanel-label">Credits</div>
     <div id="creditsBody">
       <div class="credit-item">
-        <span class="credit-emoji">🧑</span>
+        <span class="credit-emoji">🧑‍🦱</span>
         <span class="credit-text">
-          <strong>Angelica</strong> — 3D model by <strong>DarkNik</strong>.<br>
-          <a href="https://skfb.ly/6ouNX" target="_blank" rel="noopener">Sketchfab ↗</a>.
+          <strong>Girl with Glasses</strong> — 3D model by <strong>nnhhaadd</strong>.<br>
+          <a href="https://skfb.ly/6sHPX" target="_blank" rel="noopener">Sketchfab ↗</a>.
           <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.
         </span>
       </div>
@@ -923,7 +922,7 @@ function tryAutoFetch() {
   }
   // Served: also auto-fetch the GLB model from the same directory
   document.getElementById('modelUploadNote').textContent = 'fetching…';
-  glbLoadPromise = fetch('angelica.glb')
+  glbLoadPromise = fetch('girl_with_glasses.glb')
     .then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
     .then(buf => {
       glbArrayBuffer = buf;
@@ -1076,7 +1075,7 @@ function initRenderer() {
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.1;
+  renderer.toneMappingExposure = 1.3;
   if (THREE.SRGBColorSpace) renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   const mount = document.getElementById('canvasMount');
@@ -1150,16 +1149,17 @@ function buildAmbiSphere() {
   ambiColorsAttr = new THREE.BufferAttribute(colors, 3);
   geo.setAttribute('color', ambiColorsAttr);
 
-  ambiSphere = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-    vertexColors: true, transparent: true, opacity: 0.84, depthWrite: false,
-    side: THREE.DoubleSide, roughness: 0.8, metalness: 0.1,
-    emissive: new THREE.Color(0x000000),
+  // Use MeshBasicMaterial for the ambi sphere — unlit, so vertex colors
+  // show exactly as computed (not washed out by IBL/lights).
+  ambiSphere = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+    vertexColors: true, transparent: true, opacity: 0.55, depthWrite: false,
+    side: THREE.DoubleSide,
   }));
   scene.add(ambiSphere);
 
   wireSphere = new THREE.Mesh(
     new THREE.SphereGeometry(1.52, 32, 16),
-    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.06, wireframe: true })
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.18, wireframe: true, depthWrite: false })
   );
   scene.add(wireSphere);
 }
@@ -1168,34 +1168,47 @@ function buildHeadProxy() {
   // headGroup and headEuler are already created in buildScene().
   if (glbArrayBuffer && typeof THREE.GLTFLoader !== 'undefined') {
     // ── GLB path: parse the ArrayBuffer we already have in memory ──────────
+    // girl_with_glasses.glb uses standard glTF 2.0 PBR — no extensions needed.
     const loader = new THREE.GLTFLoader();
-    // Register the specular-glossiness extension — without this, all materials
-    // that use KHR_materials_pbrSpecularGlossiness (like Angelica) fall back to
-    // a default pink material in Three.js r128.
-    if (THREE.GLTFLoader.KHRMaterialsPbrSpecularGlossiness) {
-      loader.register(parser => new THREE.GLTFLoader.KHRMaterialsPbrSpecularGlossiness(parser));
-    } else if (window.KHRMaterialsPbrSpecularGlossiness) {
-      loader.register(parser => new window.KHRMaterialsPbrSpecularGlossiness(parser));
-    }
     loader.parse(
       glbArrayBuffer,
       '',   // resource path (not needed — model is self-contained)
       (gltf) => {
         const model = gltf.scene;
 
-        // ── Orientation: angelica faces +Z in model space; Three.js forward
-        //    is −Z, so rotate 180° around Y to make the face point −Z.
+        // ── Per-mesh tweaks: shadows + env map intensity for richer PBR look.
+        model.traverse((child) => {
+          // Hide the outer bounding sphere meshes (Sphere.002 nodes)
+          if (child.isMesh && child.parent && child.parent.name === 'Sphere.002') {
+            child.visible = false;
+            return;
+          }
+          if (child.isMesh) {
+            child.castShadow    = true;
+            child.receiveShadow = true;
+            if (child.material) {
+              // Boost environment map contribution so PBR materials respond
+              // to the IBL the way Sketchfab's viewer does.
+              child.material.envMapIntensity = 1.2;
+              child.material.needsUpdate = true;
+            }
+          }
+        });
+
+        // ── Orientation: Sketchfab exports face +Z (toward viewer). Three.js
+        //    forward is −Z, so rotate 180° around Y so the face points −Z
+        //    (into the scene) and the arrow points toward the camera as expected.
         model.rotation.y = Math.PI;
 
-        // ── Scale: fit bounding box height to ≈ 0.32 units (same visual
-        //    footprint as the old sphere placeholder, r=0.15).
+        // ── Scale: fit bounding box height to ≈ 0.60 units so the character
+        //    fills the wireframe sphere without poking through.
         const box = new THREE.Box3().setFromObject(model);
         const size = new THREE.Vector3();
         box.getSize(size);
-        const scaleFactor = 0.52 / size.y;
+        const scaleFactor = 0.85 / size.y;
         model.scale.setScalar(scaleFactor);
 
-        // ── Re-centre so the head sits at the origin.
+        // ── Re-centre so the model sits at the origin (vertically centred).
         box.setFromObject(model);   // recompute after scale
         const centre = new THREE.Vector3();
         box.getCenter(centre);
@@ -1204,11 +1217,12 @@ function buildHeadProxy() {
         headGroup.add(model);
         headModelLoaded = true;
 
-        // Forward arrow — essential orientation cue, points −Z (nose direction).
+        // Forward arrow — points −Z which is the nose/front direction after
+        // the 180° Y rotation above. Origin slightly below head centre.
         headGroup.add(new THREE.ArrowHelper(
           new THREE.Vector3(0, 0, -1),
           new THREE.Vector3(0, -0.05, 0),
-          0.60, 0xffee00, 0.14, 0.08
+          0.55, 0xffee00, 0.12, 0.07
         ));
       },
       (err) => {
@@ -1309,19 +1323,55 @@ function buildSourceLabels() {
 }
 
 function buildLights() {
-  // Ambient: enough to illuminate the GLB model's shadowed areas
-  scene.add(new THREE.AmbientLight(0xd0d8f0, 1.2));
-  // Key light — front-top-right
-  const key = new THREE.DirectionalLight(0xffffff, 1.8);
-  key.position.set(2, 4, 3);
+  // ── Environment map — drives PBR material response (IBL).
+  // A procedural RoomEnvironment approximation using PMREMGenerator gives
+  // the soft, bounce-lit quality Sketchfab uses, with no external file needed.
+  // We build it from a simple gradient sky rendered to a CubeRenderTarget.
+  const pmremGenerator = new THREE.PMREMGenerator(renderer);
+  pmremGenerator.compileEquirectangularShader();
+
+  // Build a simple neutral studio environment: light grey top, darker bottom.
+  // Render a tiny sphere scene to a cube map, then generate the PMREM.
+  const envScene = new THREE.Scene();
+  // Hemisphere light baked into the env scene
+  envScene.add(new THREE.HemisphereLight(0xdde8f0, 0x303040, 1.0));
+  const envKey = new THREE.DirectionalLight(0xffffff, 1.0);
+  envKey.position.set(1, 2, 1);
+  envScene.add(envKey);
+
+  // Use WebGLCubeRenderTarget to capture the env scene
+  const cubeRT = new THREE.WebGLCubeRenderTarget(64);
+  const cubeCamera = new THREE.CubeCamera(0.1, 10, cubeRT);
+  envScene.add(cubeCamera);
+  cubeCamera.update(renderer, envScene);
+
+  const envMap = pmremGenerator.fromCubemap(cubeRT.texture).texture;
+  scene.environment = envMap;   // drives all MeshStandardMaterial PBR response
+  pmremGenerator.dispose();
+
+  // ── Scene lights — lower intensity now that IBL handles ambient PBR bounce.
+  // Soft hemisphere for fill and sky colour.
+  scene.add(new THREE.HemisphereLight(0xc8d4e8, 0x1a1a2a, 0.8));
+
+  // Key light — front-top, warm white, main shadow caster.
+  const key = new THREE.DirectionalLight(0xfff5ee, 1.4);
+  key.position.set(1.5, 3, 2.5);
+  key.castShadow = true;
+  key.shadow.mapSize.set(1024, 1024);
+  key.shadow.camera.near = 0.5;
+  key.shadow.camera.far  = 20;
+  key.shadow.camera.left = key.shadow.camera.bottom = -2;
+  key.shadow.camera.right = key.shadow.camera.top   =  2;
   scene.add(key);
-  // Fill light — front-left, slightly cooler
-  const fill = new THREE.DirectionalLight(0xc8d8ff, 0.6);
-  fill.position.set(-3, 1, 2);
+
+  // Fill light — left, slightly cooler, softens key-side shadows.
+  const fill = new THREE.DirectionalLight(0xd0e0ff, 0.5);
+  fill.position.set(-2.5, 1, 1.5);
   scene.add(fill);
-  // Rim light — from behind, adds depth
-  const rim = new THREE.DirectionalLight(0xffeedd, 0.4);
-  rim.position.set(0, 2, -4);
+
+  // Rim / back light — separates character from background.
+  const rim = new THREE.DirectionalLight(0xffeedd, 0.35);
+  rim.position.set(0, 1.5, -3);
   scene.add(rim);
 }
 
@@ -1950,9 +2000,9 @@ function updateAmbiSphere() {
       const dot = Math.max(0, d.x*srcDirs[idx].x + d.y*srcDirs[idx].y + d.z*srcDirs[idx].z);
       energy += activeSrcs[j].rms * Math.pow(dot, orderExponent);
     }
-    // Dim ambient pattern when paused so sphere isn't totally dead
+    // Show a gentle ambient pattern when paused so sphere is always visible
     if (!audioStarted || audioContext.state !== 'running') {
-      energy = 0.02 + 0.01 * Math.abs(d.y);
+      energy = 0.12 + 0.06 * Math.abs(d.y);
     }
     const t = Math.min(1, energy / ENERGY_SCALE);
     const c = viridisColor(t);
@@ -2194,6 +2244,13 @@ function startRenderLoop() {
     });
 
     if (audioContext) updateAmbiSphere();
+
+    // Wireframe sphere pulses gently with total audio energy
+    if (wireSphere) {
+      const totalRms = SOURCES.reduce((s, src) => s + src.rms, 0);
+      wireSphere.material.opacity = 0.18 + Math.min(0.22, totalRms * 2.5);
+    }
+
     updatePolarRing();
     updateElevRing();
 
