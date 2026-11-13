@@ -211,7 +211,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .gpanel-label {
   font-family: var(--mono); font-size: 10px; color: var(--muted);
   letter-spacing: 0.10em; text-transform: uppercase;
-  margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--panel-border);
+  margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--panel-border);
 }
 
 /* ════════════════════════════════════════
@@ -231,6 +231,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   position: fixed; top: 60px; right: 14px; bottom: 14px;
   width: 234px; display: flex; flex-direction: column; gap: 8px;
   z-index: 100; pointer-events: none;
+  overflow: hidden;
 }
 #rightCol > * { pointer-events: auto; }
 
@@ -268,32 +269,32 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .src-leg-item.inactive { opacity: 0.3; }
 
 /* Credits panel */
-#creditsPanel { padding: 10px 13px; flex-shrink: 0; }
-#creditsBody  { overflow: hidden; transition: max-height 0.3s ease, opacity 0.3s ease; max-height: 600px; opacity: 1; }
+#creditsPanel { padding: 8px 13px; flex-shrink: 0; }
+#creditsBody  { overflow: hidden; transition: max-height 0.4s ease, opacity 0.3s ease; max-height: 400px; opacity: 1; }
 #creditsBody.collapsed { max-height: 0; opacity: 0; }
-.credit-item  { display: flex; gap: 8px; align-items: flex-start; margin-bottom: 9px; }
+.credit-item  { display: flex; gap: 7px; align-items: flex-start; margin-bottom: 7px; }
 .credit-item:last-child { margin-bottom: 0; }
-.credit-emoji { font-size: 13px; flex-shrink: 0; line-height: 1.5; }
-.credit-text  { font-family: var(--mono); font-size: 9.5px; color: var(--muted); line-height: 1.6; }
+.credit-emoji { font-size: 12px; flex-shrink: 0; line-height: 1.5; }
+.credit-text  { font-family: var(--mono); font-size: 9px; color: var(--muted); line-height: 1.55; }
 .credit-text strong { color: var(--text); font-weight: 500; }
 .credit-text a { color: var(--accent); text-decoration: none; }
 .credit-text a:hover { text-decoration: underline; }
 .credit-collapse-btn {
   display: flex; align-items: center; gap: 6px; cursor: pointer;
   font-family: var(--mono); font-size: 10px; color: var(--muted);
-  margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--panel-border);
+  margin-top: 8px; padding-top: 7px; border-top: 1px solid var(--panel-border);
   background: none; border-left: none; border-right: none; border-bottom: none;
   width: 100%; text-align: left; transition: color 0.15s;
 }
 .credit-collapse-btn:hover { color: var(--text); }
 
 /* HUD panel at top of right col */
-#hudPanel { padding: 11px 14px; flex-shrink: 0; }
-.hud-row  { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+#hudPanel { padding: 9px 13px; flex-shrink: 0; }
+.hud-row  { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
 .hud-row:last-child { margin-bottom: 0; }
 .hud-key  { font-family: var(--mono); font-size: 10px; color: var(--muted); }
 .hud-hint { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.55; margin-left: 3px; }
-.hud-val  { font-family: var(--jb); font-size: 13px; color: var(--accent); letter-spacing: 0.03em; }
+.hud-val  { font-family: var(--jb); font-size: 12px; color: var(--accent); letter-spacing: 0.03em; }
 .hud-val.purple { color: var(--accent2); }
 .hud-val.green  { color: var(--green); }
 .hud-val.orange { color: var(--orange); }
@@ -304,24 +305,24 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 }
 
 /* Controls panel below HUD in right col */
-#ctrlPanel { padding: 11px 13px; flex-shrink: 0; }
-.ctrl-section { margin-bottom: 10px; }
+#ctrlPanel { padding: 9px 13px; flex-shrink: 0; }
+.ctrl-section { margin-bottom: 8px; }
 .ctrl-section:last-child { margin-bottom: 0; }
-.ctrl-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 7px; letter-spacing: 0.08em; text-transform: uppercase; }
-.ctrl-sublabel { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.65; margin-top: 5px; line-height: 1.4; }
+.ctrl-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 6px; letter-spacing: 0.08em; text-transform: uppercase; }
+.ctrl-sublabel { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.65; margin-top: 4px; line-height: 1.4; }
 .pill-row {
   display: flex; background: var(--bg); border: 1px solid var(--border);
   border-radius: 24px; padding: 3px; gap: 2px;
 }
 .pill-btn {
   flex: 1; border: none; background: transparent; color: var(--muted);
-  font-family: var(--mono); font-size: 11px; padding: 5px 0; border-radius: 20px;
+  font-family: var(--mono); font-size: 11px; padding: 4px 0; border-radius: 20px;
   cursor: pointer; transition: background 0.2s, color 0.2s; text-align: center;
 }
 .pill-btn.active        { background: var(--accent2); color: #0d0f14; font-weight: 500; }
 .pill-btn:hover:not(.active) { color: var(--text); }
 .action-btn {
-  width: 100%; padding: 9px 0; background: transparent; border: 1px solid var(--border);
+  width: 100%; padding: 7px 0; background: transparent; border: 1px solid var(--border);
   color: var(--text); font-family: var(--mono); font-size: 12px; border-radius: 8px;
   cursor: pointer; transition: border-color 0.2s, color 0.2s, background 0.2s; letter-spacing: 0.03em;
 }
@@ -331,11 +332,11 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 
 /* Audio upload panel inside the demo (floating, right col bottom) */
 /* ── Mixer panel: Mute / Solo / Level per source ── */
-#mixPanel { padding: 11px 13px; flex-shrink: 1; min-height: 0; overflow-y: auto; max-height: 340px; }
-.mix-row { margin-bottom: 10px; transition: opacity 0.2s; }
+#mixPanel { padding: 9px 13px; flex-shrink: 1; min-height: 0; overflow-y: auto; }
+.mix-row { margin-bottom: 7px; transition: opacity 0.2s; }
 .mix-row:last-of-type { margin-bottom: 0; }
 .mix-row.soloed-out { opacity: 0.35; }
-.mix-row-top { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.mix-row-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
 .mix-dot   { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .mix-label { font-family: var(--mono); font-size: 10.5px; color: var(--text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mix-status { font-family: var(--mono); font-size: 8.5px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
@@ -366,7 +367,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .mix-upload-btn:hover  { border-color: var(--accent); color: var(--accent); }
 .mix-upload-btn.loaded { border-color: var(--green);  color: var(--green); }
 .mix-upload-btn input[type=file] { display: none; }
-.mix-note { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.55; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--panel-border); line-height: 1.4; }
+.mix-note { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.55; margin-top: 7px; padding-top: 6px; border-top: 1px solid var(--panel-border); line-height: 1.4; }
 
 /* ════════════════════════════════════════
    MISC OVERLAYS
@@ -735,7 +736,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 
   <div class="gpanel" id="creditsPanel">
     <div class="gpanel-label">Credits</div>
-    <div id="creditsBody">
+    <div id="creditsBody" class="collapsed">
       <div class="credit-item">
         <span class="credit-emoji">🧑‍🦱</span>
         <span class="credit-text">
@@ -770,8 +771,8 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
       </div>
     </div>
     <button class="credit-collapse-btn" id="creditsCollapseBtn" onclick="toggleCreditsPanel()">
-      <svg id="creditsCollapseArrow" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="transition:transform 0.3s"><path d="M7 10l5 5 5-5z"/></svg>
-      <span id="creditsCollapseLabel">Hide credits</span>
+      <svg id="creditsCollapseArrow" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="transition:transform 0.3s;transform:rotate(-90deg)"><path d="M7 10l5 5 5-5z"/></svg>
+      <span id="creditsCollapseLabel">Show credits</span>
     </button>
   </div>
 
