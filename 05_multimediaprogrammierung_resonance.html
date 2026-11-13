@@ -632,7 +632,7 @@
 </p>
 
 <div class="demo-box">
-  <strong>Demo 4 — Ambisonics Visualizer.</strong> Multiple sources encoded into a third-order Ambisonic bus, visualized as a spherical energy distribution. Toggle between first-order and third-order and hear the spatial resolution difference. Mouse drag rotates the listener's head — the binaural decode and the spherical visualization update together, showing the Wigner-D rotation in action. B-format channel energies (W, X, Y, Z) are displayed as live animated bars.
+  <strong>Demo 4 — Ambisonics Visualizer.</strong> Five sources (Speech, Beep, Alarm, Rumble, Shimmer) encoded into a third-order Ambisonic bus, visualized as a Viridis-coloured spherical energy distribution. Two polar-ring canvases show the energy field from above (horizontal plane) and from the side (vertical/elevation plane), with a white needle tracking the listener's facing direction in each view. Toggle between first-order (4 ch, spatially blurry) and third-order (16 ch, sharp) and hear the resolution difference. Left-drag rotates the listener's head — the binaural decode, the sphere, and both polar rings update together, showing the Wigner-D rotation in action. Right-drag orbits the camera; scroll zooms. A per-source mixer panel (Mute / Solo / Level) lets you isolate any source to hear its contribution to the field.
   <br>
   <a href="05_mm_ambisonics.html">Open Demo 4: Ambisonics Visualizer &#8599;</a>
 </div>
@@ -657,7 +657,7 @@
     <tr><td><code>AnalyserNode</code></td><td>Inserted between source and <code>resonanceSource.input</code> to read RMS energy for visual emissive intensity. Use <code>getByteFrequencyData</code> every animation frame.</td></tr>
     <tr><td><code>StereoPannerNode</code></td><td>The comparison baseline. Receives the same audio signal in parallel with the Resonance path. A <code>GainNode</code> crossfade switches between them.</td></tr>
     <tr><td><code>BiquadFilterNode</code></td><td>Used for occlusion simulation (low-pass, cutoff ~500 Hz when a wall is between source and listener) and noise shaping in synthesis.</td></tr>
-    <tr><td><code>ChannelSplitterNode</code></td><td>Splits the multichannel <code>resonanceAudio.ambisonicOutput</code> into individual Ambisonic channel signals for per-channel analysis.</td></tr>
+
   </tbody>
 </table>
 
@@ -1352,38 +1352,32 @@ const resonanceAudio = new ResonanceAudio(audioContext, {
   ambisonicOrder: 3,  // 16 channels, ~30° spatial resolution
 });</code></pre>
 
-<h3>Accessing the Ambisonic bus output</h3>
-<pre><code>// resonanceAudio.ambisonicOutput is an AudioNode with (N+1)² channels.
-// At order 3, that is 16 channels — one per spherical harmonic component.
-// Use ChannelSplitterNode to route individual channels to separate AnalyserNodes.
+<h3>Visualizing the sound field: per-source AnalyserNode</h3>
+<p>Rather than splitting the Ambisonic bus into its component channels, the most practical approach for real-time visualization is to tap the signal for each source individually, before it enters the Ambisonic encoder. An <code>AnalyserNode</code> is inserted in each source's signal chain between the audio source and <code>resonanceSource.input</code>. Its RMS energy, read every animation frame, drives the visual intensity of that source's contribution to the spherical energy field.</p>
+<pre><code>// CONCEPT: Per-source AnalyserNode — tap each source before Resonance encoding.
+// The analyser sees the source's signal regardless of its position in the field,
+// so RMS reflects how loud that source is, not where it is.
 
-// CONCEPT: ChannelSplitterNode extracts individual channels from a multichannel node.
-// Channel 0 is W (zeroth-order omnidirectional component).
-// Channels 1–3 are X, Y, Z (first-order components — figure-eight patterns).
-// Channels 4–8 are second-order, etc.
-const splitter = audioContext.createChannelSplitter(16);
-resonanceAudio.ambisonicOutput.connect(splitter);
+// For each spatial source:
+src.analyser = audioContext.createAnalyser();
+src.analyser.fftSize = 256;
+src.dataArray = new Float32Array(src.analyser.frequencyBinCount);
 
-// Connect the first four channels (B-format: W, X, Y, Z) to separate analysers
-const bFormatAnalysers = ['W','X','Y','Z'].map((_, i) => {
-  const analyser = audioContext.createAnalyser();
-  analyser.fftSize = 256;
-  splitter.connect(analyser, i);  // channel i → analyser
-  return analyser;
-});
+// Signal chain: audio source → trimGain → analyser → gainNode → resonanceSource.input
+audioSourceNode.connect(src.trimGain);
+src.trimGain.connect(src.analyser);
+src.analyser.connect(src.gainNode);
+src.gainNode.connect(src.resonanceSource.input);
 
-// In the animation loop: read RMS from each analyser to visualize B-format energy
-bFormatAnalysers.forEach((analyser, i) => {
-  const buf = new Uint8Array(analyser.frequencyBinCount);
-  analyser.getByteFrequencyData(buf);
-  let sum = 0;
-  buf.forEach(v => sum += v * v);
-  const rms = Math.sqrt(sum / buf.length) / 255;
-  // rms[0] = W energy (omnidirectional pressure)
-  // rms[1] = X energy (front-back figure-eight)
-  // rms[2] = Y energy (left-right figure-eight)
-  // rms[3] = Z energy (up-down figure-eight)
-});</code></pre>
+// In the animation loop: compute RMS for the source
+src.analyser.getFloatTimeDomainData(src.dataArray);
+let sum = 0;
+for (let i = 0; i < src.dataArray.length; i++) sum += src.dataArray[i] * src.dataArray[i];
+src.rms = Math.sqrt(sum / src.dataArray.length);
+
+// Use src.rms to weight this source's contribution to every vertex of the sphere:
+// energy at vertex i ∝ rms * dot(vertexDir[i], sourceDir)^orderExponent
+// Higher order → sharper lobe → visually tighter energy blob per source.</code></pre>
 
 <h3>Head rotation — why it is cheap</h3>
 <p>When the listener rotates their head, Resonance does not re-encode the sources. Source positions are fixed in the Ambisonic bus. Instead, a rotation matrix (a Wigner-D matrix for the current order) is applied to the Ambisonic coefficient domain. For order 3, this is a 16×16 matrix multiplication per audio frame — far cheaper than re-computing spherical harmonic gains for every source from scratch. This architecture is why head-tracked VR audio is feasible at high Ambisonic orders: sources are encoded once per frame update; head rotation costs only the Wigner-D matrix multiply.</p>
@@ -1402,7 +1396,7 @@ resonanceAudio.setListenerFromMatrix(camera.matrixWorld);
 // The Ambisonic bus is not re-encoded — only the decode matrix rotates.</code></pre>
 
 <div class="demo-box">
-  <strong>Demo 4 — Ambisonics Visualizer.</strong> The raw Ambisonic bus is visualized as a spherical energy distribution — per-vertex colors on a sphere, updated every frame from the spherical harmonic gain contributions of all active sources. Toggle between first-order and third-order and hear the spatial resolution change. Mouse drag rotates the head; the sphere and binaural decode rotate together.
+  <strong>Demo 4 — Ambisonics Visualizer.</strong> Five spatial sources are encoded into a third-order Ambisonic bus and visualized as a Viridis-coloured spherical energy distribution — per-vertex colours updated every frame from the RMS energy and direction of each active source. Two polar-ring canvases give complementary top-down and side views of the same field, with a live needle showing the listener's facing direction. Toggle between first-order and third-order and hear the spatial resolution change. Left-drag rotates the head; the sphere, both rings, and the binaural decode rotate together via the Wigner-D matrix. Right-drag orbits the camera; scroll zooms. The mixer panel (Mute / Solo / Level per source) lets you isolate any source and observe how the field collapses to a single energy blob.
   <br>
   <a href="05_mm_ambisonics.html">Open Demo 4: Ambisonics Visualizer &#8599;</a>
 </div>
