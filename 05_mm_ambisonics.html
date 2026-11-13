@@ -731,7 +731,9 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
     </div>
 
     <div class="mix-note">Mute / solo any source, or drag a level to balance the mix. Speech, Beep and Alarm (⇪) can also be swapped live.</div>
-    <div class="gpanel" id="creditsPanel">
+  </div>
+
+  <div class="gpanel" id="creditsPanel">
     <div class="gpanel-label">Credits</div>
     <div id="creditsBody">
       <div class="credit-item">
@@ -1159,7 +1161,7 @@ function buildAmbiSphere() {
 
   wireSphere = new THREE.Mesh(
     new THREE.SphereGeometry(1.52, 32, 16),
-    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28, wireframe: true, depthWrite: false })
+    new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.10, wireframe: true, depthWrite: false })
   );
   scene.add(wireSphere);
 }
@@ -1897,6 +1899,15 @@ function toggleInfoPanel() {
   label.textContent = collapsed ? 'Show explanation' : 'Hide explanation';
 }
 
+function toggleCreditsPanel() {
+  const body  = document.getElementById('creditsBody');
+  const arrow = document.getElementById('creditsCollapseArrow');
+  const label = document.getElementById('creditsCollapseLabel');
+  const collapsed = body.classList.toggle('collapsed');
+  arrow.style.transform = collapsed ? 'rotate(-90deg)' : 'rotate(0deg)';
+  label.textContent = collapsed ? 'Show credits' : 'Hide credits';
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DRAG / SCROLL / TOUCH
 //   Left-drag  → rotate the listener head (yaw + pitch)
@@ -2248,7 +2259,7 @@ function startRenderLoop() {
     // Wireframe sphere pulses gently with total audio energy
     if (wireSphere) {
       const totalRms = SOURCES.reduce((s, src) => s + src.rms, 0);
-      wireSphere.material.opacity = 0.18 + Math.min(0.22, totalRms * 2.5);
+      wireSphere.material.opacity = 0.10 + Math.min(0.15, totalRms * 2.5);
     }
 
     updatePolarRing();
