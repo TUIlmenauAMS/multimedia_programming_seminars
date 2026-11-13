@@ -211,7 +211,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .gpanel-label {
   font-family: var(--mono); font-size: 10px; color: var(--muted);
   letter-spacing: 0.10em; text-transform: uppercase;
-  margin-bottom: 8px; padding-bottom: 6px; border-bottom: 1px solid var(--panel-border);
+  margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--panel-border);
 }
 
 /* ════════════════════════════════════════
@@ -226,14 +226,23 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 }
 #leftCol > * { pointer-events: auto; }
 
-/* Right column */
+/* Right column — single scrollable bar */
 #rightCol {
   position: fixed; top: 60px; right: 14px; bottom: 14px;
-  width: 234px; display: flex; flex-direction: column; gap: 8px;
+  width: 234px;
+  display: flex; flex-direction: column; gap: 8px;
+  overflow-y: auto; overflow-x: hidden;
+  overscroll-behavior: contain;
   z-index: 100; pointer-events: none;
-  overflow: hidden;
+  /* hide scrollbar track but keep it functional */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.10) transparent;
 }
-#rightCol > * { pointer-events: auto; }
+#rightCol::-webkit-scrollbar { width: 4px; }
+#rightCol::-webkit-scrollbar-track { background: transparent; }
+#rightCol::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 2px; }
+#rightCol::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
+#rightCol > * { pointer-events: auto; flex-shrink: 0; }
 
 /* Info panel: scrollable within its own box ONLY — stop scroll events from bubbling to canvas */
 #infoPanel { padding: 12px 14px; overflow-y: auto; flex-shrink: 1; min-height: 0; max-height: 260px; }
@@ -289,12 +298,12 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .credit-collapse-btn:hover { color: var(--text); }
 
 /* HUD panel at top of right col */
-#hudPanel { padding: 9px 13px; flex-shrink: 0; }
-.hud-row  { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; }
+#hudPanel { padding: 11px 14px; flex-shrink: 0; }
+.hud-row  { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
 .hud-row:last-child { margin-bottom: 0; }
 .hud-key  { font-family: var(--mono); font-size: 10px; color: var(--muted); }
 .hud-hint { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.55; margin-left: 3px; }
-.hud-val  { font-family: var(--jb); font-size: 12px; color: var(--accent); letter-spacing: 0.03em; }
+.hud-val  { font-family: var(--jb); font-size: 13px; color: var(--accent); letter-spacing: 0.03em; }
 .hud-val.purple { color: var(--accent2); }
 .hud-val.green  { color: var(--green); }
 .hud-val.orange { color: var(--orange); }
@@ -305,24 +314,24 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 }
 
 /* Controls panel below HUD in right col */
-#ctrlPanel { padding: 9px 13px; flex-shrink: 0; }
-.ctrl-section { margin-bottom: 8px; }
+#ctrlPanel { padding: 11px 13px; flex-shrink: 0; }
+.ctrl-section { margin-bottom: 10px; }
 .ctrl-section:last-child { margin-bottom: 0; }
-.ctrl-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 6px; letter-spacing: 0.08em; text-transform: uppercase; }
-.ctrl-sublabel { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.65; margin-top: 4px; line-height: 1.4; }
+.ctrl-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 7px; letter-spacing: 0.08em; text-transform: uppercase; }
+.ctrl-sublabel { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.65; margin-top: 5px; line-height: 1.4; }
 .pill-row {
   display: flex; background: var(--bg); border: 1px solid var(--border);
   border-radius: 24px; padding: 3px; gap: 2px;
 }
 .pill-btn {
   flex: 1; border: none; background: transparent; color: var(--muted);
-  font-family: var(--mono); font-size: 11px; padding: 4px 0; border-radius: 20px;
+  font-family: var(--mono); font-size: 11px; padding: 5px 0; border-radius: 20px;
   cursor: pointer; transition: background 0.2s, color 0.2s; text-align: center;
 }
 .pill-btn.active        { background: var(--accent2); color: #0d0f14; font-weight: 500; }
 .pill-btn:hover:not(.active) { color: var(--text); }
 .action-btn {
-  width: 100%; padding: 7px 0; background: transparent; border: 1px solid var(--border);
+  width: 100%; padding: 9px 0; background: transparent; border: 1px solid var(--border);
   color: var(--text); font-family: var(--mono); font-size: 12px; border-radius: 8px;
   cursor: pointer; transition: border-color 0.2s, color 0.2s, background 0.2s; letter-spacing: 0.03em;
 }
@@ -332,11 +341,11 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 
 /* Audio upload panel inside the demo (floating, right col bottom) */
 /* ── Mixer panel: Mute / Solo / Level per source ── */
-#mixPanel { padding: 9px 13px; flex-shrink: 1; min-height: 0; overflow-y: auto; }
-.mix-row { margin-bottom: 7px; transition: opacity 0.2s; }
+#mixPanel { padding: 11px 13px; flex-shrink: 0; }
+.mix-row { margin-bottom: 10px; transition: opacity 0.2s; }
 .mix-row:last-of-type { margin-bottom: 0; }
 .mix-row.soloed-out { opacity: 0.35; }
-.mix-row-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+.mix-row-top { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
 .mix-dot   { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .mix-label { font-family: var(--mono); font-size: 10.5px; color: var(--text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mix-status { font-family: var(--mono); font-size: 8.5px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
@@ -367,7 +376,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .mix-upload-btn:hover  { border-color: var(--accent); color: var(--accent); }
 .mix-upload-btn.loaded { border-color: var(--green);  color: var(--green); }
 .mix-upload-btn input[type=file] { display: none; }
-.mix-note { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.55; margin-top: 7px; padding-top: 6px; border-top: 1px solid var(--panel-border); line-height: 1.4; }
+.mix-note { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.55; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--panel-border); line-height: 1.4; }
 
 /* ════════════════════════════════════════
    MISC OVERLAYS
@@ -1977,6 +1986,11 @@ document.getElementById('canvasMount').addEventListener('wheel', e => {
   if (!camera) return;
   cameraRadius = Math.max(1.8, Math.min(9.0, cameraRadius + e.deltaY * 0.005));
   updateCameraFromSpherical();
+}, { passive: true });
+
+// Prevent right-column scroll from ever bubbling to the canvas zoom handler.
+document.getElementById('rightCol').addEventListener('wheel', e => {
+  e.stopPropagation();
 }, { passive: true });
 
 // ═══════════════════════════════════════════════════════════════════════════
