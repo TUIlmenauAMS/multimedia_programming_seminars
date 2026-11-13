@@ -111,8 +111,8 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 #loadOverlay.hidden { opacity: 0; pointer-events: none; }
 
 .lo-inner {
-  display: flex; flex-direction: column; align-items: center; gap: 16px;
-  width: 100%; max-width: 460px; padding: 0 28px;
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  width: 100%; max-width: 860px; padding: 0 28px;
 }
 
 .lo-identity { display: flex; align-items: center; gap: 12px; }
@@ -122,52 +122,57 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .lo-identity-uni    { font-family: var(--mono); font-size: 10px; color: var(--muted); }
 
 .lo-chapter { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.14em; text-transform: uppercase; }
-.lo-title   { font-family: var(--sans); font-size: clamp(20px,3vw,28px); font-weight: 500; color: #f0f2f7; text-align: center; line-height: 1.2; }
-.lo-headphone { font-size: 30px; }
+.lo-title   { font-family: var(--sans); font-size: clamp(18px,2.6vw,26px); font-weight: 500; color: #f0f2f7; text-align: center; line-height: 1.2; }
+.lo-headphone { font-size: 26px; }
 .lo-hint    { font-family: var(--mono); font-size: 11px; color: var(--muted); text-align: center; line-height: 1.6; }
 
 .lo-progress-track { width: 220px; height: 2px; background: var(--border); border-radius: 2px; overflow: hidden; }
 .lo-progress-fill  { height: 100%; background: var(--accent2); border-radius: 2px; transition: width 0.3s ease; width: 0%; }
 
+/* ── Upload panels row — side by side ── */
+#uploadsRow {
+  display: flex; gap: 10px; width: 100%; align-items: stretch;
+}
+
 /* ── Upload panel inside overlay ── */
 #uploadSection {
-  width: 100%; border: 1px solid var(--border);
+  flex: 1; border: 1px solid var(--border);
   border-radius: 10px; overflow: hidden;
 }
 .upload-header {
   background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--border);
-  padding: 9px 14px;
+  padding: 8px 12px;
   display: flex; align-items: center; justify-content: space-between;
 }
 .upload-header-title { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.08em; text-transform: uppercase; }
 .upload-header-note  { font-family: var(--mono); font-size: 10px; color: var(--muted); opacity: 0.65; }
-.upload-body { padding: 10px 14px; display: flex; flex-direction: column; gap: 8px; }
-.upload-row  { display: flex; align-items: center; gap: 10px; }
+.upload-body { padding: 8px 12px; display: flex; flex-direction: column; gap: 7px; }
+.upload-row  { display: flex; align-items: center; gap: 8px; }
 .upload-src-dot  { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
 .upload-src-info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
-.upload-src-name { font-family: var(--mono); font-size: 11px; color: var(--text); }
+.upload-src-name { font-family: var(--mono); font-size: 10.5px; color: var(--text); }
 .upload-src-filename { font-family: var(--mono); font-size: 9px; color: var(--accent); opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .upload-btn {
   font-family: var(--mono); font-size: 10px; color: var(--muted);
   background: rgba(255,255,255,0.04); border: 1px solid var(--border);
-  border-radius: 5px; padding: 5px 12px; cursor: pointer;
+  border-radius: 5px; padding: 4px 10px; cursor: pointer;
   transition: border-color 0.15s, color 0.15s; white-space: nowrap; flex-shrink: 0;
 }
 .upload-btn:hover { border-color: var(--accent); color: var(--accent); }
 .upload-btn.loaded { border-color: var(--green); color: var(--green); }
 .upload-btn input[type=file] { display: none; }
 .upload-synth-note {
-  font-family: var(--mono); font-size: 10px; color: var(--muted);
-  text-align: center; padding: 7px 14px 10px;
-  border-top: 1px solid var(--border); opacity: 0.65;
+  font-family: var(--mono); font-size: 9.5px; color: var(--muted);
+  text-align: center; padding: 6px 12px 8px;
+  border-top: 1px solid var(--border); opacity: 0.65; line-height: 1.5;
 }
 
-/* Model upload section — appears only on file:// */
+/* Model upload section — always visible, side by side with audio */
 #modelUploadSection {
-  width: 100%; border: 1px solid var(--border);
-  border-radius: 10px; overflow: hidden; display: none;
+  flex: 1; border: 1px solid var(--border);
+  border-radius: 10px; overflow: hidden;
+  display: flex; flex-direction: column;
 }
-#modelUploadSection.visible { display: block; }
 
 .lo-author-credit {
   font-family: var(--mono); font-size: 10px; color: var(--muted);
@@ -457,7 +462,8 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
     <div class="lo-progress-track"><div class="lo-progress-fill" id="loProgress"></div></div>
     <div class="lo-hint" id="loStatus" style="font-size:10px;">Loading…</div>
 
-    <!-- Audio sources — auto-fetched when served, manual upload on file:// -->
+    <!-- Upload panels: audio (always) + model (file:// only) — side by side -->
+    <div id="uploadsRow">
     <div id="uploadSection">
       <div class="upload-header">
         <span class="upload-header-title">Audio Sources</span>
@@ -511,8 +517,8 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
         <div class="upload-row">
           <div class="upload-src-dot" style="background:var(--accent2)"></div>
           <div class="upload-src-info">
-            <span class="upload-src-name">Toon Head</span>
-            <span class="upload-src-filename">toon_head.glb</span>
+            <span class="upload-src-name">Angelica</span>
+            <span class="upload-src-filename">angelica.glb</span>
           </div>
           <label class="upload-btn" id="lbl-model">
             Upload
@@ -522,6 +528,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
       </div>
       <div class="upload-synth-note">Skip to use the built-in head placeholder instead.</div>
     </div>
+    </div><!-- /uploadsRow -->
 
     <div class="lo-author-credit">
       Demo by <strong>Renato Fera P.</strong> &nbsp;·&nbsp;
@@ -730,8 +737,8 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
       <div class="credit-item">
         <span class="credit-emoji">🧑</span>
         <span class="credit-text">
-          <strong>Toon Head</strong> — 3D model by <strong>CzernO</strong>.<br>
-          <a href="https://skfb.ly/oVW9o" target="_blank" rel="noopener">Sketchfab ↗</a>.
+          <strong>Angelica</strong> — 3D model by <strong>DarkNik</strong>.<br>
+          <a href="https://skfb.ly/6ouNX" target="_blank" rel="noopener">Sketchfab ↗</a>.
           <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>.
         </span>
       </div>
@@ -911,13 +918,11 @@ const isFileProtocol = location.protocol === 'file:';
 function tryAutoFetch() {
   if (isFileProtocol) {
     document.getElementById('uploadHeaderNote').textContent = 'upload files or use synth fallbacks';
-    // Show the model upload section so the user can optionally provide the GLB
-    document.getElementById('modelUploadSection').classList.add('visible');
     return;
   }
   // Served: also auto-fetch the GLB model from the same directory
   document.getElementById('modelUploadNote').textContent = 'fetching…';
-  glbLoadPromise = fetch('toon_head.glb')
+  glbLoadPromise = fetch('angelica.glb')
     .then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
     .then(buf => {
       glbArrayBuffer = buf;
@@ -1169,24 +1174,16 @@ function buildHeadProxy() {
       (gltf) => {
         const model = gltf.scene;
 
-        // ── Strip the stray ZBrush reference sphere (PM3D_Sphere3D1) that
-        //    was accidentally baked into the export — it has nothing to do
-        //    with the head mesh and renders as an ugly blob in front of the face.
-        model.traverse((child) => {
-          if (child.name && child.name.startsWith('PM3D_Sphere3D1')) {
-            child.visible = false;
-          }
-        });
-
-        // ── Orientation: the head already faces −Z in model space (Three.js
-        //    forward), so no Y rotation is needed.
+        // ── Orientation: angelica faces +Z in model space; Three.js forward
+        //    is −Z, so rotate 180° around Y to make the face point −Z.
+        model.rotation.y = Math.PI;
 
         // ── Scale: fit bounding box height to ≈ 0.32 units (same visual
         //    footprint as the old sphere placeholder, r=0.15).
         const box = new THREE.Box3().setFromObject(model);
         const size = new THREE.Vector3();
         box.getSize(size);
-        const scaleFactor = 0.32 / size.y;
+        const scaleFactor = 0.52 / size.y;
         model.scale.setScalar(scaleFactor);
 
         // ── Re-centre so the head sits at the origin.
@@ -1202,7 +1199,7 @@ function buildHeadProxy() {
         headGroup.add(new THREE.ArrowHelper(
           new THREE.Vector3(0, 0, -1),
           new THREE.Vector3(0, -0.05, 0),
-          0.44, 0xffee00, 0.11, 0.065
+          0.60, 0xffee00, 0.14, 0.08
         ));
       },
       (err) => {
