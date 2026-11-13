@@ -45,7 +45,11 @@
 
 html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(--text); font-family: var(--sans); }
 
-/* ── Top bar ── */
+/* ═══════════════════════════════════════════════════════════════
+   TOP BAR
+   Fixed navigation strip. Displays course identity, chapter
+   context, demo badge, and author credit.
+   ═══════════════════════════════════════════════════════════════ */
 #topbar {
   position: fixed; top: 0; left: 0; right: 0; height: 52px;
   background: rgba(13,15,20,0.96); border-bottom: 1px solid var(--border);
@@ -79,13 +83,21 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 }
 #topbar .tb-author .li-badge:hover { background: rgba(79,156,249,0.2); }
 
-/* ── Canvas ── */
+/* ═══════════════════════════════════════════════════════════════
+   3D CANVAS MOUNT
+   Full-viewport container for the Three.js renderer. Sits behind
+   all UI panels at z-index 0.
+   ═══════════════════════════════════════════════════════════════ */
 #canvasMount {
   position: fixed; top: 52px; left: 0; right: 0; bottom: 0; z-index: 0;
 }
 #canvasMount canvas { display: block; width: 100% !important; height: 100% !important; }
 
-/* ── Source labels overlay ── */
+/* ═══════════════════════════════════════════════════════════════
+   SOURCE LABEL OVERLAY
+   Transparent layer for the floating source name tags projected
+   from 3D world space into screen coordinates each frame.
+   ═══════════════════════════════════════════════════════════════ */
 #srcLabels { position: fixed; top: 52px; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 50; }
 .src-label {
   position: absolute; transform: translate(-50%, -130%);
@@ -100,9 +112,12 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   border: 3px solid transparent; border-top-color: rgba(255,255,255,0.09);
 }
 
-/* ════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════════════
    LOADING OVERLAY
-   ════════════════════════════════════════ */
+   Full-screen splash shown before the experience starts. Contains
+   course identity, asset upload controls, and the Start button.
+   Fades out once the audio engine is ready.
+   ═══════════════════════════════════════════════════════════════ */
 #loadOverlay {
   position: fixed; inset: 0; background: #07080d;
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -200,9 +215,12 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
 .lo-start-btn.visible { display: inline-flex; }
 .lo-start-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* ════════════════════════════════════════
-   GLASS PANEL BASE
-   ════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   GLASS PANEL
+   Base style shared by all sidebar panels. Provides the frosted-
+   glass appearance via backdrop-filter blur and a semi-transparent
+   dark background. All panels extend .gpanel.
+   ═══════════════════════════════════════════════════════════════ */
 .gpanel {
   background: var(--panel-bg); border: 1px solid var(--panel-border);
   backdrop-filter: blur(var(--panel-blur)); -webkit-backdrop-filter: blur(var(--panel-blur));
@@ -214,9 +232,13 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   margin-bottom: 10px; padding-bottom: 8px; border-bottom: 1px solid var(--panel-border);
 }
 
-/* ════════════════════════════════════════
-   LAYOUT: fixed sidebars, never overlapping
-   ════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════
+   SIDEBAR LAYOUT
+   Two fixed columns flanking the central 3D canvas. Each column
+   is a single scrollable container so panels are always reachable
+   regardless of viewport height. Scroll events are stopped from
+   propagating to the canvas zoom handler.
+   ═══════════════════════════════════════════════════════════════ */
 
 /* Left column — single scrollable bar */
 #leftCol {
