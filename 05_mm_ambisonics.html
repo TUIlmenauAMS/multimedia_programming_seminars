@@ -1722,27 +1722,36 @@ function buildSynthSources() {
 // ═══════════════════════════════════════════════════════════════════════════
 // GAIN NORMALIZATION FOR UPLOADED/FETCHED FILES
 // ═══════════════════════════════════════════════════════════════════════════
-// A fixed trimGain value (e.g. 0.55) only sounds right if the source file is
-// already mastered near full scale, like the synthesized oscillator "beeps".
-// A raw, quietly-recorded file (e.g. a speech recording peaking at ~11% FS)
-// ends up far too quiet after that trim plus Resonance Audio's distance
-// rolloff — technically playing, but effectively inaudible next to the
-// full-scale synth sources. This scans the decoded buffer's peak and returns
-// a multiplier that brings it up to a sane level, capped so we never risk
-// clipping or wildly amplifying noise.
-function computeNormalizationGain(buffer, targetPeak = 0.9, maxGain = 8) {
-  let peak = 0;
+// Peak normalization (old approach) brought every file to the same maximum
+// sample value — but perceived loudness tracks RMS energy, not peaks.
+// A speech recording has a low crest factor (lots of silence, brief peaks)
+// so peak-normalizing it still leaves it sounding much quieter than a steady
+// sine-wave beep at the same peak level.
+//
+// RMS normalization targets average energy instead, which matches perceived
+// loudness far better. We compute the true RMS across all channels (sampling
+// every 4th frame for speed), then return the gain that brings it to
+// targetRms. A safety cap (maxGain) prevents over-amplifying near-silent files.
+// A peak guard (peakCeiling) additionally prevents the final signal from
+// clipping even if the source has an unusually high crest factor.
+function computeNormalizationGain(buffer, targetRms = 0.15, maxGain = 12, peakCeiling = 0.95) {
+  let sumSq = 0, peak = 0, count = 0;
   for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
     const data = buffer.getChannelData(ch);
-    // Sample every 8th frame — plenty accurate for peak detection on long
-    // files and much cheaper than scanning every sample.
-    for (let i = 0; i < data.length; i += 8) {
-      const v = Math.abs(data[i]);
-      if (v > peak) peak = v;
+    for (let i = 0; i < data.length; i += 4) {
+      const v = data[i];
+      sumSq += v * v;
+      const av = Math.abs(v);
+      if (av > peak) peak = av;
+      count++;
     }
   }
-  if (peak < 1e-6) return 1; // effectively silent buffer — leave as-is
-  return Math.min(maxGain, targetPeak / peak);
+  if (count === 0 || peak < 1e-6) return 1; // effectively silent — leave as-is
+  const rms = Math.sqrt(sumSq / count);
+  if (rms < 1e-6) return 1;
+  const rmsgain  = targetRms / rms;               // gain to hit target RMS
+  const peakgain = peakCeiling / peak;             // gain ceiling to avoid clipping
+  return Math.min(maxGain, rmsgain, peakgain);     // take the most conservative limit
 }
 
 function createLoopingBufferSource(buffer) {
