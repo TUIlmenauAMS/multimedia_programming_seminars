@@ -7,8 +7,9 @@
 
 <!-- Three.js UMD — works on file:// and served origins alike -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-<!-- GLTFLoader for the toon head model — pinned to r128, works on file:// and served -->
+<!-- GLTFLoader + specular-glossiness extension — pinned to r128, works on file:// and served -->
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/gltf/KHRMaterialsPbrSpecularGlossiness.js"></script>
 <!-- Resonance Audio UMD -->
 <script defer src="https://cdn.jsdelivr.net/npm/resonance-audio@1.0.0/build/resonance-audio.min.js"></script>
 
@@ -1168,6 +1169,14 @@ function buildHeadProxy() {
   if (glbArrayBuffer && typeof THREE.GLTFLoader !== 'undefined') {
     // ── GLB path: parse the ArrayBuffer we already have in memory ──────────
     const loader = new THREE.GLTFLoader();
+    // Register the specular-glossiness extension — without this, all materials
+    // that use KHR_materials_pbrSpecularGlossiness (like Angelica) fall back to
+    // a default pink material in Three.js r128.
+    if (THREE.GLTFLoader.KHRMaterialsPbrSpecularGlossiness) {
+      loader.register(parser => new THREE.GLTFLoader.KHRMaterialsPbrSpecularGlossiness(parser));
+    } else if (window.KHRMaterialsPbrSpecularGlossiness) {
+      loader.register(parser => new window.KHRMaterialsPbrSpecularGlossiness(parser));
+    }
     loader.parse(
       glbArrayBuffer,
       '',   // resource path (not needed — model is self-contained)
