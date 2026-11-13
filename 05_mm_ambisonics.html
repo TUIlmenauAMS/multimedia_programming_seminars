@@ -292,41 +292,51 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
   cursor: pointer; transition: border-color 0.2s, color 0.2s, background 0.2s; letter-spacing: 0.03em;
 }
 .action-btn:hover         { border-color: var(--accent);  color: var(--accent);  background: rgba(79,156,249,0.07); }
-.action-btn.frozen        { border-color: var(--accent2); color: var(--accent2); background: rgba(167,139,250,0.08); }
-.action-btn.frozen:hover  { background: rgba(167,139,250,0.14); }
 .action-btn.playing       { border-color: var(--green);   color: var(--green);   background: rgba(52,211,153,0.08); }
 .action-btn.playing:hover { border-color: var(--green);   color: var(--green);   background: rgba(52,211,153,0.16); }
 
 /* Audio upload panel inside the demo (floating, right col bottom) */
-#audioUploadPanel { padding: 12px 14px; flex-shrink: 0; }
-#audioUploadPanel .gpanel-label { margin-bottom: 8px; }
-.aup-row  { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
-.aup-row:last-of-type { margin-bottom: 0; }
-.aup-dot  { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
-.aup-name { font-family: var(--mono); font-size: 10px; color: var(--muted); flex: 1; }
-.aup-btn {
-  font-family: var(--mono); font-size: 9px; color: var(--muted);
-  background: rgba(255,255,255,0.03); border: 1px solid var(--border);
-  border-radius: 4px; padding: 3px 9px; cursor: pointer;
-  transition: border-color 0.15s, color 0.15s; white-space: nowrap; flex-shrink: 0;
+/* ── Mixer panel: Mute / Solo / Level per source ── */
+#mixPanel { padding: 11px 13px; flex-shrink: 1; min-height: 0; overflow-y: auto; max-height: 340px; }
+.mix-row { margin-bottom: 10px; transition: opacity 0.2s; }
+.mix-row:last-of-type { margin-bottom: 0; }
+.mix-row.soloed-out { opacity: 0.35; }
+.mix-row-top { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+.mix-dot   { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.mix-label { font-family: var(--mono); font-size: 10.5px; color: var(--text); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mix-status { font-family: var(--mono); font-size: 8.5px; color: var(--muted); white-space: nowrap; flex-shrink: 0; }
+.mix-row-controls { display: flex; align-items: center; gap: 5px; }
+.mix-btn {
+  width: 20px; height: 20px; flex-shrink: 0; border-radius: 4px;
+  border: 1px solid var(--border); background: rgba(255,255,255,0.03);
+  color: var(--muted); font-family: var(--mono); font-size: 9px; font-weight: 600;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
 }
-.aup-btn:hover  { border-color: var(--accent); color: var(--accent); }
-.aup-btn.loaded { border-color: var(--green);  color: var(--green); }
-.aup-btn input[type=file] { display: none; }
-.aup-note { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.55; margin-top: 6px; line-height: 1.4; }
+.mix-btn:hover { border-color: var(--text); color: var(--text); }
+.mix-btn.mute.active { border-color: var(--red);    color: var(--red);    background: rgba(248,113,113,0.16); }
+.mix-btn.solo.active { border-color: var(--orange); color: var(--orange); background: rgba(251,146,60,0.16); }
+.mix-slider {
+  flex: 1; min-width: 0; height: 3px; -webkit-appearance: none; appearance: none;
+  background: var(--border); border-radius: 2px; outline: none; cursor: pointer;
+}
+.mix-slider::-webkit-slider-thumb { -webkit-appearance: none; width: 11px; height: 11px; border-radius: 50%; background: var(--accent2); cursor: pointer; }
+.mix-slider::-moz-range-thumb     { width: 11px; height: 11px; border-radius: 50%; background: var(--accent2); border: none; cursor: pointer; }
+.mix-pct { font-family: var(--jb); font-size: 9px; color: var(--muted); width: 30px; text-align: right; flex-shrink: 0; }
+.mix-upload-btn {
+  width: 20px; height: 20px; flex-shrink: 0; border-radius: 4px;
+  border: 1px solid var(--border); background: rgba(255,255,255,0.03);
+  color: var(--muted); font-size: 11px; display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: border-color 0.15s, color 0.15s;
+}
+.mix-upload-btn:hover  { border-color: var(--accent); color: var(--accent); }
+.mix-upload-btn.loaded { border-color: var(--green);  color: var(--green); }
+.mix-upload-btn input[type=file] { display: none; }
+.mix-note { font-family: var(--mono); font-size: 9px; color: var(--muted); opacity: 0.55; margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--panel-border); line-height: 1.4; }
 
 /* ════════════════════════════════════════
    MISC OVERLAYS
    ════════════════════════════════════════ */
-#frozenBadge {
-  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  background: rgba(167,139,250,0.15); border: 1px solid rgba(167,139,250,0.4);
-  color: var(--accent2); font-family: var(--mono); font-size: 11px;
-  padding: 6px 16px; border-radius: 20px; pointer-events: none; z-index: 90;
-  opacity: 0; transition: opacity 0.3s; letter-spacing: 0.08em;
-}
-#frozenBadge.visible { opacity: 1; }
-
 #navHint {
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
   background: var(--panel-bg); border: 1px solid var(--panel-border);
@@ -511,7 +521,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
       <div class="info-row"><span class="info-key">Drag</span><span class="info-val">Rotate head — hear the field from a new angle</span></div>
       <div class="info-row"><span class="info-key">Scroll</span><span class="info-val">Zoom in / out on the canvas</span></div>
       <div class="info-row"><span class="info-key">Order 1→3</span><span class="info-val">More channels = sharper spatial resolution</span></div>
-      <div class="info-row"><span class="info-key">3→5 sources</span><span class="info-val">Adds Bass Drone (below) and Shimmer (above)</span></div>
+      <div class="info-row"><span class="info-key">Mixer</span><span class="info-val">Mute, solo or set the level of any of the 5 sources</span></div>
     </div>
     <button class="info-collapse-btn" id="infoCollapseBtn" onclick="toggleInfoPanel()">
       <svg id="infoCollapseArrow" width="10" height="10" viewBox="0 0 24 24" fill="currentColor" style="transition:transform 0.3s"><path d="M7 10l5 5 5-5z"/></svg>
@@ -536,8 +546,8 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
       <div class="src-leg-item" id="leg-a"><div class="src-dot" style="background:var(--src-a)"></div>A · Speech</div>
       <div class="src-leg-item" id="leg-b"><div class="src-dot" style="background:var(--src-b)"></div>B · Notification</div>
       <div class="src-leg-item" id="leg-c"><div class="src-dot" style="background:var(--src-c)"></div>C · Fire Alarm</div>
-      <div class="src-leg-item inactive" id="leg-d"><div class="src-dot" style="background:var(--src-d)"></div>D · Drone</div>
-      <div class="src-leg-item inactive" id="leg-e"><div class="src-dot" style="background:var(--src-e)"></div>E · Shimmer ↑</div>
+      <div class="src-leg-item" id="leg-d"><div class="src-dot" style="background:var(--src-d)"></div>D · Drone</div>
+      <div class="src-leg-item" id="leg-e"><div class="src-dot" style="background:var(--src-e)"></div>E · Shimmer ↑</div>
     </div>
   </div>
 
@@ -562,7 +572,7 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
     </div>
     <div class="hud-row">
       <span class="hud-key">Active sources</span>
-      <span class="hud-val green" id="hudSrc">3</span>
+      <span class="hud-val green" id="hudSrc">5</span>
     </div>
     <div class="hud-row">
       <span class="hud-key">Audio</span>
@@ -583,50 +593,92 @@ html, body { height: 100%; overflow: hidden; background: var(--bg); color: var(-
     </div>
 
     <div class="ctrl-section">
-      <div class="ctrl-label">Sources</div>
-      <div class="pill-row">
-        <button class="pill-btn active" id="src3Btn" onclick="setSourceCount(3)">3 sources</button>
-        <button class="pill-btn" id="src5Btn" onclick="setSourceCount(5)">5 sources</button>
-      </div>
-      <div class="ctrl-sublabel">+2 adds Drone (below-right) · Shimmer (directly above)</div>
-    </div>
-
-    <div class="ctrl-section">
-      <button class="action-btn" id="freezeBtn" onclick="toggleFreeze()">❄ Freeze Field</button>
-      <div class="ctrl-sublabel">Pause the sphere — rotate head to hear the frozen field from different angles.</div>
-    </div>
-
-    <div class="ctrl-section">
       <button class="action-btn" id="audioToggleBtn" onclick="toggleAudio()">▶ Start Audio</button>
     </div>
   </div>
 
-  <!-- In-demo audio file upload (always accessible) -->
-  <div class="gpanel" id="audioUploadPanel">
-    <div class="gpanel-label">Swap Audio Files</div>
-    <div class="aup-row">
-      <div class="aup-dot" style="background:var(--src-a)"></div>
-      <div class="aup-name">Speech</div>
-      <label class="aup-btn" id="aup-speech">Upload <input type="file" accept="audio/*" onchange="handleUploadLive(event,'speech')"></label>
+  <!-- Per-source Mute / Solo / Level mixer (always accessible) -->
+  <div class="gpanel" id="mixPanel">
+    <div class="gpanel-label">Audio Sources · Mixer</div>
+
+    <div class="mix-row" id="mixrow-A">
+      <div class="mix-row-top">
+        <span class="mix-dot" style="background:var(--src-a)"></span>
+        <span class="mix-label">A · Speech</span>
+        <span class="mix-status" id="st-speech"></span>
+      </div>
+      <div class="mix-row-controls">
+        <button class="mix-btn mute" id="mute-A" onclick="toggleMute('A')" title="Mute">M</button>
+        <button class="mix-btn solo" id="solo-A" onclick="toggleSolo('A')" title="Solo">S</button>
+        <input type="range" class="mix-slider" id="level-A" min="0" max="150" value="100" oninput="setLevel('A', this.value)">
+        <span class="mix-pct" id="pct-A">100%</span>
+        <label class="mix-upload-btn" id="aup-speech" title="Replace audio file">⇪<input type="file" accept="audio/*" onchange="handleUploadLive(event,'speech')"></label>
+      </div>
     </div>
-    <div class="aup-row">
-      <div class="aup-dot" style="background:var(--src-b)"></div>
-      <div class="aup-name">Notification</div>
-      <label class="aup-btn" id="aup-beep">Upload <input type="file" accept="audio/*" onchange="handleUploadLive(event,'beep')"></label>
+
+    <div class="mix-row" id="mixrow-B">
+      <div class="mix-row-top">
+        <span class="mix-dot" style="background:var(--src-b)"></span>
+        <span class="mix-label">B · Notification</span>
+        <span class="mix-status" id="st-beep"></span>
+      </div>
+      <div class="mix-row-controls">
+        <button class="mix-btn mute" id="mute-B" onclick="toggleMute('B')" title="Mute">M</button>
+        <button class="mix-btn solo" id="solo-B" onclick="toggleSolo('B')" title="Solo">S</button>
+        <input type="range" class="mix-slider" id="level-B" min="0" max="150" value="100" oninput="setLevel('B', this.value)">
+        <span class="mix-pct" id="pct-B">100%</span>
+        <label class="mix-upload-btn" id="aup-beep" title="Replace audio file">⇪<input type="file" accept="audio/*" onchange="handleUploadLive(event,'beep')"></label>
+      </div>
     </div>
-    <div class="aup-row">
-      <div class="aup-dot" style="background:var(--src-c)"></div>
-      <div class="aup-name">Fire Alarm</div>
-      <label class="aup-btn" id="aup-alarm">Upload <input type="file" accept="audio/*" onchange="handleUploadLive(event,'alarm')"></label>
+
+    <div class="mix-row" id="mixrow-C">
+      <div class="mix-row-top">
+        <span class="mix-dot" style="background:var(--src-c)"></span>
+        <span class="mix-label">C · Fire Alarm</span>
+        <span class="mix-status" id="st-alarm"></span>
+      </div>
+      <div class="mix-row-controls">
+        <button class="mix-btn mute" id="mute-C" onclick="toggleMute('C')" title="Mute">M</button>
+        <button class="mix-btn solo" id="solo-C" onclick="toggleSolo('C')" title="Solo">S</button>
+        <input type="range" class="mix-slider" id="level-C" min="0" max="150" value="100" oninput="setLevel('C', this.value)">
+        <span class="mix-pct" id="pct-C">100%</span>
+        <label class="mix-upload-btn" id="aup-alarm" title="Replace audio file">⇪<input type="file" accept="audio/*" onchange="handleUploadLive(event,'alarm')"></label>
+      </div>
     </div>
-    <div class="aup-note">Replace any source while the demo runs. Files are decoded and hot-swapped instantly.</div>
+
+    <div class="mix-row" id="mixrow-D">
+      <div class="mix-row-top">
+        <span class="mix-dot" style="background:var(--src-d)"></span>
+        <span class="mix-label">D · Drone</span>
+      </div>
+      <div class="mix-row-controls">
+        <button class="mix-btn mute" id="mute-D" onclick="toggleMute('D')" title="Mute">M</button>
+        <button class="mix-btn solo" id="solo-D" onclick="toggleSolo('D')" title="Solo">S</button>
+        <input type="range" class="mix-slider" id="level-D" min="0" max="150" value="100" oninput="setLevel('D', this.value)">
+        <span class="mix-pct" id="pct-D">100%</span>
+      </div>
+    </div>
+
+    <div class="mix-row" id="mixrow-E">
+      <div class="mix-row-top">
+        <span class="mix-dot" style="background:var(--src-e)"></span>
+        <span class="mix-label">E · Shimmer ↑</span>
+      </div>
+      <div class="mix-row-controls">
+        <button class="mix-btn mute" id="mute-E" onclick="toggleMute('E')" title="Mute">M</button>
+        <button class="mix-btn solo" id="solo-E" onclick="toggleSolo('E')" title="Solo">S</button>
+        <input type="range" class="mix-slider" id="level-E" min="0" max="150" value="100" oninput="setLevel('E', this.value)">
+        <span class="mix-pct" id="pct-E">100%</span>
+      </div>
+    </div>
+
+    <div class="mix-note">Mute / solo any source, or drag a level to balance the mix. Speech, Notification and Fire Alarm (⇪) can also be swapped live.</div>
   </div>
 
 </div>
 
 <!-- ── Misc overlays ── -->
-<div id="frozenBadge">❄ FIELD FROZEN — rotate head to hear it</div>
-<div id="navHint">Drag to rotate head &nbsp;·&nbsp; Scroll to zoom</div>
+<div id="navHint">Left-drag: rotate head &nbsp;·&nbsp; Right-drag: orbit camera &nbsp;·&nbsp; Scroll: zoom</div>
 <div id="orderFlash"></div>
 
 <script>
@@ -638,16 +690,40 @@ let ambiSphere, ambiColorsAttr, vertexDirs, wireSphere;
 let headGroup, headEuler;
 let labelElements = [];
 
+// Sources placed at clearly distinct, well-separated directions on a sphere
+// of radius ~3 so they sit just outside the ambi-sphere (r=1.5) and are
+// visible even at the default camera distance.
+//   A Speech      — front-left,  slight elevation   (-45° az, +20° el)
+//   B Notification — right,       ear level           (+90° az,   0° el)
+//   C Fire Alarm  — rear,         high elevation      (180° az, +45° el)
+//   D Drone       — front-right,  below ear level     (+45° az, -30° el)
+//   E Shimmer     — directly above                    (  0° az, +90° el)
+const R3 = 3.0;
 const SOURCES = [
-  { id:'A', label:'Speech',     color:0xfb923c, pos:[-2.17, 1.03,-1.80], file:'p020_freeform_speech_01.wav', uploadKey:'speech' },
-  { id:'B', label:'Notification',color:0x4fc3f7, pos:[ 2.05,-0.78, 1.97], file:'1298.mp3',                   uploadKey:'beep'   },
-  { id:'C', label:'Fire Alarm', color:0xf87171, pos:[-1.73, 1.72, 1.73], file:'3411.mp3',                   uploadKey:'alarm'  },
-  { id:'D', label:'Drone',      color:0xa78bfa, pos:[ 1.90,-1.27,-1.90], file:null,                         uploadKey:null     },
-  { id:'E', label:'Shimmer',    color:0x34d399, pos:[ 0.00, 2.98, 0.00], file:null,                         uploadKey:null     },
+  { id:'A', label:'Speech',      color:0xfb923c, pos:[ -R3*Math.sin(Math.PI/4)*Math.cos(20*Math.PI/180),  R3*Math.sin(20*Math.PI/180), -R3*Math.cos(Math.PI/4)*Math.cos(20*Math.PI/180)], file:'p020_freeform_speech_01.wav', uploadKey:'speech', muted:false, solo:false, userLevel:1.0 },
+  { id:'B', label:'Notification', color:0x4fc3f7, pos:[ R3, 0, 0],                                                                                                                         file:'1298.mp3',                   uploadKey:'beep',   muted:false, solo:false, userLevel:1.0 },
+  { id:'C', label:'Fire Alarm',  color:0xf87171, pos:[ 0,  R3*Math.sin(45*Math.PI/180),  R3*Math.cos(45*Math.PI/180)],                                                                    file:'3411.mp3',                   uploadKey:'alarm',  muted:false, solo:false, userLevel:1.0 },
+  { id:'D', label:'Drone',       color:0xa78bfa, pos:[ R3*Math.sin(Math.PI/4)*Math.cos(30*Math.PI/180), -R3*Math.sin(30*Math.PI/180), -R3*Math.cos(Math.PI/4)*Math.cos(30*Math.PI/180)], file:null,                         uploadKey:null,     muted:false, solo:false, userLevel:1.0 },
+  { id:'E', label:'Shimmer',     color:0x34d399, pos:[ 0,  R3, 0],                                                                                                                         file:null,                         uploadKey:null,     muted:false, solo:false, userLevel:1.0 },
 ];
+
+// Every source funnels down to this same trim level before the user's
+// Mute/Solo/Level controls and Resonance Audio's distance rolloff are
+// applied, so the five sources start out balanced instead of each having
+// its own hand-tuned constant. Real uploaded/fetched files are additionally
+// scaled by computeNormalizationGain() (see below) to bring their peak up
+// to match this same baseline.
+const BASE_SOURCE_GAIN = 0.5;
 
 // Pre-start: ArrayBuffers from file uploads
 const uploadedBuffers = { speech:null, beep:null, alarm:null };
+
+// Tracks in-flight async loads (auto-fetch + manual uploads) so onStart()
+// can wait for them to finish before deciding a file is "missing" and
+// falling back to synthesis. Without this, a large file (e.g. the speech
+// .wav) that is still being read when "Start Experience" is clicked gets
+// silently replaced by the synth fallback, even though it was uploaded.
+const pendingLoadPromises = [];
 
 let audioContext   = null;
 let resonanceAudio = null;
@@ -658,11 +734,14 @@ let audioStarted   = false;
 let hrtfReady      = false;
 
 let polarCtx = null, elevCtx = null;
-let fieldFrozen = false;
-let activeSourceCount = 3;
 
 let headEulerYaw = 0, headEulerPitch = 0;
 let isDragging = false, lastMouseX = 0, lastMouseY = 0;
+
+// Camera orbit spherical coordinates
+let cameraTheta  = 0;     // azimuth (radians)
+let cameraPhi    = 0.15;  // elevation (radians)
+let cameraRadius = 4.5;   // distance from origin
 
 let orderExponent  = 6;
 const VIRIDIS      = new Float32Array(256 * 3);
@@ -685,6 +764,12 @@ class MinimalComposer {
 }
 
 // ─── Helpers
+function setSrcStatus(key, msg, ok) {
+  const el = document.getElementById('st-' + key);
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = ok ? 'var(--green)' : 'var(--red)';
+}
 function showError(msg) {
   document.getElementById('loadOverlay').style.display = 'none';
   document.getElementById('errMsg').textContent = msg;
@@ -737,7 +822,7 @@ function tryAutoFetch() {
   let loaded = 0, total = 0;
   SOURCES.filter(s => s.file && s.uploadKey).forEach(src => {
     total++;
-    fetch(src.file)
+    const p = fetch(src.file)
       .then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); })
       .then(buf => {
         uploadedBuffers[src.uploadKey] = buf;
@@ -753,6 +838,7 @@ function tryAutoFetch() {
           document.getElementById('uploadHeaderNote').textContent = anyFailed ? 'some files missing — synth used' : 'all files loaded ✓';
         }
       });
+    pendingLoadPromises.push(p);
   });
 }
 
@@ -764,19 +850,28 @@ function handleUpload(event, key) {
   if (!file) return;
   const btn = document.getElementById('lbl-' + key);
   btn.textContent = '…';
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    uploadedBuffers[key] = e.target.result;
-    btn.textContent = '✓ ' + file.name.slice(0, 16) + (file.name.length > 16 ? '…' : '');
-    btn.classList.add('loaded');
-    // Re-add hidden input
-    const inp = document.createElement('input');
-    inp.type = 'file'; inp.accept = 'audio/*'; inp.style.display = 'none';
-    inp.onchange = (ev) => handleUpload(ev, key);
-    btn.appendChild(inp);
-  };
-  reader.onerror = () => { btn.textContent = '✗ Error'; };
-  reader.readAsArrayBuffer(file);
+  // Wrapped in a promise, tracked in pendingLoadPromises, so onStart() can
+  // await it. Large files (like the speech .wav) take noticeably longer to
+  // read than the small beep/alarm mp3s, so without this the user could hit
+  // "Start Experience" before this finishes and silently get the synth
+  // fallback instead of their uploaded file.
+  const p = new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      uploadedBuffers[key] = e.target.result;
+      btn.textContent = '✓ ' + file.name.slice(0, 16) + (file.name.length > 16 ? '…' : '');
+      btn.classList.add('loaded');
+      // Re-add hidden input
+      const inp = document.createElement('input');
+      inp.type = 'file'; inp.accept = 'audio/*'; inp.style.display = 'none';
+      inp.onchange = (ev) => handleUpload(ev, key);
+      btn.appendChild(inp);
+      resolve();
+    };
+    reader.onerror = () => { btn.textContent = '✗ Error'; resolve(); };
+    reader.readAsArrayBuffer(file);
+  });
+  pendingLoadPromises.push(p);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -800,12 +895,14 @@ function handleUploadLive(event, key) {
       if (src.trimGain) { try { src.trimGain.disconnect(); } catch(ex) {} }
       // Create new buffer node
       src.buffer = buffer;
-      src.trimGain = audioContext.createGain(); src.trimGain.gain.value = 0.5;
+      const norm = computeNormalizationGain(buffer);
+      src.trimGain = audioContext.createGain(); src.trimGain.gain.value = BASE_SOURCE_GAIN * norm;
       src.bufNode  = audioContext.createBufferSource();
       src.bufNode.buffer = buffer; src.bufNode.loop = true;
       src.bufNode.connect(src.trimGain);
       src.trimGain.connect(src.analyser);
-      if (audioStarted) src.bufNode.start();
+      src.bufNode.start();   // context may be suspended; it will sound once resumed
+      setSrcStatus(key, '✓ ' + buffer.duration.toFixed(1) + 's file', true);
       btn.textContent = '✓ ' + file.name.slice(0, 12) + (file.name.length > 12 ? '…' : '');
       btn.classList.add('loaded');
       // Re-add hidden input
@@ -815,7 +912,8 @@ function handleUploadLive(event, key) {
       btn.appendChild(inp);
     } catch(e) {
       btn.textContent = '✗ Error';
-      console.warn('Live upload decode error:', e);
+      setSrcStatus(key, '✗ decode failed', false);
+      console.error('Live upload decode error:', e);
     }
   };
   reader.readAsArrayBuffer(file);
@@ -842,7 +940,8 @@ function initRenderer() {
   scene.background = new THREE.Color(0x03040a);
 
   camera = new THREE.PerspectiveCamera(65, mount.clientWidth / mount.clientHeight, 0.05, 200);
-  camera.position.set(0, 0.4, 2.5);
+  // Initial position driven by spherical state (cameraRadius/Theta/Phi defined below)
+  camera.position.set(0, cameraRadius * Math.sin(cameraPhi), cameraRadius * Math.cos(cameraPhi));
   camera.lookAt(0, 0, 0);
 
   clock = new THREE.Clock();
@@ -919,34 +1018,33 @@ function buildHeadProxy() {
   headGroup = new THREE.Group();
   scene.add(headGroup);
 
-  // Head skull
-  const headMat = new THREE.MeshStandardMaterial({
-    color: 0xf0e8d8, emissive: new THREE.Color(0xc8a96e),
-    emissiveIntensity: 0.45, roughness: 0.55, metalness: 0.05
-  });
-  const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.12, 20, 14), headMat);
+  // Head skull — MeshBasicMaterial is unlit so it ignores scene lighting and
+  // is always the same bright white regardless of the ambi-sphere colour.
+  const headMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.15, 20, 14), headMat);
   headMesh.scale.y = 0.85;
   headGroup.add(headMesh);
 
-  // Rim light on head
-  const headRimLight = new THREE.PointLight(0xffe0a0, 0.8, 1.2);
-  headRimLight.position.set(0, 0.18, 0.22);
-  headGroup.add(headRimLight);
+  // Dark outline slightly larger — creates a crisp silhouette even on a white bg
+  const outlineMat = new THREE.MeshBasicMaterial({ color: 0x000000, side: THREE.BackSide });
+  const outlineMesh = new THREE.Mesh(new THREE.SphereGeometry(0.155, 20, 14), outlineMat);
+  outlineMesh.scale.y = 0.85;
+  headGroup.add(outlineMesh);
 
-  // Ears
-  const earMat = new THREE.MeshStandardMaterial({ color: 0xfb923c, emissive: new THREE.Color(0xfb923c), emissiveIntensity: 0.9, roughness: 0.4 });
-  const leftEar  = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), earMat);
-  leftEar.position.set(-0.135, 0, 0);
+  // Ears — solid orange, unlit
+  const earMat = new THREE.MeshBasicMaterial({ color: 0xfb923c });
+  const leftEar  = new THREE.Mesh(new THREE.SphereGeometry(0.038, 8, 6), earMat);
+  leftEar.position.set(-0.165, 0, 0);
   headGroup.add(leftEar);
-  const rightEar = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 6), earMat.clone());
-  rightEar.position.set(0.135, 0, 0);
+  const rightEar = new THREE.Mesh(new THREE.SphereGeometry(0.038, 8, 6), new THREE.MeshBasicMaterial({ color: 0xfb923c }));
+  rightEar.position.set(0.165, 0, 0);
   headGroup.add(rightEar);
 
-  // Forward direction arrow
+  // Forward direction arrow — bright yellow so it's obvious which way head faces
   headGroup.add(new THREE.ArrowHelper(
     new THREE.Vector3(0, 0, -1),
     new THREE.Vector3(0, 0, 0),
-    0.32, 0x4f9cf9, 0.09, 0.05
+    0.50, 0xffee00, 0.13, 0.07
   ));
 
   headEuler = new THREE.Euler(0, 0, 0, 'YXZ');
@@ -988,8 +1086,8 @@ function buildSourceMeshes() {
     SOURCES[i].light       = ptLight;
     SOURCES[i].line        = connLine;
     SOURCES[i].rms         = 0;
-    SOURCES[i].scaleTarget = i < 3 ? 1.0 : 0.0;
-    SOURCES[i].active      = i < 3;
+    SOURCES[i].scaleTarget = 1.0;
+    SOURCES[i].active      = true;
 
     srcDirs.push(pos.clone().normalize());
   });
@@ -1054,19 +1152,40 @@ async function onStart() {
 
   try {
     audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    await audioContext.resume();
+    // Keep suspended — nothing plays until user clicks "Start Audio".
+    // Oscillators and buffer sources are all created while suspended.
+    await audioContext.suspend();
   } catch(e) {
     showError('Could not create AudioContext: ' + e.message); return;
   }
 
   buildViridisLUT();
 
+  // Wait for any upload (FileReader) or auto-fetch that's still in flight.
+  // This is the actual fix: previously, clicking "Start Experience" while a
+  // large file (e.g. the speech .wav) was still being read would make the
+  // decode step below see `uploadedBuffers.speech` as null and silently use
+  // the synth fallback instead — even though the file had been uploaded.
+  if (pendingLoadPromises.length) {
+    setProgress(75, 'Finishing audio uploads…');
+    await Promise.allSettled(pendingLoadPromises);
+  }
+
   setProgress(80, 'Decoding audio files…');
-  for (const src of SOURCES.filter(s => s.uploadKey && uploadedBuffers[s.uploadKey])) {
+  for (const src of SOURCES.filter(s => s.uploadKey)) {
+    if (!uploadedBuffers[src.uploadKey]) {
+      src.buffer = null;
+      setSrcStatus(src.uploadKey, '✗ file not loaded — synth fallback', false);
+      console.error('[Audio] No data for', src.file, '- not fetched/uploaded. Using synth fallback.');
+      continue;
+    }
     try {
       src.buffer = await audioContext.decodeAudioData(uploadedBuffers[src.uploadKey].slice(0));
+      setSrcStatus(src.uploadKey, '✓ ' + src.buffer.duration.toFixed(1) + 's file', true);
     } catch(e) {
       src.buffer = null;
+      setSrcStatus(src.uploadKey, '✗ decode failed — synth fallback', false);
+      console.error('[Audio] decodeAudioData failed for', src.file, e);
     }
   }
 
@@ -1079,9 +1198,9 @@ async function onStart() {
 
   buildSynthSources();
 
-  SOURCES.forEach((src, i) => {
-    if (src.gainNode) src.gainNode.gain.value = i < 3 ? 1.0 : 0.0;
-  });
+  // All 5 sources are audible from the start; Mute/Solo/Level in the mixer
+  // panel control this from here on, not a fixed "first 3" assumption.
+  updateAllSourceGains();
 
   setProgress(100, 'Starting…');
 
@@ -1137,13 +1256,24 @@ function initResonance(order) {
     listenerUp:       [0, 1,  0],
   });
 
-  // Anechoic room — eliminate reverb for clean spatial imaging
+  // Anechoic: use the smallest room Resonance allows (short RT60) then
+  // silence the late-reverb output node entirely. setRoomProperties on a
+  // large room (e.g. 100 m) produces a very long reverb tail regardless of
+  // material — volume drives RT60, not absorption alone. Silencing _room.output
+  // keeps the HRTF/directional rendering untouched while removing all reverb.
   resonanceAudio.setRoomProperties(
-    { width: 100, height: 100, depth: 100 },
+    { width: 1, height: 1, depth: 1 },
     { left:'fiber-glass-insulation', right:'fiber-glass-insulation',
       front:'fiber-glass-insulation', back:'fiber-glass-insulation',
       down:'fiber-glass-insulation',  up:'fiber-glass-insulation' }
   );
+  // Kill the late-reverb bus. Resonance Audio exposes _room.output (a GainNode)
+  // which carries the computed late-reverberation signal to the master mix.
+  // Setting its gain to 0 makes the renderer fully anechoic — only the
+  // direction-dependent HRTF convolution remains audible.
+  if (resonanceAudio._room && resonanceAudio._room.output) {
+    resonanceAudio._room.output.gain.value = 0;
+  }
 
   masterGain = audioContext.createGain();
   masterGain.gain.value = 1.0;
@@ -1179,14 +1309,16 @@ function initResonance(order) {
 function buildSynthSources() {
   SOURCES.forEach(src => {
     src.trimGain = audioContext.createGain();
-    src.trimGain.gain.value = 0.35;
+    src.trimGain.gain.value = BASE_SOURCE_GAIN;
   });
 
   // ── A: Speech
   if (SOURCES[0].buffer) {
+    const norm = computeNormalizationGain(SOURCES[0].buffer);
     SOURCES[0].bufNode = createLoopingBufferSource(SOURCES[0].buffer);
-    SOURCES[0].trimGain.gain.value = 0.55;
+    SOURCES[0].trimGain.gain.value = BASE_SOURCE_GAIN * norm;
     SOURCES[0].bufNode.connect(SOURCES[0].trimGain);
+    SOURCES[0].bufNode.start();
   } else {
     const osc  = audioContext.createOscillator(); osc.type = 'sawtooth'; osc.frequency.value = 160;
     const f1   = audioContext.createBiquadFilter(); f1.type = 'bandpass'; f1.frequency.value = 700;  f1.Q.value = 5;
@@ -1201,16 +1333,18 @@ function buildSynthSources() {
     ampLfo.connect(ampLfoG); ampLfoG.connect(ampNode.gain);
     osc.connect(f1); osc.connect(f2); f1.connect(mix); f2.connect(mix);
     mix.connect(ampNode); ampNode.connect(SOURCES[0].trimGain);
-    SOURCES[0].trimGain.gain.value = 0.4;
+    SOURCES[0].trimGain.gain.value = BASE_SOURCE_GAIN;
     osc.start(); lfo.start(); ampLfo.start();
     SOURCES[0].oscNodes = [osc, lfo, ampLfo];
   }
 
   // ── B: Notification beep
   if (SOURCES[1].buffer) {
+    const norm = computeNormalizationGain(SOURCES[1].buffer);
     SOURCES[1].bufNode = createLoopingBufferSource(SOURCES[1].buffer);
-    SOURCES[1].trimGain.gain.value = 0.5;
+    SOURCES[1].trimGain.gain.value = BASE_SOURCE_GAIN * norm;
     SOURCES[1].bufNode.connect(SOURCES[1].trimGain);
+    SOURCES[1].bufNode.start();
   } else {
     const osc     = audioContext.createOscillator(); osc.type = 'sine'; osc.frequency.value = 880;
     const gateEnv = audioContext.createGain(); gateEnv.gain.value = 0;
@@ -1225,16 +1359,18 @@ function buildSynthSources() {
     }
     scheduleBeeps(audioContext.currentTime + 0.1, 1000);
     osc.connect(gateEnv); gateEnv.connect(SOURCES[1].trimGain);
-    SOURCES[1].trimGain.gain.value = 0.5;
+    SOURCES[1].trimGain.gain.value = BASE_SOURCE_GAIN;
     osc.start();
     SOURCES[1].oscNodes = [osc];
   }
 
   // ── C: Fire alarm siren
   if (SOURCES[2].buffer) {
+    const norm = computeNormalizationGain(SOURCES[2].buffer);
     SOURCES[2].bufNode = createLoopingBufferSource(SOURCES[2].buffer);
-    SOURCES[2].trimGain.gain.value = 0.45;
+    SOURCES[2].trimGain.gain.value = BASE_SOURCE_GAIN * norm;
     SOURCES[2].bufNode.connect(SOURCES[2].trimGain);
+    SOURCES[2].bufNode.start();
   } else {
     const osc = audioContext.createOscillator(); osc.type = 'sine'; osc.frequency.value = 660;
     function scheduleSiren(startTime, cycles) {
@@ -1248,7 +1384,7 @@ function buildSynthSources() {
     }
     scheduleSiren(audioContext.currentTime + 0.1, 500);
     osc.connect(SOURCES[2].trimGain);
-    SOURCES[2].trimGain.gain.value = 0.4;
+    SOURCES[2].trimGain.gain.value = BASE_SOURCE_GAIN;
     osc.start();
     SOURCES[2].oscNodes = [osc];
   }
@@ -1268,7 +1404,7 @@ function buildSynthSources() {
     ampLfo.connect(ampLfoG); ampLfoG.connect(ampNode.gain);
     osc.connect(lpf); osc2.connect(osc2G); osc2G.connect(lpf);
     lpf.connect(ampNode); ampNode.connect(SOURCES[3].trimGain);
-    SOURCES[3].trimGain.gain.value = 0.5;
+    SOURCES[3].trimGain.gain.value = BASE_SOURCE_GAIN;
     osc.start(); osc2.start(); detLfo.start(); ampLfo.start();
     SOURCES[3].oscNodes = [osc, osc2, detLfo, ampLfo];
   }
@@ -1292,7 +1428,7 @@ function buildSynthSources() {
     noiseNode.connect(hpf); hpf.connect(bpf); bpf.connect(tremNode);
     chime.connect(chimeG); chimeG.connect(tremNode);
     tremNode.connect(SOURCES[4].trimGain);
-    SOURCES[4].trimGain.gain.value = 0.3;
+    SOURCES[4].trimGain.gain.value = BASE_SOURCE_GAIN;
     noiseNode.start(); tremLfo.start(); chime.start();
     SOURCES[4].bufNode  = noiseNode;
     SOURCES[4].oscNodes = [tremLfo, chime];
@@ -1303,6 +1439,32 @@ function buildSynthSources() {
     src.trimGain.connect(src.analyser);
     src.analyser.connect(src.gainNode);
   });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GAIN NORMALIZATION FOR UPLOADED/FETCHED FILES
+// ═══════════════════════════════════════════════════════════════════════════
+// A fixed trimGain value (e.g. 0.55) only sounds right if the source file is
+// already mastered near full scale, like the synthesized oscillator "beeps".
+// A raw, quietly-recorded file (e.g. a speech recording peaking at ~11% FS)
+// ends up far too quiet after that trim plus Resonance Audio's distance
+// rolloff — technically playing, but effectively inaudible next to the
+// full-scale synth sources. This scans the decoded buffer's peak and returns
+// a multiplier that brings it up to a sane level, capped so we never risk
+// clipping or wildly amplifying noise.
+function computeNormalizationGain(buffer, targetPeak = 0.9, maxGain = 8) {
+  let peak = 0;
+  for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+    const data = buffer.getChannelData(ch);
+    // Sample every 8th frame — plenty accurate for peak detection on long
+    // files and much cheaper than scanning every sample.
+    for (let i = 0; i < data.length; i += 8) {
+      const v = Math.abs(data[i]);
+      if (v > peak) peak = v;
+    }
+  }
+  if (peak < 1e-6) return 1; // effectively silent buffer — leave as-is
+  return Math.min(maxGain, targetPeak / peak);
 }
 
 function createLoopingBufferSource(buffer) {
@@ -1317,16 +1479,15 @@ function createLoopingBufferSource(buffer) {
 function startAudio() {
   if (audioStarted) return;
   audioStarted = true;
-  SOURCES.forEach(src => {
-    if (src.bufNode) { try { src.bufNode.start(); } catch(e) {} }
-  });
+  // All nodes (oscillators and buffer sources) were started while the context
+  // was suspended. Resuming here is what actually makes them audible.
+  audioContext.resume().then(updateAudioBtn);
 }
 
 function toggleAudio() {
   if (!audioContext) return;
   if (!audioStarted) {
-    startAudio();
-    audioContext.resume().then(updateAudioBtn);
+    startAudio(); // resumes context and sets audioStarted
   } else if (audioContext.state === 'running') {
     audioContext.suspend().then(updateAudioBtn);
   } else {
@@ -1373,8 +1534,8 @@ function rebuildResonance(newOrder) {
       try { src.trimGain.disconnect(); } catch(e) {}
       src.trimGain.connect(src.analyser);
       src.analyser.connect(src.gainNode);
-      if (src.gainNode) src.gainNode.gain.value = src.active ? 1.0 : 0.0;
     });
+    updateAllSourceGains();
 
     const mg2 = window._resonanceMasterGain;
     mg2.gain.setTargetAtTime(1.0, audioContext.currentTime, 0.05);
@@ -1390,44 +1551,67 @@ function rebuildResonance(newOrder) {
 // ═══════════════════════════════════════════════════════════════════════════
 // CONTROLS
 // ═══════════════════════════════════════════════════════════════════════════
-function toggleFreeze() {
-  fieldFrozen = !fieldFrozen;
-  const btn   = document.getElementById('freezeBtn');
-  const badge = document.getElementById('frozenBadge');
-  if (fieldFrozen) {
-    btn.textContent = '▶ Live Field';
-    btn.classList.add('frozen');
-    badge.classList.add('visible');
-    wireSphere.material.opacity = 0.22;
-    setTimeout(() => { wireSphere.material.opacity = 0.06; }, 500);
-  } else {
-    btn.textContent = '❄ Freeze Field';
-    btn.classList.remove('frozen');
-    badge.classList.remove('visible');
-  }
+// ═══════════════════════════════════════════════════════════════════════════
+// MIXER — Mute / Solo / Level per source
+// ═══════════════════════════════════════════════════════════════════════════
+// Solo follows the usual mixing-console convention: if ANY source is
+// soloed, only soloed (and unmuted) sources are heard; with no solo active,
+// every unmuted source is heard at its own level.
+function computeEffectiveLevel(src) {
+  const anySolo = SOURCES.some(s => s.solo);
+  const audible = anySolo ? (src.solo && !src.muted) : !src.muted;
+  return audible ? src.userLevel : 0;
 }
 
-function setSourceCount(count) {
-  if (!audioContext) return;
-  activeSourceCount = count;
-  document.getElementById('src3Btn').classList.toggle('active', count === 3);
-  document.getElementById('src5Btn').classList.toggle('active', count === 5);
+function updateSourceGain(src) {
+  if (!src.gainNode || !audioContext) return;
+  const now = audioContext.currentTime;
+  src.gainNode.gain.setTargetAtTime(computeEffectiveLevel(src), now, 0.05);
+}
 
-  [3, 4].forEach(i => {
-    const src  = SOURCES[i];
-    const show = count === 5;
-    src.active      = show;
-    src.scaleTarget = show ? 1.0 : 0.0;
-    if (src.gainNode) {
-      const now = audioContext.currentTime;
-      src.gainNode.gain.setTargetAtTime(show ? 1.0 : 0.0, now, 0.05);
-    }
-    if (show && src.resonanceSource) src.resonanceSource.setPosition(...src.pos);
-    const legIds = ['leg-d', 'leg-e'];
-    document.getElementById(legIds[i-3]).classList.toggle('inactive', !show);
+function updateMixerUI() {
+  const anySolo = SOURCES.some(s => s.solo);
+  SOURCES.forEach(src => {
+    const muteBtn = document.getElementById('mute-' + src.id);
+    const soloBtn = document.getElementById('solo-' + src.id);
+    const row     = document.getElementById('mixrow-' + src.id);
+    const legItem = document.getElementById('leg-' + src.id.toLowerCase());
+    const audible = computeEffectiveLevel(src) > 0;
+    if (muteBtn) muteBtn.classList.toggle('active', src.muted);
+    if (soloBtn) soloBtn.classList.toggle('active', src.solo);
+    if (row)     row.classList.toggle('soloed-out', anySolo && !src.solo);
+    if (legItem) legItem.classList.toggle('inactive', !audible);
   });
+}
 
-  document.getElementById('hudSrc').textContent = count;
+function updateAllSourceGains() {
+  SOURCES.forEach(updateSourceGain);
+  updateMixerUI();
+  const hudSrcEl = document.getElementById('hudSrc');
+  if (hudSrcEl) hudSrcEl.textContent = SOURCES.filter(s => computeEffectiveLevel(s) > 0).length;
+}
+
+function toggleMute(id) {
+  const src = SOURCES.find(s => s.id === id);
+  if (!src) return;
+  src.muted = !src.muted;
+  updateAllSourceGains();
+}
+
+function toggleSolo(id) {
+  const src = SOURCES.find(s => s.id === id);
+  if (!src) return;
+  src.solo = !src.solo;
+  updateAllSourceGains();
+}
+
+function setLevel(id, value) {
+  const src = SOURCES.find(s => s.id === id);
+  if (!src) return;
+  src.userLevel = Math.max(0, Math.min(1.5, value / 100));
+  const pctEl = document.getElementById('pct-' + id);
+  if (pctEl) pctEl.textContent = Math.round(value) + '%';
+  updateAllSourceGains();
 }
 
 function setOrder(order) {
@@ -1449,36 +1633,66 @@ function toggleInfoPanel() {
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DRAG / SCROLL / TOUCH
+//   Left-drag  → rotate the listener head (yaw + pitch)
+//   Right-drag → orbit the camera around the origin (spherical coords)
+//   Scroll     → zoom (camera radius)
 // ═══════════════════════════════════════════════════════════════════════════
+
+function updateCameraFromSpherical() {
+  if (!camera) return;
+  camera.position.set(
+    cameraRadius * Math.cos(cameraPhi) * Math.sin(cameraTheta),
+    cameraRadius * Math.sin(cameraPhi),
+    cameraRadius * Math.cos(cameraPhi) * Math.cos(cameraTheta)
+  );
+  camera.lookAt(0, 0, 0);
+}
+
+// Track which buttons are down
+let leftDrag  = false;
+let rightDrag = false;
+
+document.addEventListener('contextmenu', e => e.preventDefault()); // suppress right-click menu on canvas
+
 document.addEventListener('mousedown', e => {
-  if (e.button !== 0) return;
-  isDragging = true; lastMouseX = e.clientX; lastMouseY = e.clientY;
+  if (e.button === 0) { leftDrag  = true; lastMouseX = e.clientX; lastMouseY = e.clientY; }
+  if (e.button === 2) { rightDrag = true; lastMouseX = e.clientX; lastMouseY = e.clientY; }
 });
 document.addEventListener('mousemove', e => {
-  if (!isDragging) return;
   const dx = e.clientX - lastMouseX, dy = e.clientY - lastMouseY;
   lastMouseX = e.clientX; lastMouseY = e.clientY;
-  headEulerYaw  += dx * 0.005;
-  headEulerPitch = Math.max(-1.22, Math.min(1.22, headEulerPitch + dy * 0.005));
+  if (leftDrag) {
+    // Left drag → rotate listener head
+    headEulerYaw  += dx * 0.005;
+    headEulerPitch = Math.max(-1.22, Math.min(1.22, headEulerPitch + dy * 0.005));
+  }
+  if (rightDrag) {
+    // Right drag → orbit camera
+    cameraTheta -= dx * 0.005;
+    cameraPhi    = Math.max(-1.3, Math.min(1.3, cameraPhi - dy * 0.005));
+    updateCameraFromSpherical();
+  }
 });
-document.addEventListener('mouseup',    () => { isDragging = false; });
-document.addEventListener('mouseleave', () => { isDragging = false; });
+document.addEventListener('mouseup',    e => { if (e.button === 0) leftDrag = false; if (e.button === 2) rightDrag = false; });
+document.addEventListener('mouseleave', () => { leftDrag = false; rightDrag = false; });
+
 document.addEventListener('touchstart', e => {
   if (e.touches.length !== 1) return;
-  isDragging = true; lastMouseX = e.touches[0].clientX; lastMouseY = e.touches[0].clientY;
+  leftDrag = true; lastMouseX = e.touches[0].clientX; lastMouseY = e.touches[0].clientY;
 }, { passive: true });
 document.addEventListener('touchmove', e => {
-  if (!isDragging || e.touches.length !== 1) return;
+  if (!leftDrag || e.touches.length !== 1) return;
   const dx = e.touches[0].clientX - lastMouseX, dy = e.touches[0].clientY - lastMouseY;
   lastMouseX = e.touches[0].clientX; lastMouseY = e.touches[0].clientY;
   headEulerYaw  += dx * 0.006;
   headEulerPitch = Math.max(-1.22, Math.min(1.22, headEulerPitch + dy * 0.006));
 }, { passive: true });
-document.addEventListener('touchend', () => { isDragging = false; });
+document.addEventListener('touchend', () => { leftDrag = false; });
+
 document.addEventListener('wheel', e => {
   if (!camera) return;
-  camera.position.z = Math.max(1.2, Math.min(4.5, camera.position.z + e.deltaY * 0.002));
-  camera.lookAt(0, 0, 0);
+  cameraRadius = Math.max(1.8, Math.min(9.0, cameraRadius + e.deltaY * 0.005));
+  updateCameraFromSpherical();
 }, { passive: true });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1492,7 +1706,9 @@ function updateSourceRMS() {
     src.analyser.getFloatTimeDomainData(src.dataArray);
     let sum = 0;
     for (let i = 0; i < src.dataArray.length; i++) sum += src.dataArray[i] * src.dataArray[i];
-    src.rms = Math.sqrt(sum / src.dataArray.length);
+    // The analyser taps the signal before the mute/solo/level gain stage,
+    // so scale it here to match what's actually audible in the mix.
+    src.rms = Math.sqrt(sum / src.dataArray.length) * computeEffectiveLevel(src);
   });
 }
 
@@ -1577,20 +1793,34 @@ function updatePolarRing() {
   const srcColors = ['#fb923c','#4fc3f7','#f87171','#a78bfa','#34d399'];
   SOURCES.forEach((src, i) => {
     if (!src.active) return;
-    const az = Math.atan2(src.pos[0], -src.pos[2]);
-    const mr = R * 0.90;
+    const p = src.pos;
+    const horiz = Math.sqrt(p[0]*p[0] + p[2]*p[2]) || 1e-9;
+    const norm  = Math.sqrt(p[0]*p[0] + p[1]*p[1] + p[2]*p[2]) || 1;
+    const mr = R * 0.90 * (horiz / norm); // shrink dot toward centre when elevated
+    // canvas: right=+X, top=−Z (front = top of ring)
     polarCtx.beginPath();
-    polarCtx.arc(C + Math.sin(az)*mr, C - Math.cos(az)*mr, 4, 0, Math.PI*2);
+    polarCtx.arc(C + (p[0]/norm)*R*0.90, C + (p[2]/norm)*R*0.90, 4, 0, Math.PI*2);
     polarCtx.fillStyle = srcColors[i]; polarCtx.fill();
   });
 
+  // Derive the head's forward vector in world space.
+  // Head euler order is YXZ: yaw first (Y), then pitch (X).
+  // Forward in head-local space is (0,0,-1).
+  // Rotated: fx = -sin(yaw)*cos(pitch), fz = -cos(yaw)*cos(pitch)
+  // The polar ring is a top-down (XZ) view of the fixed sound field.
+  // The needle points where the head arrow points = (fx, fz) in XZ.
+  const fwdX = -Math.sin(headEulerYaw) * Math.cos(headEulerPitch);
+  const fwdZ = -Math.cos(headEulerYaw) * Math.cos(headEulerPitch);
+  // In canvas: right=+X, up=−Z (forward in 3D = up on the top-down map)
   const needleLen = R * 0.88;
+  const nxP = C + fwdX * needleLen;
+  const nyP = C + fwdZ * needleLen; // +Z is away from front → down on canvas
   polarCtx.beginPath();
   polarCtx.moveTo(C, C);
-  polarCtx.lineTo(C + Math.sin(headEulerYaw)*needleLen, C - Math.cos(headEulerYaw)*needleLen);
+  polarCtx.lineTo(nxP, nyP);
   polarCtx.lineWidth = 1.5; polarCtx.strokeStyle = 'rgba(255,255,255,0.75)'; polarCtx.stroke();
   polarCtx.beginPath();
-  polarCtx.arc(C + Math.sin(headEulerYaw)*needleLen, C - Math.cos(headEulerYaw)*needleLen, 3, 0, Math.PI*2);
+  polarCtx.arc(nxP, nyP, 3, 0, Math.PI*2);
   polarCtx.fillStyle = 'white'; polarCtx.fill();
 
   polarCtx.beginPath();
@@ -1649,20 +1879,31 @@ function updateElevRing() {
   const srcColors = ['#fb923c','#4fc3f7','#f87171','#a78bfa','#34d399'];
   SOURCES.forEach((src, i) => {
     if (!src.active) return;
-    const el = Math.atan2(src.pos[1], -src.pos[2]);
-    const mr = R * 0.90;
+    const p = src.pos;
+    const norm = Math.sqrt(p[0]*p[0] + p[1]*p[1] + p[2]*p[2]) || 1;
+    // canvas: right = −Z (front), up = +Y
     elevCtx.beginPath();
-    elevCtx.arc(C + Math.sin(el)*mr, C - Math.cos(el)*mr, 4, 0, Math.PI*2);
+    elevCtx.arc(C + (-p[2]/norm)*R*0.90, C + (-p[1]/norm)*R*0.90, 4, 0, Math.PI*2);
     elevCtx.fillStyle = srcColors[i]; elevCtx.fill();
   });
 
+  // Elevation ring is a side (YZ) view.
+  // Forward vector Y component: fwdY = sin(pitch) (upward tilt)
+  // Forward vector Z component: fwdZ = -cos(yaw)*cos(pitch) (depth)
+  // In canvas: right = −Z (front=right), up = +Y
+  const fwdY2 =  Math.sin(headEulerPitch);
+  const fwdZ2 = -Math.cos(headEulerYaw) * Math.cos(headEulerPitch);
   const pLen = R * 0.88;
+  // Canvas x maps to -Z (front of head = right side of diagram)
+  // Canvas y maps to -Y (up in world = up on canvas)
+  const nxE = C + (-fwdZ2) * pLen;
+  const nyE = C + (-fwdY2) * pLen;
   elevCtx.beginPath();
   elevCtx.moveTo(C, C);
-  elevCtx.lineTo(C + Math.sin(headEulerPitch)*pLen, C - Math.cos(headEulerPitch)*pLen);
+  elevCtx.lineTo(nxE, nyE);
   elevCtx.lineWidth = 1.5; elevCtx.strokeStyle = 'rgba(255,255,255,0.75)'; elevCtx.stroke();
   elevCtx.beginPath();
-  elevCtx.arc(C + Math.sin(headEulerPitch)*pLen, C - Math.cos(headEulerPitch)*pLen, 3, 0, Math.PI*2);
+  elevCtx.arc(nxE, nyE, 3, 0, Math.PI*2);
   elevCtx.fillStyle = 'white'; elevCtx.fill();
 
   elevCtx.beginPath();
@@ -1730,11 +1971,9 @@ function startRenderLoop() {
       }
     });
 
-    if (!fieldFrozen) {
-      if (audioContext) updateAmbiSphere();
-      updatePolarRing();
-      updateElevRing();
-    }
+    if (audioContext) updateAmbiSphere();
+    updatePolarRing();
+    updateElevRing();
 
     // Source label positions
     SOURCES.forEach((src, i) => {
