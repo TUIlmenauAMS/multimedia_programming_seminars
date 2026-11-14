@@ -63,8 +63,8 @@
   Required files (serve from same directory, or upload via sidebar):
     Audio (6 files):  1233.mp3, 1487.mp3, 1157.wav, 2118.wav, 2618.mp3, 0291.wav
     3D Models (6 files): old_air_conditioner.glb, mzb_air_compressor.glb,
-                         old_fridge.glb, old_rusty_transformer.glb,
-                         retro_radio.glb, vaz_2107.glb
+                         old_fridge.glb, old_rusty_transformer_remade.glb,
+                         ai_stalker_retro_radio.glb, old_car_-_vaz_2107.glb
   ══════════════════════════════════════════════════════════════════════════════
 -->
 <html lang="en">
@@ -515,12 +515,12 @@ html, body {
         <label class="upload-btn" id="lbl-mzb_air_compressor.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'mzb_air_compressor.glb')"></label></div>
       <div class="upload-row"><span class="upload-label" style="min-width:140px">old_fridge.glb</span>
         <label class="upload-btn" id="lbl-old_fridge.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'old_fridge.glb')"></label></div>
-      <div class="upload-row"><span class="upload-label" style="min-width:140px">old_rusty_transformer.glb</span>
-        <label class="upload-btn" id="lbl-old_rusty_transformer.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'old_rusty_transformer.glb')"></label></div>
-      <div class="upload-row"><span class="upload-label" style="min-width:140px">retro_radio.glb</span>
-        <label class="upload-btn" id="lbl-retro_radio.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'retro_radio.glb')"></label></div>
-      <div class="upload-row"><span class="upload-label" style="min-width:140px">vaz_2107.glb</span>
-        <label class="upload-btn" id="lbl-vaz_2107.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'vaz_2107.glb')"></label></div>
+      <div class="upload-row"><span class="upload-label" style="min-width:140px">old_rusty_transformer_remade.glb</span>
+        <label class="upload-btn" id="lbl-old_rusty_transformer_remade.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'old_rusty_transformer_remade.glb')"></label></div>
+      <div class="upload-row"><span class="upload-label" style="min-width:140px">ai_stalker_retro_radio.glb</span>
+        <label class="upload-btn" id="lbl-ai_stalker_retro_radio.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'ai_stalker_retro_radio.glb')"></label></div>
+      <div class="upload-row"><span class="upload-label" style="min-width:140px">old_car_-_vaz_2107.glb</span>
+        <label class="upload-btn" id="lbl-old_car_-_vaz_2107.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'old_car_-_vaz_2107.glb')"></label></div>
     </div>
 
     <!-- Source panels — populated by JS after sources are created -->
@@ -629,11 +629,11 @@ const SOURCE_DEFS = [
   // Fridge: front room, left side near left wall
   { key:'fridge',      name:'Fridge',          file:'1157.wav', model:'old_fridge.glb',           pos:[-15,0,  5],   color:'#4f9cf9', loop:true,  gain:0.7  },
   // Transformer: front room, right wall
-  { key:'transformer', name:'Transformer',     file:'2118.wav', model:'old_rusty_transformer.glb',pos:[16, 0,  2],   color:'#34d399', loop:true,  gain:0.8  },
+  { key:'transformer', name:'Transformer',     file:'2118.wav', model:'old_rusty_transformer_remade.glb',pos:[16, 0,  2],   color:'#34d399', loop:true,  gain:0.8  },
   // Radio on desk in rear room, left side. Group Y=0.78 = desk top height.
-  { key:'radio',       name:'Radio',           file:'2618.mp3', model:'retro_radio.glb',          pos:[-8, 0.78,-8], color:'#a78bfa', scheduler:true, gain:0.9 },
+  { key:'radio',       name:'Radio',           file:'2618.mp3', model:'ai_stalker_retro_radio.glb',          pos:[-8, 0.78,-8], color:'#a78bfa', scheduler:true, gain:0.9 },
   // Car: rear room right side, rotation PI/2 → length along X
-  { key:'car',         name:'Car Engine',      file:'0291.wav', model:'vaz_2107.glb',             pos:[10, 0, -8],   color:'#f87171', scheduler:true, stereo:true, gain:0.75 },
+  { key:'car',         name:'Car Engine',      file:'0291.wav', model:'old_car_-_vaz_2107.glb',             pos:[10, 0, -8],   color:'#f87171', scheduler:true, stereo:true, gain:0.75 },
 ];
 
 // All audio filenames (used for readiness checks)
