@@ -23,19 +23,21 @@
                        motivated by the mass law of wall transmission loss.
 
   ── SCENE ────────────────────────────────────────────────────────────────────
-  Industrial warehouse interior — 24 m wide × 10 m high × 18 m deep.
-  A dividing concrete wall at Z = -3 creates a rear alcove. Sources placed in
-  the alcove are occluded from the listener starting position.
+  Industrial warehouse interior — 36 m wide × 10 m high × 28 m deep.
+  A dividing concrete wall at Z = 0 (room centre) creates two equal rooms.
+  Front room: Z 0..+14. Rear room: Z -14..0.
+  Sources placed in the rear room are occluded from the listener start position.
 
   ── COORDINATE SYSTEM ────────────────────────────────────────────────────────
   Three.js world units = metres. Y-up. Right-handed.
   Resonance Audio uses the same convention — no conversion needed.
   Origin (0, 0, 0): room centre at floor level.
-  X: [-12 .. +12]  (width  24 m)
+  X: [-18 .. +18]  (width  36 m)
   Y: [0   .. +10]  (height 10 m)
-  Z: [-9  .. +9]   (depth  18 m)
-  Listener start: (0, 1.65, 6) — near front wall, looking toward -Z.
-  Dividing wall:  Z = -3, full width, 3 m high (Y: 0..3), 0.2 m thick.
+  Z: [-14 .. +14]  (depth  28 m)
+  Listener start: (0, 1.65, 7) — roughly centred in front room, looking toward -Z.
+  Dividing wall:  Z = 0, full width, full height (Y: 0..10), 0.2 m thick.
+                  Door gap: X = ±2.0 m, H = 2.4 m. Above-door panel fills to ceiling.
 
   ══════════════════════════════════════════════════════════════════════════════
   AUDIO CREDITS & LICENSES
@@ -418,7 +420,7 @@ html, body {
 <div id="startOverlay" class="hidden">
   <div class="so-icon">🎧</div>
   <div class="so-title">Click to enter the warehouse</div>
-  <div class="so-sub">Four of six sources are behind the dividing wall — walk around it to hear occlusion lift. Adjust the LOD threshold in the HUD to watch sources switch between Ambisonic and stereo rendering.</div>
+  <div class="so-sub">Three sources are in the rear room behind the full-height dividing wall — walk through the door to hear occlusion lift. Adjust the LOD threshold in the HUD to watch sources switch between Ambisonic and stereo rendering.</div>
   <div class="so-keys">
     <span class="key-badge">W A S D</span><span class="hint-sep">move</span>
     <span class="key-badge">L-drag</span><span class="hint-sep">look</span>
@@ -584,8 +586,9 @@ html, body {
   Three.js world units = metres. Y-up. Right-handed.
   Resonance Audio uses the same convention — no conversion needed.
   Origin (0,0,0) = room centre at floor level.
-  Listener start: (0, 1.65, 6) — near front wall, facing -Z.
-  Dividing wall: Z = -3, full width, 3 m high, 0.2 m thick.
+  Listener start: (0, 1.65, 7) — roughly centred in front room, facing -Z.
+  Dividing wall: Z = 0, full width, full height 10 m, 0.2 m thick.
+  Door gap: X = ±2.0 m, H = 2.4 m. Above-door panel fills to ceiling.
 */
 
 // ════════════════════════════════════════════════════════════════════
@@ -598,20 +601,22 @@ html, body {
   Sources in the rear alcove (Z < -3) are occluded from listener start.
 */
 const SOURCE_DEFS = [
-  // Room is now 36 m wide (X: -18..+18) × 28 m deep (Z: -14..+14).
-  // Dividing wall at Z = -6. Front room: Z -6..+14. Rear alcove: Z -14..-6.
-  // AC outdoor unit standing on the floor against the rear wall, left side
-  { key:'heat_pump',   name:'Heat Pump',       file:'1233.mp3', model:'old_air_conditioner.glb', pos:[-14,0,-13.5], color:'#4f9cf9', loop:true,  gain:0.9  },
+  // Room: 36 m wide (X: -18..+18) × 28 m deep (Z: -14..+14) × 10 m high.
+  // Dividing wall at Z = 0. Front room: Z 0..+14. Rear room: Z -14..0.
+  //
+  // AC outdoor unit: back flush against the left wall (X = -18), facing into room.
+  // rotationY = -PI/2 so the unit's back faces -X (the left wall).
+  { key:'heat_pump',   name:'Heat Pump',       file:'1233.mp3', model:'old_air_conditioner.glb', pos:[-17.5,0,-7],  color:'#4f9cf9', loop:true,  gain:0.9,  modelRotY: -Math.PI/2 },
   // Compressor: front room, right side near right wall
   { key:'compressor',  name:'Air Compressor',  file:'1487.mp3', model:'mzb_air_compressor.glb',  pos:[15, 0,  8],   color:'#fb923c', loop:true,  loopStart:2, gain:0.85 },
   // Fridge: front room, left side near left wall
   { key:'fridge',      name:'Fridge',          file:'1157.wav', model:'old_fridge.glb',           pos:[-15,0,  5],   color:'#4f9cf9', loop:true,  gain:0.7  },
   // Transformer: front room, right wall
   { key:'transformer', name:'Transformer',     file:'2118.wav', model:'old_rusty_transformer.glb',pos:[16, 0,  2],   color:'#34d399', loop:true,  gain:0.8  },
-  // Radio on desk in rear alcove, left side. Group Y=0.78 = desk top height.
-  { key:'radio',       name:'Radio',           file:'2618.mp3', model:'retro_radio.glb',          pos:[-8, 0.78,-10],color:'#a78bfa', scheduler:true, gain:0.9 },
-  // Car: rear alcove right, rotation PI/2 → length along X, spans X≈7.95..12.05, Z≈-10.8..-9.2
-  { key:'car',         name:'Car Engine',      file:'0291.wav', model:'vaz_2107.glb',             pos:[10, 0, -10],  color:'#f87171', scheduler:true, stereo:true, gain:0.75 },
+  // Radio on desk in rear room, left side. Group Y=0.78 = desk top height.
+  { key:'radio',       name:'Radio',           file:'2618.mp3', model:'retro_radio.glb',          pos:[-8, 0.78,-8], color:'#a78bfa', scheduler:true, gain:0.9 },
+  // Car: rear room right side, rotation PI/2 → length along X
+  { key:'car',         name:'Car Engine',      file:'0291.wav', model:'vaz_2107.glb',             pos:[10, 0, -8],   color:'#f87171', scheduler:true, stereo:true, gain:0.75 },
 ];
 
 // All audio filenames (used for readiness checks)
@@ -1050,7 +1055,7 @@ function initThree() {
   renderer.outputColorSpace   = THREE.SRGBColorSpace;
 
   camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 500);
-  camera.position.set(0, CAM_EYE_Y, 6);
+  camera.position.set(0, CAM_EYE_Y, 7);
 
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x060608);
@@ -1138,21 +1143,25 @@ function initThree() {
 }
 
 function clampCamera() {
-  // Room: X -18..+18, Z -14..+14. Leave 0.5 m margin from each wall.
+  // Room: X -18..+18, Z -14..+14. Leave 0.5 m margin from each outer wall.
   camera.position.x = Math.max(-17.5, Math.min(17.5, camera.position.x));
   camera.position.z = Math.max(-13.5, Math.min(13.5, camera.position.z));
   camera.position.y = CAM_EYE_Y;
 
-  // ── Dividing wall collision at Z = -6 ────────────────────────────
-  // Door gap: X = -1.2 to +1.2. Body radius 0.3 m.
-  const WALL_Z    = -6;
+  // ── Dividing wall collision at Z = 0 ─────────────────────────────
+  // Door gap: X = ±2.0 m (wider for easy passage). Body radius 0.3 m.
+  const WALL_Z    = 0;
   const BODY_R    = 0.3;
-  const DOOR_HALF = 1.2;
+  const DOOR_HALF = 2.0;
+  const DOOR_H    = 2.4;
+  // Player can pass through if within door X range AND below door height
   const inDoorX   = Math.abs(camera.position.x) < DOOR_HALF - BODY_R;
   if (!inDoorX) {
+    // Approaching from front room (positive Z) toward wall
     if (camera.position.z < WALL_Z + BODY_R && camera.position.z >= WALL_Z - 5) {
       camera.position.z = Math.max(camera.position.z, WALL_Z + BODY_R);
     }
+    // Approaching from rear room (negative Z) toward wall
     if (camera.position.z > WALL_Z - BODY_R && camera.position.z <= WALL_Z + 5) {
       camera.position.z = Math.min(camera.position.z, WALL_Z - BODY_R);
     }
@@ -1176,7 +1185,7 @@ function updateNavigation(dt) {
 
 function resetView() {
   if (!camera) return;
-  camera.position.set(0, CAM_EYE_Y, 10);
+  camera.position.set(0, CAM_EYE_Y, 7);
   camera.rotation.set(0, 0, 0);
   camera.updateMatrixWorld();
 }
@@ -1231,30 +1240,42 @@ function buildScene() {
     scene.add(m);
   }
 
-  // ── Dividing wall at Z = -6 — split into two segments with a 2.4 m door gap ──
-  // Room is 36 m wide (X: -18..+18). Door centred at X=0, gap = ±1.2 m.
-  // Both segments remain in wallObjects so the Raycaster still detects occlusion.
-  const DOOR_HALF = 1.2;   // half-width of the opening in metres
+  // ── Dividing wall at Z = 0 — full height, with door opening ────────
+  // Room: 36 m wide (X: -18..+18). Door centred at X=0, gap = ±2.0 m (wider).
+  // Wall is full room height (10 m). Door opening is 2.4 m tall.
+  // Above the door: a panel filling from DOOR_H up to ceiling (10 m).
+  // All wall segments are added to wallObjects for Raycaster occlusion.
+  const DOOR_HALF = 2.0;   // half-width of the door opening in metres
   const DOOR_H    = 2.4;   // door height in metres
-  const DIV_Z     = -6;    // dividing wall Z position
+  const DIV_Z     = 0;     // dividing wall Z position (room centre)
 
-  // Left wall segment: X from -18 to -DOOR_HALF → width = 18 - DOOR_HALF
+  // Left wall segment: X from -18 to -DOOR_HALF, full height
   const divWallL = new THREE.Mesh(
-    new THREE.BoxGeometry(18 - DOOR_HALF, 3, 0.2), matDivWall);
-  divWallL.position.set(-(18 + DOOR_HALF) / 2, 1.5, DIV_Z);
+    new THREE.BoxGeometry(18 - DOOR_HALF, 10, 0.2), matDivWall);
+  divWallL.position.set(-(18 + DOOR_HALF) / 2, 5, DIV_Z);
   divWallL.castShadow = true; divWallL.receiveShadow = true;
   divWallL.name = 'dividing_wall_L';
   scene.add(divWallL);
   wallObjects.push(divWallL);
 
-  // Right wall segment: X from +DOOR_HALF to +18 → width = 18 - DOOR_HALF
+  // Right wall segment: X from +DOOR_HALF to +18, full height
   const divWallR = new THREE.Mesh(
-    new THREE.BoxGeometry(18 - DOOR_HALF, 3, 0.2), matDivWall);
-  divWallR.position.set((18 + DOOR_HALF) / 2, 1.5, DIV_Z);
+    new THREE.BoxGeometry(18 - DOOR_HALF, 10, 0.2), matDivWall);
+  divWallR.position.set((18 + DOOR_HALF) / 2, 5, DIV_Z);
   divWallR.castShadow = true; divWallR.receiveShadow = true;
   divWallR.name = 'dividing_wall_R';
   scene.add(divWallR);
   wallObjects.push(divWallR);
+
+  // Above-door panel: X from -DOOR_HALF to +DOOR_HALF, from DOOR_H to ceiling
+  const aboveDoorH = 10 - DOOR_H;  // = 7.6 m
+  const divWallTop = new THREE.Mesh(
+    new THREE.BoxGeometry(DOOR_HALF * 2, aboveDoorH, 0.2), matDivWall);
+  divWallTop.position.set(0, DOOR_H + aboveDoorH / 2, DIV_Z);
+  divWallTop.castShadow = true; divWallTop.receiveShadow = true;
+  divWallTop.name = 'dividing_wall_top';
+  scene.add(divWallTop);
+  wallObjects.push(divWallTop);
 
   // ── Door frame ────────────────────────────────────────────────────
   const matFrame = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.5, metalness: 0.6 });
@@ -1274,16 +1295,16 @@ function buildScene() {
   jambR.castShadow = true;
   scene.add(jambR);
 
-  // ── Desk in rear alcove for the radio (left side) ─────────────────
+  // ── Desk in rear room for the radio (left side) ────────────────────
   const matDesk    = new THREE.MeshStandardMaterial({ color: 0x5c3d1e, roughness: 0.8, metalness: 0.0 });
   const matDeskLeg = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.5, metalness: 0.7 });
   const deskTop = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.06, 0.7), matDesk);
-  deskTop.position.set(-8, 0.75, -10);
+  deskTop.position.set(-8, 0.75, -8);
   deskTop.castShadow = true; deskTop.receiveShadow = true;
   scene.add(deskTop);
   for (const [lx, lz] of [[-0.75,-0.3],[0.75,-0.3],[-0.75,0.3],[0.75,0.3]]) {
     const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.75, 0.05), matDeskLeg);
-    leg.position.set(-8 + lx, 0.375, -10 + lz);
+    leg.position.set(-8 + lx, 0.375, -8 + lz);
     leg.castShadow = true;
     scene.add(leg);
   }
@@ -1314,8 +1335,8 @@ function buildScene() {
     color: 0xd0e8ff, emissive: new THREE.Color(0xd0e8ff),
     emissiveIntensity: 1.5, side: THREE.DoubleSide,
   });
-  // 6 skylights across the wider ceiling; 3 over the front room, 3 over the rear alcove
-  for (const [xPos, zPos] of [[-12,5],[0,5],[12,5],[-12,-10],[0,-10],[12,-10]]) {
+  // 6 skylights across the ceiling; 3 over the front room (Z≈+7), 3 over the rear room (Z≈-7)
+  for (const [xPos, zPos] of [[-12,7],[0,7],[12,7],[-12,-7],[0,-7],[12,-7]]) {
     const pane = new THREE.Mesh(new THREE.PlaneGeometry(4, 1.5), skylightMat);
     pane.rotation.x = Math.PI / 2;
     pane.position.set(xPos, 9.9, zPos);
@@ -1481,7 +1502,11 @@ async function createAllSources() {
         const targetLength = 4.1;
         const scale = targetLength / Math.max(size.x, size.z);
         modelMesh.scale.setScalar(scale);
-        modelMesh.rotation.y = Math.PI / 2; // parallel to rear wall, length along X axis
+        modelMesh.rotation.y = Math.PI / 2; // parallel to dividing wall, length along X axis
+      }
+      // Apply per-source model rotation from SOURCE_DEFS (e.g. AC unit facing wall)
+      if (def.modelRotY != null && def.key !== 'car') {
+        modelMesh.rotation.y = def.modelRotY;
       }
       // Air compressor: assign procedural material (CAD export, no textures)
       if (def.key === 'compressor') {
