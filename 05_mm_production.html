@@ -267,8 +267,10 @@ html, body {
 .btn-play:disabled { opacity: 0.35; cursor: not-allowed; }
 .btn-start { background: var(--green); color: #07080d; }
 .btn-start:hover:not(:disabled) { filter: brightness(1.1); }
-.btn-stop  { background: rgba(248,113,113,0.12); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
+.btn-stop   { background: rgba(248,113,113,0.12); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
 .btn-stop:hover:not(:disabled)  { background: rgba(248,113,113,0.22); }
+.btn-resume { background: rgba(251,146,60,0.12); color: var(--orange); border: 1px solid rgba(251,146,60,0.30); }
+.btn-resume:hover:not(:disabled){ background: rgba(251,146,60,0.22); }
 .btn-reset { background: rgba(79,156,249,0.10); color: var(--accent); border: 1px solid rgba(79,156,249,0.25); }
 .btn-reset:hover { background: rgba(79,156,249,0.20); }
 
@@ -305,6 +307,20 @@ html, body {
 }
 .src-mute-btn:hover { border-color: var(--red); color: var(--red); }
 .src-mute-btn.muted { border-color: var(--red); color: var(--red); background: rgba(248,113,113,0.08); }
+.src-solo-btn {
+  font-family: var(--mono); font-size: 10px; padding: 2px 8px;
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: 4px; color: var(--muted); cursor: pointer;
+  transition: all 0.15s;
+}
+.src-solo-btn:hover { border-color: var(--orange); color: var(--orange); }
+.src-solo-btn.soloed {
+  border-color: var(--orange); color: #07080d;
+  background: var(--orange); font-weight: 600;
+}
+/* Panel dims when another source is soloed */
+.src-panel.solo-muted { opacity: 0.42; }
+.src-panel.solo-muted .src-rms-fill { opacity: 0.3; }
 .src-gain-label { font-family: var(--mono); font-size: 10px; color: var(--muted); flex-shrink: 0; }
 .src-gain-slider {
   flex: 1; -webkit-appearance: none; height: 2px;
@@ -462,8 +478,9 @@ html, body {
     <!-- Audio controls -->
     <div class="sb-audio">
       <div class="sb-row">
-        <button class="btn-play btn-start" id="btnStart" onclick="startDemo()" disabled>▶ Start</button>
-        <button class="btn-play btn-stop"  id="btnStop"  onclick="stopDemo()"  disabled>■ Stop</button>
+        <button class="btn-play btn-start"  id="btnStart"  onclick="startDemo()"  disabled>▶ Start</button>
+        <button class="btn-play btn-stop"   id="btnStop"   onclick="stopDemo()"   disabled>■ Stop</button>
+        <button class="btn-play btn-resume" id="btnResume" onclick="resumeDemo()" style="display:none">▶ Resume</button>
       </div>
       <div class="sb-row">
         <button class="btn-play btn-reset" onclick="resetView()">⌖ Reset View</button>
@@ -655,6 +672,7 @@ AUDIO_FILES.forEach(f => { mp3Ready[f] = false; });
 // Live source panel refs (key → { src: SpatialSource })
 const sourcePanelRefs = {};
 const muteState       = {};
+let   soloedKey       = null;  // key of the currently soloed source, or null
 
 // ════════════════════════════════════════════════════════════════════
 // CONCEPT: Abstraction layer
@@ -1559,6 +1577,7 @@ function buildSourcePanels(srcRefs) {
   for (const { key, def, src } of srcRefs) {
     const div = document.createElement('div');
     div.className = 'src-panel';
+    div.id = 'panel-' + key;
     div.innerHTML = `
       <div class="src-panel-head">
         <span class="src-dot" style="background:${def.color}"></span>
@@ -1571,6 +1590,7 @@ function buildSourcePanels(srcRefs) {
       <div class="src-badges" id="badges-${key}"></div>
       <div class="src-ctrls">
         <button class="src-mute-btn" id="mute-${key}" onclick="toggleMute('${key}')">Mute</button>
+        <button class="src-solo-btn" id="solo-${key}" onclick="toggleSolo('${key}')">Solo</button>
         <span class="src-gain-label">Gain</span>
         <input type="range" class="src-gain-slider" min="0" max="1" step="0.01"
                value="${def.gain}" oninput="setSourceGain('${key}',this.value)">
@@ -1627,11 +1647,13 @@ function startRenderLoop() {
     requestAnimationFrame(loop);
     const dt = clock.getDelta();
     updateNavigation(dt);
-    if (isRunning && engine) {
+    if (engine) {
       camera.updateMatrixWorld();
+      // Always update spatial engine (position/occlusion tracking) so the
+      // HUD stays live during navigation even when audio is suspended.
       engine.update(camera);
       updateHUD();
-      updateSourcePanels();
+      if (isRunning) updateSourcePanels();
     }
     composer ? composer.render() : renderer.render(scene, camera);
   }
@@ -1658,9 +1680,22 @@ async function startDemo() {
 }
 
 function stopDemo() {
-  // A clean stop would require disconnecting all audio nodes.
-  // For a demo, reloading the page is the simplest full reset.
-  location.reload();
+  // Suspend the AudioContext — silences all audio instantly and cleanly
+  // without disconnecting any nodes. The render loop and navigation keep
+  // running so the user can still walk around the scene.
+  if (audioContext) audioContext.suspend();
+  isRunning = false;
+  document.getElementById('btnStop').style.display   = 'none';
+  document.getElementById('btnResume').style.display = '';
+  document.getElementById('btnResume').disabled      = false;
+}
+
+function resumeDemo() {
+  // Resume the AudioContext — audio picks up exactly where it left off.
+  if (audioContext) audioContext.resume();
+  isRunning = true;
+  document.getElementById('btnResume').style.display = 'none';
+  document.getElementById('btnStop').style.display   = '';
 }
 
 // ════════════════════════════════════════════════════════════════════
@@ -1668,17 +1703,62 @@ function stopDemo() {
 // ════════════════════════════════════════════════════════════════════
 function toggleMute(key) {
   const src = sourcePanelRefs[key]; if (!src) return;
+  // Can't individually mute while another source is soloed
+  if (soloedKey && soloedKey !== key) return;
   muteState[key] = !muteState[key];
-  const targetGain = muteState[key] ? 0 : src.gain;
-  src.gainNode.gain.setTargetAtTime(targetGain, audioContext.currentTime, 0.05);
+  applySourceGains();
   const btn = document.getElementById('mute-' + key);
   if (btn) btn.classList.toggle('muted', muteState[key]);
 }
 
+function toggleSolo(key) {
+  if (soloedKey === key) {
+    // Un-solo: restore everyone
+    soloedKey = null;
+  } else {
+    // Solo this source
+    soloedKey = key;
+  }
+  applySourceGains();
+  updateSoloUI();
+}
+
+// Apply gain to every source respecting solo + mute state.
+// Solo takes priority: if any source is soloed, all others go silent
+// regardless of their individual mute state.
+function applySourceGains() {
+  const now = audioContext ? audioContext.currentTime : 0;
+  for (const [k, src] of Object.entries(sourcePanelRefs)) {
+    let silent;
+    if (soloedKey !== null) {
+      // Solo active: only the soloed source plays (unless it's also muted)
+      silent = (k !== soloedKey) || muteState[k];
+    } else {
+      // No solo: respect individual mute buttons
+      silent = !!muteState[k];
+    }
+    const targetGain = silent ? 0 : src.gain;
+    src.gainNode.gain.setTargetAtTime(targetGain, now, 0.05);
+  }
+}
+
+// Refresh the visual state of all solo/mute buttons and panel dim.
+function updateSoloUI() {
+  for (const k of Object.keys(sourcePanelRefs)) {
+    const soloBtn  = document.getElementById('solo-' + k);
+    const panel    = document.getElementById('panel-' + k);
+    const isSoloed = soloedKey === k;
+    const isSoloMuted = soloedKey !== null && soloedKey !== k;
+    if (soloBtn) soloBtn.classList.toggle('soloed', isSoloed);
+    if (panel)   panel.classList.toggle('solo-muted', isSoloMuted);
+  }
+}
+
 function setSourceGain(key, val) {
-  const src = sourcePanelRefs[key]; if (!src || muteState[key]) return;
+  const src = sourcePanelRefs[key]; if (!src) return;
   src.gain = parseFloat(val);
-  src.gainNode.gain.setTargetAtTime(src.gain, audioContext.currentTime, 0.05);
+  // Re-apply via applySourceGains so solo/mute state is respected
+  applySourceGains();
 }
 
 function onLodSlider(val) {
