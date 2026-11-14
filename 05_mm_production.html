@@ -568,7 +568,7 @@ html, body {
   Resonance Audio — UMD bundle, defer so it executes after HTML parsing.
   The polling loop in DOMContentLoaded waits for it before proceeding.
 -->
-<script defer src="https://cdn.jsdelivr.net/npm/resonance-audio/build/resonance-audio.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/resonance-audio@1.0.0/build/resonance-audio.min.js"></script>
 
 <!--
   ══════════════════════════════════════════════════════════════════════════════
@@ -598,12 +598,20 @@ html, body {
   Sources in the rear alcove (Z < -3) are occluded from listener start.
 */
 const SOURCE_DEFS = [
-  { key:'heat_pump',   name:'Heat Pump',       file:'1233.mp3', model:'old_air_conditioner.glb', pos:[-10,0,-7], color:'#4f9cf9', loop:true,  gain:0.9  },
-  { key:'compressor',  name:'Air Compressor',  file:'1487.mp3', model:'mzb_air_compressor.glb',  pos:[8,  0,-6], color:'#fb923c', loop:true,  loopStart:2, gain:0.85 },
-  { key:'fridge',      name:'Fridge',          file:'1157.wav', model:'old_fridge.glb',           pos:[-9, 0, 2], color:'#4f9cf9', loop:true,  gain:0.7  },
-  { key:'transformer', name:'Transformer',     file:'2118.wav', model:'old_rusty_transformer.glb',pos:[11,2.5,0], color:'#34d399', loop:true,  gain:0.8  },
-  { key:'radio',       name:'Radio',           file:'2618.mp3', model:'retro_radio.glb',          pos:[0, 0.9,-8],color:'#a78bfa', scheduler:true, gain:0.9 },
-  { key:'car',         name:'Car Engine',      file:'0291.wav', model:'vaz_2107.glb',             pos:[5,  0,-7], color:'#f87171', scheduler:true, stereo:true, gain:0.75 },
+  // Room is now 36 m wide (X: -18..+18) × 28 m deep (Z: -14..+14).
+  // Dividing wall at Z = -6. Front room: Z -6..+14. Rear alcove: Z -14..-6.
+  // AC unit wall-mounted on rear wall (inner face Z ≈ -13.8), left side
+  { key:'heat_pump',   name:'Heat Pump',       file:'1233.mp3', model:'old_air_conditioner.glb', pos:[-14,1.8,-13.8], color:'#4f9cf9', loop:true,  gain:0.9  },
+  // Compressor: front room, right side near right wall
+  { key:'compressor',  name:'Air Compressor',  file:'1487.mp3', model:'mzb_air_compressor.glb',  pos:[15, 0,  8],   color:'#fb923c', loop:true,  loopStart:2, gain:0.85 },
+  // Fridge: front room, left side near left wall
+  { key:'fridge',      name:'Fridge',          file:'1157.wav', model:'old_fridge.glb',           pos:[-15,0,  5],   color:'#4f9cf9', loop:true,  gain:0.7  },
+  // Transformer: front room, right wall
+  { key:'transformer', name:'Transformer',     file:'2118.wav', model:'old_rusty_transformer.glb',pos:[16, 0,  2],   color:'#34d399', loop:true,  gain:0.8  },
+  // Radio on desk in rear alcove, left side. Group Y=0.78 = desk top height.
+  { key:'radio',       name:'Radio',           file:'2618.mp3', model:'retro_radio.glb',          pos:[-8, 0.78,-10],color:'#a78bfa', scheduler:true, gain:0.9 },
+  // Car: rear alcove right, rotation PI/2 → length along X, spans X≈7.95..12.05, Z≈-10.8..-9.2
+  { key:'car',         name:'Car Engine',      file:'0291.wav', model:'vaz_2107.glb',             pos:[10, 0, -10],  color:'#f87171', scheduler:true, stereo:true, gain:0.75 },
 ];
 
 // All audio filenames (used for readiness checks)
@@ -1130,9 +1138,25 @@ function initThree() {
 }
 
 function clampCamera() {
-  camera.position.x = Math.max(-11.5, Math.min(11.5, camera.position.x));
-  camera.position.z = Math.max(-8.5,  Math.min(8.5,  camera.position.z));
+  // Room: X -18..+18, Z -14..+14. Leave 0.5 m margin from each wall.
+  camera.position.x = Math.max(-17.5, Math.min(17.5, camera.position.x));
+  camera.position.z = Math.max(-13.5, Math.min(13.5, camera.position.z));
   camera.position.y = CAM_EYE_Y;
+
+  // ── Dividing wall collision at Z = -6 ────────────────────────────
+  // Door gap: X = -1.2 to +1.2. Body radius 0.3 m.
+  const WALL_Z    = -6;
+  const BODY_R    = 0.3;
+  const DOOR_HALF = 1.2;
+  const inDoorX   = Math.abs(camera.position.x) < DOOR_HALF - BODY_R;
+  if (!inDoorX) {
+    if (camera.position.z < WALL_Z + BODY_R && camera.position.z >= WALL_Z - 5) {
+      camera.position.z = Math.max(camera.position.z, WALL_Z + BODY_R);
+    }
+    if (camera.position.z > WALL_Z - BODY_R && camera.position.z <= WALL_Z + 5) {
+      camera.position.z = Math.min(camera.position.z, WALL_Z - BODY_R);
+    }
+  }
 }
 
 // WASD keyboard navigation
@@ -1152,7 +1176,7 @@ function updateNavigation(dt) {
 
 function resetView() {
   if (!camera) return;
-  camera.position.set(0, CAM_EYE_Y, 6);
+  camera.position.set(0, CAM_EYE_Y, 10);
   camera.rotation.set(0, 0, 0);
   camera.updateMatrixWorld();
 }
@@ -1175,29 +1199,30 @@ function buildScene() {
   const matSteel    = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.4,  metalness: 0.9 });
 
   // ── Floor ────────────────────────────────────────────────────────
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(24, 18), matFloor);
+  // Room: 36 m wide (X: -18..+18) × 28 m deep (Z: -14..+14) × 10 m high
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(36, 28), matFloor);
   floor.rotation.x = -Math.PI / 2;
   floor.receiveShadow = true;
   scene.add(floor);
 
   // Floor grid — helps judge distance and room scale
-  const grid = new THREE.GridHelper(24, 24, 0x1e2535, 0x1e2535);
+  const grid = new THREE.GridHelper(36, 36, 0x1e2535, 0x1e2535);
   grid.material.opacity = 0.4; grid.material.transparent = true;
   grid.position.y = 0.002;
   scene.add(grid);
 
   // ── Ceiling ──────────────────────────────────────────────────────
-  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(24, 18), matConcrete);
+  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(36, 28), matConcrete);
   ceiling.rotation.x = Math.PI / 2;
   ceiling.position.y = 10;
   scene.add(ceiling);
 
   // ── Walls ────────────────────────────────────────────────────────
   const wallDefs = [
-    { size:[24,10,0.3], pos:[0,5, 9]  },
-    { size:[24,10,0.3], pos:[0,5,-9]  },
-    { size:[0.3,10,18], pos:[-12,5,0] },
-    { size:[0.3,10,18], pos:[ 12,5,0] },
+    { size:[36,10,0.3], pos:[0,5, 14]  },   // front wall
+    { size:[36,10,0.3], pos:[0,5,-14]  },   // rear wall
+    { size:[0.3,10,28], pos:[-18,5, 0] },   // left wall
+    { size:[0.3,10,28], pos:[ 18,5, 0] },   // right wall
   ];
   for (const d of wallDefs) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(...d.size), matConcrete);
@@ -1206,15 +1231,62 @@ function buildScene() {
     scene.add(m);
   }
 
-  // ── Dividing wall at Z = -3 ───────────────────────────────────────
-  // This single mesh serves as both visual geometry and acoustic
-  // occlusion geometry simultaneously — the Raycaster hits it.
-  const divWall = new THREE.Mesh(new THREE.BoxGeometry(24, 3, 0.2), matDivWall);
-  divWall.position.set(0, 1.5, -3);
-  divWall.castShadow = true; divWall.receiveShadow = true;
-  divWall.name = 'dividing_wall';
-  scene.add(divWall);
-  wallObjects.push(divWall);
+  // ── Dividing wall at Z = -6 — split into two segments with a 2.4 m door gap ──
+  // Room is 36 m wide (X: -18..+18). Door centred at X=0, gap = ±1.2 m.
+  // Both segments remain in wallObjects so the Raycaster still detects occlusion.
+  const DOOR_HALF = 1.2;   // half-width of the opening in metres
+  const DOOR_H    = 2.4;   // door height in metres
+  const DIV_Z     = -6;    // dividing wall Z position
+
+  // Left wall segment: X from -18 to -DOOR_HALF → width = 18 - DOOR_HALF
+  const divWallL = new THREE.Mesh(
+    new THREE.BoxGeometry(18 - DOOR_HALF, 3, 0.2), matDivWall);
+  divWallL.position.set(-(18 + DOOR_HALF) / 2, 1.5, DIV_Z);
+  divWallL.castShadow = true; divWallL.receiveShadow = true;
+  divWallL.name = 'dividing_wall_L';
+  scene.add(divWallL);
+  wallObjects.push(divWallL);
+
+  // Right wall segment: X from +DOOR_HALF to +18 → width = 18 - DOOR_HALF
+  const divWallR = new THREE.Mesh(
+    new THREE.BoxGeometry(18 - DOOR_HALF, 3, 0.2), matDivWall);
+  divWallR.position.set((18 + DOOR_HALF) / 2, 1.5, DIV_Z);
+  divWallR.castShadow = true; divWallR.receiveShadow = true;
+  divWallR.name = 'dividing_wall_R';
+  scene.add(divWallR);
+  wallObjects.push(divWallR);
+
+  // ── Door frame ────────────────────────────────────────────────────
+  const matFrame = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.5, metalness: 0.6 });
+  const lintel = new THREE.Mesh(
+    new THREE.BoxGeometry(DOOR_HALF * 2 + 0.12, 0.12, 0.22), matFrame);
+  lintel.position.set(0, DOOR_H + 0.06, DIV_Z);
+  lintel.castShadow = true;
+  scene.add(lintel);
+
+  const jambL = new THREE.Mesh(new THREE.BoxGeometry(0.1, DOOR_H, 0.22), matFrame);
+  jambL.position.set(-DOOR_HALF - 0.05, DOOR_H / 2, DIV_Z);
+  jambL.castShadow = true;
+  scene.add(jambL);
+
+  const jambR = new THREE.Mesh(new THREE.BoxGeometry(0.1, DOOR_H, 0.22), matFrame);
+  jambR.position.set(DOOR_HALF + 0.05, DOOR_H / 2, DIV_Z);
+  jambR.castShadow = true;
+  scene.add(jambR);
+
+  // ── Desk in rear alcove for the radio (left side) ─────────────────
+  const matDesk    = new THREE.MeshStandardMaterial({ color: 0x5c3d1e, roughness: 0.8, metalness: 0.0 });
+  const matDeskLeg = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.5, metalness: 0.7 });
+  const deskTop = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.06, 0.7), matDesk);
+  deskTop.position.set(-8, 0.75, -10);
+  deskTop.castShadow = true; deskTop.receiveShadow = true;
+  scene.add(deskTop);
+  for (const [lx, lz] of [[-0.75,-0.3],[0.75,-0.3],[-0.75,0.3],[0.75,0.3]]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.75, 0.05), matDeskLeg);
+    leg.position.set(-8 + lx, 0.375, -10 + lz);
+    leg.castShadow = true;
+    scene.add(leg);
+  }
 
   // ── Steel beam grid (InstancedMesh) ────────────────────────────────
   // CONCEPT: InstancedMesh
@@ -1223,14 +1295,14 @@ function buildScene() {
   // budgets through spatial culling.
   // THREE.JS EQUIVALENT: InstancedMesh renders N copies with per-instance
   // transforms stored in a typed array, avoiding N separate draw calls.
-  const beamCount = 6;
+  const beamCount = 9;
   const beamIM    = new THREE.InstancedMesh(
-    new THREE.BoxGeometry(0.15, 0.15, 24), matSteel, beamCount
+    new THREE.BoxGeometry(0.15, 0.15, 28), matSteel, beamCount
   );
   beamIM.castShadow = true;
   const dummy = new THREE.Object3D();
   for (let i = 0; i < beamCount; i++) {
-    dummy.position.set(-10 + i * 4, 9.5, 0);
+    dummy.position.set(-16 + i * 4, 9.5, 0);
     dummy.updateMatrix();
     beamIM.setMatrixAt(i, dummy.matrix);
   }
@@ -1242,14 +1314,15 @@ function buildScene() {
     color: 0xd0e8ff, emissive: new THREE.Color(0xd0e8ff),
     emissiveIntensity: 1.5, side: THREE.DoubleSide,
   });
-  for (const xPos of [-7.5, -2.5, 2.5, 7.5]) {
+  // 6 skylights across the wider ceiling; 3 over the front room, 3 over the rear alcove
+  for (const [xPos, zPos] of [[-12,5],[0,5],[12,5],[-12,-10],[0,-10],[12,-10]]) {
     const pane = new THREE.Mesh(new THREE.PlaneGeometry(4, 1.5), skylightMat);
     pane.rotation.x = Math.PI / 2;
-    pane.position.set(xPos, 9.9, 0);
+    pane.position.set(xPos, 9.9, zPos);
     scene.add(pane);
     const ral = new THREE.RectAreaLight(0xd0e8ff, 8, 4, 1.5);
-    ral.position.set(xPos, 9.9, 0);
-    ral.lookAt(xPos, 0, 0);
+    ral.position.set(xPos, 9.9, zPos);
+    ral.lookAt(xPos, 0, zPos);
     scene.add(ral);
   }
 
@@ -1294,7 +1367,7 @@ async function initAudio() {
   // See Demo 2 for the full treatment of Resonance Audio material
   // coefficients and RT60.
   resonanceAudio.setRoomProperties(
-    { width: 24, height: 10, depth: 18 },
+    { width: 36, height: 10, depth: 28 },
     {
       left: 'concrete_block_coarse', right: 'concrete_block_coarse',
       front:'concrete_block_coarse', back: 'concrete_block_coarse',
@@ -1408,7 +1481,7 @@ async function createAllSources() {
         const targetLength = 4.1;
         const scale = targetLength / Math.max(size.x, size.z);
         modelMesh.scale.setScalar(scale);
-        modelMesh.rotation.y = Math.PI / 6; // parked diagonally
+        modelMesh.rotation.y = Math.PI / 2; // parallel to rear wall, length along X axis
       }
       // Air compressor: assign procedural material (CAD export, no textures)
       if (def.key === 'compressor') {
@@ -1418,11 +1491,24 @@ async function createAllSources() {
           );
         });
       }
-      // Floor-align: move Y so bounding box bottom sits at Y = 0
+      // Floor-align: force matrix resolution before measuring bounding box.
+      // Without this, GLB root-node transforms are not yet applied and minY is wrong.
+      modelMesh.updateMatrixWorld(true);
       const boxAfter = new THREE.Box3().setFromObject(modelMesh);
       const minY = boxAfter.min.y;
-      if (Math.abs(minY) > 0.05 && def.key !== 'transformer')
-        modelMesh.position.y -= minY;
+      if (def.key === 'radio') {
+        // Radio sits on the desk top (Y=0.78); align its base to Y=0 and let the
+        // group's world-Y (set from def.pos[1] = 0.78) lift it onto the desk surface.
+        if (Math.abs(minY) > 0.01) modelMesh.position.y -= minY;
+      } else if (def.key === 'heat_pump') {
+        // Wall-mounted unit — no floor-align; def.pos Y places it on the wall directly.
+        // Centre the model vertically around the mount point instead.
+        const sizeY = boxAfter.max.y - boxAfter.min.y;
+        modelMesh.position.y -= minY + sizeY / 2;
+      } else {
+        // All floor-placed models: align bounding box bottom to Y=0
+        if (Math.abs(minY) > 0.05) modelMesh.position.y -= minY;
+      }
       modelMesh.traverse(child => {
         if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }
       });
