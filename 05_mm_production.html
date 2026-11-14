@@ -621,9 +621,13 @@ const SOURCE_DEFS = [
   // Room: 36 m wide (X: -18..+18) × 28 m deep (Z: -14..+14) × 10 m high.
   // Dividing wall at Z = 0. Front room: Z 0..+14. Rear room: Z -14..0.
   //
-  // AC outdoor unit: back flush against the left wall (X = -18), facing into room.
-  // rotationY = -PI/2 so the unit's back faces -X (the left wall).
-  { key:'heat_pump',   name:'Heat Pump',       file:'1233.mp3', model:'old_air_conditioner.glb', pos:[-17.5,0,-7],  color:'#4f9cf9', loop:true,  gain:0.9,  modelRotY: -Math.PI/2 },
+  // AC outdoor unit: back flush against the left wall (X = -18), fan facing into room.
+  // Verified by rendering the model from all 4 sides: the model's LOCAL -X face is the
+  // flat back panel, and LOCAL +X is the fan/front. No rotation is needed to put the
+  // back on a wall in the world -X direction — modelRotY stays 0 (its default).
+  // pos.x = -17.73 so the back face (local X min ~= -0.27 from the model's own pivot)
+  // lands exactly on the wall plane at X = -18, instead of floating off it.
+  { key:'heat_pump',   name:'Heat Pump',       file:'1233.mp3', model:'old_air_conditioner.glb', pos:[-17.73,0,-7], color:'#4f9cf9', loop:true,  gain:0.9,  modelRotY: 0 },
   // Compressor: front room, right side near right wall
   { key:'compressor',  name:'Air Compressor',  file:'1487.mp3', model:'mzb_air_compressor.glb',  pos:[15, 0,  8],   color:'#fb923c', loop:true,  loopStart:2, gain:0.85 },
   // Fridge: front room, left side near left wall
