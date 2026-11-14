@@ -1,0 +1,1670 @@
+<!DOCTYPE html>
+<!--
+  ══════════════════════════════════════════════════════════════════════════════
+  Demo 5: Production Reference — Multimediaprogrammierung, TU Ilmenau
+  Demo created by Renato Fera P.
+
+  ── PURPOSE ──────────────────────────────────────────────────────────────────
+  This capstone demo answers the question a student faces in professional work:
+  "I need to build a real spatial audio application with many dynamic sources,
+  varying performance budgets, and physically motivated effects. How do I
+  structure it?"
+
+  Three production techniques are demonstrated:
+    1. Abstraction   — SpatialAudioEngine and SpatialSource encapsulate the
+                       Three.js / Resonance Audio synchronisation contract so
+                       application code never touches raw API calls.
+    2. LOD           — Sources beyond a distance threshold are downgraded from
+                       full Ambisonic rendering to StereoPannerNode, reducing
+                       CPU cost linearly. The HUD shows this in real time.
+    3. Occlusion     — A THREE.Raycaster from each source to the listener detects
+                       wall geometry. Occluded sources receive a BiquadFilterNode
+                       low-pass at 500 Hz and a gain reduction to 0.3, physically
+                       motivated by the mass law of wall transmission loss.
+
+  ── SCENE ────────────────────────────────────────────────────────────────────
+  Industrial warehouse interior — 24 m wide × 10 m high × 18 m deep.
+  A dividing concrete wall at Z = -3 creates a rear alcove. Sources placed in
+  the alcove are occluded from the listener starting position.
+
+  ── COORDINATE SYSTEM ────────────────────────────────────────────────────────
+  Three.js world units = metres. Y-up. Right-handed.
+  Resonance Audio uses the same convention — no conversion needed.
+  Origin (0, 0, 0): room centre at floor level.
+  X: [-12 .. +12]  (width  24 m)
+  Y: [0   .. +10]  (height 10 m)
+  Z: [-9  .. +9]   (depth  18 m)
+  Listener start: (0, 1.65, 6) — near front wall, looking toward -Z.
+  Dividing wall:  Z = -3, full width, 3 m high (Y: 0..3), 0.2 m thick.
+
+  ══════════════════════════════════════════════════════════════════════════════
+  AUDIO CREDITS & LICENSES
+  ══════════════════════════════════════════════════════════════════════════════
+  Audio: Joseph SARDIN — BigSoundBank.com (CC0 public domain)
+    #1233 · Air/water heat pump, back    https://bigsoundbank.com/air-water-heat-pump-back-s1233.html
+    #1487 · Air compressor               https://bigsoundbank.com/air-compressor-s1487.html
+    #1157 · Fridge                       https://bigsoundbank.com/fridge-s1157.html
+    #2118 · Neon or transformer #1       https://bigsoundbank.com/neon-or-transformer-1-s2118.html
+    #2618 · Radio, Frequency Sweep #2   https://bigsoundbank.com/radio-frequency-sweep-2-s2618.html
+    #0291 · Car Engine #2               https://bigsoundbank.com/car-engine-2-s0291.html
+
+  3D MODELS (CC BY 4.0, via Sketchfab):
+    "MZB Air Compressor"      by Rudy               https://skfb.ly/pKY8n
+    "Old Fridge"              by golddog             https://skfb.ly/6XsrC
+    "Old Rusty Transformer"   by Vitaliy Kovalchuk   https://skfb.ly/oNYxo
+    "Old Air Conditioner"     by ~D-Try~             https://skfb.ly/puKGT
+    "AI Stalker Retro Radio"  by FLIGHTCLUB          https://skfb.ly/ptr7A
+    "Old Car - VAZ 2107"      by Arkady Gribachev    https://skfb.ly/6YLnQ
+
+  Libraries: three.js (MIT), Google Resonance Audio (Apache-2.0).
+
+  Required files (serve from same directory, or upload via sidebar):
+    Audio (6 files):  1233.mp3, 1487.mp3, 1157.wav, 2118.wav, 2618.mp3, 0291.wav
+    3D Models (6 files): old_air_conditioner.glb, mzb_air_compressor.glb,
+                         old_fridge.glb, old_rusty_transformer.glb,
+                         retro_radio.glb, vaz_2107.glb
+  ══════════════════════════════════════════════════════════════════════════════
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Demo 5: Production Reference — Multimediaprogrammierung</title>
+
+<!--
+  ── IMPORT MAP ───────────────────────────────────────────────────────────────
+  Tells the browser how to resolve bare module specifiers like
+  `import * as THREE from 'three'`. Pinned to three.js 0.165.0.
+-->
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+  }
+}
+</script>
+
+<!--
+  ── ES MODULE BOOTSTRAP ──────────────────────────────────────────────────────
+  Three.js and its addons are ES modules. The main <script> below is a classic
+  script so all functions are global (required for HTML onclick= attributes).
+  We import what we need here and attach everything to window.
+-->
+<script type="module">
+  import * as THREE                    from 'three';
+  import { GLTFLoader }                from 'three/addons/loaders/GLTFLoader.js';
+  import { RectAreaLightUniformsLib }  from 'three/addons/lights/RectAreaLightUniformsLib.js';
+  import { EffectComposer }            from 'three/addons/postprocessing/EffectComposer.js';
+  import { RenderPass }                from 'three/addons/postprocessing/RenderPass.js';
+  import { UnrealBloomPass }           from 'three/addons/postprocessing/UnrealBloomPass.js';
+  import { OutputPass }                from 'three/addons/postprocessing/OutputPass.js';
+  window.THREE                   = THREE;
+  window._GLTFLoader             = GLTFLoader;
+  window._RectAreaLightUniformsLib = RectAreaLightUniformsLib;
+  window._EffectComposer         = EffectComposer;
+  window._RenderPass             = RenderPass;
+  window._UnrealBloomPass        = UnrealBloomPass;
+  window._OutputPass             = OutputPass;
+</script>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+<style>
+/*
+  ══════════════════════════════════════════════════════════════════════════════
+  CSS DESIGN TOKENS — identical to Demo 2 / Demo 3
+  ══════════════════════════════════════════════════════════════════════════════
+*/
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:           #07080d;
+  --surface:      #0f1118;
+  --surface2:     #161b24;
+  --border:       #1e2535;
+  --border2:      #2a3348;
+  --text:         #d8dce6;
+  --muted:        #5a6175;
+  --accent:       #4f9cf9;
+  --accent2:      #a78bfa;
+  --green:        #34d399;
+  --orange:       #fb923c;
+  --red:          #f87171;
+
+  --mono:         'IBM Plex Mono', monospace;
+  --jb:           'JetBrains Mono', monospace;
+  --sans:         'IBM Plex Sans', sans-serif;
+
+  --panel-bg:     rgba(7, 8, 13, 0.88);
+  --panel-border: rgba(255,255,255,0.07);
+  --panel-blur:   20px;
+
+  --sidebar-w:    300px;
+  --hud-w:        230px;
+
+  --safe-top:     env(safe-area-inset-top, 0px);
+  --safe-bottom:  env(safe-area-inset-bottom, 0px);
+}
+
+html, body {
+  width: 100%; height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+#threeCanvas { position: fixed; inset: 0; z-index: 0; display: block; }
+
+/* ── Loading overlay ── */
+#loadingOverlay {
+  position: fixed; inset: 0; z-index: 200;
+  background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 18px;
+  transition: opacity 0.4s ease;
+}
+#loadingOverlay.hidden { opacity: 0; pointer-events: none; }
+.lo-chapter   { font-family: var(--mono); font-size: 11px; color: var(--muted); letter-spacing: 0.12em; text-transform: uppercase; }
+.lo-title     { font-family: var(--sans); font-size: clamp(20px, 2.5vw, 28px); font-weight: 500; color: #f0f2f7; }
+.lo-headphone { font-size: 36px; }
+.lo-sub       { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; max-width: 340px; line-height: 1.6; }
+.lo-bar-track { width: 220px; height: 2px; background: var(--border2); border-radius: 1px; overflow: hidden; }
+.lo-bar-fill  { height: 100%; width: 0%; background: var(--accent); border-radius: 1px; transition: width 0.3s ease; }
+#loStatus     { font-family: var(--mono); font-size: 11px; color: var(--muted); min-height: 16px; }
+
+/* ── Start overlay ── */
+#startOverlay {
+  position: fixed; inset: 0; z-index: 150;
+  background: rgba(7,8,13,0.72);
+  backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 14px;
+  transition: opacity 0.3s ease;
+  cursor: pointer;
+}
+#startOverlay.hidden { opacity: 0; pointer-events: none; }
+.so-icon  { font-size: 44px; }
+.so-title { font-family: var(--sans); font-size: 20px; font-weight: 500; color: #f0f2f7; }
+.so-sub   { font-family: var(--mono); font-size: 12px; color: var(--muted); text-align: center; max-width: 400px; line-height: 1.6; }
+.so-keys  { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; justify-content: center; }
+.key-badge {
+  font-family: var(--mono); font-size: 11px; color: var(--muted);
+  border: 1px solid var(--border2); border-radius: 4px; padding: 3px 8px;
+  background: var(--surface2);
+}
+
+/* ── Sidebar ── */
+#sidebar {
+  position: fixed; top: 0; left: 0; bottom: 0;
+  width: var(--sidebar-w); z-index: 10;
+  background: var(--panel-bg);
+  border-right: 1px solid var(--panel-border);
+  backdrop-filter: blur(var(--panel-blur));
+  -webkit-backdrop-filter: blur(var(--panel-blur));
+  display: flex; flex-direction: column;
+  padding-top: var(--safe-top);
+  padding-bottom: var(--safe-bottom);
+  overflow: hidden;
+}
+.sb-header { flex-shrink: 0; padding: 16px 18px 12px; border-bottom: 1px solid var(--panel-border); }
+#sb-scroll {
+  flex: 1; overflow-y: auto;
+  scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
+}
+#sb-scroll::-webkit-scrollbar { width: 4px; }
+#sb-scroll::-webkit-scrollbar-track { background: transparent; }
+#sb-scroll::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+
+.sb-chapter { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 4px; }
+.sb-title   { font-family: var(--sans); font-size: 15px; font-weight: 500; color: #f0f2f7; margin-bottom: 2px; }
+.sb-badge   {
+  display: inline-block; font-family: var(--mono); font-size: 10px;
+  color: var(--accent2); background: rgba(167,139,250,0.1);
+  border: 1px solid rgba(167,139,250,0.25); border-radius: 20px;
+  padding: 1px 8px; margin-top: 4px;
+}
+
+/* Identity block */
+.sb-identity {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 18px; border-bottom: 1px solid var(--panel-border);
+}
+.sb-identity img { width: 30px; height: 30px; border-radius: 5px; flex-shrink: 0; display: block; margin-top: 2px; }
+.sb-identity-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.sb-identity-course { font-family: var(--mono); font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; line-height: 1.4; }
+.sb-identity-created { font-family: var(--mono); font-size: 9px; color: var(--muted); line-height: 1.4; }
+.sb-identity-created span { color: var(--text); font-weight: 500; }
+.sb-identity-link {
+  display: inline-flex; align-items: center; gap: 3px;
+  font-family: var(--mono); font-size: 9px; color: var(--accent);
+  text-decoration: none; opacity: 0.8; transition: opacity 0.15s; margin-top: 1px;
+}
+.sb-identity-link:hover { opacity: 1; }
+
+/* Audio controls strip */
+.sb-audio {
+  padding: 10px 18px; border-bottom: 1px solid var(--panel-border);
+  display: flex; flex-direction: column; gap: 8px;
+}
+.sb-row { display: flex; align-items: center; gap: 8px; }
+.sb-label { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; min-width: 44px; }
+
+/* Buttons */
+.btn-play {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 11px; font-weight: 500;
+  padding: 6px 14px; border-radius: 5px; border: none; cursor: pointer;
+  transition: filter 0.15s, opacity 0.15s;
+}
+.btn-play:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-start { background: var(--green); color: #07080d; }
+.btn-start:hover:not(:disabled) { filter: brightness(1.1); }
+.btn-stop  { background: rgba(248,113,113,0.12); color: var(--red); border: 1px solid rgba(248,113,113,0.25); }
+.btn-stop:hover:not(:disabled)  { background: rgba(248,113,113,0.22); }
+.btn-reset { background: rgba(79,156,249,0.10); color: var(--accent); border: 1px solid rgba(79,156,249,0.25); }
+.btn-reset:hover { background: rgba(79,156,249,0.20); }
+
+/* Source panels (one per spatial source) */
+.sb-sources { padding: 10px 18px; border-bottom: 1px solid var(--panel-border); }
+.sb-sec-label {
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 8px;
+}
+.src-panel {
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 7px; padding: 9px 11px; margin-bottom: 7px;
+}
+.src-panel-head { display: flex; align-items: center; gap: 7px; margin-bottom: 6px; }
+.src-dot   { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.src-name  { font-family: var(--mono); font-size: 11px; font-weight: 500; flex: 1; color: var(--text); }
+.src-dist  { font-family: var(--jb); font-size: 11px; color: var(--muted); }
+.src-rms-track { width: 100%; height: 2px; background: var(--border2); border-radius: 1px; overflow: hidden; margin-bottom: 7px; }
+.src-rms-fill  { height: 100%; width: 0%; border-radius: 1px; transition: width 0.05s linear; }
+.src-badges { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 7px; }
+.badge {
+  font-family: var(--mono); font-size: 9px; padding: 1px 6px;
+  border-radius: 20px; border: 1px solid;
+}
+.badge-amb  { color: var(--accent);  border-color: rgba(79,156,249,0.4); }
+.badge-lod  { color: var(--orange);  border-color: rgba(251,146,60,0.4); }
+.badge-occ  { color: var(--green);   border-color: rgba(52,211,153,0.4); }
+.src-ctrls  { display: flex; align-items: center; gap: 8px; }
+.src-mute-btn {
+  font-family: var(--mono); font-size: 10px; padding: 2px 8px;
+  background: var(--surface); border: 1px solid var(--border2);
+  border-radius: 4px; color: var(--muted); cursor: pointer;
+  transition: all 0.15s;
+}
+.src-mute-btn:hover { border-color: var(--red); color: var(--red); }
+.src-mute-btn.muted { border-color: var(--red); color: var(--red); background: rgba(248,113,113,0.08); }
+.src-gain-label { font-family: var(--mono); font-size: 10px; color: var(--muted); flex-shrink: 0; }
+.src-gain-slider {
+  flex: 1; -webkit-appearance: none; height: 2px;
+  background: var(--border2); border-radius: 1px; outline: none; cursor: pointer;
+}
+.src-gain-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--text); cursor: pointer;
+}
+
+/* Upload strip — only visible on file:// */
+#fileProtocolWarn {
+  display: none; margin: 0 18px 8px; padding: 8px 10px;
+  background: rgba(251,146,60,0.1); border: 1px solid rgba(251,146,60,0.35);
+  border-radius: 6px; font-family: var(--mono); font-size: 10px;
+  color: var(--orange); line-height: 1.5;
+}
+#fileProtocolWarn.visible { display: block; }
+#uploadStrip { display: none; padding: 0 18px 10px; }
+#uploadStrip.visible { display: block; }
+.upload-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+.upload-label { font-family: var(--mono); font-size: 10px; color: var(--muted); min-width: 72px; }
+.upload-btn {
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  background: var(--surface2); border: 1px solid var(--border2);
+  border-radius: 4px; padding: 3px 8px; cursor: pointer;
+  transition: all 0.15s; position: relative; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; max-width: 160px;
+}
+.upload-btn:hover { border-color: var(--accent); color: var(--accent); }
+.upload-btn.loaded { border-color: var(--green); color: var(--green); }
+.upload-btn input[type=file] { display: none; }
+
+/* Credits */
+.sb-credits {
+  padding: 10px 18px 18px; border-top: 1px solid var(--panel-border);
+}
+.credit-item {
+  font-family: var(--mono); font-size: 9px; color: var(--muted);
+  line-height: 1.55; margin-bottom: 8px;
+}
+.credit-item strong { color: var(--text); font-weight: 500; }
+.sb-credits a, .credit-item a { color: var(--accent); text-decoration: none; }
+.sb-credits a:hover, .credit-item a:hover { text-decoration: underline; }
+.credit-label { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 7px; }
+
+/* ── HUD — top right ── */
+#hud {
+  position: fixed; top: calc(16px + var(--safe-top)); right: 16px;
+  z-index: 10; background: var(--panel-bg);
+  border: 1px solid var(--panel-border);
+  backdrop-filter: blur(var(--panel-blur)); -webkit-backdrop-filter: blur(var(--panel-blur));
+  border-radius: 10px; padding: 14px 18px; min-width: var(--hud-w);
+}
+.hud-title { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12px; }
+.hud-row { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.hud-row-label { font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.hud-row-value { font-family: var(--jb); font-size: 12px; color: var(--text); }
+.hud-row-value.accent { color: var(--accent); }
+.hud-row-value.orange { color: var(--orange); }
+.hud-row-value.green  { color: var(--green); }
+.hud-divider { border: none; border-top: 1px solid var(--panel-border); margin: 10px 0; }
+.hud-lod-wrap { margin-top: 10px; }
+.hud-lod-label { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-bottom: 5px; display: flex; justify-content: space-between; }
+.hud-lod-slider {
+  width: 100%; -webkit-appearance: none; height: 2px;
+  background: var(--border2); border-radius: 1px; outline: none; cursor: pointer;
+}
+.hud-lod-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; width: 10px; height: 10px;
+  border-radius: 50%; background: var(--accent); cursor: pointer;
+}
+
+/* ── Nav hint ── */
+#navHint {
+  position: fixed; bottom: calc(16px + var(--safe-bottom)); left: 50%; transform: translateX(-50%);
+  z-index: 10; background: var(--panel-bg); border: 1px solid var(--panel-border);
+  backdrop-filter: blur(var(--panel-blur)); -webkit-backdrop-filter: blur(var(--panel-blur));
+  border-radius: 8px; padding: 8px 16px;
+  display: flex; align-items: center; gap: 12px;
+  pointer-events: none; opacity: 1; transition: opacity 0.5s ease;
+}
+#navHint.faded { opacity: 0; }
+.hint-key { font-family: var(--mono); font-size: 11px; color: var(--muted); border: 1px solid var(--border2); border-radius: 3px; padding: 2px 6px; background: var(--surface2); }
+.hint-sep { color: var(--muted); font-size: 11px; }
+
+/* ── Crosshair ── */
+#crosshair {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%,-50%);
+  z-index: 5; pointer-events: none; opacity: 0; transition: opacity 0.2s;
+}
+#crosshair.visible { opacity: 1; }
+#crosshair::before, #crosshair::after { content: ''; position: absolute; background: rgba(255,255,255,0.6); }
+#crosshair::before { width: 1px; height: 14px; top: -7px; left: 0; }
+#crosshair::after  { width: 14px; height: 1px; left: -7px; top: 0; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+
+<!-- ── Loading overlay ── -->
+<div id="loadingOverlay">
+  <div class="lo-headphone">🎧</div>
+  <div class="lo-chapter">Chapter 05 · Spatial Audio</div>
+  <div class="lo-title">Demo 5: Production Reference</div>
+  <div class="lo-bar-track"><div class="lo-bar-fill" id="loFill"></div></div>
+  <div id="loStatus">Loading libraries…</div>
+  <div class="lo-sub">Best experienced with headphones.<br>Walk the warehouse to explore spatial audio LOD and occlusion.</div>
+</div>
+
+<!-- ── Start overlay ── -->
+<div id="startOverlay" class="hidden">
+  <div class="so-icon">🎧</div>
+  <div class="so-title">Click to enter the warehouse</div>
+  <div class="so-sub">Four of six sources are behind the dividing wall — walk around it to hear occlusion lift. Adjust the LOD threshold in the HUD to watch sources switch between Ambisonic and stereo rendering.</div>
+  <div class="so-keys">
+    <span class="key-badge">W A S D</span><span class="hint-sep">move</span>
+    <span class="key-badge">L-drag</span><span class="hint-sep">look</span>
+    <span class="key-badge">R-drag</span><span class="hint-sep">pan</span>
+    <span class="key-badge">Scroll</span><span class="hint-sep">fwd / back</span>
+  </div>
+</div>
+
+<!-- ── Three.js canvas ── -->
+<canvas id="threeCanvas"></canvas>
+<div id="crosshair"></div>
+
+<!-- ══════════════════════════════════════════
+     LEFT SIDEBAR
+     ══════════════════════════════════════════ -->
+<div id="sidebar">
+
+  <div class="sb-header">
+    <div class="sb-chapter">Chapter 05 · Google Resonance Audio</div>
+    <div class="sb-title">Production Reference</div>
+    <span class="sb-badge">🎧 Demo 5</span>
+  </div>
+
+  <div id="sb-scroll">
+
+    <!-- Identity -->
+    <div class="sb-identity">
+      <img src="ams_group_tui.png" alt="AMS Group – TU Ilmenau">
+      <div class="sb-identity-text">
+        <span class="sb-identity-course">Multimediaprogrammierung<br>Technische Universität Ilmenau</span>
+        <span class="sb-identity-created">Demo created by <span>Renato Fera P.</span></span>
+        <a class="sb-identity-link" href="https://www.linkedin.com/in/renato-profeta/" target="_blank" rel="noopener">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+          LinkedIn
+        </a>
+      </div>
+    </div>
+
+    <!-- Audio controls -->
+    <div class="sb-audio">
+      <div class="sb-row">
+        <button class="btn-play btn-start" id="btnStart" onclick="startDemo()" disabled>▶ Start</button>
+        <button class="btn-play btn-stop"  id="btnStop"  onclick="stopDemo()"  disabled>■ Stop</button>
+      </div>
+      <div class="sb-row">
+        <button class="btn-play btn-reset" onclick="resetView()">⌖ Reset View</button>
+      </div>
+    </div>
+
+    <!-- file:// warning + upload strip (shown only on file://) -->
+    <div id="fileProtocolWarn">
+      ⚠ Running as a local file.<br>
+      Upload all <strong>6 audio files</strong> below to enable Start.<br>
+      3D models are optional — placeholder geometry is shown without them.
+    </div>
+    <div id="uploadStrip">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;padding:8px 0 6px;">Audio Files</div>
+      <div class="upload-row"><span class="upload-label">1233.mp3</span>
+        <label class="upload-btn" id="lbl-1233.mp3">📂 Heat pump<input type="file" accept="audio/*" onchange="handleUpload(event,'1233.mp3')"></label></div>
+      <div class="upload-row"><span class="upload-label">1487.mp3</span>
+        <label class="upload-btn" id="lbl-1487.mp3">📂 Compressor<input type="file" accept="audio/*" onchange="handleUpload(event,'1487.mp3')"></label></div>
+      <div class="upload-row"><span class="upload-label">1157.wav</span>
+        <label class="upload-btn" id="lbl-1157.wav">📂 Fridge<input type="file" accept="audio/*" onchange="handleUpload(event,'1157.wav')"></label></div>
+      <div class="upload-row"><span class="upload-label">2118.wav</span>
+        <label class="upload-btn" id="lbl-2118.wav">📂 Transformer<input type="file" accept="audio/*" onchange="handleUpload(event,'2118.wav')"></label></div>
+      <div class="upload-row"><span class="upload-label">2618.mp3</span>
+        <label class="upload-btn" id="lbl-2618.mp3">📂 Radio<input type="file" accept="audio/*" onchange="handleUpload(event,'2618.mp3')"></label></div>
+      <div class="upload-row"><span class="upload-label">0291.wav</span>
+        <label class="upload-btn" id="lbl-0291.wav">📂 Car engine<input type="file" accept="audio/*" onchange="handleUpload(event,'0291.wav')"></label></div>
+
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;padding:10px 0 6px;">3D Models (optional)</div>
+      <div class="upload-row"><span class="upload-label" style="min-width:140px">old_air_conditioner.glb</span>
+        <label class="upload-btn" id="lbl-old_air_conditioner.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'old_air_conditioner.glb')"></label></div>
+      <div class="upload-row"><span class="upload-label" style="min-width:140px">mzb_air_compressor.glb</span>
+        <label class="upload-btn" id="lbl-mzb_air_compressor.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'mzb_air_compressor.glb')"></label></div>
+      <div class="upload-row"><span class="upload-label" style="min-width:140px">old_fridge.glb</span>
+        <label class="upload-btn" id="lbl-old_fridge.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'old_fridge.glb')"></label></div>
+      <div class="upload-row"><span class="upload-label" style="min-width:140px">old_rusty_transformer.glb</span>
+        <label class="upload-btn" id="lbl-old_rusty_transformer.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'old_rusty_transformer.glb')"></label></div>
+      <div class="upload-row"><span class="upload-label" style="min-width:140px">retro_radio.glb</span>
+        <label class="upload-btn" id="lbl-retro_radio.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'retro_radio.glb')"></label></div>
+      <div class="upload-row"><span class="upload-label" style="min-width:140px">vaz_2107.glb</span>
+        <label class="upload-btn" id="lbl-vaz_2107.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'vaz_2107.glb')"></label></div>
+    </div>
+
+    <!-- Source panels — populated by JS after sources are created -->
+    <div class="sb-sources" id="sbSources">
+      <div class="sb-sec-label">Spatial Sources</div>
+      <div id="sourcePanels"><div style="font-family:var(--mono);font-size:10px;color:var(--muted)">Start demo to load sources…</div></div>
+    </div>
+
+    <!-- Credits -->
+    <div class="sb-credits">
+      <div class="credit-label">Audio Credits</div>
+      <div class="credit-item"><strong>All audio</strong> — Joseph SARDIN, <a href="https://bigsoundbank.com" target="_blank" rel="noopener">BigSoundBank.com</a> (CC0 public domain).</div>
+      <div class="credit-label" style="margin-top:8px">3D Model Credits</div>
+      <div class="credit-item">
+        <strong>MZB Air Compressor</strong> by Rudy — <a href="https://skfb.ly/pKY8n" target="_blank" rel="noopener">Sketchfab ↗</a><br>
+        <strong>Old Fridge</strong> by golddog — <a href="https://skfb.ly/6XsrC" target="_blank" rel="noopener">Sketchfab ↗</a><br>
+        <strong>Old Rusty Transformer</strong> by Vitaliy Kovalchuk — <a href="https://skfb.ly/oNYxo" target="_blank" rel="noopener">Sketchfab ↗</a><br>
+        <strong>Old Air Conditioner</strong> by ~D-Try~ — <a href="https://skfb.ly/puKGT" target="_blank" rel="noopener">Sketchfab ↗</a><br>
+        <strong>AI Stalker Retro Radio</strong> by FLIGHTCLUB — <a href="https://skfb.ly/ptr7A" target="_blank" rel="noopener">Sketchfab ↗</a><br>
+        <strong>Old Car — VAZ 2107</strong> by Arkady Gribachev — <a href="https://skfb.ly/6YLnQ" target="_blank" rel="noopener">Sketchfab ↗</a><br>
+        All CC BY 4.0.
+      </div>
+    </div>
+
+  </div><!-- /#sb-scroll -->
+</div><!-- /#sidebar -->
+
+<!-- ══════════════════════════════════════════
+     HUD — top right
+     ══════════════════════════════════════════ -->
+<div id="hud">
+  <div class="hud-title">Spatial Audio Engine</div>
+  <div class="hud-row"><span class="hud-row-label">SOURCES</span>    <span class="hud-row-value accent" id="hudTotal">0</span></div>
+  <div class="hud-row"><span class="hud-row-label">AMBISONIC</span>  <span class="hud-row-value accent" id="hudAmb">0</span></div>
+  <div class="hud-row"><span class="hud-row-label">LOD STEREO</span> <span class="hud-row-value" id="hudLod">0</span></div>
+  <div class="hud-row"><span class="hud-row-label">OCCLUDED</span>   <span class="hud-row-value" id="hudOcc">0</span></div>
+  <div class="hud-row"><span class="hud-row-label">EST. CPU</span>   <span class="hud-row-value" id="hudCpu">—</span></div>
+  <hr class="hud-divider">
+  <div class="hud-row"><span class="hud-row-label">POSITION</span>   <span class="hud-row-value" id="hudPos" style="font-size:11px">—</span></div>
+  <div class="hud-row"><span class="hud-row-label">AZIMUTH</span>    <span class="hud-row-value" id="hudAz">—</span></div>
+  <div class="hud-row"><span class="hud-row-label">ELEVATION</span>  <span class="hud-row-value" id="hudEl">—</span></div>
+  <div class="hud-row"><span class="hud-row-label">AUDIO CTX</span>  <span class="hud-row-value" id="hudCtx">inactive</span></div>
+  <hr class="hud-divider">
+  <div class="hud-lod-wrap">
+    <div class="hud-lod-label">
+      <span>LOD THRESHOLD</span><span id="hudLodVal">8 m</span>
+    </div>
+    <input type="range" class="hud-lod-slider" id="lodSlider" min="4" max="20" step="1" value="8" oninput="onLodSlider(this.value)">
+  </div>
+</div>
+
+<!-- ── Navigation hint ── -->
+<div id="navHint">
+  <span class="hint-key">W A S D</span><span class="hint-sep">move</span>
+  <span class="hint-sep">·</span>
+  <span class="hint-key">L-drag</span><span class="hint-sep">look</span>
+  <span class="hint-sep">·</span>
+  <span class="hint-key">R-drag</span><span class="hint-sep">pan</span>
+  <span class="hint-sep">·</span>
+  <span class="hint-key">Scroll</span><span class="hint-sep">fwd/back</span>
+</div>
+
+<!--
+  Resonance Audio — UMD bundle, defer so it executes after HTML parsing.
+  The polling loop in DOMContentLoaded waits for it before proceeding.
+-->
+<script defer src="https://cdn.jsdelivr.net/npm/resonance-audio/build/resonance-audio.min.js"></script>
+
+<!--
+  ══════════════════════════════════════════════════════════════════════════════
+  MAIN SCRIPT — classic (non-module), 'use strict', all functions global
+  ══════════════════════════════════════════════════════════════════════════════
+-->
+<script>
+'use strict';
+
+/*
+  COORDINATE SYSTEM
+  ─────────────────
+  Three.js world units = metres. Y-up. Right-handed.
+  Resonance Audio uses the same convention — no conversion needed.
+  Origin (0,0,0) = room centre at floor level.
+  Listener start: (0, 1.65, 6) — near front wall, facing -Z.
+  Dividing wall: Z = -3, full width, 3 m high, 0.2 m thick.
+*/
+
+// ════════════════════════════════════════════════════════════════════
+// CONSTANTS
+// ════════════════════════════════════════════════════════════════════
+
+/*
+  Source definitions — each entry maps one audio file to a 3D position,
+  model file, emissive colour, and playback configuration.
+  Sources in the rear alcove (Z < -3) are occluded from listener start.
+*/
+const SOURCE_DEFS = [
+  { key:'heat_pump',   name:'Heat Pump',       file:'1233.mp3', model:'old_air_conditioner.glb', pos:[-10,0,-7], color:'#4f9cf9', loop:true,  gain:0.9  },
+  { key:'compressor',  name:'Air Compressor',  file:'1487.mp3', model:'mzb_air_compressor.glb',  pos:[8,  0,-6], color:'#fb923c', loop:true,  loopStart:2, gain:0.85 },
+  { key:'fridge',      name:'Fridge',          file:'1157.wav', model:'old_fridge.glb',           pos:[-9, 0, 2], color:'#4f9cf9', loop:true,  gain:0.7  },
+  { key:'transformer', name:'Transformer',     file:'2118.wav', model:'old_rusty_transformer.glb',pos:[11,2.5,0], color:'#34d399', loop:true,  gain:0.8  },
+  { key:'radio',       name:'Radio',           file:'2618.mp3', model:'retro_radio.glb',          pos:[0, 0.9,-8],color:'#a78bfa', scheduler:true, gain:0.9 },
+  { key:'car',         name:'Car Engine',      file:'0291.wav', model:'vaz_2107.glb',             pos:[5,  0,-7], color:'#f87171', scheduler:true, stereo:true, gain:0.75 },
+];
+
+// All audio filenames (used for readiness checks)
+const AUDIO_FILES = SOURCE_DEFS.map(d => d.file);
+// All model filenames
+const MODEL_FILES = SOURCE_DEFS.map(d => d.model);
+
+const CAM_EYE_Y   = 1.65;    // metres — human eye height
+const isFileProtocol = (location.protocol === 'file:');
+
+// ════════════════════════════════════════════════════════════════════
+// RUNTIME STATE
+// ════════════════════════════════════════════════════════════════════
+let renderer, scene, camera, clock, composer;
+let controls;
+let audioContext    = null;
+let resonanceAudio  = null;
+let engine          = null;   // SpatialAudioEngine — created in startDemo()
+let isRunning       = false;
+const wallObjects   = [];     // THREE.Mesh array for Raycaster occlusion
+
+/*
+  Raw asset ArrayBuffers — populated by fetch (HTTP) or FileReader (file://).
+  Keys match AUDIO_FILES / MODEL_FILES entries.
+*/
+const audioBufs = {};
+const modelBufs = {};
+
+// Decoded AudioBuffers — populated in startDemo() after AudioContext exists
+const sampleBuffers = {};
+
+// mp3Ready — tracks which audio files have their ArrayBuffer available
+const mp3Ready = {};
+AUDIO_FILES.forEach(f => { mp3Ready[f] = false; });
+
+// Live source panel refs (key → { src: SpatialSource })
+const sourcePanelRefs = {};
+const muteState       = {};
+
+// ════════════════════════════════════════════════════════════════════
+// CONCEPT: Abstraction layer
+// SpatialAudioEngine and SpatialSource encapsulate the Three.js /
+// Resonance Audio synchronisation contract so application code never
+// touches raw API calls. All spatial audio state lives here.
+// ════════════════════════════════════════════════════════════════════
+
+// ────────────────────────────────────────────────────────────────────
+// SpatialSource — owns one source's complete audio graph + 3D visual
+// ────────────────────────────────────────────────────────────────────
+class SpatialSource {
+  constructor(id, group, resonanceSource, stereoPanner, stereoGainNode,
+              analyser, occlusionFilter, occlusionGain, gainNode, opts) {
+    this.id              = id;
+    this.group           = group;           // THREE.Group — visual anchor
+    this.resonanceSource = resonanceSource;
+    this.stereoPanner    = stereoPanner;
+    this.stereoGainNode  = stereoGainNode;
+    this.analyser        = analyser;
+    this.occlusionFilter = occlusionFilter;
+    this.occlusionGain   = occlusionGain;
+    this.gainNode        = gainNode;
+    this.gain            = opts.gain ?? 1.0;
+    this.name            = opts.name;
+    this.color           = opts.color;
+    this._core           = opts._core;
+    this._halo           = opts._halo;
+    this._plight         = opts._plight;
+    this._analyserBuf    = new Float32Array(this.analyser.fftSize);
+    this._dist           = 0;
+    this._isOccluded     = false;
+    this._isLOD          = false;
+    this._rms            = 0;
+  }
+
+  update(listenerPos, listenerFwd, wallObjects, lodThreshold, ctx) {
+    const now  = ctx.currentTime;
+    const dist = this.group.position.distanceTo(listenerPos);
+    this._dist = dist;
+
+    // ── CONCEPT: Spatial audio LOD ────────────────────────────────
+    // CPU cost of Resonance Audio is linear in Ambisonic source count.
+    // Sources beyond the LOD threshold contribute negligible spatial
+    // detail — the HRTF difference between 10 m and 15 m is below
+    // perceptual threshold. Downgrading to StereoPannerNode costs
+    // ~0.1% CPU vs ~2% for Ambisonic. Standard in Fmod, Wwise.
+    if (dist > lodThreshold) {
+      if (!this._isLOD) {
+        this.resonanceSource.setGain(0);
+        // CONCEPT: setTargetAtTime for artefact-free transitions
+        // Instantaneous gain changes produce audible clicks.
+        // setTargetAtTime applies an exponential approach — imperceptible.
+        this.stereoGainNode.gain.setTargetAtTime(this.gain, now, 0.05);
+        this._isLOD = true;
+      }
+      const pan = computeStereoPan(this.group.position, listenerPos, listenerFwd);
+      this.stereoPanner.pan.setTargetAtTime(pan, now, 0.05);
+    } else {
+      if (this._isLOD) {
+        this.resonanceSource.setGain(this.gain);
+        this.stereoGainNode.gain.setTargetAtTime(0, now, 0.05);
+        this._isLOD = false;
+      }
+      // THREE.JS EQUIVALENT: matrixWorld is the world-space transform matrix
+      this.group.updateMatrixWorld();
+      this.resonanceSource.setFromMatrix(this.group.matrixWorld);
+    }
+
+    // ── CONCEPT: Occlusion via raycasting ─────────────────────────
+    // Three.js Raycaster operates in the same world space as the
+    // visual scene. The wall mesh the student sees IS the wall that
+    // blocks the sound. Visual and acoustic geometry are unified —
+    // one source of truth.
+    const srcPos    = new THREE.Vector3();
+    this.group.getWorldPosition(srcPos);
+    const toListener = listenerPos.clone().sub(srcPos);
+    const distance   = toListener.length();
+    const direction  = toListener.normalize();
+    const raycaster  = new THREE.Raycaster(srcPos, direction, 0.1, distance);
+    const intersects = raycaster.intersectObjects(wallObjects, true);
+    const occluded   = intersects.length > 0;
+
+    if (occluded !== this._isOccluded) {
+      // CONCEPT: Wall transmission loss — mass law
+      // TL ∝ frequency × surface mass density.
+      // Bass frequencies penetrate walls; high frequencies are absorbed.
+      // A low-pass at 500 Hz is a first-order model of this phenomenon.
+      // See Section 2 of the theory HTML for the physics of wall
+      // transmission loss (mass law).
+      const targetFreq = occluded ? 500   : 20000;
+      const targetGain = occluded ? 0.3   : 1.0;
+      this.occlusionFilter.frequency.setTargetAtTime(targetFreq, now, 0.08);
+      this.occlusionGain.gain.setTargetAtTime(targetGain, now, 0.08);
+      this._isOccluded = occluded;
+    }
+
+    // ── RMS readout (getFloatTimeDomainData — no allocation per frame) ──
+    this.analyser.getFloatTimeDomainData(this._analyserBuf);
+    let sum = 0;
+    for (let i = 0; i < this._analyserBuf.length; i++)
+      sum += this._analyserBuf[i] * this._analyserBuf[i];
+    this._rms = Math.sqrt(sum / this._analyserBuf.length);
+
+    // ── Emissive animation driven by RMS ──────────────────────────
+    if (this._core && this._halo && this._plight) {
+      const rms = Math.min(this._rms * 4, 1);
+      if (this._core.material) this._core.material.emissiveIntensity = 0.1 + rms * 2.4;
+      if (this._halo.material) this._halo.material.opacity = 0.04 + rms * 0.3;
+      this._plight.intensity = (0.1 + rms * 2.4) * 0.6;
+    }
+  }
+
+  destroy() {
+    try {
+      this.gainNode.disconnect(); this.analyser.disconnect();
+      this.occlusionFilter.disconnect(); this.occlusionGain.disconnect();
+      this.stereoGainNode.disconnect(); this.stereoPanner.disconnect();
+    } catch(e) {}
+    if (this.group.parent) this.group.parent.remove(this.group);
+  }
+
+  get distanceToListener() { return this._dist; }
+  get isOccluded()         { return this._isOccluded; }
+  get isLOD()              { return this._isLOD; }
+  get rms()                { return this._rms; }
+}
+
+// ────────────────────────────────────────────────────────────────────
+// SpatialAudioEngine — owns all Resonance Audio and Web Audio state
+// ────────────────────────────────────────────────────────────────────
+class SpatialAudioEngine {
+  constructor(ctx, resonance, scene, wallObjects) {
+    this._ctx         = ctx;
+    this._resonance   = resonance;
+    this._scene       = scene;
+    this._walls       = wallObjects;
+    this._sources     = new Map();
+    this._lodThreshold = 8.0;
+    this._nextId      = 0;
+    this._listenerPos = new THREE.Vector3();
+    this._listenerFwd = new THREE.Vector3(0,0,-1);
+    this._azimuth     = 0;
+    this._elevation   = 0;
+  }
+
+  // Create a spatial source at a world position.
+  // ── CONCEPT: Web Audio graph as signal flow diagram ──────────────
+  // AudioBufferSourceNode (or scheduler-managed for radio + car)
+  //   → AnalyserNode          (RMS readout for emissive animation)
+  //   → occlusionFilter       (BiquadFilterNode lowpass — 20kHz normal, 500Hz occluded)
+  //   → occlusionGain         (GainNode — 1.0 normal, 0.3 occluded)
+  //   ├→ [AMBISONIC PATH]  resonanceSource.input → resonanceAudio.output → destination
+  //   └→ [LOD STEREO PATH] stereoPanner → stereoGainNode → destination
+  // Only one path is active at a time (inactive gain = 0).
+  // Occlusion nodes are in series before the fork — affect both paths.
+  createSource(position, opts) {
+    const id  = 'src_' + (this._nextId++);
+    const ctx = this._ctx;
+
+    const analyser       = ctx.createAnalyser();
+    analyser.fftSize     = 1024;
+    const occlusionFilter = ctx.createBiquadFilter();
+    occlusionFilter.type = 'lowpass';
+    occlusionFilter.frequency.value = 20000;
+    const occlusionGain  = ctx.createGain();
+    occlusionGain.gain.value = 1.0;
+    const stereoPanner   = ctx.createStereoPanner();
+    const stereoGainNode = ctx.createGain();
+    stereoGainNode.gain.value = 0;
+    const gainNode       = ctx.createGain();
+    gainNode.gain.value  = opts.gain ?? 1.0;
+
+    const resonanceSource = this._resonance.createSource({
+      minDistance: 1, maxDistance: 50, rolloff: 'linear',
+    });
+    resonanceSource.setPosition(position[0], position[1], position[2]);
+
+    // Wire graph
+    gainNode.connect(analyser);
+    analyser.connect(occlusionFilter);
+    occlusionFilter.connect(occlusionGain);
+    occlusionGain.connect(resonanceSource.input);  // Ambisonic path
+    occlusionGain.connect(stereoPanner);           // LOD stereo path
+    stereoPanner.connect(stereoGainNode);
+    stereoGainNode.connect(ctx.destination);
+
+    // Start playback
+    if (opts.scheduler) {
+      // CONCEPT: AudioBufferSourceNode is single-use
+      // Cannot be restarted after the buffer ends — a new node is
+      // required each play. Common source of Web Audio bugs.
+      opts.scheduler(ctx, opts.buffer, gainNode);
+    } else if (opts.buffer) {
+      const src = ctx.createBufferSource();
+      src.buffer = opts.buffer;
+      src.loop   = opts.loop ?? true;
+      if (opts.loopStart != null) src.loopStart = opts.loopStart;
+      src.connect(gainNode);
+      src.start();
+    }
+
+    // 3D group
+    const group = new THREE.Group();
+    group.position.set(...position);
+
+    if (opts.modelMesh) {
+      group.add(opts.modelMesh);
+    } else {
+      // Fallback placeholder box
+      const col = parseInt(opts.color.replace('#',''), 16);
+      group.add(new THREE.Mesh(
+        new THREE.BoxGeometry(0.8, 0.8, 0.8),
+        new THREE.MeshStandardMaterial({ color: col, roughness: 0.7, metalness: 0.2 })
+      ));
+    }
+
+    // Emissive core + halo + point light (colour-coded per source)
+    const col = new THREE.Color(opts.color);
+    const coreMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.08, 8, 8),
+      new THREE.MeshStandardMaterial({ color: col, emissive: col, emissiveIntensity: 0.5 })
+    );
+    coreMesh.position.set(0, 1.4, 0);
+    group.add(coreMesh);
+
+    const haloMesh = new THREE.Mesh(
+      new THREE.SphereGeometry(0.14, 8, 8),
+      new THREE.MeshStandardMaterial({ color: col, transparent: true, opacity: 0.08, depthWrite: false })
+    );
+    haloMesh.position.copy(coreMesh.position);
+    group.add(haloMesh);
+
+    const plight = new THREE.PointLight(col, 0.5, 5);
+    plight.position.copy(coreMesh.position);
+    group.add(plight);
+
+    this._scene.add(group);
+
+    const spatialSrc = new SpatialSource(
+      id, group, resonanceSource, stereoPanner, stereoGainNode,
+      analyser, occlusionFilter, occlusionGain, gainNode,
+      { gain: opts.gain ?? 1.0, name: opts.name, color: opts.color,
+        _core: coreMesh, _halo: haloMesh, _plight: plight }
+    );
+    this._sources.set(id, spatialSrc);
+    return spatialSrc;
+  }
+
+  // Called every frame — updates all sources, syncs listener from camera
+  update(camera) {
+    this._listenerPos.setFromMatrixPosition(camera.matrixWorld);
+    this._listenerFwd.set(0,0,-1).applyQuaternion(camera.quaternion).normalize();
+    // See Demo 3 for the foundational explanation of this integration pattern
+    this._resonance.setListenerFromMatrix(camera.matrixWorld);
+    const f = this._listenerFwd;
+    this._azimuth   = Math.atan2(f.x, -f.z) * 180 / Math.PI;
+    this._elevation = Math.asin(Math.max(-1, Math.min(1, f.y))) * 180 / Math.PI;
+    for (const src of this._sources.values()) {
+      src.update(this._listenerPos, this._listenerFwd, this._walls, this._lodThreshold, this._ctx);
+    }
+  }
+
+  setLODThreshold(m) { this._lodThreshold = m; }
+
+  getStats() {
+    const sources   = [...this._sources.values()];
+    const ambisonic = sources.filter(s => !s.isLOD).length;
+    const lod       = sources.filter(s =>  s.isLOD).length;
+    const occluded  = sources.filter(s =>  s.isOccluded).length;
+    // CPU estimate: Ambisonic ≈ 2% per source, stereo pan ≈ 0.1%
+    const cpuEst    = (ambisonic * 2.0 + lod * 0.1).toFixed(1);
+    const lp        = this._listenerPos;
+    return {
+      totalSources: sources.length, ambisonicSources: ambisonic,
+      lodSources: lod, occludedSources: occluded, estimatedCpuPct: cpuEst,
+      listenerPos: { x: lp.x.toFixed(2), y: lp.y.toFixed(2), z: lp.z.toFixed(2) },
+      azimuth: this._azimuth.toFixed(1), elevation: this._elevation.toFixed(1),
+      audioCtxState: this._ctx.state, sources,
+    };
+  }
+}
+
+// ── Helper: compute stereo pan from 3D positions ──────────────────
+function computeStereoPan(srcPos, listenerPos, listenerFwd) {
+  const toSrc = new THREE.Vector3().subVectors(srcPos, listenerPos).normalize();
+  const right = new THREE.Vector3().crossVectors(listenerFwd, new THREE.Vector3(0,1,0)).normalize();
+  return THREE.MathUtils.clamp(toSrc.dot(right), -1, 1);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// PROGRESS BAR
+// ════════════════════════════════════════════════════════════════════
+function setProgress(pct, msg) {
+  document.getElementById('loFill').style.width = pct + '%';
+  document.getElementById('loStatus').textContent = msg;
+}
+
+function tick() { return new Promise(r => setTimeout(r, 60)); }
+
+// ════════════════════════════════════════════════════════════════════
+// ASSET LOADING
+// ════════════════════════════════════════════════════════════════════
+
+/*
+  preloadAudio — fetch all 6 audio files from the server.
+  On file:// we skip fetching — the student uploads files manually.
+  On fetch failure (CORS / 404) we silently skip: the upload strip
+  is the intended local workflow and needs no error UI.
+*/
+async function preloadAudio() {
+  if (isFileProtocol) { updateStartReadiness(); return; }
+  await Promise.all(AUDIO_FILES.map(f => fetchAudioFile(f)));
+  updateStartReadiness();
+}
+
+async function fetchAudioFile(filename) {
+  try {
+    const r = await fetch('./' + filename);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    audioBufs[filename] = await r.arrayBuffer();
+    mp3Ready[filename]  = true;
+  } catch(e) {
+    console.info('fetch(' + filename + ') unavailable — use sidebar upload:', e.message);
+  }
+}
+
+/*
+  preloadModels — fetch all 6 GLBs from the server.
+  Models are optional (placeholder geometry is shown without them).
+  On file:// or fetch failure, silently skip.
+*/
+async function preloadModels() {
+  if (isFileProtocol) return;
+  await Promise.all(MODEL_FILES.map(f => fetchModelFile(f)));
+}
+
+async function fetchModelFile(filename) {
+  try {
+    const r = await fetch('./' + filename);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    modelBufs[filename] = await r.arrayBuffer();
+  } catch(e) {
+    console.info('fetch(' + filename + ') unavailable:', e.message);
+  }
+}
+
+/*
+  handleUpload — called by the upload strip <input type=file> elements.
+  Uses the FileReader API (callback-based) to read the file as an
+  ArrayBuffer and store it in the correct bucket.
+*/
+function handleUpload(event, filename) {
+  const file = event.target.files[0]; if (!file) return;
+  event.stopPropagation();
+  const reader = new FileReader();
+  reader.onload = async e => {
+    const ab = e.target.result;
+    if (AUDIO_FILES.includes(filename)) {
+      audioBufs[filename] = ab;
+      mp3Ready[filename]  = true;
+    } else {
+      modelBufs[filename] = ab;
+    }
+    const lbl = document.getElementById('lbl-' + filename);
+    if (lbl) { lbl.textContent = '✓ ' + file.name; lbl.classList.add('loaded'); }
+    // If audio is running and this is a model, we can't hot-swap — ignore.
+    // If audio is running and this is a decoded audio file, it was already
+    // decoded at start; a re-upload would require a full restart (not supported).
+    updateStartReadiness();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/*
+  updateStartReadiness — enable Start only when all 6 audio ArrayBuffers
+  are present (either fetched or uploaded).
+*/
+function updateStartReadiness() {
+  const loaded = AUDIO_FILES.filter(f => mp3Ready[f]).length;
+  const ready  = loaded === AUDIO_FILES.length;
+  document.getElementById('btnStart').disabled = !ready;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// THREE.JS — RENDERER & CAMERA CONTROLS
+// ════════════════════════════════════════════════════════════════════
+function initThree() {
+  const canvas = document.getElementById('threeCanvas');
+
+  renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled  = true;
+  renderer.shadowMap.type     = THREE.PCFSoftShadowMap;
+  renderer.toneMapping        = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.1;
+  renderer.outputColorSpace   = THREE.SRGBColorSpace;
+
+  camera = new THREE.PerspectiveCamera(70, window.innerWidth / window.innerHeight, 0.05, 500);
+  camera.position.set(0, CAM_EYE_Y, 6);
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x060608);
+  scene.fog = new THREE.FogExp2(0x060608, 0.025);
+
+  clock = new THREE.Clock();
+
+  // ── Mouse navigation (drag-based, same pattern as Demo 2) ──────
+  // Left-drag: look/rotate  Right-drag: strafe  Scroll: forward/back
+  // This avoids pointer lock's browser UI while still enabling full
+  // first-person navigation.
+  const euler    = new THREE.Euler(0, 0, 0, 'YXZ');
+  const LOOK_SENS  = 0.002;
+  const PAN_SENS   = 0.008;
+  const SCROLL_SPD = 0.012;
+  const mouseBtn = { look: false, pan: false };
+  let lastX = 0, lastY = 0;
+
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+  canvas.addEventListener('mousedown', e => {
+    if (e.target !== canvas) return;
+    lastX = e.clientX; lastY = e.clientY;
+    if (e.button === 0) {
+      mouseBtn.look = true; canvas.style.cursor = 'grabbing';
+      document.getElementById('crosshair').classList.add('visible');
+    } else if (e.button === 1 || e.button === 2) {
+      mouseBtn.pan = true; canvas.style.cursor = 'move'; e.preventDefault();
+    }
+  });
+  window.addEventListener('mouseup', e => {
+    if (e.button === 0) {
+      mouseBtn.look = false;
+      canvas.style.cursor = mouseBtn.pan ? 'move' : 'grab';
+      if (!mouseBtn.pan) document.getElementById('crosshair').classList.remove('visible');
+    } else if (e.button === 1 || e.button === 2) {
+      mouseBtn.pan = false;
+      canvas.style.cursor = mouseBtn.look ? 'grabbing' : 'grab';
+    }
+  });
+  window.addEventListener('mousemove', e => {
+    if (!mouseBtn.look && !mouseBtn.pan) return;
+    const dx = e.clientX - lastX, dy = e.clientY - lastY;
+    lastX = e.clientX; lastY = e.clientY;
+    if (mouseBtn.look) {
+      euler.setFromQuaternion(camera.quaternion);
+      euler.y -= dx * LOOK_SENS;
+      euler.x  = Math.max(-Math.PI/2 + 0.01, Math.min(Math.PI/2 - 0.01, euler.x - dy * LOOK_SENS));
+      camera.quaternion.setFromEuler(euler);
+    }
+    if (mouseBtn.pan) {
+      const right = new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
+      right.y = 0; right.normalize();
+      camera.position.addScaledVector(right, dx * PAN_SENS);
+      const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
+      fwd.y = 0; fwd.normalize();
+      camera.position.addScaledVector(fwd, -dy * PAN_SENS);
+      clampCamera();
+    }
+  });
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
+    fwd.y = 0; fwd.normalize();
+    camera.position.addScaledVector(fwd, -e.deltaY * SCROLL_SPD);
+    clampCamera();
+  }, { passive: false });
+  canvas.style.cursor = 'grab';
+
+  // controls shim — same interface as PointerLockControls for WASD
+  controls = {
+    isLocked: true,
+    moveForward(d) {
+      const dir = new THREE.Vector3(); camera.getWorldDirection(dir);
+      dir.y = 0; dir.normalize(); camera.position.addScaledVector(dir, d);
+    },
+    moveRight(d) {
+      const r = new THREE.Vector3().crossVectors(
+        camera.getWorldDirection(new THREE.Vector3()), camera.up).normalize();
+      camera.position.addScaledVector(r, d);
+    },
+  };
+
+  window.addEventListener('resize', onResize);
+}
+
+function clampCamera() {
+  camera.position.x = Math.max(-11.5, Math.min(11.5, camera.position.x));
+  camera.position.z = Math.max(-8.5,  Math.min(8.5,  camera.position.z));
+  camera.position.y = CAM_EYE_Y;
+}
+
+// WASD keyboard navigation
+const keys = {};
+document.addEventListener('keydown', e => { keys[e.code] = true;  });
+document.addEventListener('keyup',   e => { keys[e.code] = false; });
+const SPEED = 3.0; // m/s
+
+function updateNavigation(dt) {
+  if (!controls.isLocked) return;
+  if (keys['KeyW'] || keys['ArrowUp'])    controls.moveForward( SPEED * dt);
+  if (keys['KeyS'] || keys['ArrowDown'])  controls.moveForward(-SPEED * dt);
+  if (keys['KeyA'] || keys['ArrowLeft'])  controls.moveRight(  -SPEED * dt);
+  if (keys['KeyD'] || keys['ArrowRight']) controls.moveRight(   SPEED * dt);
+  clampCamera();
+}
+
+function resetView() {
+  if (!camera) return;
+  camera.position.set(0, CAM_EYE_Y, 6);
+  camera.rotation.set(0, 0, 0);
+  camera.updateMatrixWorld();
+}
+
+// ════════════════════════════════════════════════════════════════════
+// SCENE CONSTRUCTION
+// ════════════════════════════════════════════════════════════════════
+function buildScene() {
+  // Comment: Room dimensions must match the Resonance Audio setRoomProperties
+  // call in initAudio(). The visual room geometry and the acoustic room model
+  // are independent systems — keeping them in sync is the developer's
+  // responsibility. See initAudio().
+
+  _RectAreaLightUniformsLib.init();
+
+  // ── Materials ────────────────────────────────────────────────────
+  const matConcrete = new THREE.MeshStandardMaterial({ color: 0x8a8a8a, roughness: 0.95, metalness: 0.0 });
+  const matFloor    = new THREE.MeshStandardMaterial({ color: 0x707070, roughness: 0.25, metalness: 0.0 });
+  const matDivWall  = new THREE.MeshStandardMaterial({ color: 0x666666, roughness: 0.95, metalness: 0.0 });
+  const matSteel    = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.4,  metalness: 0.9 });
+
+  // ── Floor ────────────────────────────────────────────────────────
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(24, 18), matFloor);
+  floor.rotation.x = -Math.PI / 2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // Floor grid — helps judge distance and room scale
+  const grid = new THREE.GridHelper(24, 24, 0x1e2535, 0x1e2535);
+  grid.material.opacity = 0.4; grid.material.transparent = true;
+  grid.position.y = 0.002;
+  scene.add(grid);
+
+  // ── Ceiling ──────────────────────────────────────────────────────
+  const ceiling = new THREE.Mesh(new THREE.PlaneGeometry(24, 18), matConcrete);
+  ceiling.rotation.x = Math.PI / 2;
+  ceiling.position.y = 10;
+  scene.add(ceiling);
+
+  // ── Walls ────────────────────────────────────────────────────────
+  const wallDefs = [
+    { size:[24,10,0.3], pos:[0,5, 9]  },
+    { size:[24,10,0.3], pos:[0,5,-9]  },
+    { size:[0.3,10,18], pos:[-12,5,0] },
+    { size:[0.3,10,18], pos:[ 12,5,0] },
+  ];
+  for (const d of wallDefs) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(...d.size), matConcrete);
+    m.position.set(...d.pos);
+    m.castShadow = true; m.receiveShadow = true;
+    scene.add(m);
+  }
+
+  // ── Dividing wall at Z = -3 ───────────────────────────────────────
+  // This single mesh serves as both visual geometry and acoustic
+  // occlusion geometry simultaneously — the Raycaster hits it.
+  const divWall = new THREE.Mesh(new THREE.BoxGeometry(24, 3, 0.2), matDivWall);
+  divWall.position.set(0, 1.5, -3);
+  divWall.castShadow = true; divWall.receiveShadow = true;
+  divWall.name = 'dividing_wall';
+  scene.add(divWall);
+  wallObjects.push(divWall);
+
+  // ── Steel beam grid (InstancedMesh) ────────────────────────────────
+  // CONCEPT: InstancedMesh
+  // One GPU draw call for N identical objects — same performance philosophy
+  // as the audio LOD system: both graphics and audio engines manage quality
+  // budgets through spatial culling.
+  // THREE.JS EQUIVALENT: InstancedMesh renders N copies with per-instance
+  // transforms stored in a typed array, avoiding N separate draw calls.
+  const beamCount = 6;
+  const beamIM    = new THREE.InstancedMesh(
+    new THREE.BoxGeometry(0.15, 0.15, 24), matSteel, beamCount
+  );
+  beamIM.castShadow = true;
+  const dummy = new THREE.Object3D();
+  for (let i = 0; i < beamCount; i++) {
+    dummy.position.set(-10 + i * 4, 9.5, 0);
+    dummy.updateMatrix();
+    beamIM.setMatrixAt(i, dummy.matrix);
+  }
+  beamIM.instanceMatrix.needsUpdate = true;
+  scene.add(beamIM);
+
+  // ── Skylights: emissive plane + RectAreaLight ─────────────────────
+  const skylightMat = new THREE.MeshStandardMaterial({
+    color: 0xd0e8ff, emissive: new THREE.Color(0xd0e8ff),
+    emissiveIntensity: 1.5, side: THREE.DoubleSide,
+  });
+  for (const xPos of [-7.5, -2.5, 2.5, 7.5]) {
+    const pane = new THREE.Mesh(new THREE.PlaneGeometry(4, 1.5), skylightMat);
+    pane.rotation.x = Math.PI / 2;
+    pane.position.set(xPos, 9.9, 0);
+    scene.add(pane);
+    const ral = new THREE.RectAreaLight(0xd0e8ff, 8, 4, 1.5);
+    ral.position.set(xPos, 9.9, 0);
+    ral.lookAt(xPos, 0, 0);
+    scene.add(ral);
+  }
+
+  // ── Ambient + key light ────────────────────────────────────────────
+  scene.add(new THREE.AmbientLight(0x101520, 0.5));
+  const key = new THREE.DirectionalLight(0xd0e0ff, 0.8);
+  key.position.set(3, 8, 5);
+  key.castShadow = true;
+  key.shadow.mapSize.set(2048, 2048);
+  scene.add(key);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// POST-PROCESSING
+// ════════════════════════════════════════════════════════════════════
+function initPostProcessing() {
+  composer = new _EffectComposer(renderer);
+  composer.addPass(new _RenderPass(scene, camera));
+  composer.addPass(new _UnrealBloomPass(
+    new THREE.Vector2(window.innerWidth, window.innerHeight),
+    0.7, 0.4, 0.3  // strength, radius, threshold
+  ));
+  composer.addPass(new _OutputPass());
+}
+
+// ════════════════════════════════════════════════════════════════════
+// AUDIO INITIALISATION (called on Start button click)
+// ════════════════════════════════════════════════════════════════════
+async function initAudio() {
+  // CONCEPT: Autoplay policy compliance
+  // AudioContext must be created from a user gesture. Creating it on
+  // page load is blocked in modern browsers without a gesture.
+  audioContext = new AudioContext();
+
+  // Ambisonic order 3 — 16-channel output, highest spatial resolution.
+  // See Demo 4 for the foundational explanation of Ambisonic order.
+  resonanceAudio = new ResonanceAudio(audioContext, { ambisonicOrder: 3 });
+  resonanceAudio.output.connect(audioContext.destination);
+
+  // CONCEPT: Room properties must match buildScene() dimensions exactly.
+  // These properties drive early reflection and reverb tail modelling.
+  // See Demo 2 for the full treatment of Resonance Audio material
+  // coefficients and RT60.
+  resonanceAudio.setRoomProperties(
+    { width: 24, height: 10, depth: 18 },
+    {
+      left: 'concrete_block_coarse', right: 'concrete_block_coarse',
+      front:'concrete_block_coarse', back: 'concrete_block_coarse',
+      down: 'polished_concrete_or_tile', up: 'concrete_block_coarse',
+    }
+  );
+  // Note: the dividing wall is NOT modelled as a room property — Resonance
+  // Audio only supports a single rectangular room. The dividing wall's
+  // acoustic effect is handled entirely by the occlusion raycasting system
+  // in SpatialSource.update(). A full acoustic model would require a
+  // geometry-aware ray tracer.
+
+  engine = new SpatialAudioEngine(audioContext, resonanceAudio, scene, wallObjects);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// MODEL LOADING
+// ════════════════════════════════════════════════════════════════════
+function loadGLB(filename) {
+  return new Promise(resolve => {
+    if (!modelBufs[filename]) { resolve(null); return; }
+    const loader = new _GLTFLoader();
+    loader.parse(modelBufs[filename], '', gltf => resolve(gltf.scene), err => {
+      console.warn('GLTFLoader error:', filename, err); resolve(null);
+    });
+  });
+}
+
+// ════════════════════════════════════════════════════════════════════
+// SCHEDULER HELPERS
+// ════════════════════════════════════════════════════════════════════
+
+// CONCEPT: AudioBufferSourceNode is single-use
+// Cannot be restarted after the buffer ends — a new node is required
+// each play. This is a common source of Web Audio bugs for students
+// new to Web Audio API.
+
+function scheduleRadioLoop(ctx, buffer, dest) {
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(dest);
+  src.start();
+  // Schedule next play after buffer duration + random gap (2–6 s).
+  // The gap represents the radio sitting on static between sweeps.
+  const gap = 2.0 + Math.random() * 4.0;
+  src.onended = () => setTimeout(() => scheduleRadioLoop(ctx, buffer, dest), gap * 1000);
+}
+
+function scheduleCarLoop(ctx, buffer, dest) {
+  // CONCEPT: AudioBufferSourceNode is single-use (see above)
+  const src = ctx.createBufferSource();
+  src.buffer = buffer;
+  src.connect(dest);
+  src.start();
+  // Short random gap (0.5–2 s) — sounds like someone occasionally revving
+  const gap = 0.5 + Math.random() * 1.5;
+  src.onended = () => setTimeout(() => scheduleCarLoop(ctx, buffer, dest), gap * 1000);
+}
+
+async function downmixToMono(stereoBuffer) {
+  // CONCEPT: Mono downmix for spatial sources
+  // Resonance Audio positions a source at a single point in 3D space.
+  // A stereo source has two implicit positions (L and R) which is physically
+  // meaningless for a spatialised point source. Downmixing to mono is required.
+  if (stereoBuffer.numberOfChannels === 1) return stereoBuffer;
+  const mono = audioContext.createBuffer(1, stereoBuffer.length, audioContext.sampleRate);
+  const L = stereoBuffer.getChannelData(0);
+  const R = stereoBuffer.getChannelData(1);
+  const out = mono.getChannelData(0);
+  for (let i = 0; i < L.length; i++) out[i] = (L[i] + R[i]) * 0.5;
+  return mono;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// CREATE ALL SOURCES
+// ════════════════════════════════════════════════════════════════════
+async function createAllSources() {
+  const srcRefs = [];
+  for (const def of SOURCE_DEFS) {
+    // Decode audio (skip source if file not available)
+    if (!audioBufs[def.file]) {
+      console.warn('Audio not available for', def.name, '— skipping source');
+      continue;
+    }
+    // audioContext.decodeAudioData automatically resamples to the AudioContext
+    // sample rate (48kHz). No manual resampling needed — Web Audio handles it.
+    let buffer;
+    try {
+      buffer = await audioContext.decodeAudioData(audioBufs[def.file].slice(0));
+    } catch(e) {
+      console.error('decodeAudioData failed for', def.file, e); continue;
+    }
+
+    // Car engine: downmix stereo to mono
+    if (def.stereo && buffer.numberOfChannels > 1) {
+      buffer = await downmixToMono(buffer);
+    }
+
+    // Load model (optional)
+    const scene3d = await loadGLB(def.model);
+    let modelMesh = null;
+    if (scene3d) {
+      modelMesh = scene3d;
+      // Measure and normalise scale
+      const box  = new THREE.Box3().setFromObject(modelMesh);
+      const size = new THREE.Vector3(); box.getSize(size);
+
+      // VAZ 2107 — real dimensions ~4.1 m × 1.6 m × 1.4 m; scale to match.
+      // Sketchfab vehicle models are frequently exported at wrong scale.
+      if (def.key === 'car') {
+        const targetLength = 4.1;
+        const scale = targetLength / Math.max(size.x, size.z);
+        modelMesh.scale.setScalar(scale);
+        modelMesh.rotation.y = Math.PI / 6; // parked diagonally
+      }
+      // Air compressor: assign procedural material (CAD export, no textures)
+      if (def.key === 'compressor') {
+        modelMesh.traverse(child => {
+          if (child.isMesh) child.material = new THREE.MeshStandardMaterial(
+            { color: 0x4a4a4a, roughness: 0.6, metalness: 0.5 }
+          );
+        });
+      }
+      // Floor-align: move Y so bounding box bottom sits at Y = 0
+      const boxAfter = new THREE.Box3().setFromObject(modelMesh);
+      const minY = boxAfter.min.y;
+      if (Math.abs(minY) > 0.05 && def.key !== 'transformer')
+        modelMesh.position.y -= minY;
+      modelMesh.traverse(child => {
+        if (child.isMesh) { child.castShadow = true; child.receiveShadow = true; }
+      });
+    }
+
+    // Build scheduler function if needed
+    let schedulerFn = null;
+    if (def.scheduler) {
+      schedulerFn = def.key === 'radio' ? scheduleRadioLoop : scheduleCarLoop;
+    }
+
+    const src = engine.createSource(def.pos, {
+      buffer, loop: def.loop, loopStart: def.loopStart,
+      gain: def.gain, name: def.name, color: def.color,
+      modelMesh, scheduler: schedulerFn,
+    });
+    srcRefs.push({ key: def.key, def, src });
+  }
+  return srcRefs;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// SOURCE PANELS — sidebar panels for each spatial source
+// ════════════════════════════════════════════════════════════════════
+function buildSourcePanels(srcRefs) {
+  const container = document.getElementById('sourcePanels');
+  container.innerHTML = '';
+  for (const { key, def, src } of srcRefs) {
+    const div = document.createElement('div');
+    div.className = 'src-panel';
+    div.innerHTML = `
+      <div class="src-panel-head">
+        <span class="src-dot" style="background:${def.color}"></span>
+        <span class="src-name">${def.name}</span>
+        <span class="src-dist" id="dist-${key}">— m</span>
+      </div>
+      <div class="src-rms-track">
+        <div class="src-rms-fill" id="rms-${key}" style="background:${def.color}"></div>
+      </div>
+      <div class="src-badges" id="badges-${key}"></div>
+      <div class="src-ctrls">
+        <button class="src-mute-btn" id="mute-${key}" onclick="toggleMute('${key}')">Mute</button>
+        <span class="src-gain-label">Gain</span>
+        <input type="range" class="src-gain-slider" min="0" max="1" step="0.01"
+               value="${def.gain}" oninput="setSourceGain('${key}',this.value)">
+      </div>`;
+    container.appendChild(div);
+    sourcePanelRefs[key] = src;
+  }
+}
+
+function updateSourcePanels() {
+  for (const [key, src] of Object.entries(sourcePanelRefs)) {
+    const distEl  = document.getElementById('dist-' + key);
+    const rmsEl   = document.getElementById('rms-' + key);
+    const badgeEl = document.getElementById('badges-' + key);
+    if (!distEl) continue;
+    distEl.textContent = src.distanceToListener.toFixed(1) + ' m';
+    rmsEl.style.width  = Math.min(src.rms * 400, 100) + '%';
+    let badges = `<span class="badge ${src.isLOD ? 'badge-lod' : 'badge-amb'}">${src.isLOD ? 'LOD' : 'AMBISONIC'}</span>`;
+    if (src.isOccluded) badges += `<span class="badge badge-occ">OCCLUDED</span>`;
+    badgeEl.innerHTML = badges;
+  }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// HUD
+// ════════════════════════════════════════════════════════════════════
+function updateHUD() {
+  if (!engine) return;
+  const s = engine.getStats();
+  document.getElementById('hudTotal').textContent = s.totalSources;
+  document.getElementById('hudAmb').textContent   = s.ambisonicSources;
+
+  const lodEl = document.getElementById('hudLod');
+  lodEl.textContent = s.lodSources;
+  lodEl.className   = 'hud-row-value' + (s.lodSources > 0 ? ' orange' : '');
+
+  const occEl = document.getElementById('hudOcc');
+  occEl.textContent = s.occludedSources;
+  occEl.className   = 'hud-row-value' + (s.occludedSources > 0 ? ' green' : '');
+
+  document.getElementById('hudCpu').textContent = s.estimatedCpuPct + '%';
+  document.getElementById('hudPos').textContent =
+    s.listenerPos.x + ', ' + s.listenerPos.y + ', ' + s.listenerPos.z;
+  document.getElementById('hudAz').textContent  = s.azimuth + '°';
+  document.getElementById('hudEl').textContent  = s.elevation + '°';
+  document.getElementById('hudCtx').textContent = s.audioCtxState;
+}
+
+// ════════════════════════════════════════════════════════════════════
+// RENDER LOOP
+// ════════════════════════════════════════════════════════════════════
+function startRenderLoop() {
+  function loop() {
+    requestAnimationFrame(loop);
+    const dt = clock.getDelta();
+    updateNavigation(dt);
+    if (isRunning && engine) {
+      camera.updateMatrixWorld();
+      engine.update(camera);
+      updateHUD();
+      updateSourcePanels();
+    }
+    composer ? composer.render() : renderer.render(scene, camera);
+  }
+  loop();
+}
+
+// ════════════════════════════════════════════════════════════════════
+// START / STOP
+// ════════════════════════════════════════════════════════════════════
+async function startDemo() {
+  if (isRunning) return;
+  document.getElementById('btnStart').disabled = true;
+  document.getElementById('btnStop').disabled  = false;
+
+  await initAudio();
+  const srcRefs = await createAllSources();
+  buildSourcePanels(srcRefs);
+
+  // Prime initial occlusion + LOD state before first frame renders
+  engine.update(camera);
+
+  isRunning = true;
+  scheduleNavHintFade();
+}
+
+function stopDemo() {
+  // A clean stop would require disconnecting all audio nodes.
+  // For a demo, reloading the page is the simplest full reset.
+  location.reload();
+}
+
+// ════════════════════════════════════════════════════════════════════
+// UI CALLBACKS (called from onclick attributes)
+// ════════════════════════════════════════════════════════════════════
+function toggleMute(key) {
+  const src = sourcePanelRefs[key]; if (!src) return;
+  muteState[key] = !muteState[key];
+  const targetGain = muteState[key] ? 0 : src.gain;
+  src.gainNode.gain.setTargetAtTime(targetGain, audioContext.currentTime, 0.05);
+  const btn = document.getElementById('mute-' + key);
+  if (btn) btn.classList.toggle('muted', muteState[key]);
+}
+
+function setSourceGain(key, val) {
+  const src = sourcePanelRefs[key]; if (!src || muteState[key]) return;
+  src.gain = parseFloat(val);
+  src.gainNode.gain.setTargetAtTime(src.gain, audioContext.currentTime, 0.05);
+}
+
+function onLodSlider(val) {
+  document.getElementById('hudLodVal').textContent = val + ' m';
+  if (engine) engine.setLODThreshold(parseFloat(val));
+}
+
+// ════════════════════════════════════════════════════════════════════
+// NAV HINT FADE
+// ════════════════════════════════════════════════════════════════════
+function scheduleNavHintFade() {
+  setTimeout(() => document.getElementById('navHint').classList.add('faded'), 6000);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// RESIZE
+// ════════════════════════════════════════════════════════════════════
+function onResize() {
+  if (!camera) return;
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  if (composer) composer.setSize(window.innerWidth, window.innerHeight);
+}
+
+// ════════════════════════════════════════════════════════════════════
+// START ON LOAD — DOMContentLoaded + library polling
+// ════════════════════════════════════════════════════════════════════
+/*
+  DOMContentLoaded fires after HTML is fully parsed.
+  THREE.js is an ES module (async by nature); Resonance Audio is loaded
+  with `defer`. Their exact completion order relative to DOMContentLoaded
+  is not guaranteed, so we poll every 60 ms (up to 9 s) until both are
+  available on window. This is simpler than chaining load events across
+  different script types.
+*/
+window.addEventListener('DOMContentLoaded', async () => {
+  // Show upload strip on file://
+  if (isFileProtocol) {
+    document.getElementById('fileProtocolWarn').classList.add('visible');
+    document.getElementById('uploadStrip').classList.add('visible');
+  }
+
+  setProgress(5, 'Loading libraries…');
+
+  const deadline = Date.now() + 9000;
+  while (
+    (typeof window.THREE === 'undefined' ||
+     typeof window._GLTFLoader === 'undefined' ||
+     typeof window._EffectComposer === 'undefined' ||
+     typeof ResonanceAudio === 'undefined') &&
+    Date.now() < deadline
+  ) {
+    await tick();
+  }
+  if (typeof window.THREE === 'undefined') {
+    document.getElementById('loStatus').textContent = '⚠ Three.js failed to load.'; return;
+  }
+  if (typeof ResonanceAudio === 'undefined') {
+    document.getElementById('loStatus').textContent = '⚠ Resonance Audio failed to load.'; return;
+  }
+
+  setProgress(20, 'Initialising renderer…'); await tick();
+  initThree();
+
+  setProgress(40, 'Building scene…'); await tick();
+  buildScene();
+  resetView();
+
+  setProgress(60, 'Post-processing…'); await tick();
+  initPostProcessing();
+
+  setProgress(80, isFileProtocol ? 'Ready — upload audio files to begin' : 'Pre-loading audio…');
+  await tick();
+  await preloadAudio();
+  await preloadModels();
+
+  setProgress(100, 'Ready');
+  await new Promise(r => setTimeout(r, 350));
+
+  document.getElementById('loadingOverlay').classList.add('hidden');
+  document.getElementById('startOverlay').classList.remove('hidden');
+  startRenderLoop();
+});
+
+// Start overlay click — dismiss and show the demo (audio starts on btnStart)
+document.addEventListener('click', e => {
+  const overlay = document.getElementById('startOverlay');
+  if (!overlay.classList.contains('hidden')) {
+    overlay.classList.add('hidden');
+  }
+});
+</script>
+</body>
+</html>
