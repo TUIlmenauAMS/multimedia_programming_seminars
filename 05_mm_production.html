@@ -339,8 +339,7 @@ html, body {
   color: var(--orange); line-height: 1.5;
 }
 #fileProtocolWarn.visible { display: block; }
-#uploadStrip { display: none; padding: 0 18px 10px; }
-#uploadStrip.visible { display: block; }
+#uploadStrip { padding: 0 18px 10px; }
 .upload-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
 .upload-label { font-family: var(--mono); font-size: 10px; color: var(--muted); min-width: 72px; }
 .upload-btn {
@@ -366,6 +365,38 @@ html, body {
 .sb-credits a, .credit-item a { color: var(--accent); text-decoration: none; }
 .sb-credits a:hover, .credit-item a:hover { text-decoration: underline; }
 .credit-label { font-family: var(--mono); font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 7px; }
+
+/* ── Collapsible sections ── */
+.sb-collapsible-header {
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; user-select: none;
+  padding: 8px 18px; border-bottom: 1px solid var(--panel-border);
+}
+.sb-collapsible-header:hover { background: rgba(255,255,255,0.03); }
+.sb-collapsible-label {
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.1em;
+}
+.sb-collapsible-arrow {
+  font-size: 9px; color: var(--muted); transition: transform 0.2s ease;
+  line-height: 1;
+}
+.sb-collapsible-arrow.collapsed { transform: rotate(-90deg); }
+.sb-collapsible-body { overflow: hidden; transition: max-height 0.25s ease, opacity 0.2s ease; }
+.sb-collapsible-body.collapsed { max-height: 0 !important; opacity: 0; pointer-events: none; }
+
+/* HUD collapse toggle */
+.hud-toggle {
+  position: absolute; top: 10px; right: 10px;
+  font-family: var(--mono); font-size: 9px; color: var(--muted);
+  cursor: pointer; padding: 2px 6px; border-radius: 3px;
+  border: 1px solid var(--border2); background: var(--surface2);
+  transition: all 0.15s; user-select: none;
+}
+.hud-toggle:hover { color: var(--text); border-color: var(--border2); }
+#hud { position: relative; }
+#hud-body { transition: max-height 0.25s ease, opacity 0.2s ease; overflow: hidden; }
+#hud-body.collapsed { max-height: 0 !important; opacity: 0; pointer-events: none; }
 
 /* ── HUD — top right ── */
 #hud {
@@ -493,6 +524,12 @@ html, body {
       Upload all <strong>6 audio files</strong> below to enable Start.<br>
       3D models are optional — placeholder geometry is shown without them.
     </div>
+    <div id="uploadStripWrap" style="display:none">
+      <div class="sb-collapsible-header" onclick="toggleSection('uploadStripBody','uploadStripArrow')">
+        <span class="sb-collapsible-label">Audio &amp; Model Files</span>
+        <span class="sb-collapsible-arrow" id="uploadStripArrow">▼</span>
+      </div>
+      <div class="sb-collapsible-body" id="uploadStripBody" style="max-height:2000px;opacity:1;">
     <div id="uploadStrip">
       <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;padding:8px 0 6px;">Audio Files</div>
       <div class="upload-row"><span class="upload-label">1233.mp3</span>
@@ -523,25 +560,36 @@ html, body {
         <label class="upload-btn" id="lbl-vaz_2107.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'vaz_2107.glb')"></label></div>
     </div>
 
-    <!-- Source panels — populated by JS after sources are created -->
-    <div class="sb-sources" id="sbSources">
-      <div class="sb-sec-label">Spatial Sources</div>
-      <div id="sourcePanels"><div style="font-family:var(--mono);font-size:10px;color:var(--muted)">Start demo to load sources…</div></div>
+    <!-- Source panels — collapsible, populated by JS after sources are created -->
+    <div class="sb-collapsible-header" onclick="toggleSection('sourcePanelsBody','sourcePanelsArrow')">
+      <span class="sb-collapsible-label">Spatial Sources</span>
+      <span class="sb-collapsible-arrow" id="sourcePanelsArrow">▼</span>
+    </div>
+    <div class="sb-collapsible-body" id="sourcePanelsBody" style="max-height:2000px; opacity:1;">
+      <div class="sb-sources" id="sbSources" style="border-bottom:none">
+        <div id="sourcePanels"><div style="font-family:var(--mono);font-size:10px;color:var(--muted);padding:10px 18px">Start demo to load sources…</div></div>
+      </div>
     </div>
 
-    <!-- Credits -->
-    <div class="sb-credits">
-      <div class="credit-label">Audio Credits</div>
-      <div class="credit-item"><strong>All audio</strong> — Joseph SARDIN, <a href="https://bigsoundbank.com" target="_blank" rel="noopener">BigSoundBank.com</a> (CC0 public domain).</div>
-      <div class="credit-label" style="margin-top:8px">3D Model Credits</div>
-      <div class="credit-item">
-        <strong>MZB Air Compressor</strong> by Rudy — <a href="https://skfb.ly/pKY8n" target="_blank" rel="noopener">Sketchfab ↗</a><br>
-        <strong>Old Fridge</strong> by golddog — <a href="https://skfb.ly/6XsrC" target="_blank" rel="noopener">Sketchfab ↗</a><br>
-        <strong>Old Rusty Transformer</strong> by Vitaliy Kovalchuk — <a href="https://skfb.ly/oNYxo" target="_blank" rel="noopener">Sketchfab ↗</a><br>
-        <strong>Old Air Conditioner</strong> by ~D-Try~ — <a href="https://skfb.ly/puKGT" target="_blank" rel="noopener">Sketchfab ↗</a><br>
-        <strong>AI Stalker Retro Radio</strong> by FLIGHTCLUB — <a href="https://skfb.ly/ptr7A" target="_blank" rel="noopener">Sketchfab ↗</a><br>
-        <strong>Old Car — VAZ 2107</strong> by Arkady Gribachev — <a href="https://skfb.ly/6YLnQ" target="_blank" rel="noopener">Sketchfab ↗</a><br>
-        All CC BY 4.0.
+    <!-- Credits — collapsible -->
+    <div class="sb-collapsible-header" onclick="toggleSection('creditsBody','creditsArrow')">
+      <span class="sb-collapsible-label">Credits</span>
+      <span class="sb-collapsible-arrow collapsed" id="creditsArrow">▼</span>
+    </div>
+    <div class="sb-collapsible-body collapsed" id="creditsBody" style="max-height:0">
+      <div class="sb-credits" style="border-top:none">
+        <div class="credit-label">Audio Credits</div>
+        <div class="credit-item"><strong>All audio</strong> — Joseph SARDIN, <a href="https://bigsoundbank.com" target="_blank" rel="noopener">BigSoundBank.com</a> (CC0 public domain).</div>
+        <div class="credit-label" style="margin-top:8px">3D Model Credits</div>
+        <div class="credit-item">
+          <strong>MZB Air Compressor</strong> by Rudy — <a href="https://skfb.ly/pKY8n" target="_blank" rel="noopener">Sketchfab ↗</a><br>
+          <strong>Old Fridge</strong> by golddog — <a href="https://skfb.ly/6XsrC" target="_blank" rel="noopener">Sketchfab ↗</a><br>
+          <strong>Old Rusty Transformer</strong> by Vitaliy Kovalchuk — <a href="https://skfb.ly/oNYxo" target="_blank" rel="noopener">Sketchfab ↗</a><br>
+          <strong>Old Air Conditioner</strong> by ~D-Try~ — <a href="https://skfb.ly/puKGT" target="_blank" rel="noopener">Sketchfab ↗</a><br>
+          <strong>AI Stalker Retro Radio</strong> by FLIGHTCLUB — <a href="https://skfb.ly/ptr7A" target="_blank" rel="noopener">Sketchfab ↗</a><br>
+          <strong>Old Car — VAZ 2107</strong> by Arkady Gribachev — <a href="https://skfb.ly/6YLnQ" target="_blank" rel="noopener">Sketchfab ↗</a><br>
+          All CC BY 4.0.
+        </div>
       </div>
     </div>
 
@@ -552,23 +600,28 @@ html, body {
      HUD — top right
      ══════════════════════════════════════════ -->
 <div id="hud">
-  <div class="hud-title">Spatial Audio Engine</div>
-  <div class="hud-row"><span class="hud-row-label">SOURCES</span>    <span class="hud-row-value accent" id="hudTotal">0</span></div>
-  <div class="hud-row"><span class="hud-row-label">AMBISONIC</span>  <span class="hud-row-value accent" id="hudAmb">0</span></div>
-  <div class="hud-row"><span class="hud-row-label">LOD STEREO</span> <span class="hud-row-value" id="hudLod">0</span></div>
-  <div class="hud-row"><span class="hud-row-label">OCCLUDED</span>   <span class="hud-row-value" id="hudOcc">0</span></div>
-  <div class="hud-row"><span class="hud-row-label">EST. CPU</span>   <span class="hud-row-value" id="hudCpu">—</span></div>
-  <hr class="hud-divider">
-  <div class="hud-row"><span class="hud-row-label">POSITION</span>   <span class="hud-row-value" id="hudPos" style="font-size:11px">—</span></div>
-  <div class="hud-row"><span class="hud-row-label">AZIMUTH</span>    <span class="hud-row-value" id="hudAz">—</span></div>
-  <div class="hud-row"><span class="hud-row-label">ELEVATION</span>  <span class="hud-row-value" id="hudEl">—</span></div>
-  <div class="hud-row"><span class="hud-row-label">AUDIO CTX</span>  <span class="hud-row-value" id="hudCtx">inactive</span></div>
-  <hr class="hud-divider">
-  <div class="hud-lod-wrap">
-    <div class="hud-lod-label">
-      <span>LOD THRESHOLD</span><span id="hudLodVal">8 m</span>
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+    <div class="hud-title" style="margin-bottom:0">Spatial Audio Engine</div>
+    <span class="hud-toggle" onclick="toggleHUD()" id="hudToggleBtn">▲ hide</span>
+  </div>
+  <div id="hud-body">
+    <div class="hud-row"><span class="hud-row-label">SOURCES</span>    <span class="hud-row-value accent" id="hudTotal">0</span></div>
+    <div class="hud-row"><span class="hud-row-label">AMBISONIC</span>  <span class="hud-row-value accent" id="hudAmb">0</span></div>
+    <div class="hud-row"><span class="hud-row-label">LOD STEREO</span> <span class="hud-row-value" id="hudLod">0</span></div>
+    <div class="hud-row"><span class="hud-row-label">OCCLUDED</span>   <span class="hud-row-value" id="hudOcc">0</span></div>
+    <div class="hud-row"><span class="hud-row-label">EST. CPU</span>   <span class="hud-row-value" id="hudCpu">—</span></div>
+    <hr class="hud-divider">
+    <div class="hud-row"><span class="hud-row-label">POSITION</span>   <span class="hud-row-value" id="hudPos" style="font-size:11px">—</span></div>
+    <div class="hud-row"><span class="hud-row-label">AZIMUTH</span>    <span class="hud-row-value" id="hudAz">—</span></div>
+    <div class="hud-row"><span class="hud-row-label">ELEVATION</span>  <span class="hud-row-value" id="hudEl">—</span></div>
+    <div class="hud-row"><span class="hud-row-label">AUDIO CTX</span>  <span class="hud-row-value" id="hudCtx">inactive</span></div>
+    <hr class="hud-divider">
+    <div class="hud-lod-wrap">
+      <div class="hud-lod-label">
+        <span>LOD THRESHOLD</span><span id="hudLodVal">8 m</span>
+      </div>
+      <input type="range" class="hud-lod-slider" id="lodSlider" min="4" max="20" step="1" value="8" oninput="onLodSlider(this.value)">
     </div>
-    <input type="range" class="hud-lod-slider" id="lodSlider" min="4" max="20" step="1" value="8" oninput="onLodSlider(this.value)">
   </div>
 </div>
 
@@ -623,7 +676,9 @@ const SOURCE_DEFS = [
   //
   // AC outdoor unit: back flush against the left wall (X = -18), facing into room.
   // rotationY = -PI/2 so the unit's back faces -X (the left wall).
-  { key:'heat_pump',   name:'Heat Pump',       file:'1233.mp3', model:'old_air_conditioner.glb', pos:[-17.5,0,-7],  color:'#4f9cf9', loop:true,  gain:0.9,  modelRotY: -Math.PI/2 },
+  // AC unit: back flush against the left wall (X=-18). modelRotY rotates the group
+  // so the back faces -X. wallFlushAxis triggers an auto-shift to push minX to -18.
+  { key:'heat_pump',   name:'Heat Pump',       file:'1233.mp3', model:'old_air_conditioner.glb', pos:[-16,0,-7],    color:'#4f9cf9', loop:true,  gain:0.9,  modelRotY: -Math.PI/2, wallFlushAxis:'x-' },
   // Compressor: front room, right side near right wall
   { key:'compressor',  name:'Air Compressor',  file:'1487.mp3', model:'mzb_air_compressor.glb',  pos:[15, 0,  8],   color:'#fb923c', loop:true,  loopStart:2, gain:0.85 },
   // Fridge: front room, left side near left wall
@@ -879,8 +934,27 @@ class SpatialAudioEngine {
     const group = new THREE.Group();
     group.position.set(...position);
 
+    // Apply per-source group rotation (e.g. AC unit with back against a wall).
+    // We rotate the GROUP (not the mesh) so the bounding box and audio position
+    // are both correct after the rotation.
+    if (opts.modelRotY != null) {
+      group.rotation.y = opts.modelRotY;
+    }
+
     if (opts.modelMesh) {
       group.add(opts.modelMesh);
+
+      // ── Wall-flush adjustment for the AC unit ──────────────────────
+      // After rotating the group, measure the model's world bounding box
+      // and shift the group along the wall-normal axis so the back face
+      // is exactly flush with the wall surface (X = -18).
+      if (opts.wallFlushAxis === 'x-') {
+        group.updateMatrixWorld(true);
+        const flushBox = new THREE.Box3().setFromObject(group);
+        // flushBox.min.x is the innermost face; we want flushBox.min.x === -18
+        const shift = -18 - flushBox.min.x;
+        group.position.x += shift;
+      }
     } else {
       // Fallback placeholder box
       const col = parseInt(opts.color.replace('#',''), 16);
@@ -1314,15 +1388,16 @@ function buildScene() {
   scene.add(jambR);
 
   // ── Desk in rear room for the radio (left side) ────────────────────
+  // Larger desk: 2.4 m wide × 1.0 m deep × 0.78 m tall
   const matDesk    = new THREE.MeshStandardMaterial({ color: 0x5c3d1e, roughness: 0.8, metalness: 0.0 });
   const matDeskLeg = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.5, metalness: 0.7 });
-  const deskTop = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.06, 0.7), matDesk);
-  deskTop.position.set(-8, 0.75, -8);
+  const deskTop = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.06, 1.0), matDesk);
+  deskTop.position.set(-8, 0.78, -8);
   deskTop.castShadow = true; deskTop.receiveShadow = true;
   scene.add(deskTop);
-  for (const [lx, lz] of [[-0.75,-0.3],[0.75,-0.3],[-0.75,0.3],[0.75,0.3]]) {
-    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.75, 0.05), matDeskLeg);
-    leg.position.set(-8 + lx, 0.375, -8 + lz);
+  for (const [lx, lz] of [[-1.1,-0.45],[1.1,-0.45],[-1.1,0.45],[1.1,0.45]]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.78, 0.06), matDeskLeg);
+    leg.position.set(-8 + lx, 0.39, -8 + lz);
     leg.castShadow = true;
     scene.add(leg);
   }
@@ -1522,10 +1597,6 @@ async function createAllSources() {
         modelMesh.scale.setScalar(scale);
         modelMesh.rotation.y = Math.PI / 2; // parallel to dividing wall, length along X axis
       }
-      // Apply per-source model rotation from SOURCE_DEFS (e.g. AC unit facing wall)
-      if (def.modelRotY != null && def.key !== 'car') {
-        modelMesh.rotation.y = def.modelRotY;
-      }
       // Air compressor: assign procedural material (CAD export, no textures)
       if (def.key === 'compressor') {
         modelMesh.traverse(child => {
@@ -1562,6 +1633,8 @@ async function createAllSources() {
       buffer, loop: def.loop, loopStart: def.loopStart,
       gain: def.gain, name: def.name, color: def.color,
       modelMesh, scheduler: schedulerFn,
+      modelRotY: def.modelRotY,
+      wallFlushAxis: def.wallFlushAxis,
     });
     srcRefs.push({ key: def.key, def, src });
   }
@@ -1766,6 +1839,46 @@ function onLodSlider(val) {
   if (engine) engine.setLODThreshold(parseFloat(val));
 }
 
+// ── Collapsible sidebar sections ──────────────────────────────────────
+function toggleSection(bodyId, arrowId) {
+  const body  = document.getElementById(bodyId);
+  const arrow = document.getElementById(arrowId);
+  if (!body) return;
+  const isCollapsed = body.classList.contains('collapsed');
+  if (isCollapsed) {
+    // Expand: measure scrollHeight so CSS transition works
+    body.style.maxHeight = body.scrollHeight + 'px';
+    body.classList.remove('collapsed');
+    if (arrow) arrow.classList.remove('collapsed');
+  } else {
+    // Collapse: first pin max-height to current value, then collapse
+    body.style.maxHeight = body.scrollHeight + 'px';
+    requestAnimationFrame(() => {
+      body.classList.add('collapsed');
+      if (arrow) arrow.classList.add('collapsed');
+    });
+  }
+}
+
+// ── HUD collapse ──────────────────────────────────────────────────────
+function toggleHUD() {
+  const body = document.getElementById('hud-body');
+  const btn  = document.getElementById('hudToggleBtn');
+  if (!body) return;
+  const isCollapsed = body.classList.contains('collapsed');
+  if (isCollapsed) {
+    body.style.maxHeight = body.scrollHeight + 'px';
+    body.classList.remove('collapsed');
+    if (btn) btn.textContent = '▲ hide';
+  } else {
+    body.style.maxHeight = body.scrollHeight + 'px';
+    requestAnimationFrame(() => {
+      body.classList.add('collapsed');
+      if (btn) btn.textContent = '▼ show';
+    });
+  }
+}
+
 // ════════════════════════════════════════════════════════════════════
 // NAV HINT FADE
 // ════════════════════════════════════════════════════════════════════
@@ -1799,7 +1912,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   // Show upload strip on file://
   if (isFileProtocol) {
     document.getElementById('fileProtocolWarn').classList.add('visible');
-    document.getElementById('uploadStrip').classList.add('visible');
+    // Show the collapsible header + body for the upload strip
+    document.getElementById('uploadStripWrap').style.display = '';
+    document.getElementById('uploadStrip').style.display     = '';
   }
 
   setProgress(5, 'Loading libraries…');
