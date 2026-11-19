@@ -61,7 +61,7 @@
   Libraries: three.js (MIT), Google Resonance Audio (Apache-2.0).
 
   Required files (serve from same directory, or upload via sidebar):
-    Audio (6 files):  1233.mp3, 1487.mp3, 1157.wav, 2118.wav, 2618.mp3, 0291.mp3
+    Audio (6 files):  1233.mp3, 1487.mp3, 1157.wav, 2118.wav, 2618.mp3, 0291.wav
     3D Models (6 files): old_air_conditioner.glb, mzb_air_compressor.glb,
                          old_fridge.glb, old_rusty_transformer_remade.glb,
                          ai_stalker_retro_radio.glb, old_car_-_vaz_2107.glb
@@ -323,7 +323,7 @@ html, body {
 .src-panel.solo-muted .src-rms-fill { opacity: 0.3; }
 .src-gain-label { font-family: var(--mono); font-size: 10px; color: var(--muted); flex-shrink: 0; }
 .src-gain-slider {
-  flex: 1; -webkit-appearance: none; height: 2px;
+  flex: 1; min-width: 0; -webkit-appearance: none; height: 2px;
   background: var(--border2); border-radius: 1px; outline: none; cursor: pointer;
 }
 .src-gain-slider::-webkit-slider-thumb {
@@ -342,7 +342,10 @@ html, body {
 #uploadStrip { display: none; padding: 0 18px 10px; }
 #uploadStrip.visible { display: block; }
 .upload-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
-.upload-label { font-family: var(--mono); font-size: 10px; color: var(--muted); min-width: 72px; }
+.upload-label {
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .upload-btn {
   font-family: var(--mono); font-size: 10px; color: var(--muted);
   background: var(--surface2); border: 1px solid var(--border2);
@@ -495,31 +498,31 @@ html, body {
     </div>
     <div id="uploadStrip">
       <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;padding:8px 0 6px;">Audio Files</div>
-      <div class="upload-row"><span class="upload-label">1233.mp3</span>
+      <div class="upload-row"><span class="upload-label" title="1233.mp3">1233.mp3</span>
         <label class="upload-btn" id="lbl-1233.mp3">📂 Heat pump<input type="file" accept="audio/*" onchange="handleUpload(event,'1233.mp3')"></label></div>
-      <div class="upload-row"><span class="upload-label">1487.mp3</span>
+      <div class="upload-row"><span class="upload-label" title="1487.mp3">1487.mp3</span>
         <label class="upload-btn" id="lbl-1487.mp3">📂 Compressor<input type="file" accept="audio/*" onchange="handleUpload(event,'1487.mp3')"></label></div>
-      <div class="upload-row"><span class="upload-label">1157.wav</span>
+      <div class="upload-row"><span class="upload-label" title="1157.wav">1157.wav</span>
         <label class="upload-btn" id="lbl-1157.wav">📂 Fridge<input type="file" accept="audio/*" onchange="handleUpload(event,'1157.wav')"></label></div>
-      <div class="upload-row"><span class="upload-label">2118.wav</span>
+      <div class="upload-row"><span class="upload-label" title="2118.wav">2118.wav</span>
         <label class="upload-btn" id="lbl-2118.wav">📂 Transformer<input type="file" accept="audio/*" onchange="handleUpload(event,'2118.wav')"></label></div>
-      <div class="upload-row"><span class="upload-label">2618.mp3</span>
+      <div class="upload-row"><span class="upload-label" title="2618.mp3">2618.mp3</span>
         <label class="upload-btn" id="lbl-2618.mp3">📂 Radio<input type="file" accept="audio/*" onchange="handleUpload(event,'2618.mp3')"></label></div>
-      <div class="upload-row"><span class="upload-label">0291.mp3</span>
-        <label class="upload-btn" id="lbl-0291.mp3">📂 Car engine<input type="file" accept="audio/*" onchange="handleUpload(event,'0291.mp3')"></label></div>
+      <div class="upload-row"><span class="upload-label" title="0291.wav">0291.wav</span>
+        <label class="upload-btn" id="lbl-0291.wav">📂 Car engine<input type="file" accept="audio/*" onchange="handleUpload(event,'0291.wav')"></label></div>
 
       <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:.08em;padding:10px 0 6px;">3D Models (optional)</div>
-      <div class="upload-row"><span class="upload-label" style="min-width:140px">old_air_conditioner.glb</span>
+      <div class="upload-row"><span class="upload-label" title="old_air_conditioner.glb">old_air_conditioner.glb</span>
         <label class="upload-btn" id="lbl-old_air_conditioner.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'old_air_conditioner.glb')"></label></div>
-      <div class="upload-row"><span class="upload-label" style="min-width:140px">mzb_air_compressor.glb</span>
+      <div class="upload-row"><span class="upload-label" title="mzb_air_compressor.glb">mzb_air_compressor.glb</span>
         <label class="upload-btn" id="lbl-mzb_air_compressor.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'mzb_air_compressor.glb')"></label></div>
-      <div class="upload-row"><span class="upload-label" style="min-width:140px">old_fridge.glb</span>
+      <div class="upload-row"><span class="upload-label" title="old_fridge.glb">old_fridge.glb</span>
         <label class="upload-btn" id="lbl-old_fridge.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'old_fridge.glb')"></label></div>
-      <div class="upload-row"><span class="upload-label" style="min-width:140px">old_rusty_transformer_remade.glb</span>
+      <div class="upload-row"><span class="upload-label" title="old_rusty_transformer_remade.glb">old_rusty_transformer_remade.glb</span>
         <label class="upload-btn" id="lbl-old_rusty_transformer_remade.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'old_rusty_transformer_remade.glb')"></label></div>
-      <div class="upload-row"><span class="upload-label" style="min-width:140px">ai_stalker_retro_radio.glb</span>
+      <div class="upload-row"><span class="upload-label" title="ai_stalker_retro_radio.glb">ai_stalker_retro_radio.glb</span>
         <label class="upload-btn" id="lbl-ai_stalker_retro_radio.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'ai_stalker_retro_radio.glb')"></label></div>
-      <div class="upload-row"><span class="upload-label" style="min-width:140px">old_car_-_vaz_2107.glb</span>
+      <div class="upload-row"><span class="upload-label" title="old_car_-_vaz_2107.glb">old_car_-_vaz_2107.glb</span>
         <label class="upload-btn" id="lbl-old_car_-_vaz_2107.glb">📂 Upload<input type="file" accept=".glb,.gltf" onchange="handleUpload(event,'old_car_-_vaz_2107.glb')"></label></div>
     </div>
 
@@ -637,7 +640,7 @@ const SOURCE_DEFS = [
   // Radio on desk in rear room, left side. Group Y=0.78 = desk top height.
   { key:'radio',       name:'Radio',           file:'2618.mp3', model:'ai_stalker_retro_radio.glb',          pos:[-8, 0.78,-8], color:'#a78bfa', scheduler:true, gain:0.9 },
   // Car: rear room right side, rotation PI/2 → length along X
-  { key:'car',         name:'Car Engine',      file:'0291.mp3', model:'old_car_-_vaz_2107.glb',             pos:[10, 0, -8],   color:'#f87171', scheduler:true, stereo:true, gain:0.75 },
+  { key:'car',         name:'Car Engine',      file:'0291.wav', model:'old_car_-_vaz_2107.glb',             pos:[10, 0, -8],   color:'#f87171', scheduler:true, stereo:true, gain:0.75 },
 ];
 
 // All audio filenames (used for readiness checks)
