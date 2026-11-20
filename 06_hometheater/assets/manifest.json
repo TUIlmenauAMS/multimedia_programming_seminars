@@ -1,0 +1,24 @@
+{
+  "film_title": "Tears of Steel",
+  "film_credit": {
+    "title": "Tears of Steel",
+    "author": "Blender Foundation",
+    "license": "CC-BY 3.0",
+    "url": "https://mango.blender.org"
+  },
+
+  "video_file": "media/clip_video.webm",
+  "audio_51_file": "clip_audio_51.flac",
+
+  "model_sofa":      "models/modern__sofa.glb",
+  "model_tv":        "models/led_tv.glb",
+  "model_speaker":   "models/aural_sculpture_grace_for_interiors.glb",
+  "model_center":    "models/loudspeaker.glb",
+  "model_subwoofer": "models/subwoofer_sealed_speaker.glb",
+
+  "room_dimensions": {
+    "width":  5.0,
+    "height": 2.7,
+    "depth":  4.0
+  }
+}

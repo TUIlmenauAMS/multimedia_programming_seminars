@@ -1,0 +1,19 @@
+{
+  "source_file": "clip_audio_51.flac",
+  "source_mtime": 1795085754.7245574,
+  "samplerate_hz": 48000,
+  "duration_s": 90.0,
+  "frames": 4320000,
+  "channels_in": 6,
+  "outputs": {
+    "fl": "left.wav",
+    "fr": "right.wav",
+    "fc": "center.wav",
+    "lfe": "lfe.wav",
+    "ls": "surround_left.wav",
+    "rs": "surround_right.wav",
+    "stereo_l": "downmix_stereo_left.wav",
+    "stereo_r": "downmix_stereo_right.wav",
+    "mono": "downmix_mono.wav"
+  }
+}

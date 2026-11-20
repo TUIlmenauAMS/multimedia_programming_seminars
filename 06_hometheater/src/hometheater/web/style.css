@@ -1,0 +1,1164 @@
+/*
+  ============================================================
+  Multimediaprogrammierung — Chapter 05 Companion
+  Home Theater Spatial Audio Simulator — Stylesheet
+  ============================================================
+  Author : Renato Fera P.
+  Contact: https://www.linkedin.com/in/renato-profeta/
+  Course : Multimediaprogrammierung, Chapter 05
+  Institut: Institut für Medientechnik, Technische Universität Ilmenau
+  ============================================================
+
+  DESIGN SYSTEM
+  -------------
+  This stylesheet is a direct port of the design tokens from the course's
+  web demos (05_mm_binaural_lab.html, 05_mm_room_acoustics.html). The goal
+  is for this native app's HUD to read as a sibling of those pages, not a
+  different product — a student moving between them should feel the same
+  visual language, adapted for a full-bleed 3D viewport rather than a
+  documentation layout.
+
+  Deviations from the web demos' CSS are intentional and noted inline:
+    • No .canvas-wrapper / 16:9 container — this is full-bleed POV.
+    • No document-flow sections or prose columns — only HUD chrome.
+    • HUD components use pointer-events:none at the root and re-enable it
+      per interactive child, so mouse events reach the Three.js canvas
+      everywhere the HUD has not explicitly claimed them.
+
+  FILE STRUCTURE
+  --------------
+  1.  Custom fonts (@font-face)
+  2.  Design tokens (CSS custom properties on :root)
+  3.  Reset & base
+  4.  Canvas & viewport
+  5.  HUD root
+  6.  Loading / start overlay
+  7.  Top-left info panel (off-axis readout + status)
+  8.  Top-right branding panel (logo, author, LinkedIn, course)
+  9.  Bottom-center transport bar (Play/Pause, Tier, Room)
+  10. Bottom-right Mixer button + floating panel
+  11. Speaker strip (inside mixer panel)
+  12. Shared component: button base
+  13. Shared component: pill selector (Tier / Room toggles)
+  14. Shared component: status badge
+  15. Error display
+  16. Utility classes
+  17. Reduced-motion override
+  ============================================================
+*/
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   1. CUSTOM FONTS
+   Port the same typeface stack used in the web demos.
+   Files live in web/vendor/fonts/ — see vendor/README.txt for download URLs.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('vendor/fonts/IBMPlexSans-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('vendor/fonts/IBMPlexSans-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  src: url('vendor/fonts/IBMPlexSans-SemiBold.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('vendor/fonts/IBMPlexMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'IBM Plex Mono';
+  src: url('vendor/fonts/IBMPlexMono-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('vendor/fonts/JetBrainsMono-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  src: url('vendor/fonts/JetBrainsMono-Medium.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   2. DESIGN TOKENS
+   Exact palette from the course demos — these values are the single source of
+   truth for every colour, spacing, and typographic decision in the HUD.
+   Change them here and they propagate everywhere.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+
+  /* ── Colour palette (matches 05_mm_binaural_lab.html exactly) ────────────── */
+
+  --bg           : #0d1117;   /* base background — deepest dark                */
+  --bg-panel     : #161b22;   /* elevated surface (panels, overlays)           */
+  --bg-panel-alt : #1c2128;   /* second elevation (nested panels)              */
+  --bg-input     : #21262d;   /* interactive control backgrounds               */
+
+  --border       : #30363d;   /* default border                                */
+  --border-muted : #21262d;   /* subtle / secondary border                     */
+
+  --text         : #c9d1d9;   /* primary text                                  */
+  --text-muted   : #8b949e;   /* secondary / label text                        */
+  --text-dim     : #484f58;   /* dimmed / disabled text                        */
+
+  /* Semantic accent colours — shared with the web demos */
+  --accent       : #58a6ff;   /* primary interactive accent (links, focus)     */
+  --accent2      : #79c0ff;   /* lighter accent, hover states                  */
+  --green        : #3fb950;   /* positive / active / play                      */
+  --green-dim    : #196127;   /* dimmed green (glow background)                */
+  --orange       : #d29922;   /* warning / off-axis indicator                  */
+  --red          : #f85149;   /* error / mute state                            */
+  --purple       : #bc8cff;   /* LFE label (non-directional distinction)       */
+
+  /* Speaker glow colours — per active tier, used by scene.js emissive AND
+     the mixer panel indicator dots */
+  --glow-active  : #58a6ff;   /* speaker active in current tier                */
+  --glow-lfe     : #bc8cff;   /* LFE specifically — matches --purple above     */
+  --glow-muted   : #30363d;   /* speaker muted via mixer panel                 */
+
+  /* ── Typography ─────────────────────────────────────────────────────────── */
+
+  --font-ui      : 'IBM Plex Sans',  system-ui, sans-serif;
+  --font-mono    : 'IBM Plex Mono',  'Courier New', monospace;
+  --font-data    : 'JetBrains Mono', 'Courier New', monospace; /* numeric readouts */
+
+  /* Type scale (rem, base 16 px) */
+  --text-xs      : 0.6875rem;  /* 11 px — credit lines, fine print            */
+  --text-sm      : 0.75rem;    /* 12 px — labels, badges                      */
+  --text-base    : 0.8125rem;  /* 13 px — HUD body text                       */
+  --text-md      : 0.875rem;   /* 14 px — control labels                      */
+  --text-lg      : 1rem;       /* 16 px — section headings                    */
+  --text-xl      : 1.125rem;   /* 18 px — overlay heading                     */
+  --text-2xl     : 1.5rem;     /* 24 px — start overlay title                 */
+
+  /* ── Spacing ─────────────────────────────────────────────────────────────── */
+
+  --space-1      : 0.25rem;
+  --space-2      : 0.5rem;
+  --space-3      : 0.75rem;
+  --space-4      : 1rem;
+  --space-5      : 1.25rem;
+  --space-6      : 1.5rem;
+  --space-8      : 2rem;
+
+  /* ── Radii ───────────────────────────────────────────────────────────────── */
+
+  --radius-sm    : 3px;
+  --radius-md    : 6px;
+  --radius-lg    : 10px;
+  --radius-pill  : 999px;
+
+  /* ── Transitions ─────────────────────────────────────────────────────────── */
+
+  --ease-out     : cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out  : cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-fast     : 120ms;
+  --dur-mid      : 220ms;
+  --dur-slow     : 380ms;
+
+  /* ── Z-index stack ───────────────────────────────────────────────────────── */
+  /* Explicit stack prevents z-fighting between HUD layers.                    */
+
+  --z-canvas     :    0;   /* Three.js canvas                                  */
+  --z-hud        :   10;   /* HUD root                                         */
+  --z-panel      :   20;   /* Mixer panel, info panels                         */
+  --z-overlay    :  100;   /* Loading / start overlay                          */
+  --z-error      : 9999;   /* Critical error (must always be on top)           */
+
+  /* ── HUD safe areas (env() for notched displays / OS chrome overlap) ─────── */
+
+  --safe-top     : env(safe-area-inset-top,    0px);
+  --safe-bottom  : env(safe-area-inset-bottom, 0px);
+  --safe-left    : env(safe-area-inset-left,   0px);
+  --safe-right   : env(safe-area-inset-right,  0px);
+
+  /* ── HUD layout constants ───────────────────────────────────────────────── */
+
+  --hud-pad      : var(--space-4);  /* outer padding from viewport edges       */
+  --panel-pad    : var(--space-3);  /* inner padding inside panels             */
+  --transport-h  : 48px;            /* height of the bottom transport bar      */
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   3. RESET & BASE
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+*, *::before, *::after {
+  box-sizing    : border-box;
+  margin        : 0;
+  padding       : 0;
+}
+
+html, body {
+  width         : 100%;
+  height        : 100%;
+  overflow      : hidden;    /* no scrollbars — full-bleed POV viewport        */
+  background    : var(--bg);
+  color         : var(--text);
+  font-family   : var(--font-ui);
+  font-size     : var(--text-base);
+  line-height   : 1.5;
+  -webkit-font-smoothing  : antialiased;
+  -moz-osx-font-smoothing : grayscale;
+}
+
+/* Remove default button styles so our --btn-* system is the only source of truth */
+button {
+  all           : unset;
+  cursor        : pointer;
+  user-select   : none;
+  -webkit-user-select: none;
+}
+
+button:disabled {
+  cursor        : not-allowed;
+}
+
+/* Remove focus outline globally; we re-add it deliberately with :focus-visible */
+:focus {
+  outline       : none;
+}
+
+:focus-visible {
+  outline       : 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   4. CANVAS & VIEWPORT
+   The Three.js canvas fills the full window and sits behind all HUD chrome.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+#ht-canvas {
+  position      : fixed;
+  inset         : 0;
+  width         : 100%;
+  height        : 100%;
+  display       : block;
+  z-index       : var(--z-canvas);
+  /* Prevent browser from capturing touch/pointer events on the canvas itself;
+     Three.js scene.js registers its own listeners directly on the element. */
+  touch-action  : none;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   5. HUD ROOT
+   The HUD root is a fixed overlay covering the full viewport.
+   pointer-events:none at the root means mouse events fall through to the canvas
+   by default.  Every interactive HUD child sets pointer-events:auto explicitly.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+#ht-hud {
+  position      : fixed;
+  inset         : 0;
+  z-index       : var(--z-hud);
+  pointer-events: none;
+  /* Padding respects OS safe areas so controls are never occluded */
+  padding       : calc(var(--hud-pad) + var(--safe-top))
+                  calc(var(--hud-pad) + var(--safe-right))
+                  calc(var(--hud-pad) + var(--safe-bottom))
+                  calc(var(--hud-pad) + var(--safe-left));
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   6. LOADING / START OVERLAY
+   Full-screen overlay shown on startup, dismissed only after engine_ready()
+   fires from the bridge and the user clicks Start.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.ht-overlay {
+  position        : fixed;
+  inset           : 0;
+  z-index         : var(--z-overlay);
+  display         : flex;
+  flex-direction  : column;
+  align-items     : center;
+  justify-content : center;
+  background      : var(--bg);
+  pointer-events  : auto;
+  /* Fade out when dismissed — hud.js adds .is-hidden to trigger this */
+  transition      : opacity var(--dur-slow) var(--ease-out),
+                    visibility var(--dur-slow);
+}
+
+.ht-overlay.is-hidden {
+  opacity         : 0;
+  visibility      : hidden;
+  pointer-events  : none;
+}
+
+.ht-overlay__inner {
+  display         : flex;
+  flex-direction  : column;
+  align-items     : center;
+  gap             : var(--space-6);
+  max-width       : 420px;
+  width           : 100%;
+  padding         : 0 var(--space-4);
+  text-align      : center;
+}
+
+.ht-overlay__logo {
+  width           : 72px;
+  height          : auto;
+  opacity         : 0.9;
+}
+
+.ht-overlay__title {
+  font-size       : var(--text-2xl);
+  font-weight     : 600;
+  letter-spacing  : -0.02em;
+  color           : var(--text);
+  line-height     : 1.2;
+}
+
+.ht-overlay__subtitle {
+  font-size       : var(--text-md);
+  color           : var(--text-muted);
+  line-height     : 1.6;
+}
+
+/* Headphone reminder — the key pedagogical note shown before audio starts */
+.ht-overlay__headphone-note {
+  display         : flex;
+  align-items     : center;
+  gap             : var(--space-3);
+  padding         : var(--space-3) var(--space-4);
+  background      : var(--bg-panel);
+  border          : 1px solid var(--border);
+  border-radius   : var(--radius-md);
+  font-size       : var(--text-sm);
+  color           : var(--text-muted);
+  text-align      : left;
+  line-height     : 1.5;
+}
+
+.ht-overlay__headphone-icon {
+  font-size       : 1.5rem;
+  flex-shrink     : 0;
+}
+
+/* Loading status line — updated by hud.js as assets report progress */
+.ht-overlay__status {
+  font-family     : var(--font-mono);
+  font-size       : var(--text-sm);
+  color           : var(--text-muted);
+  min-height      : 1.5em;    /* reserve height so layout doesn't jump         */
+  transition      : color var(--dur-fast);
+}
+
+.ht-overlay__status.is-error {
+  color           : var(--red);
+}
+
+/* Start button — enabled only after engine_ready() fires */
+.ht-overlay__start {
+  display         : flex;
+  align-items     : center;
+  justify-content : center;
+  gap             : var(--space-2);
+  padding         : var(--space-3) var(--space-8);
+  background      : var(--green);
+  color           : #0d1117;
+  font-family     : var(--font-ui);
+  font-size       : var(--text-md);
+  font-weight     : 600;
+  border-radius   : var(--radius-md);
+  pointer-events  : auto;
+  transition      : background var(--dur-fast), opacity var(--dur-fast),
+                    transform var(--dur-fast) var(--ease-out);
+}
+
+.ht-overlay__start:hover:not(:disabled) {
+  background      : #4dbf5b;
+  transform       : translateY(-1px);
+}
+
+.ht-overlay__start:active:not(:disabled) {
+  transform       : translateY(0);
+}
+
+.ht-overlay__start:disabled {
+  background      : var(--bg-input);
+  color           : var(--text-dim);
+  opacity         : 0.6;
+}
+
+/* Spinner shown while engine is loading */
+.ht-spinner {
+  width           : 16px;
+  height          : 16px;
+  border          : 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius   : 50%;
+  animation       : ht-spin 0.7s linear infinite;
+  flex-shrink     : 0;
+}
+
+@keyframes ht-spin {
+  to { transform: rotate(360deg); }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   7. TOP-LEFT INFO PANEL
+   Shows:
+     • Off-axis readout (direction + distance, e.g. "18 cm left · 5 cm forward")
+     • Current tier and room as a compact status line
+   The directional readout is the chapter's teaching moment about calibrated
+   listening positions — it must be legible at a glance while the student is
+   actively exploring the 3D space.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.ht-info-panel {
+  position        : absolute;
+  top             : 0;
+  left            : 0;
+  display         : flex;
+  flex-direction  : column;
+  gap             : var(--space-1);
+  pointer-events  : none;   /* read-only display, never interactive            */
+}
+
+.ht-info-panel__offaxis {
+  display         : flex;
+  align-items     : baseline;
+  gap             : var(--space-2);
+  font-family     : var(--font-data);
+  font-size       : var(--text-sm);
+  color           : var(--text-muted);
+  transition      : color var(--dur-mid);
+}
+
+/* Colour shifts to orange when the student has moved significantly off-axis.
+   hud.js applies .is-offaxis when distance > a threshold (e.g. 20 cm).
+   This reinforces the chapter's point about sweet-spot degradation visually. */
+.ht-info-panel__offaxis.is-offaxis {
+  color           : var(--orange);
+}
+
+/* The numeric value (distance) is in JetBrains Mono for precise visual rhythm */
+.ht-info-panel__offaxis-value {
+  font-weight     : 500;
+  letter-spacing  : -0.02em;
+}
+
+.ht-info-panel__offaxis-label {
+  font-size       : var(--text-xs);
+  color           : var(--text-dim);
+  font-family     : var(--font-mono);
+}
+
+/* Direction sub-line: "18 cm left · 5 cm forward" */
+.ht-info-panel__direction {
+  font-family     : var(--font-data);
+  font-size       : var(--text-xs);
+  color           : var(--text-dim);
+  letter-spacing  : 0.01em;
+}
+
+.ht-info-panel__direction.is-offaxis {
+  color           : var(--orange);
+  opacity         : 0.8;
+}
+
+/* Status line: tier + room summary */
+.ht-info-panel__status {
+  display         : flex;
+  align-items     : center;
+  gap             : var(--space-2);
+  margin-top      : var(--space-1);
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   8. TOP-RIGHT BRANDING PANEL
+   AMS Group / TU Ilmenau logo, author name, LinkedIn badge, course info.
+   Mirrors the branding block from 03_mm_hello_multimedia.py's Qt control panel,
+   adapted to the HUD's dark overlay style.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.ht-brand-panel {
+  position        : absolute;
+  top             : 0;
+  right           : 0;
+  display         : flex;
+  flex-direction  : column;
+  align-items     : flex-end;
+  gap             : var(--space-1);
+  pointer-events  : none;   /* children re-enable selectively                  */
+}
+
+.ht-brand-panel__logo {
+  height          : 32px;
+  width           : auto;
+  opacity         : 0.75;
+  /* Fallback if the logo file is missing — the layout won't break */
+  display         : block;
+}
+
+.ht-brand-panel__author {
+  font-size       : var(--text-sm);
+  font-weight     : 500;
+  color           : var(--text);
+  opacity         : 0.8;
+  text-align      : right;
+}
+
+/* LinkedIn badge — opens via bridge slot → QDesktopServices.openUrl()
+   NOT a bare <a href>, which QWebEngineView might handle unpredictably.
+   hud.js wires the click to bridge.open_external_url(url). */
+.ht-linkedin-badge {
+  display         : inline-flex;
+  align-items     : center;
+  gap             : var(--space-1);
+  padding         : 2px var(--space-2);
+  background      : #0a66c2;        /* LinkedIn brand blue                     */
+  border-radius   : var(--radius-pill);
+  font-size       : var(--text-xs);
+  font-weight     : 500;
+  color           : #ffffff;
+  pointer-events  : auto;           /* interactive — re-enables pointer events  */
+  cursor          : pointer;
+  text-decoration : none;
+  transition      : background var(--dur-fast), opacity var(--dur-fast);
+}
+
+.ht-linkedin-badge:hover {
+  background      : #004182;
+}
+
+.ht-linkedin-badge__icon {
+  font-size       : 0.75rem;
+  line-height     : 1;
+}
+
+.ht-brand-panel__course {
+  font-size       : var(--text-xs);
+  color           : var(--text-dim);
+  text-align      : right;
+  font-family     : var(--font-mono);
+  line-height     : 1.6;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   9. BOTTOM-CENTER TRANSPORT BAR
+   Contains: Play/Pause — Tier selector (Mono/Stereo/5.1) — Room toggle (Treated/Wet)
+   Tier and Room controls are visually disabled while playback is active.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.ht-transport {
+  position        : absolute;
+  bottom          : 0;
+  left            : 50%;
+  transform       : translateX(-50%);
+  display         : flex;
+  align-items     : center;
+  gap             : var(--space-3);
+  padding         : var(--space-2) var(--space-4);
+  background      : rgba(13, 17, 23, 0.82);
+  border          : 1px solid var(--border);
+  border-radius   : var(--radius-lg);
+  pointer-events  : auto;
+  /* Frosted-glass effect where the platform supports it */
+  backdrop-filter : blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+}
+
+/* Vertical divider between logical groups inside the transport bar */
+.ht-transport__divider {
+  width           : 1px;
+  height          : 20px;
+  background      : var(--border);
+  flex-shrink     : 0;
+}
+
+/* Play / Pause button */
+.ht-play-btn {
+  display         : flex;
+  align-items     : center;
+  justify-content : center;
+  width           : 36px;
+  height          : 36px;
+  background      : var(--green);
+  color           : #0d1117;
+  border-radius   : var(--radius-md);
+  flex-shrink     : 0;
+  transition      : background var(--dur-fast), transform var(--dur-fast) var(--ease-out);
+}
+
+.ht-play-btn:hover {
+  background      : #4dbf5b;
+  transform       : scale(1.05);
+}
+
+.ht-play-btn:active {
+  transform       : scale(0.97);
+}
+
+.ht-play-btn.is-playing {
+  background      : var(--bg-input);
+  color           : var(--text);
+}
+
+.ht-play-btn.is-playing:hover {
+  background      : var(--border);
+  color           : var(--text);
+}
+
+/* Play/Pause icon — SVG inline in hud.js; this sizes the container */
+.ht-play-btn__icon {
+  width           : 16px;
+  height          : 16px;
+  pointer-events  : none;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   10. BOTTOM-RIGHT MIXER BUTTON + FLOATING PANEL
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.ht-mixer-wrap {
+  position        : absolute;
+  bottom          : 0;
+  right           : 0;
+  display         : flex;
+  flex-direction  : column;
+  align-items     : flex-end;
+  gap             : var(--space-2);
+  pointer-events  : none;   /* children opt in                                 */
+}
+
+/* The Mixer button */
+.ht-mixer-btn {
+  display         : flex;
+  align-items     : center;
+  gap             : var(--space-2);
+  padding         : var(--space-2) var(--space-3);
+  background      : rgba(13, 17, 23, 0.82);
+  border          : 1px solid var(--border);
+  border-radius   : var(--radius-md);
+  font-size       : var(--text-sm);
+  font-weight     : 500;
+  color           : var(--text-muted);
+  pointer-events  : auto;
+  backdrop-filter : blur(12px) saturate(1.4);
+  -webkit-backdrop-filter: blur(12px) saturate(1.4);
+  transition      : background var(--dur-fast), color var(--dur-fast),
+                    border-color var(--dur-fast);
+}
+
+.ht-mixer-btn:hover {
+  background      : var(--bg-panel);
+  color           : var(--text);
+  border-color    : var(--accent);
+}
+
+.ht-mixer-btn.is-open {
+  color           : var(--accent);
+  border-color    : var(--accent);
+  background      : var(--bg-panel);
+}
+
+.ht-mixer-btn__icon {
+  width           : 14px;
+  height          : 14px;
+  pointer-events  : none;
+}
+
+/* Floating mixer panel — appears above the Mixer button */
+.ht-mixer-panel {
+  background      : var(--bg-panel);
+  border          : 1px solid var(--border);
+  border-radius   : var(--radius-lg);
+  min-width       : 220px;
+  pointer-events  : auto;
+  overflow        : hidden;
+  /* Entry animation */
+  transform-origin: bottom right;
+  transition      : opacity var(--dur-mid) var(--ease-out),
+                    transform var(--dur-mid) var(--ease-out),
+                    visibility var(--dur-mid);
+}
+
+.ht-mixer-panel.is-hidden {
+  opacity         : 0;
+  transform       : scale(0.94) translateY(4px);
+  visibility      : hidden;
+  pointer-events  : none;
+}
+
+.ht-mixer-panel__header {
+  display         : flex;
+  align-items     : center;
+  justify-content : space-between;
+  padding         : var(--space-3) var(--space-4);
+  border-bottom   : 1px solid var(--border-muted);
+}
+
+.ht-mixer-panel__title {
+  font-size       : var(--text-xs);
+  font-weight     : 600;
+  font-family     : var(--font-mono);
+  color           : var(--text-muted);
+  letter-spacing  : 0.08em;
+  text-transform  : uppercase;
+}
+
+.ht-mixer-panel__tier-label {
+  font-size       : var(--text-xs);
+  color           : var(--text-dim);
+  font-family     : var(--font-mono);
+}
+
+.ht-mixer-panel__strips {
+  display         : flex;
+  flex-direction  : column;
+  /* No gap — strips have their own borders for a console-channel-strip feel */
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   11. SPEAKER STRIP
+   One strip per active speaker in the current tier.
+   Contains: indicator dot, label, Mute toggle, Solo button.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.ht-speaker-strip {
+  display         : flex;
+  align-items     : center;
+  gap             : var(--space-3);
+  padding         : var(--space-2) var(--space-4);
+  border-bottom   : 1px solid var(--border-muted);
+  transition      : background var(--dur-fast);
+}
+
+.ht-speaker-strip:last-child {
+  border-bottom   : none;
+}
+
+.ht-speaker-strip:hover {
+  background      : var(--bg-panel-alt);
+}
+
+/* Inactive / muted state dims the whole strip */
+.ht-speaker-strip.is-muted {
+  opacity         : 0.5;
+}
+
+/* Active-tier indicator dot */
+.ht-speaker-strip__dot {
+  width           : 7px;
+  height          : 7px;
+  border-radius   : 50%;
+  background      : var(--glow-active);
+  flex-shrink     : 0;
+  transition      : background var(--dur-fast), box-shadow var(--dur-fast);
+}
+
+/* LFE dot uses the purple accent to visually distinguish its non-directional role */
+.ht-speaker-strip[data-channel="lfe"] .ht-speaker-strip__dot {
+  background      : var(--glow-lfe);
+}
+
+.ht-speaker-strip.is-muted .ht-speaker-strip__dot {
+  background      : var(--glow-muted);
+  box-shadow      : none;
+}
+
+/* Channel label (FL, FR, C, LFE, Ls, Rs) */
+.ht-speaker-strip__label {
+  font-family     : var(--font-data);
+  font-size       : var(--text-sm);
+  font-weight     : 500;
+  color           : var(--text);
+  flex            : 1;
+  min-width       : 0;
+  letter-spacing  : 0.04em;
+}
+
+.ht-speaker-strip[data-channel="lfe"] .ht-speaker-strip__label {
+  color           : var(--purple);
+}
+
+/* Mute and Solo buttons share a small pill shape */
+.ht-speaker-strip__btn {
+  display         : flex;
+  align-items     : center;
+  justify-content : center;
+  padding         : 2px var(--space-2);
+  border-radius   : var(--radius-sm);
+  font-size       : var(--text-xs);
+  font-weight     : 600;
+  font-family     : var(--font-mono);
+  letter-spacing  : 0.04em;
+  min-width       : 32px;
+  transition      : background var(--dur-fast), color var(--dur-fast);
+}
+
+/* Mute button */
+.ht-speaker-strip__btn--mute {
+  background      : var(--bg-input);
+  color           : var(--text-muted);
+}
+
+.ht-speaker-strip__btn--mute:hover {
+  background      : var(--border);
+  color           : var(--text);
+}
+
+.ht-speaker-strip__btn--mute.is-muted {
+  background      : var(--red);
+  color           : #ffffff;
+}
+
+/* Solo button */
+.ht-speaker-strip__btn--solo {
+  background      : var(--bg-input);
+  color           : var(--text-muted);
+}
+
+.ht-speaker-strip__btn--solo:hover {
+  background      : var(--border);
+  color           : var(--text);
+}
+
+.ht-speaker-strip__btn--solo.is-soloed {
+  background      : var(--orange);
+  color           : #0d1117;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   12. SHARED: BUTTON BASE
+   Applied to all HUD interactive buttons that are not the play button or
+   the mixer/speaker controls — e.g. any secondary action buttons.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.ht-btn {
+  display         : inline-flex;
+  align-items     : center;
+  justify-content : center;
+  gap             : var(--space-1);
+  padding         : var(--space-2) var(--space-3);
+  background      : var(--bg-input);
+  color           : var(--text-muted);
+  border          : 1px solid var(--border-muted);
+  border-radius   : var(--radius-md);
+  font-size       : var(--text-sm);
+  font-weight     : 500;
+  line-height     : 1;
+  pointer-events  : auto;
+  transition      : background var(--dur-fast), color var(--dur-fast),
+                    border-color var(--dur-fast);
+}
+
+.ht-btn:hover:not(:disabled) {
+  background      : var(--border);
+  color           : var(--text);
+  border-color    : var(--border);
+}
+
+.ht-btn:disabled {
+  opacity         : 0.4;
+  pointer-events  : none;
+}
+
+.ht-btn.is-active {
+  background      : var(--accent);
+  color           : #0d1117;
+  border-color    : var(--accent);
+  font-weight     : 600;
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   13. SHARED: PILL SELECTOR
+   Used for the Tier (Mono / Stereo / 5.1) and Room (Treated / Wet) toggles.
+   The active segment is highlighted; the group reads as a single control.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.ht-pill-group {
+  display         : flex;
+  align-items     : center;
+  background      : var(--bg-input);
+  border          : 1px solid var(--border-muted);
+  border-radius   : var(--radius-md);
+  overflow        : hidden;    /* clips the active segment highlight           */
+  pointer-events  : auto;
+}
+
+/* Disabled state: entire group greyed out when playback is active */
+.ht-pill-group.is-disabled {
+  opacity         : 0.4;
+  pointer-events  : none;
+}
+
+.ht-pill-group__label {
+  padding         : var(--space-1) var(--space-2);
+  font-size       : var(--text-xs);
+  font-family     : var(--font-mono);
+  color           : var(--text-dim);
+  border-right    : 1px solid var(--border-muted);
+  white-space     : nowrap;
+  user-select     : none;
+}
+
+.ht-pill-btn {
+  padding         : var(--space-2) var(--space-3);
+  font-size       : var(--text-sm);
+  font-weight     : 500;
+  color           : var(--text-muted);
+  border-right    : 1px solid var(--border-muted);
+  transition      : background var(--dur-fast), color var(--dur-fast);
+  white-space     : nowrap;
+  /* pointer-events comes from the parent group, not set individually */
+}
+
+.ht-pill-btn:last-child {
+  border-right    : none;
+}
+
+.ht-pill-btn:hover {
+  background      : var(--border-muted);
+  color           : var(--text);
+}
+
+.ht-pill-btn.is-active {
+  background      : var(--accent);
+  color           : #0d1117;
+  font-weight     : 600;
+}
+
+/* 5.1 label uses the accent2 shade to hint at its richer spatial content */
+.ht-pill-btn[data-tier="5.1"].is-active {
+  background      : var(--accent2);
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   14. SHARED: STATUS BADGE
+   Small pill used in the info panel for tier/room state summary.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.ht-badge {
+  display         : inline-flex;
+  align-items     : center;
+  padding         : 1px var(--space-2);
+  border-radius   : var(--radius-pill);
+  font-size       : var(--text-xs);
+  font-family     : var(--font-mono);
+  font-weight     : 500;
+  line-height     : 1.6;
+  letter-spacing  : 0.04em;
+  white-space     : nowrap;
+}
+
+.ht-badge--tier {
+  background      : rgba(88, 166, 255, 0.12);
+  color           : var(--accent);
+  border          : 1px solid rgba(88, 166, 255, 0.25);
+}
+
+.ht-badge--room {
+  background      : rgba(63, 185, 80, 0.10);
+  color           : var(--green);
+  border          : 1px solid rgba(63, 185, 80, 0.20);
+}
+
+.ht-badge--room.is-wet {
+  background      : rgba(210, 153, 34, 0.10);
+  color           : var(--orange);
+  border          : 1px solid rgba(210, 153, 34, 0.20);
+}
+
+/* "Binaural" label — always visible, reminds the student this is a virtualizer */
+.ht-badge--binaural {
+  background      : rgba(188, 140, 255, 0.10);
+  color           : var(--purple);
+  border          : 1px solid rgba(188, 140, 255, 0.20);
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   15. ERROR DISPLAY
+   Used for asset errors surfaced via bridge.asset_error() signal.
+   Rendered inside the loading overlay or as a banner inside the HUD.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.ht-error-banner {
+  position        : fixed;
+  top             : calc(var(--hud-pad) + var(--safe-top));
+  left            : 50%;
+  transform       : translateX(-50%);
+  z-index         : var(--z-error);
+  max-width       : 540px;
+  width           : calc(100% - var(--hud-pad) * 2);
+  display         : flex;
+  align-items     : flex-start;
+  gap             : var(--space-3);
+  padding         : var(--space-3) var(--space-4);
+  background      : #2d1b1b;
+  border          : 1px solid var(--red);
+  border-radius   : var(--radius-md);
+  pointer-events  : auto;
+  /* Entry animation */
+  animation       : ht-banner-in var(--dur-mid) var(--ease-out) both;
+}
+
+@keyframes ht-banner-in {
+  from { opacity: 0; transform: translateX(-50%) translateY(-8px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.ht-error-banner__icon {
+  font-size       : 1rem;
+  flex-shrink     : 0;
+  margin-top      : 1px;
+  color           : var(--red);
+}
+
+.ht-error-banner__body {
+  flex            : 1;
+  min-width       : 0;
+}
+
+.ht-error-banner__title {
+  font-size       : var(--text-sm);
+  font-weight     : 600;
+  color           : var(--red);
+  margin-bottom   : var(--space-1);
+}
+
+.ht-error-banner__message {
+  font-size       : var(--text-xs);
+  font-family     : var(--font-mono);
+  color           : var(--text-muted);
+  line-height     : 1.6;
+  white-space     : pre-wrap;
+  word-break      : break-word;
+}
+
+.ht-error-banner__close {
+  font-size       : var(--text-md);
+  color           : var(--text-dim);
+  flex-shrink     : 0;
+  transition      : color var(--dur-fast);
+}
+
+.ht-error-banner__close:hover {
+  color           : var(--text);
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   16. HUD FOOTER
+   Bottom edge of the viewport — film credit (CC-BY 3.0, manifest-driven).
+   Sits at z-level below the transport bar; the transport bar overlaps it in
+   the center, which is intentional (the credit lives at the left margin).
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.ht-footer {
+  position        : absolute;
+  bottom          : 0;
+  left            : 0;
+  pointer-events  : none;
+}
+
+.ht-footer__credit {
+  font-family     : var(--font-mono);
+  font-size       : var(--text-xs);
+  color           : var(--text-dim);
+  line-height     : 1.6;
+}
+
+/* Film title is slightly brighter within the credit line */
+.ht-footer__film-title {
+  color           : var(--text-muted);
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   17. UTILITY CLASSES
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.ht-sr-only {
+  position        : absolute;
+  width           : 1px;
+  height          : 1px;
+  padding         : 0;
+  margin          : -1px;
+  overflow        : hidden;
+  clip            : rect(0, 0, 0, 0);
+  white-space     : nowrap;
+  border          : 0;
+}
+
+/* Used by hud.js to briefly pulse a readout when it updates */
+.ht-flash {
+  animation       : ht-flash-anim var(--dur-fast) var(--ease-out);
+}
+
+@keyframes ht-flash-anim {
+  0%   { color: var(--accent2); }
+  100% { color: inherit; }
+}
+
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   18. REDUCED-MOTION OVERRIDE
+   Respects the OS-level "reduce motion" preference.
+   All transitions and animations that exist purely for polish are disabled;
+   state-communicating transitions (overlay fade, error entry) collapse to
+   instant cuts rather than being removed entirely, so state changes remain
+   perceptible without depending on motion.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration  : 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration : 1ms !important;
+    scroll-behavior     : auto !important;
+  }
+}

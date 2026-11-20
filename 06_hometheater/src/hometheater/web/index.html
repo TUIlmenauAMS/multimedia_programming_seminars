@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<!--
+  ============================================================
+  Multimediaprogrammierung — Chapter 05 Companion
+  Native Home Theater Spatial Audio Simulator
+  ============================================================
+  Author : Renato Fera P.
+  Contact: https://www.linkedin.com/in/renato-profeta/
+  Course : Multimediaprogrammierung, Chapter 05
+  Institut: Institut für Medientechnik, Technische Universität Ilmenau
+  ============================================================
+
+  ABOUT THIS FILE
+  ---------------
+  This is the top-level HTML shell for the Three.js front-end hosted inside
+  a Qt QWebEngineView. It is intentionally minimal: no business logic lives
+  here. Its jobs are:
+
+    1. Load vendor libraries from local disk  (§7.1 of the build plan)
+    2. Load the QWebChannel client script     (injected by Qt at runtime)
+    3. Declare the full-bleed canvas and HUD  (positioned by style.css)
+    4. Bootstrap the QWebChannel connection   (qwebchannel_init block below)
+    5. Hand off to scene.js and hud.js        (all logic lives there)
+
+  WHY NO CDN
+  ----------
+  The web demos for this course (05_mm_binaural_lab.html, etc.) load Three.js
+  from a CDN because they are served over GitHub Pages with guaranteed internet
+  access. This native desktop app has no such guarantee — it must work offline,
+  in a lab, on a machine that has never connected to the internet. All vendor
+  libraries are therefore bundled locally under web/vendor/.
+
+  See vendor/README.txt (generated alongside this file) for the exact URLs to
+  download each file from and where to place them.
+
+  COORDINATE SYSTEM (shared with audio_engine.py and scene.js)
+  -------------------------------------------------------------
+  All 3-D positions in this app use:
+    • Metres as the unit of length
+    • Y-up  (Three.js default; matches QAudioEngine.DistanceScaleMeter)
+    • Right-handed (Three.js default)
+  This file does not author any positions, but the note is repeated here so
+  every file in the project serves as a reminder.
+
+  QWebChannel BOOTSTRAP
+  ----------------------
+  Qt injects qwebchannel.js into the page via QWebEngineScript before any
+  user scripts run.  We wait for the DOMContentLoaded event, then call
+      new QWebChannel(qt.webChannelTransport, callback)
+  to open the named channel.  The resulting `channel.objects.bridge` reference
+  is stored on `window.htBridge` and consumed by hud.js and scene.js.
+  Neither of those modules may import bridge directly — they always read
+  window.htBridge, which is guaranteed to exist before they execute because
+  this bootstrap resolves before the DOMContentLoaded handlers they register.
+
+  EVENT ORDER
+  -----------
+  DOMContentLoaded
+    └─ qwebchannel_init()          ← this file
+         └─ QWebChannel callback
+              ├─ window.htBridge = channel.objects.bridge
+              ├─ window.htManifest = (fetched manifest.json)
+              └─ htAppReady()      ← scene.js exposes this, hud.js wires into it
+  ============================================================
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <!--
+    viewport-fit=cover: on systems where the OS draws UI chrome over the window
+    (some macOS / Linux DE configurations), this ensures the Three.js canvas
+    fills the full physical window including those inset areas.
+  -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Home Theater Spatial Audio Simulator</title>
+
+  <!-- ─── FONTS ──────────────────────────────────────────────────────────────
+    Loaded from local vendor/ copies to match the web demos' design system
+    without requiring network access.
+
+    IBM Plex Sans  — body / UI text   (matches 05_mm_binaural_lab.html)
+    IBM Plex Mono  — monospace labels  (matches 05_mm_binaural_lab.html)
+    JetBrains Mono — numeric readouts (matches the course's data-display style)
+
+    If the font files are not present, the CSS stack falls back gracefully to
+    system monospace / sans-serif — the layout will not break, only the visual
+    fidelity with the other course demos will be reduced.
+  ──────────────────────────────────────────────────────────────────────────-->
+  <link rel="preload" as="font"
+        href="vendor/fonts/IBMPlexSans-Regular.woff2"      crossorigin="anonymous" />
+  <link rel="preload" as="font"
+        href="vendor/fonts/IBMPlexSans-Medium.woff2"       crossorigin="anonymous" />
+  <link rel="preload" as="font"
+        href="vendor/fonts/IBMPlexMono-Regular.woff2"      crossorigin="anonymous" />
+  <link rel="preload" as="font"
+        href="vendor/fonts/JetBrainsMono-Regular.woff2"    crossorigin="anonymous" />
+  <link rel="preload" as="font"
+        href="vendor/fonts/JetBrainsMono-Medium.woff2"     crossorigin="anonymous" />
+
+  <!-- ─── STYLESHEET ─────────────────────────────────────────────────────────
+    All design tokens, layout rules, and component styles.
+    Must be loaded before any JS that reads computed styles.
+  ──────────────────────────────────────────────────────────────────────────-->
+  <link rel="stylesheet" href="style.css" />
+
+  <!-- ─── VENDOR: THREE.JS r165 ──────────────────────────────────────────────
+    Three.js is loaded as an ES module. The importmap below tells the browser
+    how to resolve bare specifiers ('three', 'three/addons/...') used inside
+    scene.js without a bundler.
+
+    All paths are relative to this file and resolve inside QWebEngineView's
+    local resource tree — no network request is ever made at runtime.
+
+    IMPORTANT: Three.js r165 uses ES modules natively. The <script type="module">
+    tags below depend on this importmap being declared before they run, which is
+    why the importmap is here in <head> before the deferred module scripts.
+  ──────────────────────────────────────────────────────────────────────────-->
+  <script type="importmap">
+  {
+    "imports": {
+      "three":                           "./vendor/three.module.js",
+      "three/addons/":                   "./vendor/"
+    }
+  }
+  </script>
+
+</head>
+<body>
+
+  <!-- ─── THREE.JS RENDER TARGET ─────────────────────────────────────────────
+    The canvas fills the full viewport via CSS (position:fixed, 100vw × 100vh).
+    scene.js retrieves it by id and passes it to the WebGLRenderer constructor.
+    It must exist in the DOM before scene.js executes.
+  ──────────────────────────────────────────────────────────────────────────-->
+  <canvas id="ht-canvas" aria-label="3D home theater scene"></canvas>
+
+  <!-- ─── HUD ROOT ───────────────────────────────────────────────────────────
+    All HUD panels, overlays, and controls are created programmatically by
+    hud.js and injected into this element.  Keeping them here (rather than
+    hardcoding markup) means hud.js owns its own DOM surface and can update
+    it atomically when tier/room state changes.
+
+    pointer-events are managed per-child inside hud.js — the root element
+    itself uses pointer-events:none so the Three.js canvas receives mouse
+    events everywhere hud.js has not explicitly claimed them.
+  ──────────────────────────────────────────────────────────────────────────-->
+  <div id="ht-hud" role="region" aria-label="Controls"></div>
+
+  <!-- ─── HIDDEN VIDEO ELEMENT ───────────────────────────────────────────────
+    The <video> element that drives the TV screen's VideoTexture in scene.js.
+
+    ALWAYS MUTED  (muted attribute + muted property enforced in scene.js)
+    ─────────────
+    All audio for this application is handled by the native QSpatialSound
+    sources running in the Python audio engine. The video element exists only
+    to provide a texture source (decoded frames) for Three.js's VideoTexture.
+    If its own audio track were audible, the student would hear:
+      • The raw, unspatialized stereo mix from the video decoder, AND
+      • The spatially-rendered mix from QSpatialSound
+    simultaneously, with no way to control relative levels or avoid comb
+    filtering. The muted attribute is therefore a correctness requirement, not
+    a UI preference, and must never be removed.
+
+    playsinline: required on some platforms (Chromium-based QWebEngineView
+    included) to allow programmatic play() without requesting fullscreen.
+
+    preload="auto": tells the browser to begin buffering the video as soon as
+    the page loads so the first frame is available when Start is clicked.
+  ──────────────────────────────────────────────────────────────────────────-->
+  <video id="ht-video"
+         muted
+         playsinline
+         preload="auto"
+         style="display:none"
+         aria-hidden="true">
+  </video>
+
+  <!-- ─── QWEBCHANNEL CLIENT LIBRARY ─────────────────────────────────────────
+    Qt injects qwebchannel.js into every page loaded by QWebEngineView via a
+    QWebEngineScript with injection point DocumentCreation. This means the
+    script is available synchronously before DOMContentLoaded — we do not
+    need to load it ourselves; we simply call new QWebChannel(...) below.
+
+    The comment is here as documentation, not as a <script src=...> tag, to
+    make it explicit that this file is NOT responsible for providing that
+    library. If you see "QWebChannel is not defined" in the browser console,
+    the QWebEngineScript registration in main.py is the place to look.
+  ──────────────────────────────────────────────────────────────────────────-->
+
+  <!-- ─── QWEBCHANNEL BOOTSTRAP ──────────────────────────────────────────────
+    Opens the named QWebChannel, stores the bridge object on window.htBridge,
+    fetches the asset manifest, then calls window.htAppReady() which is
+    defined by scene.js and kicks off Three.js initialisation.
+
+    Why inline here rather than in a separate .js file?
+    Because this logic is tightly coupled to the HTML's DOMContentLoaded
+    lifecycle and to the global namespace contract (window.htBridge,
+    window.htManifest) that scene.js and hud.js depend on.  Keeping it inline
+    makes the dependency order unambiguous without a module bundler.
+  ──────────────────────────────────────────────────────────────────────────-->
+  <script>
+    "use strict";
+
+    // ── STEP 1: Wait for the DOM to be ready before touching any elements
+    //    or attempting to open the QWebChannel transport.
+    document.addEventListener("DOMContentLoaded", function () {
+
+      // ── STEP 2: Verify qt.webChannelTransport exists.
+      //    This object is injected by Qt's QWebEngineView before DOMContentLoaded
+      //    fires, so its absence means the page is being opened outside a
+      //    QWebEngineView (e.g. a plain browser for debugging).  We handle this
+      //    gracefully with a mock bridge so the frontend can be developed and
+      //    inspected without a running Python process.
+      if (typeof qt === "undefined" || !qt.webChannelTransport) {
+        console.warn(
+          "[hometheater] qt.webChannelTransport not found. " +
+          "Running in standalone browser mode — bridge calls will be no-ops. " +
+          "Launch via main.py for full functionality."
+        );
+        // Install a minimal mock bridge so scene.js and hud.js do not crash.
+        window.htBridge = _makeMockBridge();
+        window.htManifest = _makeDefaultManifest();
+        // Defer so scene.js / hud.js module scripts have time to register
+        // window.htAppReady before we call it.
+        setTimeout(function () {
+          if (typeof window.htAppReady === "function") {
+            window.htAppReady();
+          }
+        }, 0);
+        return;
+      }
+
+      // ── STEP 3: Open the QWebChannel.
+      //    The callback fires once the transport handshake completes — this is
+      //    asynchronous (a few milliseconds), hence the DOMContentLoaded guard
+      //    above ensures the DOM is fully parsed before we proceed.
+      //
+      //    CONCEPT: QWebChannel is Qt's mechanism for exposing a QObject
+      //    (registered in Python as "bridge") to JavaScript.  Once the channel
+      //    is open, channel.objects.bridge is a JS proxy that marshals method
+      //    calls and signals across the C++/JS boundary transparently.
+      new QWebChannel(qt.webChannelTransport, function (channel) {
+
+        // ── STEP 4: Store the bridge proxy globally.
+        //    Both scene.js (listener pose) and hud.js (transport/tier/room
+        //    controls) read window.htBridge.  Using window rather than a module
+        //    export avoids a circular dependency between the two modules.
+        window.htBridge = channel.objects.htBridge;
+
+        // ── STEP 5: Connect bridge signals to their JS-side handlers.
+        //    Signals are properties of the proxy that expose a .connect(fn) API.
+        //    We wire them here — once — immediately after the channel opens, so
+        //    no signal fired during the loading sequence is missed.
+        //
+        //    engine_ready  → gate the loading overlay's Start button
+        //    asset_error   → display a readable error in the overlay (never console-only)
+        //    state_changed → sync HUD display to confirmed engine state
+        //
+        //    hud.js registers the actual handler functions on window.htSignals
+        //    before DOMContentLoaded resolves (it is a module script, evaluated
+        //    synchronously during parse), so they are available here.
+        if (window.htSignals) {
+          window.htBridge.engine_ready.connect(window.htSignals.onEngineReady);
+          window.htBridge.asset_error.connect(window.htSignals.onAssetError);
+          window.htBridge.state_changed.connect(window.htSignals.onStateChanged);
+
+          // Wire video_command so bridge.play()/pause()/restart() actually
+          // controls the muted <video> element that drives the TV screen texture.
+          window.htBridge.video_command.connect(function (cmd) {
+            var videoEl = document.getElementById("ht-video");
+            if (!videoEl) return;
+            if (cmd === "play") {
+              videoEl.play().catch(function () {});
+            } else if (cmd === "pause") {
+              videoEl.pause();
+            } else if (cmd === "restart") {
+              videoEl.pause();
+              videoEl.currentTime = 0;
+              videoEl.play().catch(function () {});
+            }
+          });
+
+          // ── STEP 5b: Notify Python that JS is connected and ready.
+          //    bridge.js_ready() is the ONLY correct trigger for engine_ready.
+          //    Calling it here — after all .connect() calls above — guarantees
+          //    that when Python emits engine_ready in response, the handler
+          //    registered on the line above will actually receive it.
+          //
+          //    DO NOT move this call before the .connect() lines: the signal
+          //    fires synchronously on the Python side, and if the handler is
+          //    not yet connected when it fires, the Start button stays disabled.
+          window.htBridge.js_ready();
+        } else {
+          // Defensive: if hud.js hasn't registered signals yet, defer one tick.
+          // This should not happen in normal operation given script load order.
+          console.warn("[hometheater] window.htSignals not yet registered — deferring signal wiring.");
+          setTimeout(function () {
+            if (window.htSignals) {
+              window.htBridge.engine_ready.connect(window.htSignals.onEngineReady);
+              window.htBridge.asset_error.connect(window.htSignals.onAssetError);
+              window.htBridge.state_changed.connect(window.htSignals.onStateChanged);
+              // Same js_ready() call in the deferred path — must come after
+              // all .connect() calls for the same reason as above.
+              window.htBridge.js_ready();
+            } else {
+              console.error("[hometheater] window.htSignals still not registered after defer. " +
+                "hud.js may have failed to load — check the browser console.");
+            }
+          }, 50);
+        }
+
+        // ── STEP 6: Fetch the asset manifest.
+        //    The manifest declares all asset filenames (video, audio, models,
+        //    film credit string).  It lives at assets/manifest.json relative to
+        //    the repo root.  Qt's QWebEngineView serves it via a registered
+        //    local scheme (see main.py) so the URL scheme is ht://assets/manifest.json.
+        //
+        //    We fetch it here rather than in scene.js or hud.js so there is a
+        //    single point of truth for the manifest data, stored on
+        //    window.htManifest and read by both modules.
+        fetch("ht://assets/manifest.json")
+          .then(function (response) {
+            if (!response.ok) {
+              throw new Error(
+                "manifest.json not found at ht://assets/manifest.json — " +
+                "check that assets/manifest.json exists in the repo root."
+              );
+            }
+            return response.json();
+          })
+          .then(function (manifest) {
+            // ── STEP 7: Store manifest globally and start the app.
+            window.htManifest = manifest;
+
+            // htAppReady is defined by scene.js (the module that owns
+            // Three.js initialisation).  ES modules are deferred and may
+            // finish evaluating slightly after this callback fires, so we
+            // poll briefly rather than failing immediately.
+            var _attempts = 0;
+            var _maxAttempts = 20; // 20 × 50 ms = up to 1 s
+            function _callAppReady() {
+              if (typeof window.htAppReady === "function") {
+                window.htAppReady();
+              } else if (_attempts < _maxAttempts) {
+                _attempts++;
+                setTimeout(_callAppReady, 50);
+              } else {
+                console.error(
+                  "[hometheater] window.htAppReady is not defined after " +
+                  _maxAttempts + " retries. " +
+                  "scene.js may have failed to load — check the browser console."
+                );
+              }
+            }
+            _callAppReady();
+          })
+          .catch(function (err) {
+            // ── Manifest fetch failure → show a readable error in the overlay.
+            //    This path is reached when assets/manifest.json is missing or
+            //    malformed.  We display it in the UI rather than only in the
+            //    console because students running the app for the first time
+            //    commonly forget to populate the assets/ directory.
+            console.error("[hometheater] Manifest load failed:", err);
+            _showCriticalError(
+              "Asset manifest not found.\n\n" +
+              "Expected: assets/manifest.json\n\n" +
+              err.message + "\n\n" +
+              "See README.md for asset placement instructions."
+            );
+          });
+      }); // end new QWebChannel callback
+
+    }); // end DOMContentLoaded
+
+
+    // ── UTILITY: Mock bridge for standalone browser development ──────────────
+    //    Returns an object with the same API surface as the real QWebChannel
+    //    proxy, with no-op implementations, so scene.js and hud.js can be
+    //    tested in a plain browser without a running Python process.
+    function _makeMockBridge() {
+      function noop() {}
+      function mockSignal() {
+        return { connect: noop };
+      }
+      return {
+        // Slots (JS → Python)
+        update_listener_pose : noop,
+        set_tier             : noop,
+        set_room             : noop,
+        play                 : noop,
+        pause                : noop,
+        restart              : noop,
+        set_speaker_mute     : noop,
+        open_url             : noop,
+        // Signals (Python → JS), exposed as connectable objects
+        engine_ready   : mockSignal(),
+        asset_error    : mockSignal(),
+        state_changed  : mockSignal(),
+        video_command  : mockSignal(),
+      };
+    }
+
+    // ── UTILITY: Default manifest for standalone browser mode ────────────────
+    //    Provides placeholder values so the app renders without crashing when
+    //    no real manifest is available.  Values are clearly marked as placeholders.
+    function _makeDefaultManifest() {
+      return {
+        film_title    : "Open Movie (placeholder — edit assets/manifest.json)",
+        film_credit   : "Blender Foundation, CC-BY 3.0",
+        video_file    : "placeholder.mp4",
+        audio_51_file : "placeholder_51.flac",
+        model_sofa    : "sofa.glb",
+        model_tv      : "tv.glb",
+        model_speaker : "speaker.glb",
+        model_subwoofer: "subwoofer.glb",    // optional — falls back to speaker model
+        room_dimensions: {
+          width  : 6.0,   // metres — matches QAudioRoom dimensions in audio_engine.py
+          height : 3.0,
+          depth  : 7.0
+        }
+      };
+    }
+
+    // ── UTILITY: Critical error display (pre-HUD, before scene.js has run) ───
+    //    Renders a readable error message directly into the DOM without
+    //    depending on any other module, for failures that occur before the
+    //    HUD can be constructed.
+    function _showCriticalError(message) {
+      var overlay = document.createElement("div");
+      overlay.id = "ht-critical-error";
+      // Inline styles only — style.css may not be fully applied yet at the
+      // point where manifest fetch can fail (font loading is async).
+      overlay.style.cssText = [
+        "position:fixed", "inset:0", "z-index:9999",
+        "display:flex", "flex-direction:column",
+        "align-items:center", "justify-content:center",
+        "background:#0d1117",
+        "color:#e06c75",
+        "font-family:'IBM Plex Mono',monospace",
+        "font-size:0.85rem",
+        "line-height:1.7",
+        "padding:3rem",
+        "text-align:left",
+        "white-space:pre-wrap",
+        "max-width:640px",
+        "margin:0 auto"
+      ].join(";");
+
+      var heading = document.createElement("p");
+      heading.style.cssText = "font-size:1rem;font-weight:600;margin-bottom:1rem;color:#ff6b6b;";
+      heading.textContent = "⚠  Startup error";
+
+      var body = document.createElement("p");
+      body.textContent = message;
+
+      overlay.appendChild(heading);
+      overlay.appendChild(body);
+      document.body.appendChild(overlay);
+    }
+
+  </script>
+
+  <!-- ─── MODULE ERROR TRAP ───────────────────────────────────────────────────
+    ES module import failures are silent by default in QWebEngineView — a bad
+    path in an importmap or a missing vendor file kills the entire module with
+    no console output unless we explicitly listen for it.  This trap catches
+    both synchronous errors (syntax, missing exports) and async rejections
+    (dynamic import failures, top-level-await rejections) and routes them to
+    the visible critical-error overlay so the developer sees *what* failed.
+  ──────────────────────────────────────────────────────────────────────────-->
+  <script>
+    // NOTE: resource-loading failures (a 404 on scene.js/hud.js, a bad
+    // importmap path, etc.) fire a plain, NON-BUBBLING "error" event on the
+    // <script> element itself — they never reach a bubble-phase window
+    // listener. The capture phase (the trailing `true` below) is required to
+    // see them at all. Without it, a missing/broken module script fails
+    // completely silently except for the generic "htAppReady not defined"
+    // retry message, which tells you THAT something failed but not WHY.
+    window.addEventListener("error", function (e) {
+      // Runtime script errors (syntax errors, thrown exceptions) are
+      // ErrorEvents and carry filename/lineno/message.
+      if (e.filename && (e.filename.includes("scene.js") || e.filename.includes("hud.js") || e.filename.includes("vendor"))) {
+        _showCriticalError(
+          "Module load error:\n\n" +
+          (e.message || String(e)) + "\n\n" +
+          "File: " + (e.filename || "unknown") + "  line " + e.lineno + "\n\n" +
+          "Most likely cause: a vendor file is missing or the importmap path is wrong.\n" +
+          "Check that vendor/three.module.js and vendor/GLTFLoader.js exist."
+        );
+        return;
+      }
+      // Resource-load failures (404s) are plain Events targeting the element
+      // that failed — e.target is the <script>/<link> tag, e.filename is
+      // empty. Catch those here too, since they're by far the more common
+      // cause of this symptom.
+      var target = e.target;
+      if (target && target.tagName && (target.tagName === "SCRIPT" || target.tagName === "LINK")) {
+        var src = target.src || target.href || "(unknown)";
+        _showCriticalError(
+          "Resource failed to load:\n\n" + src + "\n\n" +
+          "The file is missing, the path is wrong, or the custom URL scheme " +
+          "handler (main.py) did not serve it. Check that this exact path " +
+          "exists on disk relative to index.html."
+        );
+      }
+    }, true); // <-- capture phase: required to catch non-bubbling resource errors
+    window.addEventListener("unhandledrejection", function (e) {
+      var msg = (e.reason && e.reason.message) ? e.reason.message : String(e.reason);
+      // Only surface module-level rejections, not bridge/fetch rejections handled elsewhere.
+      if (msg.includes("import") || msg.includes("module") || msg.includes("fetch") || msg.includes("Failed to")) {
+        _showCriticalError(
+          "Unhandled module rejection:\n\n" + msg + "\n\n" +
+          "Check the vendor/ directory and importmap paths in index.html."
+        );
+      }
+    });
+  </script>
+
+  <!-- ─── APPLICATION MODULES ────────────────────────────────────────────────
+    Loaded as ES modules so they can use bare import specifiers resolved by the
+    importmap above.  type="module" implies defer — both scripts execute after
+    the document is parsed, in declaration order.
+
+    Load order:
+      1. hud.js    — registers window.htSignals before the QWebChannel callback
+                     fires (they are synchronously evaluated during parse, before
+                     DOMContentLoaded handlers run).
+      2. scene.js  — registers window.htAppReady, then waits for the bootstrap
+                     above to call it.
+
+    DO NOT reorder these without understanding the signal-wiring dependency
+    described in the QWebChannel bootstrap comment above.
+  ──────────────────────────────────────────────────────────────────────────-->
+  <script type="module" src="hud.js"
+          onerror="_showCriticalError('Resource failed to load:\n\nhud.js\n\nCheck that src/hometheater/web/hud.js exists next to index.html.')"></script>
+  <script type="module" src="scene.js"
+          onerror="_showCriticalError('Resource failed to load:\n\nscene.js\n\nCheck that src/hometheater/web/scene.js exists next to index.html.')"></script>
+
+</body>
+</html>

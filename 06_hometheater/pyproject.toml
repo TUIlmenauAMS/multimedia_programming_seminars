@@ -1,0 +1,34 @@
+# =============================================================================
+# pyproject.toml — hometheater-demo
+# =============================================================================
+# Managed with uv. Do NOT use pip install or add a requirements.txt.
+# To install:   uv sync
+# To run:       uv run python -m hometheater.main
+#
+# PySide6 >= 6.8 is required for PySide6.QtSpatialAudio.
+# If `from PySide6.QtSpatialAudio import QAudioEngine` raises ImportError,
+# the platform's Qt Multimedia backend plugin is missing — this is an
+# environment issue, not a code bug. On Ubuntu/Debian:
+#   sudo apt install libgstreamer1.0-dev gstreamer1.0-plugins-good
+# =============================================================================
+
+[project]
+name = "hometheater-demo"
+version = "0.1.0"
+description = "Native binaural home-theater spatial audio simulator — Multimediaprogrammierung Chapter 05 companion"
+requires-python = ">=3.10"
+dependencies = [
+    "pyside6>=6.8.0",
+    "numpy>=1.26",
+    "soundfile>=0.12",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/hometheater"]
+
+[tool.uv]
+dev-dependencies = []
