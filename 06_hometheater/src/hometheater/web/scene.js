@@ -1244,30 +1244,8 @@ function _startRenderLoop() {
  * @param {"mono"|"stereo"|"5.1"} tier
  */
 function setActiveTier(tier) {
-  // Which speaker keys are acoustically active per tier — matches audio_engine.py §5.3.
-  const activeSets = {
-    "mono":   new Set(["C"]),
-    "stereo": new Set(["L", "R"]),
-    "5.1":    new Set(["C", "L", "R", "Ls", "Rs", "LFE"]),
-  };
-
-  const active = activeSets[tier];
-  if (!active) {
-    console.warn(`[scene.js] Unknown tier: "${tier}"`);
-    return;
-  }
-
-  for (const spk of ITU_SPEAKERS) {
-    const mesh = speakerMeshes[spk.key];
-    if (!mesh) continue;
-
-    const intensity = active.has(spk.key) ? 1.5 : 0.0;
-    mesh.traverse(child => {
-      if (child.isMesh && child.material?.emissive) {
-        child.material.emissiveIntensity = intensity;
-      }
-    });
-  }
+  // Speaker colour/glow on tier change intentionally removed.
+  // Speakers retain their default appearance regardless of which tier is active.
 }
 
 /**
