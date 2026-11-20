@@ -12,6 +12,7 @@
 
   "model_sofa":      "models/modern__sofa.glb",
   "model_tv":        "models/led_tv.glb",
+  "model_tv_stand":  "models/tv_stand_low_poly.glb",
   "model_speaker":   "models/aural_sculpture_grace_for_interiors.glb",
   "model_center":    "models/loudspeaker.glb",
   "model_subwoofer": "models/subwoofer_sealed_speaker.glb",

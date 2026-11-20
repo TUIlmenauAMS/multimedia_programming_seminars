@@ -122,6 +122,10 @@ let renderer, camera, scene;
 const clock = new THREE.Clock();
 let poseAccumulatorMs = 0;
 
+/** Last values sent out, so the render loop only emits on change (anti-flicker). */
+let _lastPose = null;
+let _lastReadout = null;
+
 /**
  * speakerMeshes — keyed by ITU_SPEAKERS[i].key → THREE.Object3D.
  * Updated by setActiveTier() to toggle emissive glow.
@@ -370,12 +374,24 @@ async function _loadModels(manifest) {
       );
     });
 
+  // -------------------------------------------------------------------------
+  // Model path resolution — the real manifest.json ships FLAT keys
+  // ("model_sofa", "model_tv", ...), not the nested "models: { sofa: ... }"
+  // shape this file originally assumed. Only "model_center" had a fallback
+  // for that before; every model path now goes through the same helper so
+  // none of them silently fail to resolve against the actual manifest. The
+  // nested "models.<key>" shape is kept as a secondary fallback in case a
+  // future manifest version switches to it.
+  // -------------------------------------------------------------------------
+  const _modelPath = key => manifest[`model_${key}`] ?? manifest.models?.[key];
+
   // Sofa — user-supplied CC0 model, path from manifest.
-  if (!manifest.models?.sofa) {
-    _fatalAssetError("manifest.json is missing models.sofa path.");
+  const sofaPath = _modelPath("sofa");
+  if (!sofaPath) {
+    _fatalAssetError("manifest.json is missing a model_sofa (or models.sofa) path.");
     return;
   }
-  const sofaGltf = await loadGLB(`ht://assets/${manifest.models.sofa}`, "sofa");
+  const sofaGltf = await loadGLB(`ht://assets/${sofaPath}`, "sofa");
 
   // Auto-scale the sofa to a real-world size. A standard 3-seat sofa is ~2.1 m wide.
   // We compute the bounding box after load and scale to that target width.
@@ -404,95 +420,133 @@ async function _loadModels(manifest) {
 
   // TV — user-supplied CC0 model. After loading, we find the screen face and
   // attach the VideoTexture. The video element is always muted (see index.html).
-  if (!manifest.models?.tv) {
-    _fatalAssetError("manifest.json is missing models.tv path.");
+  const tvPath = _modelPath("tv");
+  if (!tvPath) {
+    _fatalAssetError("manifest.json is missing a model_tv (or models.tv) path.");
     return;
   }
-  const tvGltf = await loadGLB(`ht://assets/${manifest.models.tv}`, "TV");
+  const tvGltf = await loadGLB(`ht://assets/${tvPath}`, "TV");
 
   // ---------------------------------------------------------------------------
-  // TV CONSOLE TABLE — procedural box, real-world proportions:
-  //   Width:  1.80 m  (wider than the 1.218 m TV so it has shelf space either side)
-  //   Height: 0.45 m  (standard low AV console / media unit)
-  //   Depth:  0.45 m  (deep enough for the center speaker to sit in front)
+  // TV STAND — tv_stand_low_poly.glb, a real (not procedural) low-poly model:
+  // a flat-bottomed cabinet with a top surface (for the TV) and, partway up,
+  // an open shelf running the full depth of the cabinet (for the centre
+  // speaker). Its native size is 0.9 m W × 0.27 m H × 0.4 m D — a plausible
+  // small stand, but this TV is ~1.7 m wide and would badly overhang it.
   //
-  // Back face is flush with the front wall (z = -roomConfig.depth/2).
-  // Centre X = 0 (matches TV horizontal centre).
+  // We scale the WHOLE cabinet up uniformly (never per-axis) so every
+  // proportion — shelf height, support-post thickness, depth — stays
+  // faithful to the source model, rather than stretching it out of shape.
+  // 1.80 m happens to be exactly 2× the native 0.9 m width, and matches the
+  // old procedural table's width, which is why the LFE subwoofer position
+  // below can still be derived the same way (now measured off the real
+  // model instead of a hardcoded "0.90 m").
   // ---------------------------------------------------------------------------
-  const TV_TABLE_W  = 1.80;  // metres
-  const TV_TABLE_H  = 0.45;  // metres
-  const TV_TABLE_D  = 0.45;  // metres
-  const TV_TABLE_Z  = -(roomConfig.depth / 2) + TV_TABLE_D / 2;  // centre-Z of table
-
-  const tableGeo = new THREE.BoxGeometry(TV_TABLE_W, TV_TABLE_H, TV_TABLE_D);
-  const tableMat = new THREE.MeshStandardMaterial({
-    color:     0x2a2218,   // dark espresso wood
-    roughness: 0.6,
-    metalness: 0.05,
-  });
-  const tableMesh = new THREE.Mesh(tableGeo, tableMat);
-  tableMesh.position.set(0, TV_TABLE_H / 2, TV_TABLE_Z);
-  tableMesh.castShadow    = true;
-  tableMesh.receiveShadow = true;
-  scene.add(tableMesh);
-
-  // Table legs — four thin boxes, one at each corner.
-  // Real media consoles often have thin tapered legs; we use 0.04 m square legs.
-  const LEG_W = 0.04, LEG_H = TV_TABLE_H, LEG_D = 0.04;
-  const legGeo = new THREE.BoxGeometry(LEG_W, LEG_H, LEG_D);
-  const legMat = tableMat; // same wood material
-  const legOffsets = [
-    [ TV_TABLE_W / 2 - 0.06,  TV_TABLE_D / 2 - 0.06],
-    [-TV_TABLE_W / 2 + 0.06,  TV_TABLE_D / 2 - 0.06],
-    [ TV_TABLE_W / 2 - 0.06, -TV_TABLE_D / 2 + 0.06],
-    [-TV_TABLE_W / 2 + 0.06, -TV_TABLE_D / 2 + 0.06],
-  ];
-  for (const [lx, lz] of legOffsets) {
-    const leg = new THREE.Mesh(legGeo, legMat);
-    leg.position.set(lx, LEG_H / 2, TV_TABLE_Z + lz);
-    scene.add(leg);
+  const standPath = _modelPath("tv_stand");
+  if (!standPath) {
+    _fatalAssetError("manifest.json is missing a model_tv_stand (or models.tv_stand) path.");
+    return;
   }
+  const standGltf = await loadGLB(`ht://assets/${standPath}`, "TV stand");
+
+  const TV_STAND_TARGET_WIDTH = 1.80;  // metres
+  _autoScaleGLB(standGltf.scene, TV_STAND_TARGET_WIDTH, "x");
+
+  // TV_STAND_ROTATION_Y: left at 0 on the assumption that, like the other
+  // GLBs in this scene, the stand is authored with its open shelf facing +Z
+  // (toward the sweet spot) by default. Unlike the sofa/TV, this hasn't been
+  // confirmed against a render of this specific asset — if the first visual
+  // check shows the shelf opening facing the wall instead, flip this to
+  // Math.PI rather than touching any of the placement math above or below.
+  const TV_STAND_ROTATION_Y = 0;
+  standGltf.scene.rotation.y = TV_STAND_ROTATION_Y;
+
+  // Measure the model's own bounding box post-scale, at its own local origin
+  // (position still [0,0,0] here) — never assume a GLB's origin sits at its
+  // visual centre or bottom. Same reasoning as the sofa's bbox-driven
+  // placement above.
+  standGltf.scene.updateMatrixWorld(true);
+  const standBoxLocal = new THREE.Box3().setFromObject(standGltf.scene);
+  const standCenterLocal = new THREE.Vector3();
+  standBoxLocal.getCenter(standCenterLocal);
+
+  // World placement: centred at X = 0, resting on the floor, back flush
+  // against the front wall (same convention the old procedural table used —
+  // we solve for the offset that puts bbox.min.z exactly on the wall, rather
+  // than assuming the model's Z extents are symmetric around its origin).
+  standGltf.scene.position.set(
+    -standCenterLocal.x,
+    -standBoxLocal.min.y,
+    -(roomConfig.depth / 2) - standBoxLocal.min.z
+  );
+  scene.add(standGltf.scene);
+
+  // Re-measure in WORLD space now that the stand has its final position —
+  // this is the single source of truth every other prop on/around the stand
+  // (the TV below, the centre speaker and LFE sub in _placeSpeakers) reads
+  // from, replacing the hardcoded TV_TABLE_H/D/Z constants the procedural
+  // table used (and the duplicate copies that previously had to be kept in
+  // sync by hand inside _placeSpeakers).
+  const standBoxWorld = new THREE.Box3().setFromObject(standGltf.scene);
+  // SHELF_HEIGHT_FRACTION: measured directly from the GLB's own POSITION
+  // accessor data — the open shelf surface sits ~30.1% of the way up from
+  // the model's lowest point (its feet), out of its full height. This is a
+  // fraction (not an absolute metre value) so it stays correct at any
+  // uniform scale we apply above.
+  const SHELF_HEIGHT_FRACTION = 0.301;
+  const standInfo = {
+    centerX: (standBoxWorld.min.x + standBoxWorld.max.x) / 2,
+    centerZ: (standBoxWorld.min.z + standBoxWorld.max.z) / 2,
+    topY:    standBoxWorld.max.y,                              // TV rests here
+    shelfY:  standBoxWorld.min.y
+             + (standBoxWorld.max.y - standBoxWorld.min.y) * SHELF_HEIGHT_FRACTION,
+    frontZ:  standBoxWorld.max.z,                               // open-shelf edge
+    rightX:  standBoxWorld.max.x,
+  };
 
   // ---------------------------------------------------------------------------
   // TV MODEL — led_tv.glb (Sketchfab), raw bbox ≈ 13.0 W × 7.75 H × 2.15 D
-  //   TV_SCALE 0.09369 → 1.218 m W × 0.726 m H × 0.202 m D  (≈ 55" panel)
+  //   TV_SCALE 0.1327 → 1.725 m W ≈ 75" panel. Adjust if the model looks
+  //   wrong in-scene.
   //
-  // Placed on top of the console table:
-  //   X: +0.0468 m corrects the mesh origin's horizontal offset from true centre
-  //   Y: table surface (TV_TABLE_H) minus the raw Y-min correction (0.0217 m)
-  //      so the TV stand base sits flush on the table top
-  //   Z: front face of table + small inset so the stand doesn't overhang
+  // Placed on top of the stand's measured top surface (standInfo.topY):
+  //   X: centerX + 0.0468 m corrects the TV mesh's own origin offset
+  //   Y: topY minus the TV's own raw Y-min correction, so its base sits
+  //      flush on the stand's top rather than floating or sinking into it
+  //   Z: depth-centred on the stand's top, same as the old table convention
+  //      (a −0.02 m nudge back, same small fine-tune the old code used)
   // ---------------------------------------------------------------------------
-  // TV_SCALE: raw bbox ≈ 13.0 W × 7.75 H × 2.15 D (GLB units).
-  // 0.1327 → 1.725 m W ≈ 75" panel. Adjust if the model looks wrong in-scene.
   const TV_SCALE = 0.1327;
   tvGltf.scene.scale.setScalar(TV_SCALE);
   // Y-min of the TV stand scales proportionally: raw 0.0217 * TV_SCALE / 0.09369
   const TV_Y_MIN = 0.0217 * (TV_SCALE / 0.09369);
   tvGltf.scene.position.set(
-    0.0468,                            // X: horizontal centre correction
-    TV_TABLE_H - TV_Y_MIN,            // Y: stand base flush on table top
-    TV_TABLE_Z - 0.02                 // Z: slight inset so stand fits
+    standInfo.centerX + 0.0468,        // X: stand centre + horizontal correction
+    standInfo.topY - TV_Y_MIN,         // Y: TV base flush on the stand's top
+    standInfo.centerZ - 0.02           // Z: depth-centred on the stand's top
   );
   scene.add(tvGltf.scene);
-  _attachVideoTexture(tvGltf.scene, manifest.media?.video);
+  _attachVideoTexture(tvGltf.scene, manifest.video_file ?? manifest.media?.video);
 
   // Speakers — one GLB reused for all five positional speakers, with an optional
   // distinct subwoofer GLB for the LFE position. See §7.3 of the build plan.
-  if (!manifest.models?.speaker) {
-    _fatalAssetError("manifest.json is missing models.speaker path.");
+  const speakerPath = _modelPath("speaker");
+  if (!speakerPath) {
+    _fatalAssetError("manifest.json is missing a model_speaker (or models.speaker) path.");
     return;
   }
-  const speakerGltf = await loadGLB(`ht://assets/${manifest.models.speaker}`, "speaker");
-  // Scale speaker to a real bookshelf speaker: ~0.35 m tall.
-  _autoScaleGLB(speakerGltf.scene, 0.35, "y");
+  const speakerGltf = await loadGLB(`ht://assets/${speakerPath}`, "speaker");
+  // Scale aural speakers to a tall floor-standing size: ~0.75 m.
+  // The model is a slender sculptural speaker that reads better at this height,
+  // and visually it needs to hold its own beside the TV stand.
+  _autoScaleGLB(speakerGltf.scene, 0.75, "y");
 
-  // Load center-channel model — manifest key is models.center or legacy model_center.
+  // Load center-channel model — manifest key is model_center (or legacy models.center).
   // Scale on Y to 0.20 m (realistic height for a horizontal center-channel cabinet).
   // Scaling on X produced a disproportionately giant model when falling back to the
   // bookshelf speaker GLB, because that model is taller than it is wide.
   let centerGltf = speakerGltf;
-  const centerPath = manifest.models?.center ?? manifest.model_center;
+  const centerPath = _modelPath("center");
   if (centerPath) {
     centerGltf = await loadGLB(`ht://assets/${centerPath}`, "center speaker");
   }
@@ -502,13 +556,22 @@ async function _loadModels(manifest) {
 
   // Load subwoofer model; fall back to the standard speaker model if not provided.
   let subGltf = speakerGltf;
-  if (manifest.models?.subwoofer) {
-    subGltf = await loadGLB(`ht://assets/${manifest.models.subwoofer}`, "subwoofer");
-    // Subwoofer: ~0.45 m tall cube.
-    _autoScaleGLB(subGltf.scene, 0.45, "y");
+  const subwooferPath = _modelPath("subwoofer");
+  if (subwooferPath) {
+    subGltf = await loadGLB(`ht://assets/${subwooferPath}`, "subwoofer");
+    // Subwoofer: target ~0.30 m on its largest axis — visible and substantial
+    // yet compact enough to sit inside the TV stand's narrower shelf compartment.
+    // Uniform scale on the largest axis keeps every proportion correct.
+    {
+      const bbox = new THREE.Box3().setFromObject(subGltf.scene);
+      const sz = new THREE.Vector3();
+      bbox.getSize(sz);
+      const largest = Math.max(sz.x, sz.y, sz.z);
+      if (largest > 0) subGltf.scene.scale.setScalar(0.30 / largest);
+    }
   }
 
-  _placeSpeakers(speakerGltf, centerGltf, subGltf);
+  _placeSpeakers(speakerGltf, centerGltf, subGltf, standInfo);
 }
 
 /**
@@ -722,15 +785,23 @@ function _getYMin(obj) {
  * @param {GLTF} speakerGltf   — base speaker model (L, R, Ls, Rs)
  * @param {GLTF} centerGltf    — center-channel model (C); may equal speakerGltf
  * @param {GLTF} subGltf       — subwoofer model (LFE); may equal speakerGltf
+ * @param {object} standInfo   — the TV stand's measured world-space surfaces,
+ *                               as computed in _loadModels (centerX, centerZ,
+ *                               topY, shelfY, frontZ, rightX). Single source
+ *                               of truth for anything placed on/beside the
+ *                               stand — replaces the hardcoded TV_TABLE_H/D/Z
+ *                               constants this function used to keep as its
+ *                               own copy, re-derived by hand from the
+ *                               procedural table that no longer exists.
  */
-function _placeSpeakers(speakerGltf, centerGltf, subGltf) {
-  // ---------------------------------------------------------------------------
-  // Visual placement constants — must stay in sync with the table built in
-  // _loadModels. Re-derived here to avoid a shared variable across async scopes.
-  // ---------------------------------------------------------------------------
-  const TV_TABLE_H = 0.45;   // metres — console table top surface height
-  const TV_TABLE_D = 0.45;   // metres — console table depth
-  const TV_TABLE_Z = -(roomConfig.depth / 2) + TV_TABLE_D / 2;
+function _placeSpeakers(speakerGltf, centerGltf, subGltf, standInfo) {
+  // Center speaker position inside the wide (left) shelf compartment.
+  // X offset is from the stand's centre (metres, negative = left); the
+  // divider sits ~0.2 m right of centre, so -0.35 centres the speaker in
+  // the left compartment. Nudge if it looks off-centre.
+  const CENTER_SHELF_X_OFFSET  = -0.35;
+  // How far (m) the speaker's front face sits behind the shelf's open edge.
+  const CENTER_SHELF_FRONT_INSET = 0.05;
 
   for (const spk of ITU_SPEAKERS) {
     const gltf = spk.isLFE ? subGltf : (spk.key === "C" ? centerGltf : speakerGltf);
@@ -739,42 +810,77 @@ function _placeSpeakers(speakerGltf, centerGltf, subGltf) {
     const instance = gltf.scene.clone(true);
 
     // ------------------------------------------------------------------
-    // Measure the cloned instance's actual bounding box BEFORE positioning.
-    // GLB origins are almost never at the mesh bottom, so we compute yMin
-    // and use -yMin as the Y offset to put the lowest point at any target
-    // surface. Without this, speakers sink into or float above surfaces.
+    // Measure the model's bounding box with the instance AT THE ORIGIN.
+    // Different GLBs (centerGltf vs subGltf vs speakerGltf) have different
+    // internal origins inherited from their source files. If we measure
+    // while the clone still carries its parent's world position, bbox.min.y
+    // includes that offset and yBase becomes wrong for every model except
+    // the one that happens to sit at y=0.
+    //
+    // Fix: explicitly zero position + rotation before measuring, then
+    // updateMatrixWorld so Three.js recomputes the world matrix from scratch.
+    // After measurement we have:
+    //   yBase = bbox.min.y  (instance is at origin, so this IS the offset
+    //                        from origin to the model's lowest point)
+    //
+    // Placement formulas:
+    //   Floor:  y = -yBase          → bbox.min.y lands on y = 0
+    //   Shelf:  y = shelfY - yBase  → bbox.min.y lands on shelfY
     // ------------------------------------------------------------------
-    const yMin = _getYMin(instance);
+    instance.position.set(0, 0, 0);
+    instance.rotation.set(0, 0, 0);
+    instance.updateMatrixWorld(true);
+    const bbox0 = new THREE.Box3().setFromObject(instance);
+    const yBase = bbox0.min.y;   // offset from origin to model bottom (may be negative)
+    const yMin  = yBase;         // alias for floor placement: y = -yMin = -yBase
 
     let x, y, z;
 
     if (spk.key === "C") {
       // -----------------------------------------------------------------------
-      // CENTER SPEAKER — on the TV console table, horizontally centred.
-      // y = TV_TABLE_H - yMin puts the cabinet base flush on the table surface.
-      // Z = front edge of table (table centre + half depth - small margin) so
-      // the speaker sits at the front of the unit facing the listener.
+      // CENTER SPEAKER — wider left compartment of the TV stand shelf.
+      // y = shelfY - yBase puts the model's lowest point flush on the shelf.
+      //
+      // ROTATION: GLB driver faces along X axis (confirmed by earlier renders).
+      // -PI/2 around Y maps +X → +Z (toward the listener).
       // -----------------------------------------------------------------------
-      x = 0;
-      y = TV_TABLE_H - yMin;
-      z = TV_TABLE_Z + (TV_TABLE_D / 2) - 0.08;  // near front edge of table
+      const standHalfW = standInfo.rightX - standInfo.centerX;
+      x = standInfo.centerX - standHalfW * 0.5;
+      y = standInfo.shelfY - yBase;
+      z = standInfo.frontZ - 0.10;
 
     } else if (spk.isLFE) {
       // -----------------------------------------------------------------------
-      // LFE SUBWOOFER — on the floor beside the right edge of the TV table.
-      // y = -yMin puts its base flush on the floor regardless of origin offset.
-      // Table right edge is at X = +0.90 m; sub is 15 cm clear of that.
+      // LFE SUBWOOFER — narrower right compartment of the TV stand shelf.
+      // Same shelf surface as the center speaker (shelfY - yBase).
+      // Scaled to 0.30 m so it is clearly visible yet fits the compartment.
+      // Rotation matches center speaker: -PI/2 turns its X-facing driver
+      // toward the listener (+Z). The explicit set() below overrides any
+      // residual rotation from the GLB so it never sits at an angle.
       // -----------------------------------------------------------------------
-      x = 0.90 + 0.15;
-      y = -yMin;                                   // base flush on floor
-      z = -(roomConfig.depth / 2) + 0.25;
+      const standHalfW = standInfo.rightX - standInfo.centerX;
+      x = standInfo.centerX + standHalfW * 0.5;
+      y = standInfo.shelfY - yBase;
+      z = standInfo.frontZ - 0.10;
+
+    } else if (spk.key === "L" || spk.key === "R") {
+      // -----------------------------------------------------------------------
+      // FRONT LEFT / RIGHT (aural sculpture speakers) — flanking the TV stand.
+      //
+      // Gap increased to 0.35 m from the stand's outer edge so the speakers
+      // have clear visual breathing room without drifting into open floor space.
+      // Depth aligned with the stand's front face.
+      // -----------------------------------------------------------------------
+      const standHalfWidth = (standInfo.rightX - standInfo.centerX);
+      const side = (spk.key === "L") ? -1 : 1;
+      x = standInfo.centerX + side * (standHalfWidth + 0.35);
+      y = -yMin;                   // base on the floor
+      z = standInfo.frontZ - 0.05; // flush with stand's front face
 
     } else {
       // -----------------------------------------------------------------------
-      // L, R, Ls, Rs — ITU-R BS.775 circle XZ positions (unchanged).
-      // y = -yMin puts the cabinet base on the floor. The model is 0.35 m tall
-      // so the tweeter sits at ~0.175 m — these are floor-standing speakers,
-      // not bookshelf speakers on stands, which matches what the GLB looks like.
+      // Ls, Rs — ITU-R BS.775 surround circle XZ positions (unchanged).
+      // y = -yMin puts the cabinet base on the floor.
       // -----------------------------------------------------------------------
       const azRad = THREE.MathUtils.degToRad(spk.azimuthDeg);
       x = SWEET_SPOT_ORIGIN.x + spk.radius * Math.sin(azRad);
@@ -791,10 +897,43 @@ function _placeSpeakers(speakerGltf, centerGltf, subGltf) {
     // as the instance to prevent any tilt — only the horizontal angle matters.
     // ------------------------------------------------------------------
     if (spk.key === "C") {
-      // Center: faces straight toward +Z (listener direction). No tilt needed.
-      instance.rotation.set(0, Math.PI, 0);
+      // Center: GLB driver faces +X. -PI/2 around Y → driver faces +Z (listener).
+      instance.rotation.set(0, -Math.PI / 2, 0);
+
+      // ----------------------------------------------------------------
+      // loudspeaker.glb has its origin ~10 raw units away from its
+      // geometry along X (verified from the node matrices + accessor
+      // bounds). After scaling to 0.20 m tall, the speaker body sits
+      // ~0.6 m from the instance origin, and the -PI/2 rotation swings
+      // that offset toward the listener — which is why it ended up in
+      // front of the stand no matter what Y we computed.
+      //
+      // Fix: measure the bbox AFTER rotation, then place the instance so
+      // the bbox CENTRE (X/Z) and bbox BOTTOM (Y) land exactly on the
+      // target spot in the shelf compartment. Independent of the origin.
+      // ----------------------------------------------------------------
+      instance.updateMatrixWorld(true);
+      const cb = new THREE.Box3().setFromObject(instance);
+      const cc = cb.getCenter(new THREE.Vector3());
+      const cDepth = cb.max.z - cb.min.z;
+
+      const targetX = standInfo.centerX + CENTER_SHELF_X_OFFSET;
+      // Front face sits CENTER_SHELF_FRONT_INSET behind the shelf's open edge.
+      const targetZ = standInfo.frontZ - CENTER_SHELF_FRONT_INSET - cDepth / 2;
+
+      instance.position.x += targetX - cc.x;
+      instance.position.z += targetZ - cc.z;
+      instance.position.y += standInfo.shelfY - cb.min.y;   // base flush on shelf
+    } else if (spk.isLFE) {
+      // Subwoofer: the GLB's native orientation already faces the listener
+      // (confirmed by earlier renders before any rotation was applied).
+      // Reset to zero so no residual rotation from the clone is inherited.
+      instance.rotation.set(0, 0, 0);
+    } else if (spk.key === "L" || spk.key === "R") {
+      // Front L/R beside the stand: face straight toward the listener (+Z).
+      instance.rotation.set(0, 0, 0);
     } else {
-      // Surround and front L/R: face toward the sweet spot horizontally.
+      // Surround Ls/Rs: face toward the sweet spot horizontally.
       // Construct a target at the same Y as the speaker to avoid tilt.
       const flatTarget = new THREE.Vector3(
         SWEET_SPOT_ORIGIN.x,
@@ -1034,16 +1173,35 @@ function _startRenderLoop() {
     // 1. Update controls — WASD + mouse, clamp offset.
     _updateControls(dtSec);
 
-    // 2. Emit listener pose to Python at the throttled rate.
+    // 2. Emit listener pose to Python at the throttled rate — but only when
+    //    the camera actually moved. Sending an identical pose 60×/s while idle
+    //    just floods the QWebChannel queue and can stall the UI thread.
     poseAccumulatorMs += dtSec * 1000;
     if (poseAccumulatorMs >= POSE_EMIT_INTERVAL_MS) {
-      _emitListenerPose();
       poseAccumulatorMs -= POSE_EMIT_INTERVAL_MS;
+      const p = camera.position, q = camera.quaternion;
+      const changed =
+        !_lastPose ||
+        Math.abs(p.x - _lastPose.px) > 1e-5 || Math.abs(p.y - _lastPose.py) > 1e-5 ||
+        Math.abs(p.z - _lastPose.pz) > 1e-5 || Math.abs(q.x - _lastPose.qx) > 1e-5 ||
+        Math.abs(q.y - _lastPose.qy) > 1e-5 || Math.abs(q.z - _lastPose.qz) > 1e-5 ||
+        Math.abs(q.w - _lastPose.qw) > 1e-5;
+      if (changed) {
+        _emitListenerPose();
+        _lastPose = { px: p.x, py: p.y, pz: p.z, qx: q.x, qy: q.y, qz: q.z, qw: q.w };
+      }
     }
 
-    // 3. Push off-axis readout to the HUD. htSignals is registered by hud.js.
+    // 3. Push off-axis readout to the HUD only when the text changes.
+    //    Writing to the DOM every frame forces a repaint of the overlay on top
+    //    of the WebGL canvas, which is a classic source of flicker in
+    //    QWebEngineView. htSignals is registered by hud.js.
     if (window.htSignals?.onOffAxisReadout) {
-      window.htSignals.onOffAxisReadout(_computeOffAxisReadout());
+      const readout = _computeOffAxisReadout();
+      if (readout !== _lastReadout) {
+        _lastReadout = readout;
+        window.htSignals.onOffAxisReadout(readout);
+      }
     }
 
     // 4. Render. THREE.VideoTexture (the screen plane's map — see
