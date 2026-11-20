@@ -23,12 +23,22 @@
  *   These are the only public surface hud.js exposes. scene.js and index.html must
  *   not touch HUD DOM directly.
  *
- * SOLO BEHAVIOUR (multi-solo):
- *   Multiple speakers can be soloed simultaneously. Clicking S on an un-soloed speaker
- *   adds it to the active solo set (muting all non-soloed speakers). Clicking S on an
- *   already-soloed speaker removes it. When the solo set becomes empty, all speakers
- *   are restored to their individually saved mute states.
- *   This matches DAW convention: solo is additive, not exclusive.
+ * SOLO / MUTE BEHAVIOUR:
+ *   M and S are mutually exclusive per speaker. A speaker is in exactly one of three
+ *   states at any time: normal, muted, or soloed.
+ *
+ *   Toggle rules:
+ *     M on normal speaker  → muted   (S cleared if somehow set)
+ *     M on muted speaker   → normal
+ *     M on soloed speaker  → clears solo, becomes muted
+ *     S on normal speaker  → soloed  (M cleared if somehow set)
+ *     S on soloed speaker  → normal
+ *     S on muted speaker   → clears mute, becomes soloed
+ *
+ *   Multi-solo: multiple speakers can be soloed simultaneously (DAW convention).
+ *   When the solo set is non-empty, all non-soloed speakers are force-silenced
+ *   regardless of their individual mute state. When the solo set empties, every
+ *   speaker reverts to its saved mute state.
  */
 
 // ---------------------------------------------------------------------------
@@ -74,6 +84,7 @@ function _buildHUD() {
   _buildLoadingOverlay(root);
   _buildLeftSidebar(root);
   _buildRightPanel(root);
+  _buildTransportBar(root);
   _buildFooter(root);
 }
 
@@ -252,13 +263,14 @@ function _injectStyles() {
     }
     .ht-brand-text { flex: 1; min-width: 0; }
     .ht-brand-chapter {
-      font-size: 9px; font-weight: 600; letter-spacing: .1em;
+      font-size: 9px; font-weight: 600; letter-spacing: .08em;
       color: var(--text-3); text-transform: uppercase; margin-bottom: 2px;
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      white-space: normal; overflow: visible; overflow-wrap: break-word;
+      word-break: break-word; line-height: 1.4;
     }
     .ht-brand-title {
       font-size: 12px; font-weight: 600; color: var(--text);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      white-space: normal; overflow: visible;
     }
     .ht-brand-author { font-size: 11px; color: var(--text-2); margin-top: 1px; }
     .ht-linkedin-btn {
@@ -285,7 +297,6 @@ function _injectStyles() {
     .ht-transport { display: flex; gap: 7px; }
 
     .ht-play-btn {
-      flex: 1;
       display: flex; align-items: center; justify-content: center; gap: 7px;
       padding: 9px 12px;
       background: var(--green); border: none; border-radius: var(--radius);
@@ -436,6 +447,36 @@ function _injectStyles() {
     .ht-diag-val--amber  { color: var(--amber);  }
     .ht-diag-val--green  { color: var(--green);  }
 
+    /* ── Floating transport bar ── */
+    .ht-transport-bar {
+      position: fixed;
+      bottom: 22px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(13,15,20,.82);
+      border: 1px solid var(--border);
+      border-radius: 32px;
+      padding: 5px 10px;
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      z-index: 20;
+      pointer-events: auto;
+      box-shadow: 0 4px 24px rgba(0,0,0,.45);
+    }
+
+    .ht-transport-bar .ht-play-btn,
+    .ht-transport-bar .ht-reset-btn {
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 12px;
+      height: 32px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
     /* ── Footer ── */
     .ht-footer {
       position: fixed; bottom: 0;
@@ -524,7 +565,6 @@ function _buildLeftSidebar(root) {
 
   const sidebar = _el("div", "ht-sidebar");
   _buildBrand(sidebar);
-  _buildPlaybackSection(sidebar);
   _buildTierSection(sidebar);
   _buildRoomSection(sidebar);
   _buildMixerSection(sidebar);
@@ -558,19 +598,37 @@ function _toggleLeftPanel() {
 function _buildBrand(parent) {
   const brand = _el("div", "ht-brand");
 
-  const logoPath = window.htManifest?.logo;
-  const logo = _el("img", "ht-brand-logo");
-  logo.src = logoPath ? `ht://assets/${logoPath}` : "";
-  logo.alt = "AMS Group · TU Ilmenau";
-  logo.onerror = () => {
-    logo.remove();
+  function _buildLogoFallback() {
     const fallback = _el("div", "ht-brand-logo-fallback");
     fallback.textContent = "AMS";
     brand.insertBefore(fallback, brand.firstChild);
-  };
-  brand.appendChild(logo);
+  }
+
+  // The manifest is never injected into window — Python serves it exclusively
+  // at ht://assets/manifest.json (HtSchemeHandler in main.py).  Fetch it to
+  // get the "logo" path, exactly as scene.js fetches other asset keys.
+  // Show the AMS text badge immediately as a placeholder; swap it for the
+  // real image once the fetch resolves, or leave the badge if the key is absent.
+  _buildLogoFallback();
+  fetch("ht://assets/manifest.json")
+    .then(r => r.ok ? r.json() : Promise.reject(r.status))
+    .then(manifest => {
+      const logoPath = manifest?.logo;
+      if (!logoPath) return;
+      const logo = _el("img", "ht-brand-logo");
+      logo.alt = "AMS Group · TU Ilmenau";
+      logo.src = `ht://assets/${logoPath}`;
+      logo.onload = () => {
+        const badge = brand.querySelector(".ht-brand-logo-fallback");
+        if (badge) badge.replaceWith(logo);
+      };
+      logo.onerror = () => { /* fallback badge stays */ };
+    })
+    .catch(() => { /* fallback badge already in DOM */ });
 
   const text = _el("div", "ht-brand-text");
+  // 38px logo + 10px gap + 28px brand padding = 76px; leave the rest for text.
+  text.style.cssText = "max-width: calc(var(--sidebar-w) - 76px); word-break: break-word; overflow-wrap: break-word;";
 
   const chapter = _el("div", "ht-brand-chapter");
   chapter.textContent = "Multimediaprogrammierung · Chapter 05";
@@ -611,7 +669,7 @@ function _buildPlaybackSection(parent) {
   const transport = _el("div", "ht-transport");
 
   const playBtn = _el("button", "ht-play-btn");
-  playBtn.innerHTML = `<span class="ht-play-icon">▶</span><span class="ht-play-label">Start</span>`;
+  playBtn.innerHTML = `<span class="ht-play-icon">▶</span><span class="ht-play-label">Play</span>`;
   playBtn.setAttribute("aria-label", "Play or pause");
   playBtn.addEventListener("click", _onPlayPauseClick);
   transport.appendChild(playBtn);
@@ -801,6 +859,29 @@ function _buildHintBar(parent) {
 }
 
 // ---------------------------------------------------------------------------
+// STEP 6b: Floating transport bar — bottom-centre of the viewport
+// ---------------------------------------------------------------------------
+
+function _buildTransportBar(root) {
+  const bar = _el("div", "ht-transport-bar");
+
+  const playBtn = _el("button", "ht-play-btn");
+  playBtn.innerHTML = `<span class="ht-play-icon">▶</span><span class="ht-play-label">Play</span>`;
+  playBtn.setAttribute("aria-label", "Play");
+  playBtn.addEventListener("click", _onPlayPauseClick);
+  bar.appendChild(playBtn);
+  _el.playPauseBtn = playBtn;
+
+  const resetBtn = _el("button", "ht-reset-btn");
+  resetBtn.textContent = "↺ Reset View";
+  resetBtn.setAttribute("aria-label", "Reset camera to sweet spot");
+  resetBtn.addEventListener("click", _onResetView);
+  bar.appendChild(resetBtn);
+
+  root.appendChild(bar);
+}
+
+// ---------------------------------------------------------------------------
 // STEP 7: Right diagnostics panel
 // ---------------------------------------------------------------------------
 
@@ -972,27 +1053,34 @@ function _onMixerToggleClick() {
 }
 
 function _onMuteClick(key) {
+  // M and S are mutually exclusive. Pressing M always clears solo for this
+  // speaker first, regardless of whether we are muting or unmuting.
+  _state.soloSet.delete(key);
+
   _state.muteSaved[key] = !_state.muteSaved[key];
-  const muted = _state.muteSaved[key];
-  // If this speaker is in the solo set and is now muted, evict it from solo.
-  if (muted && _state.soloSet.has(key)) {
-    _state.soloSet.delete(key);
-    _applySoloState();
-    return;
-  }
-  _applyMuteVisual(key, muted);
-  window.htBridge?.set_speaker_mute(key, muted);
+
+  // Re-evaluate the full solo/mute state for all speakers so that:
+  //   - if the solo set is now empty, all speakers revert to their saved mutes;
+  //   - solo-button visuals and mute-button visuals are updated consistently.
+  _applySoloState();
 }
 
 /**
  * _onSoloClick — multi-solo: adds/removes key from _state.soloSet.
- * When the set is non-empty, speakers outside it are force-muted.
+ * When the set is non-empty, speakers outside it are force-silenced.
  * When empty, all speakers revert to their individually saved mute states.
+ *
+ * M and S are mutually exclusive: soloing a speaker always clears its saved
+ * mute state so that M and S are never both active on the same speaker.
  */
 function _onSoloClick(key) {
   if (_state.soloSet.has(key)) {
     _state.soloSet.delete(key);
   } else {
+    // Soloing clears the saved mute for this speaker — a soloed speaker is
+    // by definition audible, so its mute state is meaningless and must not
+    // light up the M button while S is active.
+    _state.muteSaved[key] = false;
     _state.soloSet.add(key);
   }
   _applySoloState();
@@ -1101,15 +1189,15 @@ function _setPlayBtn(playing) {
   const icon  = _el.playPauseBtn.querySelector(".ht-play-icon");
   const label = _el.playPauseBtn.querySelector(".ht-play-label");
   if (playing) {
-    if (icon)  icon.textContent  = "■";
-    if (label) label.textContent = "Stop";
+    if (icon)  icon.textContent  = "⏸";
+    if (label) label.textContent = "Pause";
     _el.playPauseBtn.classList.add("ht-play-btn--pause");
-    _el.playPauseBtn.setAttribute("aria-label", "Stop playback");
+    _el.playPauseBtn.setAttribute("aria-label", "Pause playback");
   } else {
     if (icon)  icon.textContent  = "▶";
-    if (label) label.textContent = "Start";
+    if (label) label.textContent = "Play";
     _el.playPauseBtn.classList.remove("ht-play-btn--pause");
-    _el.playPauseBtn.setAttribute("aria-label", "Start playback");
+    _el.playPauseBtn.setAttribute("aria-label", "Play");
   }
 }
 
@@ -1125,12 +1213,36 @@ function _updateMixerStrips(tier) {
     "5.1":    new Set(["C", "L", "R", "Ls", "Rs", "LFE"]),
   };
   const active = activeSets[tier] ?? new Set();
+
+  // Reset mute/solo state for speakers that are inactive in the new tier.
+  // Without this, a solo or mute set in a previous tier (e.g. "Ls" soloed in
+  // 5.1) silently persists into the new tier — causing all active speakers to
+  // be force-silenced by a ghost solo the user can no longer clear because the
+  // strip is disabled.
+  let stateChanged = false;
+  for (const key of Object.keys(_state.muteSaved)) {
+    if (!active.has(key)) {
+      if (_state.soloSet.has(key)) {
+        _state.soloSet.delete(key);
+        stateChanged = true;
+      }
+      if (_state.muteSaved[key]) {
+        _state.muteSaved[key] = false;
+        stateChanged = true;
+      }
+    }
+  }
+
   for (const [key, strip] of Object.entries(_el.speakerStrips)) {
     const isActive = active.has(key);
     strip.row.classList.toggle("ht-mixer-strip--inactive", !isActive);
     strip.muteBtn.disabled = !isActive;
     strip.soloBtn.disabled = !isActive;
   }
+
+  // Re-evaluate solo/mute visuals and notify the bridge if anything changed.
+  if (stateChanged) _applySoloState();
+
   if (_el.diagSpkVal) _el.diagSpkVal.textContent = `${active.size} / 6`;
 }
 

@@ -366,22 +366,67 @@ class AudioBridge(QObject):
     def set_speaker_mute(self, key: str, muted: bool) -> None:
         """Mute or unmute a single virtual speaker by its ITU key (C/L/R/Ls/Rs/LFE).
 
-        Maps the ITU key used by the HUD mixer to the channel key used by the
-        engine's _sources list, then sets volume to 0.0 (muted) or 1.0 (unmuted).
+        The HUD always sends the EFFECTIVE mute state — meaning solo logic is
+        already resolved by the JS side before this slot is called. This slot's
+        only job is to map the HUD key to the correct engine source for the
+        active tier, then apply 0.0 (silenced) or the tier's nominal volume
+        (audible).
+
+        TIER MAPPING
+        ------------
+        Each tier uses a different subset of the 9 engine sources and different
+        audio files, so the HUD key → source index mapping is tier-dependent:
+
+          Mono:   C        → source 0 ("mono")
+          Stereo: L, R     → sources 1, 2 ("stereo_l", "stereo_r")
+          5.1:    C,L,R,Ls,Rs,LFE → sources 3–8 ("fc","fl","fr","ls","rs","lfe")
+
+        A key that is not part of the active tier is a silent no-op — the HUD
+        disables those strips, but a stale bridge call could still arrive.
+
+        VOLUME RESTORATION
+        ------------------
+        When unmuting, we restore _TIER_VOLUMES[tier][idx] rather than 1.0.
+        Sources that belong to a different tier have a tier volume of 0.0 and
+        must never be accidentally unmuted by a cross-tier call.
         """
-        # Map HUD ITU key → engine channel key (matches _TIER_CONFIG / _SPEAKER_ORDER)
-        _KEY_MAP = {"C": "fc", "L": "fl", "R": "fr", "Ls": "ls", "Rs": "rs", "LFE": "lfe"}
-        channel_key = _KEY_MAP.get(key)
+        from .audio_engine import _SOURCE_DEFS, _TIER_VOLUMES, Tier
+
+        # HUD key → channel key, keyed by Tier enum.
+        # Only speakers active in each tier are listed; anything absent is a no-op.
+        _KEY_MAP: dict[Tier, dict[str, str]] = {
+            Tier.MONO:    {"C": "mono"},
+            Tier.STEREO:  {"L": "stereo_l", "R": "stereo_r"},
+            Tier.FIVE_ONE: {
+                "C": "fc", "L": "fl", "R": "fr",
+                "Ls": "ls", "Rs": "rs", "LFE": "lfe",
+            },
+        }
+
+        tier = self._engine.tier
+        channel_key = _KEY_MAP.get(tier, {}).get(key)
         if channel_key is None:
+            # Speaker is not active in the current tier — ignore silently.
             return
-        # Find the source index from _SPEAKER_ORDER on the engine
-        from .audio_engine import _SPEAKER_ORDER
+
+        # Resolve source index by matching channel_key in _SOURCE_DEFS.
+        # _SOURCE_DEFS is a list of (channel_key, azimuth, display_name) tuples
+        # ordered to match self._engine._sources.
+        source_keys = [entry[0] for entry in _SOURCE_DEFS]
         try:
-            idx = _SPEAKER_ORDER.index(channel_key)
+            idx = source_keys.index(channel_key)
         except ValueError:
+            # Defensive: channel_key not in _SOURCE_DEFS — engine/HUD are out of sync.
             return
-        src = self._engine._sources[idx]
-        src.setVolume(0.0 if muted else 1.0)
+
+        if muted:
+            self._engine._sources[idx].setVolume(0.0)
+        else:
+            # Restore the tier's nominal volume for this source, not a hardcoded 1.0.
+            # Sources inactive in this tier have a nominal volume of 0.0 — this
+            # guard ensures they can never be accidentally unmuted.
+            nominal = _TIER_VOLUMES[tier][idx]
+            self._engine._sources[idx].setVolume(nominal)
 
     @Slot(str)
     def open_url(self, url: str) -> None:
