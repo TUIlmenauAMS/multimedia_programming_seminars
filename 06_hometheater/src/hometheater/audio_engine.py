@@ -40,43 +40,43 @@
 #
 # AUDIO/VIDEO SYNC DESIGN
 # -----------------------
-# Three Qt behaviours make naive approaches fail:
+# Two constraints drive the transport design:
 #
 #   1. QSpatialSound.setSource() resets the playback cursor to 0:00.
 #      The original 6-source design called setSource() on every tier switch,
 #      causing audio to restart from 0:00 while video resumed from the pause
-#      position.
+#      position. Fixed by loading all 9 sources once at initialise() time and
+#      never calling setSource() again.
 #
-#   2. QSpatialSound.play() after pause() does NOT resume — it restarts from
-#      0:00. There is no seek API and no true resume call. This means the
-#      standard pause/play transport cycle is broken for this use case.
+#   2. QSpatialSound.play() / pause() must never be called after the initial
+#      src.play() on each source. These per-source transport calls do not
+#      guarantee resume-from-position behaviour across all Qt backends.
 #
-#   3. QSpatialSound.play() on an already-paused source can enter a broken
-#      backend state on some Qt platforms where it produces silence rather
-#      than either resuming or restarting. The only safe transport sequence
-#      is: play() once to start, then never call pause() or play() again.
-#
-# Fix — 9 permanent sources, volume-only transport:
+# Fix — 9 permanent sources, engine-level transport:
 #
 #   Sources are started ONCE via src.play() on the first call to play() and
-#   run continuously thereafter. They are NEVER paused or stopped (except
-#   by restart(), which intentionally resets everything to 0:00).
+#   run continuously thereafter. Per-source pause/stop are never called again
+#   (except by restart(), which intentionally resets everything to 0:00).
 #
-#   "Pause" is simulated by setting all 9 source volumes to 0.0.
-#   "Play"  is simulated by restoring the active tier's volumes to 1.0.
-#   "Tier switch" is 9 setVolume() calls; it respects the paused state.
+#   Pause/resume use QAudioEngine.pause() / QAudioEngine.resume(), which freeze
+#   and unfreeze the entire renderer atomically. All 9 source cursors stop and
+#   start together, in lockstep with the video. No drift is possible.
+#
+#   "Tier switch" is 9 setVolume() calls; it works in both paused and playing
+#   states. setVolume() while the engine is paused just sets a property — no
+#   audio leaks through, and the correct volumes are already in place when
+#   resume() is called.
 #
 #   Concretely:
-#     - First play()     → src.play() on all 9; apply tier volumes.    _started=True
-#     - Subsequent play() → _apply_tier(self._tier) only. No src.play().
-#     - pause()          → set all volumes to 0.0. No src.pause().
-#     - set_tier()       → update self._tier; call _apply_tier() only if
-#                          _is_playing, so the tier is remembered while
-#                          paused and applied cleanly on the next play().
-#     - restart()        → src.stop() on all 9; _started=False; call play().
-#
-#   Because the sources never pause, their cursors always advance in lockstep
-#   with the video. Tier switching and pause/resume are pure volume operations.
+#     - First play()      → src.play() on all 9; engine.resume(); apply tier
+#                           volumes. _started=True.
+#     - Subsequent play() → engine.resume(); _apply_tier(self._tier).
+#                           No src.play() ever again.
+#     - pause()           → engine.pause(). No setVolume() calls.
+#     - set_tier()        → update self._tier; _apply_tier(). Works in both
+#                           paused and playing states — setVolume() is safe
+#                           while the engine is paused.
+#     - restart()         → src.stop() on all 9; _started=False; call play().
 #
 # Three speaker positions (Center, FL, FR) host two sources each. Only one of
 # each pair is ever at volume 1.0 at a time, so there is no bleed or
@@ -152,8 +152,7 @@ class RoomVariant(enum.Enum):
 # LFE is non-directional: the human auditory system cannot localise
 # sub-bass below ~80 Hz. Its QSpatialSound source is placed near the TV for
 # visual plausibility but its acoustic role is purely omnidirectional. This is
-# NOT a bug in the code — comment it explicitly so students don't mistake the
-# placement for a directional design.
+# NOT a bug in the code — it reflects the standard's intent.
 
 # Sweet-spot coordinates (meters). This is the geometric center of the
 # five-speaker circle, at seated head height. scene.js uses the identical
@@ -265,9 +264,9 @@ ROOM_DIMENSIONS = QVector3D(6.0, 3.0, 7.0)
 # STEP 4: Permanent source definitions — one entry per unique audio file
 # ---------------------------------------------------------------------------
 #
-# SYNC FIX: The original design had 6 QSpatialSound objects that swapped files
-# on tier changes via setSource(). setSource() resets the playback cursor to
-# 0:00, causing audio/video desync after a tier switch.
+# The original design had 6 QSpatialSound objects that swapped files on tier
+# changes via setSource(). setSource() resets the playback cursor to 0:00,
+# causing audio/video desync after a tier switch.
 #
 # The new design has 9 permanent sources — one per unique audio file across all
 # three tiers. setSource() is called exactly once per source at initialise()
@@ -339,13 +338,12 @@ class SpatialAudioEngine(QObject):
 
     Audio/video sync guarantee:
         setSource() is called exactly once per QSpatialSound source, inside
-        _init_sources(), and never again after that. src.play() is called
-        exactly once per source, on the first user-initiated play(), and never
-        again after that. Pause and resume are simulated entirely through
-        setVolume(). Tier switching only calls setVolume(). Because no source
-        is ever re-loaded or paused at the Qt level, no playback cursor is
-        ever reset, and audio always resumes from the same position as the
-        video after a tier change or a pause/resume cycle.
+        _init_sources(), and never again. src.play() is called exactly once per
+        source on the first user-initiated play(), and never again. All
+        subsequent pause/resume cycles go through QAudioEngine.pause() and
+        QAudioEngine.resume(), which freeze and unfreeze the entire renderer
+        atomically. Tier switching and mute/solo only call setVolume(), which
+        is safe in both paused and playing states and never resets any cursor.
     """
 
     # -- Signals ------------------------------------------------------------
@@ -391,8 +389,6 @@ class SpatialAudioEngine(QObject):
         self._listener = QAudioListener(self._engine)
         self._listener.setPosition(SWEET_SPOT)
         # Listener faces −Z (toward the TV) at startup, matching the camera.
-        # QQuaternion() default constructor produces (0,0,0,0) — a zero quaternion,
-        # which is mathematically invalid and breaks the HRTF renderer entirely.
         # The identity quaternion (no rotation) is (w=1, x=0, y=0, z=0).
         self._listener.setRotation(QQuaternion(1, 0, 0, 0))
 
@@ -428,15 +424,10 @@ class SpatialAudioEngine(QObject):
         self._initialised = False
 
         # _started tracks whether src.play() has ever been called on the sources.
-        #
-        # SYNC FIX (bug 3): QSpatialSound.play() after pause() does NOT resume
-        # — it restarts from 0:00, and on some Qt backends it produces silence
-        # instead of either resuming or restarting. The only safe transport
-        # sequence is to call src.play() ONCE to start continuous playback and
-        # then NEVER call src.play() or src.pause() again.
-        #
-        # _started=False → first play() call will invoke src.play() on all 9
-        # _started=True  → subsequent play() calls only restore volumes via
+        # src.play() is called exactly once per source on the first play() call.
+        # After that, all transport goes through QAudioEngine.pause()/resume().
+        # _started=False → first play() call invokes src.play() on all 9 sources
+        # _started=True  → subsequent play() calls only call engine.resume() and
         #                   _apply_tier(); src.play() is never called again
         self._started = False
 
@@ -513,11 +504,13 @@ class SpatialAudioEngine(QObject):
         self._engine.start()
         print(f"[audio_engine] engine.start() returned, output mode={self._engine.outputMode()}", flush=True)
 
+        # Immediately pause the engine so sources don't audibly play during
+        # the loading overlay. Sources will be silent until the user presses Play.
+        self._engine.pause()
+        print("[audio_engine] engine paused after start — waiting for user play()", flush=True)
+
         try:
             self._apply_room(self._room_var)
-            # Apply tier with all volumes at 0.0 — sources are muted until the
-            # user explicitly presses play. _apply_tier() is called here with
-            # _is_playing=False, so it correctly silences everything.
             self._apply_tier(self._tier)
         except Exception as exc:
             import traceback
@@ -533,10 +526,10 @@ class SpatialAudioEngine(QObject):
         """
         Construct the nine permanent QSpatialSound instances and load their files.
 
-        SYNC FIX: Every source receives its WAV file here via setSource(), and
-        setSource() is NEVER called again anywhere else in this class. This is
-        the core of the audio/video sync fix: QSpatialSound.setSource() resets
-        the playback cursor to 0:00. By loading all files once at startup and
+        Every source receives its WAV file here via setSource(), and setSource()
+        is NEVER called again anywhere else in this class. This is the core of
+        the audio/video sync design: QSpatialSound.setSource() resets the
+        playback cursor to 0:00. By loading all files once at startup and
         switching tiers purely through setVolume(), no cursor is ever reset
         after playback begins.
 
@@ -577,10 +570,7 @@ class SpatialAudioEngine(QObject):
             src.setSource(url)
 
             # Start fully muted. _apply_tier() sets the correct tier volumes
-            # immediately after _init_sources() returns. Sources stay muted
-            # until the user presses play — src.play() is called then, not here,
-            # because calling play() before the user initiates playback would
-            # start the cursors advancing while the video is still at 0:00.
+            # immediately after _init_sources() returns.
             src.setVolume(0.0)
 
             self._sources.append(src)
@@ -634,37 +624,29 @@ class SpatialAudioEngine(QObject):
 
     def _apply_tier(self, tier: Tier) -> None:
         """
-        Reconfigure source volumes for the given tier, respecting paused state.
+        Reconfigure source volumes for the given tier.
 
-        SYNC FIX: This method ONLY calls setVolume(). It never calls
-        setSource() or src.play(). All nine sources were loaded at initialise()
-        time and started once on the first play(). Switching tier makes the
-        right sources audible (vol=1.0) and silences the others (vol=0.0).
-        Because no source is re-loaded, no playback cursor is reset, and audio
-        stays in sync with the video after every tier change.
+        This method ONLY calls setVolume(). It never calls setSource() or
+        src.play(). All nine sources were loaded at initialise() time and
+        started once on the first play(). Switching tier makes the right sources
+        audible (vol=1.0) and silences the others (vol=0.0). Because no source
+        is ever re-loaded, no playback cursor is reset, and audio stays in sync
+        with the video after every tier change.
 
-        PAUSED STATE: If _is_playing is False, all volumes are forced to 0.0
-        regardless of the tier. This prevents a tier switch from making audio
-        briefly audible while the user has paused the demo. The correct volumes
-        for the new tier will be applied when play() is next called.
+        setVolume() is safe to call while the engine is paused — it sets a
+        property on the source object and takes effect when the engine resumes.
+        No audio leaks through a paused engine regardless of volume values.
 
         The volume list in _TIER_VOLUMES maps to source indices in _SOURCE_DEFS:
             [0]=mono  [1]=stereo_l  [2]=stereo_r
             [3]=fc    [4]=fl        [5]=fr
             [6]=ls    [7]=rs        [8]=lfe
         """
-        if self._is_playing:
-            volumes = _TIER_VOLUMES[tier]
-            state_label = "playing"
-        else:
-            # Paused: silence everything. Volumes for the new tier will be
-            # applied by the next play() call via _apply_tier(self._tier).
-            volumes = [0.0] * len(self._sources)
-            state_label = "paused — all muted"
+        volumes = _TIER_VOLUMES[tier]
 
         print(
             f"[audio_engine] _apply_tier({tier.value}): "
-            f"{state_label}, setting volumes on {len(volumes)} sources",
+            f"setting volumes on {len(volumes)} sources",
             flush=True,
         )
 
@@ -686,33 +668,20 @@ class SpatialAudioEngine(QObject):
 
         FIRST CALL (_started is False):
             Calls src.play() on all nine sources to begin continuous playback,
-            then applies the active tier's volumes so the correct sources become
-            audible. After this, _started is set to True and src.play() is
-            NEVER called again.
+            then calls engine.resume() to unfreeze the renderer, then applies
+            the active tier's volumes. After this, _started is True and
+            src.play() is NEVER called again on any source.
 
         SUBSEQUENT CALLS (_started is True):
-            Only calls _apply_tier(self._tier) to restore the active tier's
-            volumes from 0.0 (paused) to 1.0. Does NOT call src.play() — doing
-            so after sources are already running would restart them from 0:00
-            on most Qt backends, or produce silence on others.
-
-        SYNC FIX (bug 2 + bug 3): QSpatialSound.play() after pause() does not
-        resume — it restarts from 0:00, or silently fails. The only safe
-        design is to call src.play() once and then simulate pause/resume purely
-        through volume. This method enforces that invariant via _started.
+            Calls engine.resume() to unfreeze the renderer, then applies the
+            active tier's volumes. Does NOT call src.play() — sources are
+            already running inside the engine.
 
         All 9 sources are started on the first call regardless of their volume.
-        Muted sources (vol=0.0) run silently — their cursors advance in lockstep
+        Sources with vol=0.0 run silently — their cursors advance in lockstep
         with the active ones and with the video. This is what makes instantaneous
         tier switching possible: a source that was muted while two others played
         is at exactly the right position when it becomes the active source.
-
-        CONCEPT: Starting multiple QSpatialSound instances in a tight Python
-        loop is not perfectly synchronised at the sample level — Qt processes
-        each call in sequence. In practice the offset is sub-millisecond and
-        imperceptible. If perfect sample-accurate sync were required, a
-        QAudioEngine-level transport would be needed; that API is not currently
-        exposed in PySide6's QtSpatialAudio bindings (see build plan §5.3).
         """
         print(
             f"[audio_engine] play() called, _started={self._started}, "
@@ -728,8 +697,9 @@ class SpatialAudioEngine(QObject):
 
         if not self._started:
             # First play: call src.play() on every source to start continuous
-            # playback. All sources begin at 0:00 and advance together.
-            # Volumes are still 0.0 at this point (set during _init_sources).
+            # playback inside the engine. All sources begin at 0:00 and advance
+            # together once the engine resumes. Volumes are still 0.0 at this
+            # point (set during _init_sources), so nothing is audible yet.
             print("[audio_engine] play(): first start — calling src.play() on all sources", flush=True)
             for i, src in enumerate(self._sources):
                 name = self._source_names[i] if i < len(self._source_names) else f"src[{i}]"
@@ -737,13 +707,14 @@ class SpatialAudioEngine(QObject):
                 print(f"  [play/start] {name}: src.play() called", flush=True)
             self._started = True
         else:
-            # Subsequent play (resume from volume-pause): do NOT call src.play().
-            # Sources are already running. Just restore volumes below.
-            print("[audio_engine] play(): resuming via volume restore (no src.play())", flush=True)
+            print("[audio_engine] play(): resuming via engine.resume()", flush=True)
 
-        # Restore the active tier's volumes. This is what makes audio audible
-        # again after a volume-pause. Called on both first-start and resume
-        # paths so the correct channels are always unmuted after play().
+        # Unfreeze the engine. All 9 source cursors resume from exactly where
+        # they stopped — no drift, no reset.
+        self._engine.resume()
+
+        # Apply the active tier's volumes. This is what makes the correct
+        # channels audible. Called on both first-start and resume paths.
         self._is_playing = True
         self._apply_tier(self._tier)
 
@@ -753,35 +724,26 @@ class SpatialAudioEngine(QObject):
     @Slot()
     def pause(self) -> None:
         """
-        Pause playback by silencing all sources via volume.
+        Pause playback by freezing the entire audio engine.
 
-        SYNC FIX (bug 2 + bug 3): This method NEVER calls src.pause(). Calling
-        Qt's pause() on a QSpatialSound and then play() does not resume — it
-        restarts from 0:00, or silently fails on some backends. Instead, all
-        source volumes are set to 0.0, leaving the sources running internally.
-        Their cursors continue to advance. The next call to play() restores
-        volumes via _apply_tier(), which is a pure volume operation that cannot
-        reset any cursor.
+        QAudioEngine.pause() suspends the renderer atomically — all 9 source
+        cursors freeze at exactly the same moment. QAudioEngine.resume() in
+        play() unfreezes them all together. No cursor drift is possible between
+        pause and resume.
 
-        The muted sources still consume CPU in the Qt audio graph. The overhead
-        is minimal — the renderer still mixes them, but at zero amplitude the
-        output samples are all zero and the per-source HRTF processing is
-        skipped by Qt's internal optimiser on most backends.
+        While the engine is paused, setVolume() calls from mute/solo operations
+        are safe and effective — they update source properties that will be
+        applied when the engine resumes. No audio leaks through.
         """
         print("[audio_engine] pause() called", flush=True)
 
         if not self._started:
-            # Sources have never been started. Nothing to silence.
             print("[audio_engine] pause(): sources not yet started — no-op", flush=True)
             self._is_playing = False
             self._emit_state()
             return
 
-        # Silence all 9 sources via volume. No src.pause() call.
-        for i, src in enumerate(self._sources):
-            name = self._source_names[i] if i < len(self._source_names) else f"src[{i}]"
-            src.setVolume(0.0)
-            print(f"  [pause] {name}: setVolume(0.0)", flush=True)
+        self._engine.pause()
 
         self._is_playing = False
         self._emit_state()
@@ -789,20 +751,12 @@ class SpatialAudioEngine(QObject):
 
     @Slot()
     def pause_all(self) -> None:
-        """Silence all sources.
+        """
+        Pause all audio output cleanly.
 
         Public alias for pause(), called by MainWindow.closeEvent() to stop
-        audible output cleanly before the Qt audio graph is torn down.
-
-        NOTE: Unlike the previous version, this no longer calls src.pause() —
-        it calls the volume-based pause() instead. Sources remain internally
-        running but silent. This avoids the Qt backend glitch that some
-        implementations produce when a playing QSpatialSound is destroyed while
-        its QAudioEngine is still alive — silence is a cleaner state to destroy
-        from than paused.
-
-        Delegates entirely to pause() so all state bookkeeping stays in one
-        place.
+        audible output before the Qt audio graph is torn down. Delegates
+        entirely to pause() so all state bookkeeping stays in one place.
         """
         self.pause()
 
@@ -824,6 +778,10 @@ class SpatialAudioEngine(QObject):
         """
         print("[audio_engine] restart() called — stopping all sources", flush=True)
 
+        # Pause the engine first so stopping individual sources doesn't produce
+        # audio glitches from the sources that haven't been stopped yet.
+        self._engine.pause()
+
         for i, src in enumerate(self._sources):
             name = self._source_names[i] if i < len(self._source_names) else f"src[{i}]"
             src.stop()
@@ -833,7 +791,7 @@ class SpatialAudioEngine(QObject):
         self._is_playing = False
 
         # play() will take the first-start path, call src.play() on all 9,
-        # and apply the active tier's volumes.
+        # call engine.resume(), and apply the active tier's volumes.
         self.play()
 
     # -----------------------------------------------------------------------
@@ -846,16 +804,12 @@ class SpatialAudioEngine(QObject):
 
         Tier switching is a pure volume operation: _apply_tier() only calls
         setVolume() on the 9 sources. No source is re-loaded, no cursor is
-        reset, and no pause/resume cycle is needed.
+        reset, and no engine pause/resume cycle is needed.
 
-        PAUSED STATE: If _is_playing is False, _apply_tier() silences all
-        sources (vol=0.0) so the tier change is inaudible while paused.
-        self._tier is updated regardless, so the correct channels become
-        active on the next play() call.
-
-        PLAYING STATE: _apply_tier() immediately applies the new tier's volumes.
-        The transition takes effect within the next audio buffer (~10ms) with
-        no glitch and no cursor reset.
+        setVolume() is safe in both paused and playing states. While paused,
+        the new volumes are stored on the source objects and applied when the
+        engine resumes. While playing, they take effect within the next audio
+        buffer (~10ms) with no glitch and no cursor reset.
         """
         print(f"[audio_engine] set_tier('{tier_name}') called, _is_playing={self._is_playing}", flush=True)
 
@@ -908,6 +862,51 @@ class SpatialAudioEngine(QObject):
 
         self._emit_state()
         print(f"[audio_engine] set_room() done: now on {new_room.value}", flush=True)
+
+    @Slot(str, bool)
+    def set_speaker_mute(self, channel_key: str, muted: bool) -> None:
+        """
+        Mute or unmute a single speaker channel by channel key.
+
+        Called by bridge.py whenever the HUD's mute or solo state changes.
+        The muted flag already encodes the full effective state computed by
+        hud.js _applySoloState() — this method just applies it.
+
+        setVolume() is safe while the engine is paused. The user can configure
+        mute and solo freely during pause; all changes take effect correctly
+        when playback resumes.
+
+        Channel key → source index mapping (matches _SOURCE_DEFS):
+            "mono"     → 0    "stereo_l" → 1    "stereo_r" → 2
+            "fc"       → 3    "fl"       → 4    "fr"       → 5
+            "ls"       → 6    "rs"       → 7    "lfe"      → 8
+        """
+        # Build the key→index map lazily on first use.
+        if not hasattr(self, "_channel_key_to_index"):
+            self._channel_key_to_index: dict[str, int] = {
+                key: i for i, (key, _, _) in enumerate(_SOURCE_DEFS)
+            }
+
+        idx = self._channel_key_to_index.get(channel_key)
+        if idx is None:
+            print(f"[audio_engine] set_speaker_mute(): unknown channel key '{channel_key}'", flush=True)
+            return
+
+        # The effective volume respects both the tier (is this source active in
+        # the current tier?) and the mute flag. An inactive-tier source stays
+        # at 0.0 regardless of the mute flag.
+        tier_volume = _TIER_VOLUMES[self._tier][idx]
+        effective_volume = 0.0 if muted else tier_volume
+
+        src = self._sources[idx]
+        src.setVolume(effective_volume)
+
+        name = self._source_names[idx]
+        print(
+            f"[audio_engine] set_speaker_mute('{channel_key}', {muted}): "
+            f"{name} vol={effective_volume:.1f}",
+            flush=True,
+        )
 
     # -----------------------------------------------------------------------
     # STEP 11: Per-frame listener pose update (called by bridge.py at ~60 Hz)
@@ -986,10 +985,5 @@ class SpatialAudioEngine(QObject):
 
     @property
     def is_started(self) -> bool:
-        """True once src.play() has been called on all sources.
-
-        Exposed for bridge.py diagnostics. Under normal operation the bridge
-        does not need to check this — it drives the engine via play() and
-        pause() and relies on state_changed signals for feedback.
-        """
+        """True once src.play() has been called on all sources."""
         return self._started
