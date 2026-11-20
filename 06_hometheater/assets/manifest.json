@@ -7,6 +7,8 @@
     "url": "https://mango.blender.org"
   },
 
+  "logo": "media/ams_group_tui.png",
+
   "video_file": "media/clip_video.webm",
   "audio_51_file": "clip_audio_51.flac",
 

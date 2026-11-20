@@ -2,7 +2,7 @@
  * hud.js — HUD construction and control wiring for the Home Theater Spatial Audio Simulator
  *
  * Multimediaprogrammierung Chapter 05 companion — native PySide6 desktop app.
- * Author: Renato Fera P. / TU Ilmenau  // TODO: confirm author credit block
+ * Author: Renato Fera P. / TU Ilmenau
  *
  * LOAD ORDER CONTRACT (see index.html):
  *   This file is loaded BEFORE scene.js. It registers window.htSignals synchronously
@@ -22,17 +22,19 @@
  *
  *   These are the only public surface hud.js exposes. scene.js and index.html must
  *   not touch HUD DOM directly.
+ *
+ * SOLO BEHAVIOUR (multi-solo):
+ *   Multiple speakers can be soloed simultaneously. Clicking S on an un-soloed speaker
+ *   adds it to the active solo set (muting all non-soloed speakers). Clicking S on an
+ *   already-soloed speaker removes it. When the solo set becomes empty, all speakers
+ *   are restored to their individually saved mute states.
+ *   This matches DAW convention: solo is additive, not exclusive.
  */
 
 // ---------------------------------------------------------------------------
 // STEP 1: Signal registry — registered synchronously at parse time
 // ---------------------------------------------------------------------------
 
-/**
- * window.htSignals is registered here, synchronously, before any other module
- * runs. index.html's bootstrap script reads it after the QWebChannel opens;
- * scene.js reads it in the render loop. Both depend on it existing immediately.
- */
 window.htSignals = {
   onEngineReady,
   onAssetError,
@@ -41,42 +43,23 @@ window.htSignals = {
 };
 
 // ---------------------------------------------------------------------------
-// STEP 2: UI state — single source of truth for confirmed engine state
+// STEP 2: UI state
 // ---------------------------------------------------------------------------
 
-/**
- * _state — reflects the last confirmed state received from Python via state_changed.
- * The HUD never assumes a switch succeeded; it waits for this to update.
- * Buttons show optimistic feedback (disabled while pending) but labels only update
- * on confirmation. See §5.3 of the build plan on the pause-before-switch constraint.
- */
 const _state = {
-  tier:       "mono",    // "mono" | "stereo" | "5.1"
-  room:       "treated", // "treated" | "wet"
-  isPlaying:  false,
+  tier:        "mono",
+  room:        "treated",
+  isPlaying:   false,
   engineReady: false,
-  // Mixer panel open/closed — UI-only, not reflected in Python state.
-  mixerOpen:  false,
-  // Per-speaker mute state for the mixer panel. Stored here so we can restore
-  // mute states after a solo is cleared. Keyed by ITU speaker key.
-  muteSaved:  { C: false, L: false, R: false, Ls: false, Rs: false, LFE: false },
-  soloKey:    null, // which speaker is currently soloed, or null
+  mixerOpen:   false,
+  muteSaved:   { C: false, L: false, R: false, Ls: false, Rs: false, LFE: false },
+  soloSet:     new Set(),
+  leftOpen:    true,
+  rightOpen:   true,
 };
 
 // ---------------------------------------------------------------------------
-// STEP 3: DOM references — stored as properties on the _el factory function.
-//
-// NOTE: _el is declared as a function at the bottom of this file (functions are
-// hoisted, so it is available here at parse time). Named element references are
-// attached directly to the function object, e.g. _el.startBtn = btn.
-// The three dict-style refs (_el.tierBtns, _el.roomBtns, _el.speakerStrips) are
-// initialised to empty objects immediately after the function declaration so that
-// Object.values() / Object.entries() calls on them never see undefined.
-// See the JSDoc on _el at the bottom of this file.
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
-// STEP 4: Build the full HUD DOM — called once at DOMContentLoaded
+// STEP 3: Build HUD
 // ---------------------------------------------------------------------------
 
 document.addEventListener("DOMContentLoaded", _buildHUD);
@@ -87,36 +70,393 @@ function _buildHUD() {
     console.error("[hud.js] #ht-hud mount point not found in DOM.");
     return;
   }
-
+  _injectStyles();
   _buildLoadingOverlay(root);
-  _buildTopLeft(root);
-  _buildTopRight(root);
-  _buildBottomBar(root);
-  _buildMixerPanel(root);
+  _buildLeftSidebar(root);
+  _buildRightPanel(root);
   _buildFooter(root);
+}
+
+// ---------------------------------------------------------------------------
+// STEP 4: Styles
+// ---------------------------------------------------------------------------
+
+function _injectStyles() {
+  const style = document.createElement("style");
+  style.textContent = `
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:          #0d0f14;
+      --surface:     #161a22;
+      --surface-2:   #1e2430;
+      --border:      rgba(255,255,255,.08);
+      --accent:      #00c8c8;
+      --accent-dim:  rgba(0,200,200,.15);
+      --amber:       #f59e0b;
+      --amber-dim:   rgba(245,158,11,.15);
+      --green:       #22c55e;
+      --green-dim:   rgba(34,197,94,.15);
+      --red:         #ef4444;
+      --red-dim:     rgba(239,68,68,.15);
+      --text:        #e2e8f0;
+      --text-2:      #94a3b8;
+      --text-3:      #475569;
+      --radius:      6px;
+      --radius-sm:   4px;
+      --font:        'Inter', system-ui, -apple-system, sans-serif;
+      --font-mono:   'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+      --sidebar-w:   264px;
+      --diag-w:      248px;
+      --tab-w:       20px;
+      --transition:  .22s cubic-bezier(.4,0,.2,1);
+    }
+
+    body { font-family: var(--font); color: var(--text); background: transparent; overflow: hidden; }
+
+    #ht-hud { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+    #ht-hud > * { pointer-events: auto; }
+
+    /* ── Overlay ── */
+    .ht-overlay {
+      position: fixed; inset: 0;
+      background: var(--bg);
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
+      z-index: 100;
+      transition: opacity .4s ease;
+    }
+    .ht-overlay--fade { opacity: 0; pointer-events: none; }
+    .ht-overlay-icon  { font-size: 56px; line-height: 1; margin-bottom: 4px; }
+    .ht-overlay-title { font-size: 22px; font-weight: 600; letter-spacing: -.3px; }
+    .ht-overlay-sub   { font-size: 13px; color: var(--accent); font-weight: 500; }
+    .ht-overlay-note  { font-size: 12px; color: var(--text-2); max-width: 440px; text-align: center; line-height: 1.6; }
+    .ht-overlay-msg   { font-size: 12px; color: var(--text-3); font-family: var(--font-mono); }
+
+    .ht-start-btn {
+      margin-top: 8px; padding: 11px 36px;
+      background: var(--accent); color: #000;
+      border: none; border-radius: var(--radius);
+      font-size: 14px; font-weight: 600; font-family: var(--font);
+      cursor: pointer; transition: opacity .15s, transform .1s;
+    }
+    .ht-start-btn:hover:not(:disabled) { opacity: .88; }
+    .ht-start-btn:active:not(:disabled) { transform: scale(.97); }
+    .ht-start-btn:disabled { opacity: .3; cursor: not-allowed; }
+
+    .ht-error-panel {
+      background: var(--red-dim); border: 1px solid var(--red);
+      border-radius: var(--radius); padding: 12px 16px; max-width: 440px;
+    }
+    .ht-error-title { font-size: 11px; font-weight: 700; color: var(--red); margin-bottom: 4px; letter-spacing: .05em; }
+    .ht-error-text  { font-size: 11px; color: var(--text-2); font-family: var(--font-mono); line-height: 1.5; }
+
+    /* ── Left sidebar wrapper ── */
+    .ht-left-wrap {
+      position: fixed; top: 0; left: 0; bottom: 0;
+      display: flex; align-items: stretch;
+      z-index: 20;
+    }
+
+    .ht-sidebar {
+      width: var(--sidebar-w);
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      overflow-y: auto; overflow-x: hidden;
+      transition: width var(--transition), opacity var(--transition);
+      will-change: width;
+    }
+    .ht-sidebar--collapsed { width: 0; opacity: 0; border-right: none; }
+    .ht-sidebar::-webkit-scrollbar { width: 3px; }
+    .ht-sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    /* Collapse tab — always visible, sits to the right of the sidebar */
+    .ht-collapse-tab {
+      width: var(--tab-w);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-left: none;
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      color: var(--text-3);
+      font-size: 11px;
+      align-self: center;
+      height: 48px;
+      transition: color .15s, background .15s;
+      flex-shrink: 0;
+      user-select: none;
+    }
+    .ht-collapse-tab:hover { color: var(--text); background: var(--surface-2); }
+
+    /* ── Right panel wrapper ── */
+    .ht-right-wrap {
+      position: fixed; top: 0; right: 0; bottom: 0;
+      display: flex; align-items: stretch;
+      flex-direction: row-reverse;
+      z-index: 20;
+    }
+
+    .ht-diag-panel {
+      width: var(--diag-w);
+      background: var(--surface);
+      border-left: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      overflow-y: auto; overflow-x: hidden;
+      transition: width var(--transition), opacity var(--transition);
+      will-change: width;
+    }
+    .ht-diag-panel--collapsed { width: 0; opacity: 0; border-left: none; }
+    .ht-diag-panel::-webkit-scrollbar { width: 3px; }
+    .ht-diag-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .ht-collapse-tab-right {
+      width: var(--tab-w);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-right: none;
+      border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      color: var(--text-3);
+      font-size: 11px;
+      align-self: center;
+      height: 48px;
+      flex-shrink: 0;
+      transition: color .15s, background .15s;
+      user-select: none;
+    }
+    .ht-collapse-tab-right:hover { color: var(--text); background: var(--surface-2); }
+
+    /* ── Branding ── */
+    .ht-brand {
+      padding: 14px 14px 12px;
+      border-bottom: 1px solid var(--border);
+      display: flex; align-items: flex-start; gap: 10px;
+      flex-shrink: 0;
+    }
+    .ht-brand-logo {
+      width: 38px; height: 38px;
+      border-radius: var(--radius-sm);
+      object-fit: contain;
+      background: var(--surface-2);
+      flex-shrink: 0;
+    }
+    .ht-brand-logo-fallback {
+      width: 38px; height: 38px;
+      border-radius: var(--radius-sm);
+      background: var(--surface-2);
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 10px; font-weight: 700; color: var(--accent); letter-spacing: .04em;
+    }
+    .ht-brand-text { flex: 1; min-width: 0; }
+    .ht-brand-chapter {
+      font-size: 9px; font-weight: 600; letter-spacing: .1em;
+      color: var(--text-3); text-transform: uppercase; margin-bottom: 2px;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .ht-brand-title {
+      font-size: 12px; font-weight: 600; color: var(--text);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .ht-brand-author { font-size: 11px; color: var(--text-2); margin-top: 1px; }
+    .ht-linkedin-btn {
+      display: inline-flex; align-items: center; gap: 4px;
+      margin-top: 5px; padding: 3px 8px;
+      background: transparent;
+      border: 1px solid rgba(10,102,194,.5);
+      border-radius: var(--radius-sm);
+      color: #5aa3e0; font-size: 10px; font-weight: 500; font-family: var(--font);
+      cursor: pointer; transition: background .15s, border-color .15s;
+    }
+    .ht-linkedin-btn:hover { background: rgba(10,102,194,.12); border-color: rgba(10,102,194,.8); }
+    .ht-linkedin-icon { width: 10px; height: 10px; flex-shrink: 0; }
+
+    /* ── Section ── */
+    .ht-section { padding: 16px 14px 12px; flex-shrink: 0; }
+    .ht-section + .ht-section { border-top: 1px solid var(--border); }
+    .ht-section-label {
+      font-size: 9px; font-weight: 700; letter-spacing: .11em;
+      color: var(--text-3); text-transform: uppercase; margin-bottom: 10px;
+    }
+
+    /* ── Transport ── */
+    .ht-transport { display: flex; gap: 7px; }
+
+    .ht-play-btn {
+      flex: 1;
+      display: flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 9px 12px;
+      background: var(--green); border: none; border-radius: var(--radius);
+      color: #000; font-size: 13px; font-weight: 700; font-family: var(--font);
+      cursor: pointer; transition: background .15s, transform .1s;
+    }
+    .ht-play-btn:hover:not(:disabled) { background: #16a34a; }
+    .ht-play-btn:active:not(:disabled) { transform: scale(.97); }
+    .ht-play-btn:disabled { opacity: .35; cursor: not-allowed; }
+    .ht-play-btn--pause { background: var(--red); }
+    .ht-play-btn--pause:hover:not(:disabled) { background: #dc2626; }
+
+    .ht-reset-btn {
+      display: flex; align-items: center; justify-content: center;
+      padding: 9px 10px;
+      background: transparent;
+      border: 1px solid var(--border); border-radius: var(--radius);
+      color: var(--text-2); font-size: 11px; font-weight: 500; font-family: var(--font);
+      cursor: pointer; transition: border-color .15s, color .15s, background .15s;
+      white-space: nowrap; flex-shrink: 0;
+    }
+    .ht-reset-btn:hover { border-color: var(--text-3); color: var(--text); background: var(--surface-2); }
+
+    /* ── Pill groups ── */
+    .ht-pill-group { display: flex; gap: 5px; }
+    .ht-pill-group--col { flex-direction: column; gap: 5px; }
+
+    .ht-pill-btn {
+      flex: 1;
+      display: flex; align-items: center; justify-content: space-between; gap: 6px;
+      padding: 8px 10px;
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+      color: var(--text-2); font-size: 12px; font-weight: 500; font-family: var(--font);
+      cursor: pointer; transition: border-color .15s, color .15s, background .15s;
+      text-align: left; white-space: nowrap;
+    }
+    .ht-pill-btn:hover:not(:disabled) { border-color: var(--text-3); color: var(--text); background: #232a38; }
+    .ht-pill-btn:disabled { opacity: .35; cursor: not-allowed; }
+    .ht-pill-btn--active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+    .ht-pill-btn--active:hover:not(:disabled) { background: rgba(0,200,200,.22); }
+
+    .ht-pill-left { display: flex; align-items: center; gap: 7px; min-width: 0; }
+    .ht-pill-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--border); flex-shrink: 0; transition: background .15s;
+    }
+    .ht-pill-btn--active .ht-pill-dot { background: var(--accent); }
+    .ht-rt60-chip {
+      font-family: var(--font-mono); font-size: 9px; color: var(--text-3);
+      flex-shrink: 0; transition: color .15s;
+    }
+    .ht-pill-btn--active .ht-rt60-chip { color: var(--accent); }
+
+    /* ── Mixer ── */
+    .ht-mixer-toggle-btn {
+      display: flex; align-items: center; justify-content: space-between;
+      /* NOT width:100% — size to content + a reasonable cap */
+      width: fit-content; min-width: 120px; max-width: 160px;
+      padding: 6px 10px;
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+      color: var(--text-2); font-size: 11px; font-weight: 500; font-family: var(--font);
+      cursor: pointer; transition: border-color .15s, color .15s, background .15s;
+      gap: 8px;
+    }
+    .ht-mixer-toggle-btn:hover { border-color: var(--text-3); color: var(--text); background: #232a38; }
+    .ht-mixer-toggle-btn--open { border-color: var(--text-3); color: var(--text); }
+    .ht-mixer-caret { font-size: 9px; transition: transform .18s; display: inline-block; flex-shrink: 0; }
+    .ht-mixer-toggle-btn--open .ht-mixer-caret { transform: rotate(180deg); }
+
+    .ht-mixer-panel { display: none; flex-direction: column; gap: 1px; margin-top: 8px; }
+    .ht-mixer-panel--open { display: flex; }
+
+    .ht-mixer-strip {
+      display: flex; align-items: center; gap: 5px;
+      padding: 5px 6px; border-radius: var(--radius-sm);
+      transition: opacity .15s;
+    }
+    .ht-mixer-strip--inactive { opacity: .28; pointer-events: none; }
+    .ht-mixer-strip--muted .ht-mixer-label { opacity: .4; }
+    .ht-mixer-label { flex: 1; font-size: 11px; color: var(--text); font-weight: 500; transition: opacity .15s; }
+
+    .ht-ms-btn {
+      width: 26px; height: 22px;
+      border-radius: var(--radius-sm); border: 1px solid var(--border);
+      background: var(--surface-2); color: var(--text-3);
+      font-size: 10px; font-weight: 700; font-family: var(--font);
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      transition: background .12s, border-color .12s, color .12s; flex-shrink: 0;
+    }
+    .ht-ms-btn:hover:not(:disabled) { border-color: var(--text-3); color: var(--text); }
+    .ht-ms-btn:disabled { opacity: .25; cursor: not-allowed; }
+    .ht-mute-btn--active { background: var(--red-dim);   border-color: var(--red);   color: var(--red);   }
+    .ht-solo-btn--active { background: var(--amber-dim); border-color: var(--amber); color: var(--amber); }
+
+    /* ── Hint bar ── */
+    .ht-hint-bar { margin-top: auto; padding: 12px 14px; border-top: 1px solid var(--border); flex-shrink: 0; }
+    .ht-hint-label {
+      font-size: 9px; font-weight: 700; letter-spacing: .1em;
+      color: var(--text-3); text-transform: uppercase; margin-bottom: 7px;
+    }
+    .ht-hints { display: flex; flex-direction: column; gap: 4px; }
+    .ht-hint-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+    .ht-kbd {
+      display: inline-flex; align-items: center; justify-content: center;
+      min-width: 20px; height: 16px; padding: 0 4px;
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: 3px;
+      font-family: var(--font-mono); font-size: 9px; color: var(--text-2); flex-shrink: 0;
+    }
+    .ht-hint-desc { font-size: 10px; color: var(--text-3); }
+
+    /* ── Diagnostics panel ── */
+    .ht-diag-header {
+      padding: 13px 14px; border-bottom: 1px solid var(--border);
+      font-size: 9px; font-weight: 700; letter-spacing: .11em;
+      color: var(--text-3); text-transform: uppercase; flex-shrink: 0;
+    }
+    .ht-diag-section { padding: 14px; border-bottom: 1px solid var(--border); flex-shrink: 0; }
+    .ht-diag-section-label {
+      font-size: 9px; font-weight: 700; letter-spacing: .1em;
+      color: var(--text-3); text-transform: uppercase; margin-bottom: 9px;
+    }
+
+    .ht-offaxis-readout {
+      font-family: var(--font-mono); font-size: 20px; font-weight: 600;
+      color: var(--accent); line-height: 1.15; margin-bottom: 3px; word-break: break-word;
+    }
+    .ht-offaxis-readout--onspot { color: var(--green); }
+    .ht-offaxis-sub { font-size: 10px; color: var(--text-3); }
+
+    .ht-status-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 20px;
+      font-size: 11px; font-weight: 600;
+      background: var(--green-dim); border: 1px solid var(--green); color: var(--green);
+    }
+    .ht-status-badge--error   { background: var(--red-dim);   border-color: var(--red);   color: var(--red);   }
+    .ht-status-badge--pending { background: var(--amber-dim); border-color: var(--amber); color: var(--amber); }
+    .ht-status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+    .ht-diag-row {
+      display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+      padding: 4px 0;
+    }
+    .ht-diag-row + .ht-diag-row { border-top: 1px solid rgba(255,255,255,.04); }
+    .ht-diag-key  { font-size: 11px; color: var(--text-3); flex-shrink: 0; }
+    .ht-diag-val  { font-family: var(--font-mono); font-size: 11px; color: var(--text); text-align: right; word-break: break-all; }
+    .ht-diag-val--accent { color: var(--accent); }
+    .ht-diag-val--amber  { color: var(--amber);  }
+    .ht-diag-val--green  { color: var(--green);  }
+
+    /* ── Footer ── */
+    .ht-footer {
+      position: fixed; bottom: 0;
+      left: 0; right: 0;
+      padding: 5px 20px;
+      text-align: center;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .ht-credit { font-size: 10px; color: var(--text-3); font-family: var(--font-mono); }
+  `;
+  document.head.appendChild(style);
 }
 
 // ---------------------------------------------------------------------------
 // STEP 5: Loading overlay
 // ---------------------------------------------------------------------------
 
-/**
- * _buildLoadingOverlay — the full-screen gate shown until Python fires engine_ready.
- *
- * CONCEPT: even though QWebEngineView is not subject to browser autoplay policy,
- * we keep the explicit click-to-start gesture for two reasons:
- *   1. UX consistency with the rest of the course's web demos, which all require it.
- *   2. Best practice for any audio-initializing application — the user should
- *      consciously start the experience, not have it begin unexpectedly.
- * See §7.5 of the build plan.
- *
- * The Start button is disabled until onEngineReady() is called, ensuring the student
- * never clicks into a half-initialized audio engine.
- */
 function _buildLoadingOverlay(root) {
   const overlay = _el("div", "ht-overlay");
 
-  // Headphone reminder — the entire premise of this app depends on headphones.
   const icon = _el("div", "ht-overlay-icon");
   icon.textContent = "🎧";
   overlay.appendChild(icon);
@@ -136,14 +476,12 @@ function _buildLoadingOverlay(root) {
     "placed at ITU-R BS.775 angles and decoded for headphones.";
   overlay.appendChild(note);
 
-  // Loading message — updated while Python initialises.
   const msg = _el("div", "ht-overlay-msg");
   msg.textContent = "Initialising audio engine…";
   overlay.appendChild(msg);
   _el.overlayMsg = msg;
 
-  // Start button — disabled until onEngineReady().
-  const btn = _el("button", "ht-btn ht-start-btn");
+  const btn = _el("button", "ht-start-btn");
   btn.textContent = "Start";
   btn.disabled = true;
   btn.setAttribute("aria-label", "Start the experience");
@@ -151,7 +489,6 @@ function _buildLoadingOverlay(root) {
   overlay.appendChild(btn);
   _el.startBtn = btn;
 
-  // Error panel — hidden by default; shown by onAssetError().
   const errPanel = _el("div", "ht-error-panel");
   errPanel.setAttribute("role", "alert");
   errPanel.hidden = true;
@@ -169,243 +506,250 @@ function _buildLoadingOverlay(root) {
 }
 
 function _onStartClick() {
-  // Guard against double-click or re-entry after the overlay has already been
-  // removed — _el.overlay is set to null in the transitionend handler below,
-  // so a second call would crash on null.classList.add().
   if (!_el.overlay) return;
-
-  // Fade out the overlay, then remove it from the DOM so it no longer blocks
-  // mouse events on the Three.js canvas (which sits behind #ht-hud).
   _el.overlay.classList.add("ht-overlay--fade");
   _el.overlay.addEventListener("transitionend", () => {
     _el.overlay?.remove();
     _el.overlay = null;
   }, { once: true });
-
-  // Do NOT call play() here. Start only dismisses the overlay and enters the
-  // scene. The user controls playback explicitly with the Play/Pause button.
-  // Audio and video remain silent until the user presses Play.
 }
 
 // ---------------------------------------------------------------------------
-// STEP 6: Top-left readout — off-axis distance + status line
+// STEP 6: Left sidebar
 // ---------------------------------------------------------------------------
 
-/**
- * _buildTopLeft — creates the off-axis position readout and engine status line.
- *
- * CONCEPT: displaying the offset from the sweet spot in real time turns the
- * movement constraint into a teaching moment — the student sees "32 cm left"
- * while hearing the stereo image shift, connecting the physical explanation
- * ("move off-axis and the mix degrades") to their direct experience.
- * See §7.4 of the build plan.
- */
-function _buildTopLeft(root) {
-  const block = _el("div", "ht-top-left");
+function _buildLeftSidebar(root) {
+  // Wrapper holds both the sidebar and its collapse tab so they move together.
+  const wrap = _el("div", "ht-left-wrap");
 
-  const readout = _el("div", "ht-offaxis-readout");
-  readout.textContent = "sweet spot";
-  readout.setAttribute("aria-live", "polite");
-  block.appendChild(readout);
-  _el.offAxisReadout = readout;
+  const sidebar = _el("div", "ht-sidebar");
+  _buildBrand(sidebar);
+  _buildPlaybackSection(sidebar);
+  _buildTierSection(sidebar);
+  _buildRoomSection(sidebar);
+  _buildMixerSection(sidebar);
+  _buildHintBar(sidebar);
+  wrap.appendChild(sidebar);
+  _el.sidebar = sidebar;
 
-  const status = _el("div", "ht-status-line");
-  status.textContent = "—";
-  block.appendChild(status);
-  _el.statusLine = status;
+  // Collapse tab
+  const tab = _el("div", "ht-collapse-tab");
+  tab.setAttribute("role", "button");
+  tab.setAttribute("aria-label", "Toggle left panel");
+  tab.setAttribute("tabindex", "0");
+  tab.textContent = "‹";
+  tab.addEventListener("click", _toggleLeftPanel);
+  tab.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") _toggleLeftPanel(); });
+  wrap.appendChild(tab);
+  _el.leftTab = tab;
 
-  root.appendChild(block);
+  root.appendChild(wrap);
 }
 
-// ---------------------------------------------------------------------------
-// STEP 7: Top-right header — logo, author, LinkedIn, course/institute line
-// ---------------------------------------------------------------------------
+function _toggleLeftPanel() {
+  _state.leftOpen = !_state.leftOpen;
+  _el.sidebar.classList.toggle("ht-sidebar--collapsed", !_state.leftOpen);
+  _el.leftTab.textContent = _state.leftOpen ? "‹" : "›";
+  _el.leftTab.setAttribute("aria-label", _state.leftOpen ? "Collapse left panel" : "Expand left panel");
+}
 
-/**
- * _buildTopRight — course branding block.
- *
- * The LinkedIn badge calls bridge.open_url() which routes through
- * QDesktopServices.openUrl() on the Python side. We never use window.open()
- * here — QWebEngineView's default policy may block popup windows.
- * See §6 of the build plan (open_url slot).
- */
-function _buildTopRight(root) {
-  const block = _el("div", "ht-top-right");
+// ── Branding ────────────────────────────────────────────────────────────────
 
-  // AMS / TU Ilmenau logo text — replace with <img> if a logo asset is added.
-  const logo = _el("div", "ht-logo");
-  logo.textContent = "TU Ilmenau";
-  block.appendChild(logo);
+function _buildBrand(parent) {
+  const brand = _el("div", "ht-brand");
 
-  const author = _el("div", "ht-author");
-  author.textContent = "Renato Fera P.";  // TODO: confirm author credit block
-  block.appendChild(author);
+  const logoPath = window.htManifest?.logo;
+  const logo = _el("img", "ht-brand-logo");
+  logo.src = logoPath ? `ht://assets/${logoPath}` : "";
+  logo.alt = "AMS Group · TU Ilmenau";
+  logo.onerror = () => {
+    logo.remove();
+    const fallback = _el("div", "ht-brand-logo-fallback");
+    fallback.textContent = "AMS";
+    brand.insertBefore(fallback, brand.firstChild);
+  };
+  brand.appendChild(logo);
 
-  const course = _el("div", "ht-course");
-  course.textContent = "Multimediaprogrammierung · Chapter 05";
-  block.appendChild(course);
+  const text = _el("div", "ht-brand-text");
 
-  // LinkedIn badge — opens via Python bridge, not window.open().
-  const linkedIn = _el("button", "ht-btn ht-linkedin-btn");
-  linkedIn.textContent = "LinkedIn";
+  const chapter = _el("div", "ht-brand-chapter");
+  chapter.textContent = "Multimediaprogrammierung · Chapter 05";
+  text.appendChild(chapter);
+
+  const title = _el("div", "ht-brand-title");
+  title.textContent = "Home Theater Spatial Audio";
+  text.appendChild(title);
+
+  const author = _el("div", "ht-brand-author");
+  author.textContent = "Renato Fera P.";
+  text.appendChild(author);
+
+  const linkedIn = _el("button", "ht-linkedin-btn");
+  linkedIn.innerHTML = `
+    <svg class="ht-linkedin-icon" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M0 1.146C0 .513.526 0 1.175 0h13.65C15.474 0 16 .513 16 1.146v13.708c0 .633-.526 1.146-1.175 1.146H1.175C.526 16 0 15.487 0 14.854V1.146zm4.943 12.248V6.169H2.542v7.225h2.401zm-1.2-8.212c.837 0 1.358-.554 1.358-1.248-.015-.709-.52-1.248-1.342-1.248-.822 0-1.359.54-1.359 1.248 0 .694.521 1.248 1.327 1.248h.016zm4.908 8.212V9.359c0-.216.016-.432.08-.586.173-.431.568-.878 1.232-.878.869 0 1.216.662 1.216 1.634v3.865h2.401V9.25c0-2.22-1.184-3.252-2.764-3.252-1.274 0-1.845.7-2.165 1.193v.025h-.016a5.54 5.54 0 0 1 .016-.025V6.169h-2.4c.03.678 0 7.225 0 7.225h2.4z"/>
+    </svg>LinkedIn`;
   linkedIn.setAttribute("aria-label", "Open LinkedIn profile");
   linkedIn.addEventListener("click", () => {
-    // bridge.open_url() → Python → QDesktopServices.openUrl(QUrl(...))
-    // The URL is a placeholder; replace with the actual profile URL.
-    window.htBridge?.open_url("https://www.linkedin.com/in/TODO");  // TODO: confirm LinkedIn URL
+    window.htBridge?.open_url("https://www.linkedin.com/in/renato-fera");
   });
-  block.appendChild(linkedIn);
+  text.appendChild(linkedIn);
 
-  root.appendChild(block);
-  _el.headerBlock = block;
+  brand.appendChild(text);
+  parent.appendChild(brand);
 }
 
-// ---------------------------------------------------------------------------
-// STEP 8: Bottom bar — Play/Pause, Tier buttons, Room buttons
-// ---------------------------------------------------------------------------
+// ── Playback section ─────────────────────────────────────────────────────────
 
-/**
- * _buildBottomBar — the primary transport and format controls.
- *
- * Layout (bottom center):
- *   [Play/Pause]   [Mono] [Stereo] [5.1]   [Treated] [Wet]
- *
- * Tier and Room buttons are disabled while isPlaying — the QSpatialSound API
- * has no seek-to-timestamp method, so switching mid-playback would cause a restart
- * from 0:00 without synchronised video. The UI enforces pause-before-switch rather
- * than letting the student discover this as a glitch. See §5.3 of the build plan.
- */
-function _buildBottomBar(root) {
-  const bar = _el("div", "ht-bottom-bar");
+function _buildPlaybackSection(parent) {
+  const section = _el("div", "ht-section");
 
-  // --- Transport ---
+  const lbl = _el("div", "ht-section-label");
+  lbl.textContent = "Playback";
+  section.appendChild(lbl);
+
   const transport = _el("div", "ht-transport");
 
-  const playPause = _el("button", "ht-btn ht-playpause-btn");
-  playPause.textContent = "▶ Play";
-  playPause.setAttribute("aria-label", "Play or pause");
-  playPause.addEventListener("click", _onPlayPauseClick);
-  transport.appendChild(playPause);
-  _el.playPauseBtn = playPause;
+  const playBtn = _el("button", "ht-play-btn");
+  playBtn.innerHTML = `<span class="ht-play-icon">▶</span><span class="ht-play-label">Start</span>`;
+  playBtn.setAttribute("aria-label", "Play or pause");
+  playBtn.addEventListener("click", _onPlayPauseClick);
+  transport.appendChild(playBtn);
+  _el.playPauseBtn = playBtn;
 
-  bar.appendChild(transport);
+  const resetBtn = _el("button", "ht-reset-btn");
+  resetBtn.textContent = "↺ Reset View";
+  resetBtn.setAttribute("aria-label", "Reset camera to sweet spot");
+  resetBtn.addEventListener("click", _onResetView);
+  transport.appendChild(resetBtn);
 
-  // --- Tier buttons ---
-  const tierGroup = _el("div", "ht-btn-group");
-  tierGroup.setAttribute("role", "group");
-  tierGroup.setAttribute("aria-label", "Surround tier");
+  section.appendChild(transport);
+  parent.appendChild(section);
+}
 
-  const tiers = [
+// ── Tier section ─────────────────────────────────────────────────────────────
+
+function _buildTierSection(parent) {
+  const section = _el("div", "ht-section");
+
+  const lbl = _el("div", "ht-section-label");
+  lbl.textContent = "Surround Format";
+  section.appendChild(lbl);
+
+  const group = _el("div", "ht-pill-group");
+  group.setAttribute("role", "group");
+  group.setAttribute("aria-label", "Surround tier");
+
+  for (const { key, label } of [
     { key: "mono",   label: "Mono"   },
     { key: "stereo", label: "Stereo" },
     { key: "5.1",    label: "5.1"    },
-  ];
-
-  for (const { key, label } of tiers) {
-    const btn = _el("button", "ht-btn ht-tier-btn");
-    btn.textContent = label;
+  ]) {
+    const btn = _el("button", "ht-pill-btn");
+    const dot = _el("span", "ht-pill-dot");
+    const txt = document.createTextNode(label);
+    btn.appendChild(txt);
+    btn.appendChild(dot);
     btn.dataset.tier = key;
     btn.setAttribute("aria-pressed", key === _state.tier ? "true" : "false");
-    if (key === _state.tier) btn.classList.add("ht-btn--active");
+    if (key === _state.tier) btn.classList.add("ht-pill-btn--active");
     btn.addEventListener("click", () => _onTierClick(key));
-    tierGroup.appendChild(btn);
+    group.appendChild(btn);
     _el.tierBtns[key] = btn;
   }
 
-  bar.appendChild(tierGroup);
+  section.appendChild(group);
+  parent.appendChild(section);
+}
 
-  // --- Room buttons ---
-  const roomGroup = _el("div", "ht-btn-group");
-  roomGroup.setAttribute("role", "group");
-  roomGroup.setAttribute("aria-label", "Room acoustic treatment");
+// ── Room section ──────────────────────────────────────────────────────────────
 
-  const rooms = [
-    { key: "treated", label: "Treated" },
-    { key: "wet",     label: "Wet"     },
-  ];
+function _buildRoomSection(parent) {
+  const section = _el("div", "ht-section");
 
-  for (const { key, label } of rooms) {
-    const btn = _el("button", "ht-btn ht-room-btn");
-    btn.textContent = label;
+  const lbl = _el("div", "ht-section-label");
+  lbl.textContent = "Room Acoustics";
+  section.appendChild(lbl);
+
+  const group = _el("div", "ht-pill-group ht-pill-group--col");
+  group.setAttribute("role", "group");
+  group.setAttribute("aria-label", "Room acoustic treatment");
+
+  for (const { key, label, rt60 } of [
+    { key: "treated", label: "Dry – Treated",    rt60: "RT60 ≈ 0.3 s" },
+    { key: "wet",     label: "Wet – Reflective",  rt60: "RT60 ≈ 1.1 s" },
+  ]) {
+    const btn = _el("button", "ht-pill-btn");
+
+    const left = _el("span", "ht-pill-left");
+    const dot  = _el("span", "ht-pill-dot");
+    const txt  = _el("span");
+    txt.textContent = label;
+    left.appendChild(dot);
+    left.appendChild(txt);
+
+    const rt = _el("span", "ht-rt60-chip");
+    rt.textContent = rt60;
+
+    btn.appendChild(left);
+    btn.appendChild(rt);
     btn.dataset.room = key;
     btn.setAttribute("aria-pressed", key === _state.room ? "true" : "false");
-    if (key === _state.room) btn.classList.add("ht-btn--active");
+    if (key === _state.room) btn.classList.add("ht-pill-btn--active");
     btn.addEventListener("click", () => _onRoomClick(key));
-    roomGroup.appendChild(btn);
+    group.appendChild(btn);
     _el.roomBtns[key] = btn;
   }
 
-  bar.appendChild(roomGroup);
-
-  // --- Mixer toggle ---
-  const mixerToggle = _el("button", "ht-btn ht-mixer-toggle-btn");
-  mixerToggle.textContent = "Mixer";
-  mixerToggle.setAttribute("aria-expanded", "false");
-  mixerToggle.setAttribute("aria-controls", "ht-mixer-panel");
-  mixerToggle.addEventListener("click", _onMixerToggleClick);
-  bar.appendChild(mixerToggle);
-  _el.mixerToggleBtn = mixerToggle;
-
-  root.appendChild(bar);
+  section.appendChild(group);
+  parent.appendChild(section);
 }
 
-// ---------------------------------------------------------------------------
-// STEP 9: Mixer panel — per-speaker Mute/Solo strips, tier-aware
-// ---------------------------------------------------------------------------
+// ── Mixer section ─────────────────────────────────────────────────────────────
 
-/**
- * _buildMixerPanel — floating panel with one strip per virtual speaker.
- *
- * CONCEPT: the mixer panel makes the channel-separation that defines each tier
- * tangible — the student can solo the center channel and hear that in Mono it
- * carries the full mix, while in 5.1 it carries only dialogue. This directly
- * illustrates the discrete vs. derived content distinction from §4.2.
- *
- * "Tier-aware" means only speakers active in the current tier show their strips
- * as interactive — inactive speakers are visually dimmed and their Mute/Solo
- * buttons are disabled, because muting a source that is already volume=0 in
- * Python would have no audible effect and would confuse the student.
- *
- * Solo behaviour: soloing speaker X mutes all others (saving their prior mute
- * states), and clearing the solo restores those states.
- */
-function _buildMixerPanel(root) {
+function _buildMixerSection(parent) {
+  const section = _el("div", "ht-section");
+
+  const lbl = _el("div", "ht-section-label");
+  lbl.textContent = "Speaker Mixer";
+  section.appendChild(lbl);
+
+  const toggle = _el("button", "ht-mixer-toggle-btn");
+  toggle.innerHTML = `<span>Channels</span><span class="ht-mixer-caret">▾</span>`;
+  toggle.setAttribute("aria-expanded", "false");
+  toggle.setAttribute("aria-controls", "ht-mixer-panel");
+  toggle.addEventListener("click", _onMixerToggleClick);
+  section.appendChild(toggle);
+  _el.mixerToggleBtn = toggle;
+
   const panel = _el("div", "ht-mixer-panel");
   panel.id = "ht-mixer-panel";
-  panel.hidden = true;
   panel.setAttribute("role", "region");
   panel.setAttribute("aria-label", "Speaker mixer");
 
-  const title = _el("div", "ht-mixer-title");
-  title.textContent = "Speaker Mixer";
-  panel.appendChild(title);
-
-  // Define all six speaker strips. Display order: C, L, R, Ls, Rs, LFE.
-  const speakers = [
-    { key: "C",   label: "Center"         },
-    { key: "L",   label: "Left"           },
-    { key: "R",   label: "Right"          },
-    { key: "Ls",  label: "Surr L"         },
-    { key: "Rs",  label: "Surr R"         },
-    { key: "LFE", label: "LFE"            },
-  ];
-
-  for (const { key, label } of speakers) {
+  for (const { key, label } of [
+    { key: "C",   label: "Center" },
+    { key: "L",   label: "Left"   },
+    { key: "R",   label: "Right"  },
+    { key: "Ls",  label: "Surr L" },
+    { key: "Rs",  label: "Surr R" },
+    { key: "LFE", label: "LFE"    },
+  ]) {
     const row = _el("div", "ht-mixer-strip");
     row.dataset.speakerKey = key;
 
-    const lbl = _el("span", "ht-mixer-label");
-    lbl.textContent = label;
-    row.appendChild(lbl);
+    const labelEl = _el("span", "ht-mixer-label");
+    labelEl.textContent = label;
+    row.appendChild(labelEl);
 
-    const muteBtn = _el("button", "ht-btn ht-mixer-btn ht-mute-btn");
+    const muteBtn = _el("button", "ht-ms-btn");
     muteBtn.textContent = "M";
     muteBtn.setAttribute("aria-label", `Mute ${label}`);
     muteBtn.setAttribute("aria-pressed", "false");
     muteBtn.addEventListener("click", () => _onMuteClick(key));
     row.appendChild(muteBtn);
 
-    const soloBtn = _el("button", "ht-btn ht-mixer-btn ht-solo-btn");
+    const soloBtn = _el("button", "ht-ms-btn");
     soloBtn.textContent = "S";
     soloBtn.setAttribute("aria-label", `Solo ${label}`);
     soloBtn.setAttribute("aria-pressed", "false");
@@ -413,349 +757,408 @@ function _buildMixerPanel(root) {
     row.appendChild(soloBtn);
 
     panel.appendChild(row);
-    _el.speakerStrips[key] = { row, muteBtn, soloBtn, label: lbl };
+    _el.speakerStrips[key] = { row, muteBtn, soloBtn, label: labelEl };
   }
 
-  root.appendChild(panel);
+  section.appendChild(panel);
   _el.mixerPanel = panel;
 
-  // Initial render of strip active states for the default tier (mono).
+  parent.appendChild(section);
   _updateMixerStrips(_state.tier);
 }
 
+// ── Hint bar ──────────────────────────────────────────────────────────────────
+
+function _buildHintBar(parent) {
+  const bar = _el("div", "ht-hint-bar");
+
+  const lbl = _el("div", "ht-hint-label");
+  lbl.textContent = "Navigation";
+  bar.appendChild(lbl);
+
+  const hints = _el("div", "ht-hints");
+  for (const { keys, desc } of [
+    { keys: ["W","A","S","D"], desc: "move"        },
+    { keys: ["L-drag"],        desc: "look"        },
+    { keys: ["R-drag"],        desc: "walk"        },
+    { keys: ["Scroll"],        desc: "fwd / back"  },
+    { keys: ["Space"],         desc: "start / stop"},
+  ]) {
+    const row = _el("div", "ht-hint-row");
+    for (const k of keys) {
+      const kbd = _el("span", "ht-kbd");
+      kbd.textContent = k;
+      row.appendChild(kbd);
+    }
+    const d = _el("span", "ht-hint-desc");
+    d.textContent = desc;
+    row.appendChild(d);
+    hints.appendChild(row);
+  }
+
+  bar.appendChild(hints);
+  parent.appendChild(bar);
+}
+
 // ---------------------------------------------------------------------------
-// STEP 10: Footer — film credit, binaural note
+// STEP 7: Right diagnostics panel
 // ---------------------------------------------------------------------------
 
-/**
- * _buildFooter — bottom edge credit line, manifest-driven film name.
- *
- * CONCEPT: the film credit is mandatory under CC-BY 3.0 (Blender Foundation).
- * The film name is not hardcoded — it is read from htManifest.credit at runtime
- * so this app works with any Blender Foundation open movie without code changes.
- * See §8 of the build plan on the license/credit requirement.
- */
+function _buildRightPanel(root) {
+  const wrap = _el("div", "ht-right-wrap");
+
+  const panel = _el("div", "ht-diag-panel");
+  _buildDiagContents(panel);
+  wrap.appendChild(panel);
+  _el.diagPanel = panel;
+
+  // Collapse tab (on the left edge of the right panel)
+  const tab = _el("div", "ht-collapse-tab-right");
+  tab.setAttribute("role", "button");
+  tab.setAttribute("aria-label", "Toggle right panel");
+  tab.setAttribute("tabindex", "0");
+  tab.textContent = "›";
+  tab.addEventListener("click", _toggleRightPanel);
+  tab.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") _toggleRightPanel(); });
+  wrap.appendChild(tab);
+  _el.rightTab = tab;
+
+  root.appendChild(wrap);
+}
+
+function _toggleRightPanel() {
+  _state.rightOpen = !_state.rightOpen;
+  _el.diagPanel.classList.toggle("ht-diag-panel--collapsed", !_state.rightOpen);
+  _el.rightTab.textContent = _state.rightOpen ? "›" : "‹";
+  _el.rightTab.setAttribute("aria-label", _state.rightOpen ? "Collapse right panel" : "Expand right panel");
+}
+
+function _buildDiagContents(panel) {
+  const header = _el("div", "ht-diag-header");
+  header.textContent = "Listener Diagnostics";
+  panel.appendChild(header);
+
+  // Position
+  const posSection = _el("div", "ht-diag-section");
+  const posLbl = _el("div", "ht-diag-section-label");
+  posLbl.textContent = "Position";
+  posSection.appendChild(posLbl);
+
+  const readout = _el("div", "ht-offaxis-readout ht-offaxis-readout--onspot");
+  readout.textContent = "sweet spot";
+  readout.setAttribute("aria-live", "polite");
+  posSection.appendChild(readout);
+  _el.offAxisReadout = readout;
+
+  const sub = _el("div", "ht-offaxis-sub");
+  sub.textContent = "offset from calibration point";
+  posSection.appendChild(sub);
+  panel.appendChild(posSection);
+
+  // Engine status
+  const statusSection = _el("div", "ht-diag-section");
+  const statusLbl = _el("div", "ht-diag-section-label");
+  statusLbl.textContent = "Engine";
+  statusSection.appendChild(statusLbl);
+
+  const badge = _el("div", "ht-status-badge ht-status-badge--pending");
+  badge.innerHTML = `<span class="ht-status-dot"></span><span class="ht-status-text">Initialising…</span>`;
+  statusSection.appendChild(badge);
+  _el.statusBadge = badge;
+  _el.statusText  = badge.querySelector(".ht-status-text");
+  panel.appendChild(statusSection);
+
+  // Active state
+  const stateSection = _el("div", "ht-diag-section");
+  const stateLbl = _el("div", "ht-diag-section-label");
+  stateLbl.textContent = "Active State";
+  stateSection.appendChild(stateLbl);
+
+  _el.diagTierVal = _diagRow(stateSection, "Format",   "Mono",    "ht-diag-val--accent");
+  _el.diagRoomVal = _diagRow(stateSection, "Room",     "Treated", "ht-diag-val--accent");
+  _el.diagPlayVal = _diagRow(stateSection, "Playback", "stopped", "ht-diag-val--amber");
+  panel.appendChild(stateSection);
+
+  // Channels
+  const spkSection = _el("div", "ht-diag-section");
+  const spkLbl = _el("div", "ht-diag-section-label");
+  spkLbl.textContent = "Channels";
+  spkSection.appendChild(spkLbl);
+
+  _el.diagSpkVal  = _diagRow(spkSection, "Active", "1 / 6", "ht-diag-val--green");
+  _el.diagSoloVal = _diagRow(spkSection, "Solo",   "none",  "");
+  panel.appendChild(spkSection);
+
+  // Content / film credit
+  const creditSection = _el("div", "ht-diag-section");
+  const creditLbl = _el("div", "ht-diag-section-label");
+  creditLbl.textContent = "Content";
+  creditSection.appendChild(creditLbl);
+
+  const creditVal = _el("div", "ht-diag-val");
+  creditVal.id = "ht-film-credit";
+  creditVal.style.cssText = "font-size:10px;color:var(--text-3);font-family:var(--font-mono);line-height:1.5;text-align:left;white-space:normal;";
+  creditVal.textContent = _getFilmCredit();
+  creditSection.appendChild(creditVal);
+  panel.appendChild(creditSection);
+}
+
+/** Helper — builds a key/value diagnostics row and returns the value element. */
+function _diagRow(parent, key, initialVal, valClass) {
+  const row = _el("div", "ht-diag-row");
+  const k = _el("span", "ht-diag-key"); k.textContent = key;
+  const v = _el("span", `ht-diag-val ${valClass}`); v.textContent = initialVal;
+  row.appendChild(k); row.appendChild(v);
+  parent.appendChild(row);
+  return v;
+}
+
+// ---------------------------------------------------------------------------
+// STEP 8: Footer — film credit
+// ---------------------------------------------------------------------------
+
 function _buildFooter(root) {
   const footer = _el("div", "ht-footer");
-
-  // Film credit — populated once htManifest is available (may load slightly
-  // after DOMContentLoaded; we re-check in onEngineReady()).
   const credit = _el("span", "ht-credit");
-  credit.id = "ht-film-credit";
+  credit.id = "ht-film-credit-footer";
   credit.textContent = _getFilmCredit();
   footer.appendChild(credit);
-
   root.appendChild(footer);
 }
 
-/**
- * _getFilmCredit — builds the CC-BY credit string from the manifest.
- * Falls back to a placeholder if the manifest is not yet loaded.
- */
-function _getFilmCredit() {
-  const m = window.htManifest;
-  // manifest.json uses "film_credit" as the key (not "credit").
-  const c = m?.film_credit ?? m?.credit;
-  if (!c) return "Film: [loading…] © Blender Foundation, CC-BY 3.0";
-  return `Film: "${c.title}" © ${c.author ?? "Blender Foundation"}, ${c.license ?? "CC-BY 3.0"}`;
-}
-
 // ---------------------------------------------------------------------------
-// STEP 11: Event handlers — transport, tier, room, mixer
+// STEP 9: Event handlers
 // ---------------------------------------------------------------------------
 
 function _onPlayPauseClick() {
   if (!_state.engineReady) return;
-
   if (_state.isPlaying) {
     window.htBridge?.pause();
-    // Optimistic UI: update label immediately; onStateChanged() confirms.
-    _el.playPauseBtn.textContent = "▶ Play";
-    // Re-enable tier/room switches now that we're pausing.
+    _setPlayBtn(false);
     _setFormatControlsDisabled(false);
   } else {
     window.htBridge?.play();
-    _el.playPauseBtn.textContent = "⏸ Pause";
-    // Disable tier/room switches while playing — QSpatialSound has no seek,
-    // so a mid-playback switch would restart from 0:00 without synced video.
-    // See §5.3 of the build plan.
+    _setPlayBtn(true);
     _setFormatControlsDisabled(true);
   }
 }
 
-/**
- * _onTierClick — sends a tier switch request to Python.
- *
- * We do not update the active button state here — that happens in onStateChanged()
- * after Python confirms the switch. This prevents a visual lie if Python rejects
- * the request (e.g. if the bridge receives it while playing due to a race).
- */
+function _onResetView() {
+  // Calls the resetView function exposed by scene.js on window.htScene.
+  // scene.js zeroes _ctrl.offset, _ctrl.yaw, _ctrl.pitch — see scene.js STEP 3.
+  window.htScene?.resetView();
+}
+
 function _onTierClick(key) {
-  if (_state.isPlaying) return;  // defensive — buttons should already be disabled
+  if (_state.isPlaying) return;
   if (key === _state.tier) return;
-
-  // Disable all tier buttons while the switch is in-flight.
   for (const btn of Object.values(_el.tierBtns)) btn.disabled = true;
-
   window.htBridge?.set_tier(key);
 }
 
-/**
- * _onRoomClick — sends a room variant switch request to Python.
- * Same optimistic-disable, confirm-on-signal pattern as tier.
- * Simultaneously updates the Three.js wall materials so the visual change
- * is immediate; Python's state_changed will confirm the acoustic change.
- */
 function _onRoomClick(key) {
   if (_state.isPlaying) return;
   if (key === _state.room) return;
-
   for (const btn of Object.values(_el.roomBtns)) btn.disabled = true;
-
-  // Optimistic visual update — scene.js applies the material change immediately.
-  // If Python rejects, onStateChanged() will call setRoomVariant() again with
-  // the previous state, reverting the visual.
   window.htScene?.setRoomVariant(key);
-
   window.htBridge?.set_room(key);
 }
 
 function _onMixerToggleClick() {
   _state.mixerOpen = !_state.mixerOpen;
-  _el.mixerPanel.hidden = !_state.mixerOpen;
+  _el.mixerPanel.classList.toggle("ht-mixer-panel--open", _state.mixerOpen);
   _el.mixerToggleBtn.setAttribute("aria-expanded", String(_state.mixerOpen));
-  _el.mixerToggleBtn.classList.toggle("ht-btn--active", _state.mixerOpen);
+  _el.mixerToggleBtn.classList.toggle("ht-mixer-toggle-btn--open", _state.mixerOpen);
 }
 
-/**
- * _onMuteClick — toggles mute for a single speaker.
- *
- * We track mute state locally (_state.muteSaved) and sync to Python via
- * bridge.set_speaker_mute(key, muted). This is a mixer-panel action, not a
- * tier switch — it doesn't go through the pause-before-switch gate.
- */
 function _onMuteClick(key) {
   _state.muteSaved[key] = !_state.muteSaved[key];
   const muted = _state.muteSaved[key];
-
-  const strip = _el.speakerStrips[key];
-  strip.muteBtn.setAttribute("aria-pressed", String(muted));
-  strip.muteBtn.classList.toggle("ht-mixer-btn--active", muted);
-  strip.row.classList.toggle("ht-mixer-strip--muted", muted);
-
+  // If this speaker is in the solo set and is now muted, evict it from solo.
+  if (muted && _state.soloSet.has(key)) {
+    _state.soloSet.delete(key);
+    _applySoloState();
+    return;
+  }
+  _applyMuteVisual(key, muted);
   window.htBridge?.set_speaker_mute(key, muted);
 }
 
 /**
- * _onSoloClick — solos a speaker (mutes all others, saves their mute state),
- * or clears the solo (restores saved mute states).
- *
- * CONCEPT: solo is a standard mixing-console feature that lets you audition a
- * single channel in isolation. Here it teaches the student what each discrete
- * channel contributes — soling the Center in 5.1 reveals only the dialogue track.
+ * _onSoloClick — multi-solo: adds/removes key from _state.soloSet.
+ * When the set is non-empty, speakers outside it are force-muted.
+ * When empty, all speakers revert to their individually saved mute states.
  */
 function _onSoloClick(key) {
-  if (_state.soloKey === key) {
-    // Clear solo — restore all speakers to their saved mute states.
-    _state.soloKey = null;
-    for (const k of Object.keys(_state.muteSaved)) {
-      const strip = _el.speakerStrips[k];
-      strip.soloBtn.setAttribute("aria-pressed", "false");
-      strip.soloBtn.classList.remove("ht-mixer-btn--active");
-      strip.row.classList.toggle("ht-mixer-strip--muted", _state.muteSaved[k]);
-      window.htBridge?.set_speaker_mute(k, _state.muteSaved[k]);
-    }
+  if (_state.soloSet.has(key)) {
+    _state.soloSet.delete(key);
   } else {
-    // Set solo — mute all others, preserve their saved states for restoration.
-    _state.soloKey = key;
-    for (const k of Object.keys(_state.muteSaved)) {
-      const isSoloed = k === key;
-      const strip = _el.speakerStrips[k];
-      strip.soloBtn.setAttribute("aria-pressed", String(isSoloed));
-      strip.soloBtn.classList.toggle("ht-mixer-btn--active", isSoloed);
-      // Mute state visual: muted if not the soloed speaker.
-      strip.row.classList.toggle("ht-mixer-strip--muted", !isSoloed);
-      // Send to Python: soloed speaker unmuted, all others muted.
-      window.htBridge?.set_speaker_mute(k, !isSoloed);
-    }
+    _state.soloSet.add(key);
   }
+  _applySoloState();
+}
+
+function _applySoloState() {
+  const hasSolo = _state.soloSet.size > 0;
+  for (const key of Object.keys(_state.muteSaved)) {
+    const strip = _el.speakerStrips[key];
+    if (!strip) continue;
+    const isSoloed      = _state.soloSet.has(key);
+    const effectiveMute = hasSolo ? !isSoloed : _state.muteSaved[key];
+
+    strip.soloBtn.setAttribute("aria-pressed", String(isSoloed));
+    strip.soloBtn.classList.toggle("ht-solo-btn--active", isSoloed);
+    strip.row.classList.toggle("ht-mixer-strip--muted", effectiveMute);
+    window.htBridge?.set_speaker_mute(key, effectiveMute);
+  }
+  // Keep mute-button visuals in sync with saved mute state (independent of solo).
+  for (const key of Object.keys(_state.muteSaved)) {
+    const strip = _el.speakerStrips[key];
+    if (!strip) continue;
+    const saved = _state.muteSaved[key];
+    strip.muteBtn.setAttribute("aria-pressed", String(saved));
+    strip.muteBtn.classList.toggle("ht-mute-btn--active", saved);
+  }
+  _updateDiagSolo();
 }
 
 // ---------------------------------------------------------------------------
-// STEP 12: Signal handlers — called from outside (index.html bootstrap, scene.js)
+// STEP 10: Signal handlers
 // ---------------------------------------------------------------------------
 
-/**
- * onEngineReady — called by index.html's bootstrap script when Python fires
- * the engine_ready signal. Gates the Start button and updates the loading message.
- *
- * CONCEPT: the Start button is intentionally disabled until the audio engine
- * is fully constructed and all asset paths confirmed loadable. If the button
- * were enabled before this, the student might click Start into a half-initialized
- * engine and hear nothing, with no explanation. See §7.5 of the build plan.
- */
 function onEngineReady() {
   _state.engineReady = true;
-
-  if (_el.overlayMsg) {
-    _el.overlayMsg.textContent = "Engine ready. Headphones on?";
-  }
-  if (_el.startBtn) {
-    _el.startBtn.disabled = false;
-    _el.startBtn.focus();
-  }
-
-  // Update film credit now that the manifest is confirmed loaded.
+  if (_el.overlayMsg) _el.overlayMsg.textContent = "Engine ready — headphones on?";
+  if (_el.startBtn)   { _el.startBtn.disabled = false; _el.startBtn.focus(); }
   const creditEl = document.getElementById("ht-film-credit");
   if (creditEl) creditEl.textContent = _getFilmCredit();
-
-  _setStatus("Ready");
+  _setStatus("Ready", "ready");
 }
 
-/**
- * onAssetError — called by scene.js or index.html when any asset fails to load.
- * Displays the error in the overlay's error panel, keeping the overlay visible.
- * Never routes to console only — the error must be legible in the UI.
- * See §1 and §6 of the build plan.
- *
- * @param {string} message — human-readable, names the missing file and expected path
- */
 function onAssetError(message) {
-  // Ensure the overlay is still visible (or re-show it if already dismissed).
-  if (_el.overlay) {
-    _el.overlay.classList.remove("ht-overlay--fade");
-    _el.overlay.hidden = false;
-  }
-
-  if (_el.errorPanel) {
-    _el.errorText.textContent = message;
-    _el.errorPanel.hidden = false;
-  }
-
-  if (_el.startBtn) {
-    _el.startBtn.disabled = true;
-  }
-
-  _setStatus("Error — see overlay");
+  if (_el.overlay) { _el.overlay.classList.remove("ht-overlay--fade"); _el.overlay.hidden = false; }
+  if (_el.errorPanel) { _el.errorText.textContent = message; _el.errorPanel.hidden = false; }
+  if (_el.startBtn) _el.startBtn.disabled = true;
+  _setStatus("Asset error", "error");
   console.error("[hud.js] Asset error:", message);
 }
 
-/**
- * onStateChanged — called by index.html when Python fires the state_changed signal.
- *
- * This is the confirmation step for every tier and room switch. We only update
- * the HUD labels and button states here — not on click — so the UI always reflects
- * the engine's actual confirmed state, never an assumed or pending state.
- *
- * Also drives scene.js tier and room visual updates, which we could not confirm
- * earlier because Python might have rejected the request.
- *
- * @param {string}  tier       — "mono" | "stereo" | "5.1"
- * @param {string}  room       — "treated" | "wet"
- * @param {boolean} isPlaying  — current playback state
- */
 function onStateChanged(tier, room, isPlaying) {
   const tierChanged = tier !== _state.tier;
   const roomChanged = room !== _state.room;
-
   _state.tier      = tier;
   _state.room      = room;
   _state.isPlaying = isPlaying;
 
-  // Update Play/Pause button.
-  if (_el.playPauseBtn) {
-    _el.playPauseBtn.textContent = isPlaying ? "⏸ Pause" : "▶ Play";
-  }
+  _setPlayBtn(isPlaying);
 
-  // Update tier button active states.
   for (const [k, btn] of Object.entries(_el.tierBtns)) {
     const active = k === tier;
-    btn.classList.toggle("ht-btn--active", active);
+    btn.classList.toggle("ht-pill-btn--active", active);
     btn.setAttribute("aria-pressed", String(active));
-    btn.disabled = false;  // re-enable after in-flight switch resolves
+    btn.disabled = false;
   }
-
-  // Update room button active states.
   for (const [k, btn] of Object.entries(_el.roomBtns)) {
     const active = k === room;
-    btn.classList.toggle("ht-btn--active", active);
+    btn.classList.toggle("ht-pill-btn--active", active);
     btn.setAttribute("aria-pressed", String(active));
     btn.disabled = false;
   }
 
-  // Disable tier/room controls if now playing (they may have been re-enabled
-  // by an optimistic update that Python then confirmed with isPlaying=true).
   _setFormatControlsDisabled(isPlaying);
 
-  // Push confirmed tier/room to scene.js visual layer.
-  if (tierChanged && window.htScene?.setActiveTier) {
-    window.htScene.setActiveTier(tier);
-  }
-  if (roomChanged && window.htScene?.setRoomVariant) {
-    window.htScene.setRoomVariant(room);
-  }
-
-  // Refresh mixer strip active states for the new tier.
+  if (tierChanged && window.htScene?.setActiveTier) window.htScene.setActiveTier(tier);
+  if (roomChanged && window.htScene?.setRoomVariant) window.htScene.setRoomVariant(room);
   if (tierChanged) _updateMixerStrips(tier);
 
-  _setStatus(`${_tierLabel(tier)} · ${_roomLabel(room)}${isPlaying ? " · Playing" : ""}`);
+  if (_el.diagTierVal) _el.diagTierVal.textContent = _tierLabel(tier);
+  if (_el.diagRoomVal) _el.diagRoomVal.textContent = _roomLabel(room);
+  if (_el.diagPlayVal) {
+    _el.diagPlayVal.textContent = isPlaying ? "playing" : "stopped";
+    _el.diagPlayVal.className   = `ht-diag-val ${isPlaying ? "ht-diag-val--green" : "ht-diag-val--amber"}`;
+  }
+
+  _setStatus(
+    `${_tierLabel(tier)} · ${_roomLabel(room)}${isPlaying ? " · Playing" : ""}`,
+    isPlaying ? "ready" : "ready"
+  );
 }
 
-/**
- * onOffAxisReadout — called by scene.js every frame with the latest offset string.
- * Throttling is handled upstream (scene.js calls this inside the render loop, which
- * runs at the render frame rate). We just apply the string — no DOM thrash.
- *
- * @param {string} text — e.g. "14 cm left, 8 cm forward" or "sweet spot"
- */
 function onOffAxisReadout(text) {
-  if (_el.offAxisReadout && _el.offAxisReadout.textContent !== text) {
-    _el.offAxisReadout.textContent = text;
+  if (!_el.offAxisReadout) return;
+  if (_el.offAxisReadout.textContent === text) return;
+  _el.offAxisReadout.textContent = text;
+  const onSpot = text === "sweet spot";
+  _el.offAxisReadout.classList.toggle("ht-offaxis-readout--onspot", onSpot);
+}
+
+// ---------------------------------------------------------------------------
+// STEP 11: Internal helpers
+// ---------------------------------------------------------------------------
+
+function _setPlayBtn(playing) {
+  if (!_el.playPauseBtn) return;
+  const icon  = _el.playPauseBtn.querySelector(".ht-play-icon");
+  const label = _el.playPauseBtn.querySelector(".ht-play-label");
+  if (playing) {
+    if (icon)  icon.textContent  = "■";
+    if (label) label.textContent = "Stop";
+    _el.playPauseBtn.classList.add("ht-play-btn--pause");
+    _el.playPauseBtn.setAttribute("aria-label", "Stop playback");
+  } else {
+    if (icon)  icon.textContent  = "▶";
+    if (label) label.textContent = "Start";
+    _el.playPauseBtn.classList.remove("ht-play-btn--pause");
+    _el.playPauseBtn.setAttribute("aria-label", "Start playback");
   }
 }
 
-// ---------------------------------------------------------------------------
-// STEP 13: Internal helpers
-// ---------------------------------------------------------------------------
-
-/**
- * _setFormatControlsDisabled — enables or disables all tier and room buttons.
- * Called when playback starts (disable) or pauses (enable).
- *
- * @param {boolean} disabled
- */
 function _setFormatControlsDisabled(disabled) {
-  for (const btn of Object.values(_el.tierBtns))  btn.disabled = disabled;
-  for (const btn of Object.values(_el.roomBtns))  btn.disabled = disabled;
+  for (const btn of Object.values(_el.tierBtns)) btn.disabled = disabled;
+  for (const btn of Object.values(_el.roomBtns)) btn.disabled = disabled;
 }
 
-/**
- * _updateMixerStrips — dims and disables strips for speakers not active in the
- * current tier. Only active speakers are interactive.
- *
- * Active sets mirror audio_engine.py §5.3 exactly — same mapping as scene.js.
- *
- * @param {string} tier
- */
 function _updateMixerStrips(tier) {
   const activeSets = {
     "mono":   new Set(["C"]),
     "stereo": new Set(["L", "R"]),
     "5.1":    new Set(["C", "L", "R", "Ls", "Rs", "LFE"]),
   };
-
   const active = activeSets[tier] ?? new Set();
-
   for (const [key, strip] of Object.entries(_el.speakerStrips)) {
     const isActive = active.has(key);
     strip.row.classList.toggle("ht-mixer-strip--inactive", !isActive);
     strip.muteBtn.disabled = !isActive;
     strip.soloBtn.disabled = !isActive;
   }
+  if (_el.diagSpkVal) _el.diagSpkVal.textContent = `${active.size} / 6`;
 }
 
-function _setStatus(text) {
-  if (_el.statusLine) _el.statusLine.textContent = text;
+function _applyMuteVisual(key, muted) {
+  const strip = _el.speakerStrips[key];
+  if (!strip) return;
+  strip.muteBtn.setAttribute("aria-pressed", String(muted));
+  strip.muteBtn.classList.toggle("ht-mute-btn--active", muted);
+  strip.row.classList.toggle("ht-mixer-strip--muted", muted);
+}
+
+function _updateDiagSolo() {
+  if (!_el.diagSoloVal) return;
+  if (_state.soloSet.size === 0) {
+    _el.diagSoloVal.textContent = "none";
+    _el.diagSoloVal.className   = "ht-diag-val";
+  } else {
+    _el.diagSoloVal.textContent = [..._state.soloSet].join(", ");
+    _el.diagSoloVal.className   = "ht-diag-val ht-diag-val--amber";
+  }
+}
+
+function _setStatus(text, kind = "ready") {
+  if (!_el.statusBadge || !_el.statusText) return;
+  _el.statusText.textContent = text;
+  _el.statusBadge.className  = "ht-status-badge";
+  if (kind === "error")   _el.statusBadge.classList.add("ht-status-badge--error");
+  if (kind === "pending") _el.statusBadge.classList.add("ht-status-badge--pending");
 }
 
 function _tierLabel(tier) {
@@ -766,35 +1169,23 @@ function _roomLabel(room) {
   return { treated: "Treated", wet: "Wet" }[room] ?? room;
 }
 
-/**
- * _el — dual-role helper: DOM element factory AND named-ref store.
- *
- * As a factory (called as a function):
- *   const div = _el("div", "ht-some-class another-class");
- *
- * As a ref store (properties set directly on the function object):
- *   _el.someRef = div;
- *
- * This works because functions are first-class objects in JavaScript.
- * Function declarations are hoisted to the top of their scope, so _el is
- * available as a function throughout this file even though it is declared here
- * at the bottom. The dict-style refs (_el.tierBtns, _el.roomBtns,
- * _el.speakerStrips) are initialised to empty objects immediately below so
- * that Object.values() / Object.entries() calls on them never see undefined.
- *
- * IMPORTANT: do NOT also declare `const _el = { … }` anywhere in this file.
- * A const declaration and a function declaration with the same name in the
- * same scope is a SyntaxError ("Identifier '_el' has already been declared").
- */
+function _getFilmCredit() {
+  const m = window.htManifest;
+  const c = m?.film_credit ?? m?.credit;
+  if (!c) return "Film: [loading…] © Blender Foundation, CC-BY 3.0";
+  return `Film: "${c.title}" © ${c.author ?? "Blender Foundation"}, ${c.license ?? "CC-BY 3.0"}`;
+}
+
+// ---------------------------------------------------------------------------
+// STEP 12: _el — DOM element factory + named-ref store
+// ---------------------------------------------------------------------------
+
 function _el(tag, classes) {
   const node = document.createElement(tag);
   if (classes) node.className = classes;
   return node;
 }
 
-// Initialise the dict-style ref buckets on the function object.
-// All other refs start as undefined (falsy) which is fine — every consumer
-// guards with `if (_el.xxx)` before reading them.
 _el.tierBtns      = {};
 _el.roomBtns      = {};
 _el.speakerStrips = {};

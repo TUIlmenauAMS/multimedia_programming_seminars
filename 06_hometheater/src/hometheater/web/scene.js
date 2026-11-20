@@ -204,6 +204,7 @@ window.htAppReady = async function htAppReady() {
   window.htScene = {
     setActiveTier,
     setRoomVariant,
+    resetView,
   };
 };
 
@@ -988,6 +989,16 @@ const _ctrl = {
   // WASD key state.
   keys: { w: false, a: false, s: false, d: false },
 };
+
+/**
+ * resetView — returns the camera to the ITU sweet spot with no yaw or pitch.
+ * Called by hud.js via window.htScene.resetView() when the user clicks Reset View.
+ */
+function resetView() {
+  _ctrl.offset.set(0, 0, 0);
+  _ctrl.yaw   = 0;
+  _ctrl.pitch = 0;
+}
 
 function _initControls() {
   const canvas = renderer.domElement;
