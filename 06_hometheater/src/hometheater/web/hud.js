@@ -487,6 +487,53 @@ function _injectStyles() {
       z-index: 5;
     }
     .ht-credit { font-size: 10px; color: var(--text-3); font-family: var(--font-mono); }
+
+    /* ── Credits panel ── */
+    .ht-credits-toggle-btn {
+      display: flex; align-items: center; justify-content: space-between;
+      width: fit-content; min-width: 120px; max-width: 100%;
+      padding: 6px 10px;
+      background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--radius);
+      color: var(--text-2); font-size: 11px; font-weight: 500; font-family: var(--font);
+      cursor: pointer; transition: border-color .15s, color .15s, background .15s;
+      gap: 8px;
+    }
+    .ht-credits-toggle-btn:hover { border-color: var(--text-3); color: var(--text); background: #232a38; }
+    .ht-credits-toggle-btn--open { border-color: var(--text-3); color: var(--text); }
+    .ht-credits-caret { font-size: 9px; transition: transform .18s; display: inline-block; flex-shrink: 0; }
+    .ht-credits-toggle-btn--open .ht-credits-caret { transform: rotate(180deg); }
+
+    .ht-credits-list { display: none; flex-direction: column; gap: 0; margin-top: 6px; }
+    .ht-credits-list--open { display: flex; }
+
+    .ht-credit-item {
+      padding: 4px 2px;
+      border-bottom: 1px solid rgba(255,255,255,.04);
+    }
+    .ht-credit-item:last-child { border-bottom: none; }
+    .ht-credit-item-role {
+      font-size: 8px; font-weight: 700; letter-spacing: .07em;
+      color: var(--text-3); text-transform: uppercase; margin-bottom: 1px;
+    }
+    .ht-credit-item-main {
+      display: flex; align-items: baseline; gap: 4px; flex-wrap: wrap;
+    }
+    .ht-credit-item-title {
+      font-size: 10px; font-weight: 500; color: var(--text); line-height: 1.3;
+    }
+    .ht-credit-item-author {
+      font-size: 10px; color: var(--text-2);
+    }
+    .ht-credit-item-license {
+      font-size: 9px; color: var(--text-3); font-family: var(--font-mono);
+    }
+    .ht-credit-item-link {
+      display: inline-block;
+      font-size: 9px; color: var(--accent); font-family: var(--font-mono);
+      text-decoration: none; opacity: .65; transition: opacity .15s;
+      word-break: break-all;
+    }
+    .ht-credit-item-link:hover { opacity: 1; }
   `;
   document.head.appendChild(style);
 }
@@ -569,6 +616,7 @@ function _buildLeftSidebar(root) {
   _buildRoomSection(sidebar);
   _buildMixerSection(sidebar);
   _buildHintBar(sidebar);
+  _buildCreditsSection(sidebar);
   wrap.appendChild(sidebar);
   _el.sidebar = sidebar;
 
@@ -995,15 +1043,168 @@ function _diagRow(parent, key, initialVal, valClass) {
 }
 
 // ---------------------------------------------------------------------------
+// STEP 7b: Credits section — lists all CC-BY assets used in the demo
+// ---------------------------------------------------------------------------
+
+/**
+ * CREDITS_DATA — single source of truth for all third-party assets.
+ * CC-BY 4.0 requires: title, author, source URL, and licence notice.
+ * Add new entries here; _buildCreditsSection() renders them automatically.
+ */
+const CREDITS_DATA = [
+  // ── 3D Models (Sketchfab, CC-BY 4.0) ────────────────────────────────────
+  {
+    role:    "3D Model · Speakers (L / R / Ls / Rs)",
+    title:   "Aural Sculpture Grace for interiors",
+    author:  "sansuiazumi",
+    license: "CC BY 4.0",
+    url:     "https://skfb.ly/oyYOB",
+  },
+  {
+    role:    "3D Model · Center Channel Speaker",
+    title:   "Loudspeaker",
+    author:  "_JooL_",
+    license: "CC BY 4.0",
+    url:     "https://skfb.ly/oPHwN",
+  },
+  {
+    role:    "3D Model · Sofa",
+    title:   "Modern Sofa",
+    author:  "3dimentionalben",
+    license: "CC BY 4.0",
+    url:     "https://skfb.ly/6BMrN",
+  },
+  {
+    role:    "3D Model · Television",
+    title:   "Led Tv",
+    author:  "Daniyal Malik",
+    license: "CC BY 4.0",
+    url:     "https://skfb.ly/68ZMs",
+  },
+  {
+    role:    "3D Model · Subwoofer (LFE)",
+    title:   "Subwoofer Sealed Speaker",
+    author:  "Eveston - Elite Big Speakerman - Hugo",
+    license: "CC BY 4.0",
+    url:     "https://skfb.ly/pNsYG",
+  },
+  {
+    role:    "3D Model · TV Stand",
+    title:   "TV Stand (Low Poly)",
+    author:  "DKDTheGreat1",
+    license: "CC BY 4.0",
+    url:     "https://skfb.ly/6ULnz",
+  },
+  // ── Film / Audio (Blender Foundation) ────────────────────────────────────
+  {
+    role:    "Film · Video",
+    title:   "Tears of Steel",
+    author:  "Blender Foundation",
+    license: "CC BY 3.0",
+    url:     "https://mango.blender.org",
+  },
+  {
+    role:    "Film · Surround Audio",
+    title:   "Tears of Steel (surround FLAC)",
+    author:  "Blender Foundation / Xiph.org",
+    license: "CC BY 3.0",
+    url:     "https://media.xiph.org/tearsofsteel/",
+  },
+];
+
+function _buildCreditsSection(parent) {
+  const section = _el("div", "ht-section");
+
+  const lbl = _el("div", "ht-section-label");
+  lbl.textContent = "Credits";
+  section.appendChild(lbl);
+
+  const toggleBtn = _el("button", "ht-credits-toggle-btn");
+  toggleBtn.setAttribute("aria-expanded", "false");
+  toggleBtn.setAttribute("aria-controls", "ht-credits-list");
+  toggleBtn.innerHTML = `<span>Third-party assets</span><span class="ht-credits-caret">▾</span>`;
+  section.appendChild(toggleBtn);
+
+  const list = _el("div", "ht-credits-list");
+  list.id = "ht-credits-list";
+
+  for (const item of CREDITS_DATA) {
+    const entry = _el("div", "ht-credit-item");
+
+    const role = _el("div", "ht-credit-item-role");
+    role.textContent = item.role;
+    entry.appendChild(role);
+
+    // Title · author · license all on one compact line
+    const main = _el("div", "ht-credit-item-main");
+
+    const title = _el("span", "ht-credit-item-title");
+    title.textContent = `"${item.title}"`;
+    main.appendChild(title);
+
+    const author = _el("span", "ht-credit-item-author");
+    author.textContent = `· ${item.author}`;
+    main.appendChild(author);
+
+    const license = _el("span", "ht-credit-item-license");
+    license.textContent = `· ${item.license}`;
+    main.appendChild(license);
+
+    if (item.url) {
+      const link = _el("a", "ht-credit-item-link");
+      link.textContent = "↗";
+      link.title = item.url;
+      link.href = item.url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.addEventListener("click", e => {
+        if (window.htBridge?.open_url) {
+          e.preventDefault();
+          window.htBridge.open_url(item.url);
+        }
+      });
+      main.appendChild(link);
+    }
+
+    entry.appendChild(main);
+    list.appendChild(entry);
+  }
+
+  section.appendChild(list);
+  parent.appendChild(section);
+
+  toggleBtn.addEventListener("click", () => {
+    const open = list.classList.toggle("ht-credits-list--open");
+    toggleBtn.classList.toggle("ht-credits-toggle-btn--open", open);
+    toggleBtn.setAttribute("aria-expanded", String(open));
+  });
+}
+
+// ---------------------------------------------------------------------------
 // STEP 8: Footer — film credit
 // ---------------------------------------------------------------------------
 
 function _buildFooter(root) {
   const footer = _el("div", "ht-footer");
+
+  // Primary film credit (dynamic, populated by _getFilmCredit on engine ready)
   const credit = _el("span", "ht-credit");
   credit.id = "ht-film-credit-footer";
   credit.textContent = _getFilmCredit();
   footer.appendChild(credit);
+
+  // Static separator + brief asset attribution line
+  const sep = _el("span", "ht-credit");
+  sep.textContent = "  ·  ";
+  sep.setAttribute("aria-hidden", "true");
+  footer.appendChild(sep);
+
+  const assetCredit = _el("span", "ht-credit");
+  assetCredit.textContent =
+    "3D models by sansuiazumi, _JooL_, 3dimentionalben, Daniyal Malik, " +
+    "Eveston/Hugo, DKDTheGreat1 — CC BY 4.0 via Sketchfab";
+  footer.appendChild(assetCredit);
+
   root.appendChild(footer);
 }
 
@@ -1118,8 +1319,12 @@ function onEngineReady() {
   _state.engineReady = true;
   if (_el.overlayMsg) _el.overlayMsg.textContent = "Engine ready — headphones on?";
   if (_el.startBtn)   { _el.startBtn.disabled = false; _el.startBtn.focus(); }
-  const creditEl = document.getElementById("ht-film-credit");
-  if (creditEl) creditEl.textContent = _getFilmCredit();
+  // Refresh both credit elements now that htManifest is guaranteed to be set.
+  const filmCredit = _getFilmCredit();
+  const diagCreditEl   = document.getElementById("ht-film-credit");
+  const footerCreditEl = document.getElementById("ht-film-credit-footer");
+  if (diagCreditEl)   diagCreditEl.textContent   = filmCredit;
+  if (footerCreditEl) footerCreditEl.textContent = filmCredit;
   _setStatus("Ready", "ready");
 }
 
@@ -1284,7 +1489,9 @@ function _roomLabel(room) {
 function _getFilmCredit() {
   const m = window.htManifest;
   const c = m?.film_credit ?? m?.credit;
-  if (!c) return "Film: [loading…] © Blender Foundation, CC-BY 3.0";
+  // Always return a usable string — the manifest is static so the fallback
+  // is the known correct value, never a placeholder like "[loading…]".
+  if (!c) return `Film: "Tears of Steel" © Blender Foundation, CC-BY 3.0`;
   return `Film: "${c.title}" © ${c.author ?? "Blender Foundation"}, ${c.license ?? "CC-BY 3.0"}`;
 }
 

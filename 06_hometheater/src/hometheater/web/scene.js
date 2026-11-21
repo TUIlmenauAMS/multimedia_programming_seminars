@@ -537,10 +537,17 @@ async function _loadModels(manifest) {
     return;
   }
   const speakerGltf = await loadGLB(`ht://assets/${speakerPath}`, "speaker");
-  // Scale aural speakers to a tall floor-standing size: ~0.75 m.
-  // The model is a slender sculptural speaker that reads better at this height,
-  // and visually it needs to hold its own beside the TV stand.
-  _autoScaleGLB(speakerGltf.scene, 0.75, "y");
+  // Scale aural sculpture speakers to ~0.75 m on their LARGEST axis so the
+  // model's native proportions are preserved. Forcing Y alone squashed the
+  // sculpture's organic shape because its X/Z extents differ significantly
+  // from Y — same uniform-largest-axis approach used for the subwoofer.
+  {
+    const bbox = new THREE.Box3().setFromObject(speakerGltf.scene);
+    const sz = new THREE.Vector3();
+    bbox.getSize(sz);
+    const largest = Math.max(sz.x, sz.y, sz.z);
+    if (largest > 0) speakerGltf.scene.scale.setScalar(0.75 / largest);
+  }
 
   // Load center-channel model — manifest key is model_center (or legacy models.center).
   // Scale on Y to 0.20 m (realistic height for a horizontal center-channel cabinet).
@@ -931,8 +938,21 @@ function _placeSpeakers(speakerGltf, centerGltf, subGltf, standInfo) {
       // Reset to zero so no residual rotation from the clone is inherited.
       instance.rotation.set(0, 0, 0);
     } else if (spk.key === "L" || spk.key === "R") {
-      // Front L/R beside the stand: face straight toward the listener (+Z).
-      instance.rotation.set(0, 0, 0);
+      // Front L/R aural sculpture speakers — face toward the sweet spot.
+      // lookAt() on a horizontal plane (same Y) keeps them upright with no tilt.
+      // Mirror the L speaker on X so the two sculptures face each other
+      // symmetrically rather than both pointing the same way. scale.x = -1
+      // is the standard Three.js mirror; DoubleSide on the materials (applied
+      // in the traverse below) prevents the inverted winding from going black.
+      const flatTarget = new THREE.Vector3(
+        SWEET_SPOT_ORIGIN.x,
+        y,
+        SWEET_SPOT_ORIGIN.z
+      );
+      instance.lookAt(flatTarget);
+      if (spk.key === "L") {
+        instance.scale.x *= -1;  // mirror L speaker horizontally
+      }
     } else {
       // Surround Ls/Rs: face toward the sweet spot horizontally.
       // Construct a target at the same Y as the speaker to avoid tilt.
@@ -955,6 +975,12 @@ function _placeSpeakers(speakerGltf, centerGltf, subGltf, standInfo) {
       // Ensure each mesh has its own material instance (clone() may share refs).
       if (!Array.isArray(child.material)) {
         child.material = child.material.clone();
+      }
+      // DoubleSide is required for the L speaker whose scale.x is negated —
+      // the winding order inversion would otherwise make faces appear black
+      // from the front. Applied to all aural sculpture instances for consistency.
+      if (!child.material.isMeshBasicMaterial) {
+        child.material.side = THREE.DoubleSide;
       }
       // Set the emissive colour but start with intensity 0 (all speakers off).
       // LFE uses a different accent colour to visually distinguish it.
