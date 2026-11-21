@@ -7,7 +7,7 @@
  * COORDINATE SYSTEM (read this before touching any position/rotation):
  *   - Units: meters, Y-up, right-handed (Three.js default).
  *   - This matches QAudioEngine with distanceScaleMode = DistanceScaleMeter,
- *     and the ITU-R BS.775 speaker circle in audio_engine.py.
+ *     and the speaker circle defined in audio_engine.py.
  *   - "Forward" (facing the TV) is the −Z direction in world space.
  *   - Listener starts at world origin [0, 1.2, 0] (sweet spot, seated head height).
  *   - All speaker GLB placements use the same azimuth/radius as audio_engine.py —
@@ -36,12 +36,12 @@ import { GLTFLoader }  from "three/addons/GLTFLoader.js";
  * SWEET_SPOT_BOUNDS — maximum translation the user may apply from the calibrated
  * listening position, in meters.
  *
- * CONCEPT: ITU-R BS.775 defines virtual speaker angles as measured from a *specific*
- * listener position (the "sweet spot"). Moving off that point breaks the stereo image
- * and the binaural decode precision, which is exactly the teaching moment we want the
- * student to feel. The bounds are intentionally tight enough to feel the degradation
- * without letting the student wander into the room geometry or lose the ITU frame
- * entirely. Tune these after first visual test with the real GLB furniture scale.
+ * CONCEPT: The virtual speaker angles are defined relative to a specific listener
+ * position (the "sweet spot"). Moving off that point breaks the stereo image and the
+ * binaural decode precision, which is exactly the teaching moment we want the student
+ * to feel. The bounds are intentionally tight enough to feel the degradation without
+ * letting the student wander into the room geometry entirely. Tune these after first
+ * visual test with the real GLB furniture scale.
  *
  * See §7.4 of the build plan.
  */
@@ -54,20 +54,21 @@ const SWEET_SPOT_BOUNDS = {
 /**
  * SWEET_SPOT_ORIGIN — world position of the calibrated listening position.
  * This must be the exact point that audio_engine.py treats as [0,0,0] for the
- * QAudioListener at session start, and the point from which all ITU speaker angles
+ * QAudioListener at session start, and the point from which all speaker angles
  * are measured. It is also the camera start position.
  *
  * Y = 1.2 m ≈ seated ear height.
  */
 // Z = +0.8 m: places the listener 2.55 m from the TV screen face — correct
-// for a 55" display (ITU recommends ~1.5–3× screen height; 55" height ≈ 0.73 m,
+// for a 55" display (common guidance suggests ~1.5–3× screen height; 55" height ≈ 0.73 m,
 // so 2.55 m ≈ 3.5× — comfortable home-theater distance, 16° vertical subtense).
 const SWEET_SPOT_ORIGIN = new THREE.Vector3(0, 1.2, 0.8);
 
 /**
  * SPEAKER_RADIUS — calibration radius from the sweet spot to each positional speaker.
  * All five positional speakers (L, R, C, Ls, Rs) sit on a circle of this radius —
- * equal distance is the ITU calibration requirement. The LFE is non-directional and
+ * equal distance matters for correct inter-aural time difference imaging: unequal
+ * radii would introduce spurious arrival-time cues independent of azimuth. The LFE is non-directional and
  * placed visually near the TV; its distance is cosmetic only.
  *
  * NATIVE ENGINE EQUIVALENT: matches the radius used in audio_engine.py when setting
@@ -89,11 +90,12 @@ const POSE_EMIT_INTERVAL_MS = 1000 / POSE_EMIT_HZ;
 /**
  * ITU_SPEAKERS — virtual speaker definitions.
  * Azimuth in degrees, 0° = facing TV (−Z), positive = right (counter-clockwise
- * when viewed from above, matching the standard ITU diagram).
+ * when viewed from above).
  *
  * NATIVE ENGINE EQUIVALENT: these azimuths must mirror the azimuth values used in
  * audio_engine.py to set QSpatialSound.position for each source. If you change one,
- * change the other. The authoritative specification is ITU-R BS.775-3, Table 1.
+ * change the other. Reference: ITU-R BS.775-3, Table 1 — the demo positions are
+ * informed by but adapted from that standard to suit a realistic home theater layout.
  *
  * See §5.2 of the build plan.
  */
@@ -242,7 +244,7 @@ function _buildCamera() {
     20                                         // far clip — 20 m covers the room + fog fade
   );
 
-  // Start at the ITU calibration sweet spot, facing the TV (−Z).
+  // Start at the sweet spot (calibrated listening position), facing the TV (−Z).
   camera.position.copy(SWEET_SPOT_ORIGIN);
   camera.lookAt(new THREE.Vector3(0, SWEET_SPOT_ORIGIN.y, -SPEAKER_RADIUS));
 
@@ -783,8 +785,8 @@ function _getYMin(obj) {
  * _placeSpeakers — instances speaker GLBs at the ITU_SPEAKERS positions and
  * registers each in the speakerMeshes map for tier-driven glow control.
  *
- * Speaker positions are computed relative to SWEET_SPOT_ORIGIN, so the ITU
- * calibration circle is always centred on the actual listening position.
+ * Speaker positions are computed relative to SWEET_SPOT_ORIGIN, so the speaker
+ * circle is always centred on the actual listening position (the sweet spot).
  *
  * CONCEPT: each physical speaker position corresponds to a QSpatialSound source
  * in audio_engine.py at the same world position. The emissive glow mirrors the
@@ -887,7 +889,7 @@ function _placeSpeakers(speakerGltf, centerGltf, subGltf, standInfo) {
 
     } else {
       // -----------------------------------------------------------------------
-      // Ls, Rs — ITU-R BS.775 surround circle XZ positions (unchanged).
+      // Ls, Rs — surround speaker circle XZ positions (unchanged).
       // y = -yMin puts the cabinet base on the floor.
       // -----------------------------------------------------------------------
       const azRad = THREE.MathUtils.degToRad(spk.azimuthDeg);
@@ -1017,7 +1019,7 @@ const _ctrl = {
 };
 
 /**
- * resetView — returns the camera to the ITU sweet spot with no yaw or pitch.
+ * resetView — returns the camera to the sweet spot with no yaw or pitch.
  * Called by hud.js via window.htScene.resetView() when the user clicks Reset View.
  */
 function resetView() {

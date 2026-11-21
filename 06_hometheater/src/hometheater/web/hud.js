@@ -561,7 +561,7 @@ function _buildLoadingOverlay(root) {
   note.textContent =
     "All playback is binaurally virtualized via Qt Spatial Audio — " +
     "there is no physical speaker array. 5.1 means five virtual speakers " +
-    "placed at ITU-R BS.775 angles and decoded for headphones.";
+    "placed at positions informed by the 5.1 surround standard and adapted for a realistic home theater layout, decoded for headphones.";
   overlay.appendChild(note);
 
   const msg = _el("div", "ht-overlay-msg");
