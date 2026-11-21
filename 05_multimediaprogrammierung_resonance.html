@@ -400,6 +400,7 @@
     <tr><td>8</td><td>Room Acoustics API</td><td>setRoomProperties, material presets, RT60 from coefficients</td></tr>
     <tr><td>9</td><td>Ambisonics in Resonance</td><td>Internal Ambisonic bus, ambisonicOutput, head rotation</td></tr>
     <tr><td>10</td><td>Performance &amp; Production</td><td>CPU budget, source LOD, occlusion, AudioContext lifecycle</td></tr>
+    <tr><td>11</td><td>Qt Spatial Audio &amp; QWebEngineView</td><td>Qt as native Resonance runtime, hybrid Python + embedded-web architecture, QWebChannel signal/slot bridge, per-frame camera-to-listener pose loop</td></tr>
   </tbody>
 </table>
 </div>
@@ -1516,6 +1517,149 @@ async function reinitializeAudio() {
 </div>
 
 <!-- ═══════════════════════════════════════════════════════════════════════════
+     SECTION 11 — QT SPATIAL AUDIO & QWEBENGINEVIEW
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="nb-cell">
+<hr>
+<h2>11. From Web to Native: Qt Spatial Audio &amp; QWebEngineView</h2>
+<p>Everything covered so far has run inside a browser tab: Web Audio API, Resonance Audio's JavaScript SDK, Three.js for the visual scene. The <strong>Home Theater Spatial Audio Simulator</strong> — the companion desktop application to this chapter — takes the same underlying engine out of the browser and runs it natively in Python using <strong>PySide6 Qt Spatial Audio</strong>. The result is a full binaural home theater simulator with a live 3D scene, per-channel mute/solo, two acoustic room variants, and a listener that moves through the virtual room in real time.</p>
+
+<p>What makes this application architecturally interesting is that it does not choose between native and web. It combines both: the audio engine runs as a Python class using Qt's C++ audio stack, while the entire 3D visual layer and user interface run as an HTML/CSS/JavaScript application inside a <code>QWebEngineView</code> — an embedded Chromium browser hosted inside the Python window. The two halves communicate through <strong>QWebChannel</strong>, Qt's bridge between native code and the web runtime.</p>
+
+<h3>Resonance Audio inside Qt</h3>
+<p>Qt Spatial Audio is not a separate spatial audio implementation. It is <strong>Google Resonance Audio compiled as a Qt C++ module</strong>. The same Ambisonic encoding, HRTF-based binaural decode, image-source early reflections, and feedback delay network that power the browser SDK are running inside <code>QAudioEngine</code>. This means every concept taught in sections 1–10 of this chapter maps directly onto the Qt API — the classes just have different names.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>Web API (Resonance Audio JS)</th>
+      <th>Native API (PySide6 Qt Spatial Audio)</th>
+      <th>What it does</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><code>new ResonanceAudio(ctx)</code><br><small style="color:var(--muted)">binaural decode step</small></td>
+      <td><code>QAudioEngine(OutputMode.Headphone)</code></td>
+      <td>Creates the binaural renderer. <code>OutputMode.Headphone</code> activates HRTF decode.</td>
+    </tr>
+    <tr>
+      <td><code>resonanceAudio.setListenerFromMatrix()</code></td>
+      <td><code>QAudioListener.setPosition()<br>QAudioListener.setRotation()</code></td>
+      <td>Updates the virtual listener's pose. Called every animation frame from the Three.js camera.</td>
+    </tr>
+    <tr>
+      <td><code>resonanceAudio.setRoomProperties()</code></td>
+      <td><code>QAudioRoom.setDimensions()<br>QAudioRoom.setWallMaterial()</code></td>
+      <td>Sets room geometry and per-wall absorption materials. Drives early reflections and reverb tail.</td>
+    </tr>
+    <tr>
+      <td><code>scene.createSource()</code><br><code>resonanceSource.setFromMatrix()</code></td>
+      <td><code>QSpatialSound.setPosition()</code></td>
+      <td>Places a virtual speaker at a world-space position. The engine computes HRTF, distance attenuation, and room coupling from this.</td>
+    </tr>
+    <tr>
+      <td><code>audioContext.suspend() / resume()</code></td>
+      <td><code>QAudioEngine.pause() / resume()</code></td>
+      <td>Freezes and unfreezes the entire renderer atomically. All source cursors stop and start together — no drift is possible.</td>
+    </tr>
+  </tbody>
+</table>
+
+<div style="border-left:5px solid #1a73e8; padding:16px 20px; margin:20px 0;">
+<strong>One critical difference from the web API: distance scale.</strong> The web Resonance SDK uses metres by default. Qt's <code>QAudioEngine</code> defaults to centimetres internally. Without explicitly setting <code>engine.setDistanceScale(QAudioEngine.DistanceScaleMeter)</code>, every position coordinate is treated as centimetres — placing the virtual speakers 100× closer than intended. At that distance, the inverse-square distance model reduces them to near-silence. <code>DistanceScaleMeter</code> evaluates to <code>100.0</code> and corrects the scale; the named constant should always be used rather than the raw number so the intent is explicit.
+</div>
+
+<h3>The hybrid architecture: Python + QWebEngineView</h3>
+<p>The application window is a standard PySide6 <code>QMainWindow</code>. It hosts a <code>QWebEngineView</code> that loads a local HTML page — the same kind of HTML/CSS/JavaScript application you would write for the browser, but running embedded in the Python process. The HTML page contains two JavaScript modules: <code>scene.js</code>, which builds and renders the Three.js 3D room, and <code>hud.js</code>, which constructs the control panel and diagnostics UI entirely in JavaScript without any server or build step.</p>
+
+<p>The two halves — Python and the web runtime — have no shared memory and no direct function calls between them. All communication goes through <strong>QWebChannel</strong>, a Qt subsystem that exposes Python objects to JavaScript as if they were local JS objects, using a JSON message protocol over a WebSocket-like internal channel.</p>
+
+<pre><code># Python side — bridge.py exposes a QObject to the web page.
+# Any @Slot method on this object becomes callable from JavaScript.
+
+from PySide6.QtWebChannel import QWebChannel
+from PySide6.QtWebEngineWidgets import QWebEngineView
+
+channel = QWebChannel(parent)
+channel.registerObject("htBridge", bridge)   # exposes bridge as window.htBridge in JS
+
+view = QWebEngineView()
+view.page().setWebChannel(channel)
+view.load(QUrl("ht://app/index.html"))       # custom URL scheme served by Python</code></pre>
+
+<pre><code>// JavaScript side — index.html bootstraps the QWebChannel connection.
+// Once the channel is open, window.htBridge is a live proxy to the Python object.
+
+new QWebChannel(qt.webChannelTransport, channel => {
+  window.htBridge = channel.objects.htBridge;
+
+  // JS can now call Python slots directly:
+  window.htBridge.play();
+  window.htBridge.set_tier("5.1");
+  window.htBridge.set_room("wet");
+
+  // And listen to Python signals:
+  window.htBridge.state_changed.connect((tier, room, isPlaying) => {
+    window.htSignals.onStateChanged(tier, room, isPlaying);
+  });
+});</code></pre>
+
+<p>Signals flow in both directions. Python emits Qt signals (<code>state_changed</code>, <code>engine_ready</code>, <code>asset_error</code>) which JavaScript connects to as event listeners. JavaScript calls Python slots (<code>play()</code>, <code>set_tier()</code>, <code>update_listener_pose()</code>) directly on the bridge object. Neither side blocks waiting for the other — the channel is asynchronous.</p>
+
+<h3>The camera-to-listener pose loop</h3>
+<p>The most latency-sensitive path in the system is the per-frame listener update. Every animation frame, <code>scene.js</code> reads the Three.js camera's world position and quaternion and forwards them to Python, where <code>QAudioListener</code> uses them to update the binaural decode. The chain is:</p>
+
+<pre><code>// scene.js — called every animation frame, throttled to POSE_EMIT_HZ (60 Hz).
+// Only emits when the camera actually moved, to avoid flooding QWebChannel.
+
+function _emitListenerPose() {
+  const p = camera.position;
+  const q = camera.quaternion;
+  window.htBridge?.update_listener_pose(
+    p.x, p.y, p.z,
+    q.x, q.y, q.z, q.w
+  );
+}</code></pre>
+
+<pre><code># audio_engine.py — the Python slot that receives the pose.
+# Called ~60 times per second from the JS animation loop via QWebChannel.
+
+@Slot(float, float, float, float, float, float, float)
+def update_listener_pose(self, x, y, z, qx, qy, qz, qw):
+    self._listener.setPosition(QVector3D(x, y, z))
+    self._listener.setRotation(QQuaternion(qw, qx, qy, qz))</code></pre>
+
+<p>The coordinate system is shared: both Three.js and Qt use metres, Y-up, right-handed coordinates with the same origin. The same ITU-R BS.775 azimuth formula places the visual speaker meshes in Three.js and the acoustic <code>QSpatialSound</code> sources in Qt — a single mathematical definition, applied twice in different runtimes.</p>
+
+<h3>Why this architecture?</h3>
+<p>The split is not arbitrary. Each layer does what it is best at:</p>
+<ul>
+  <li><strong>Python / Qt owns audio and app lifecycle.</strong> Qt Spatial Audio runs on a dedicated audio thread outside the browser sandbox, with direct access to the system audio hardware. Engine-level pause/resume guarantees all source cursors freeze and restart in lockstep with the video — something a browser tab cannot guarantee across sources. File I/O, asset preprocessing, and process management all live here.</li>
+  <li><strong>The WebView owns the visual scene and UI.</strong> Three.js, WebGL, and the full CSS layout engine run exactly as they would in a browser — no porting, no rewriting. The 3D room, the camera controls, the HUD panels, and the diagnostic readouts are ordinary HTML/CSS/JavaScript. Any web developer can read and modify them without knowing Qt.</li>
+  <li><strong>QWebChannel is the seam.</strong> It is narrow by design: a small set of named slots and signals, each carrying only the data the other side needs. The Python audio engine has no knowledge of the DOM. The JavaScript scene has no knowledge of Qt's audio graph. Either half can be replaced or tested independently.</li>
+</ul>
+
+<h3>Speaker layout: ITU-R BS.775 in Qt</h3>
+<p>The home theater demo teaches three surround formats: Mono, Stereo, and 5.1. Each format is not a separate audio graph — it is a volume matrix. Nine <code>QSpatialSound</code> sources are created once at startup and run continuously, each carrying one audio track (the mono downmix, the stereo pair, the five discrete 5.1 channels, and the LFE). Switching formats is nine <code>setVolume()</code> calls; no source is ever stopped, restarted, or reloaded. This guarantees every source's playback cursor stays exactly in sync with the video regardless of how many times the student switches between Mono, Stereo, and 5.1 during playback.</p>
+
+<pre><code># _TIER_VOLUMES — which sources are audible in each format.
+# 1.0 = active; 0.0 = running silently in lockstep. Indices match _SOURCE_DEFS.
+#                   mono  st_l  st_r    fc    fl    fr    ls    rs   lfe
+Tier.MONO:    [1.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0]
+Tier.STEREO:  [0.0,  1.0,  1.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0]
+Tier.FIVE_ONE:[0.0,  0.0,  0.0,  1.0,  1.0,  1.0,  1.0,  1.0,  1.0]</code></pre>
+
+<p>The five positional speakers (C, L, R, Ls, Rs) are placed at their ITU-R BS.775 azimuths on a circle of 2.0 m radius around the sweet spot. The LFE is non-directional — sub-bass below ~80 Hz cannot be reliably localized by the human auditory system (see Section 1), so its <code>QSpatialSound</code> position is near the TV stand for visual plausibility only. The room switch (Treated ↔ Wet) is a <code>QAudioRoom.setWallMaterial()</code> call per face, mapping to the same material vocabulary as <code>resonanceAudio.setRoomProperties()</code> — the same spectral absorption tables from Section 2 apply.</p>
+
+<div class="demo-box">
+  <strong>Demo 6 — Home Theater Spatial Audio Simulator.</strong> A native PySide6 desktop application combining Qt Spatial Audio (Google Resonance Audio compiled into Qt's C++ layer) with a Three.js 3D scene embedded in a <code>QWebEngineView</code>. Demonstrates Mono / Stereo / 5.1 surround virtualisation via binaural HRTF decode, ITU-R BS.775 speaker placement, two acoustic room variants (Treated: RT60 ≈ 0.3 s; Wet: RT60 ≈ 1.2 s), per-channel mute/solo, and a live sweet-spot offset readout. The Python audio engine and the JavaScript visual layer communicate exclusively through QWebChannel — neither knows the other exists beyond a narrow signal/slot contract. This demo is a Python application; clone the repository and follow the README to run it locally.
+  <br>
+  <a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars/tree/main/06_hometheater" target="_blank" rel="noopener">View Source — GitHub &#8599;</a>
+</div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════════════════════
      DEMO INDEX TABLE
      ═══════════════════════════════════════════════════════════════════════════ -->
 <div class="nb-cell">
@@ -1554,6 +1698,12 @@ async function reinitializeAudio() {
       <td><a href="05_mm_production.html">Production Engine</a></td>
       <td><code>05_mm_production.html</code></td>
       <td>SpatialAudioEngine class, source LOD, occlusion via raycasting, dynamic source management, full diagnostic HUD</td>
+    </tr>
+    <tr>
+      <td>6</td>
+      <td><a href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars/tree/main/06_hometheater" target="_blank" rel="noopener">Home Theater Simulator &#8599;</a></td>
+      <td><code>06_hometheater/</code> (Python app)</td>
+      <td>Qt Spatial Audio (native Resonance) + QWebEngineView hybrid architecture, QWebChannel Python↔JS bridge, ITU-R BS.775 speaker layout, 9-source permanent volume-matrix tier switching (Mono / Stereo / 5.1), two acoustic room variants, per-channel mute/solo, per-frame camera-to-listener pose loop via <code>QAudioListener</code></td>
     </tr>
   </tbody>
 </table>
