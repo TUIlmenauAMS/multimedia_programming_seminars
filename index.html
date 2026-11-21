@@ -339,6 +339,14 @@
   .icon-rtc5 { background: rgba(167, 139, 250, 0.12); color: var(--accent2); }
   .icon-rtc6 { background: rgba(79, 156, 249, 0.12);  color: var(--accent); }
 
+  /* Resonance Audio icons */
+  .icon-res0 { background: rgba(79, 156, 249, 0.12);  color: var(--accent); }
+  .icon-res1 { background: rgba(251, 146, 60, 0.12);  color: var(--orange); }
+  .icon-res2 { background: rgba(52, 211, 153, 0.12);  color: var(--green); }
+  .icon-res3 { background: rgba(167, 139, 250, 0.12); color: var(--accent2); }
+  .icon-res4 { background: rgba(79, 156, 249, 0.12);  color: var(--accent); }
+  .icon-res5 { background: rgba(251, 146, 60, 0.12);  color: var(--orange); }
+
   .demo-icon svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
 
   .demo-title {
@@ -789,6 +797,94 @@
               <div class="demo-title">Production Pattern</div>
               <div class="demo-desc">Capstone: perfect negotiation, multi-track, DataChannel chat alongside video, live <code style="font-family:var(--mono);font-size:11px">getStats()</code> dashboard, and ICE restart. The shape a real call screen takes.</div>
               <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- Chapter 05 + demos -->
+      <div class="notebook-row has-demos">
+        <div class="notebook-row-top">
+          <div class="notebook-num">05</div>
+          <div class="notebook-title">
+            <a href="05_multimediaprogrammierung_resonance.html">Google Resonance Audio for Web</a>
+            <p class="notebook-desc">Binaural (HRTF) and ambisonic spatial audio in the browser with Resonance Audio — ITD/ILD and HRTF theory, room acoustics and material-based reverb, ambisonic encoding, and a production-grade spatial audio engine.</p>
+          </div>
+          <div class="badge-group">
+            <a class="badge badge-page"
+               href="05_multimediaprogrammierung_resonance.html"
+               rel="noopener">
+              <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" stroke-width="1.5" stroke="currentColor" fill="none" stroke-linecap="round" stroke-linejoin="round"/><polyline points="14 2 14 8 20 8" stroke="currentColor" fill="none" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Read
+            </a>
+            <a class="badge badge-github"
+               href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars/blob/main/05_multimediaprogrammierung_resonance.html"
+               target="_blank" rel="noopener">
+              <svg viewBox="0 0 24 24"><path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 00-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0020 4.77 5.07 5.07 0 0019.91 1S18.73.65 16 2.48a13.38 13.38 0 00-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 005 4.77a5.44 5.44 0 00-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 009 18.13V22"/></svg>
+              GitHub
+            </a>
+          </div>
+        </div>
+
+        <div class="demo-subsection">
+          <p class="demo-sublabel">Interactive demos — Resonance Audio · HRTF &amp; ambisonic spatial sound</p>
+          <div class="demo-grid">
+
+            <a class="demo-card" href="05_mm_binaural_lab.html" target="_blank" rel="noopener">
+              <div class="demo-icon icon-res0">
+                <svg viewBox="0 0 24 24"><path d="M3 14v-2a9 9 0 0118 0v2"/><path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3z"/></svg>
+              </div>
+              <div class="demo-title">Binaural Lab</div>
+              <div class="demo-desc">HRTF vs. flat stereo panning compared live, with ITD/ILD readouts and an HRTF-gain sphere visualization as a source orbits the listener.</div>
+              <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+            <a class="demo-card" href="05_mm_room_acoustics.html" target="_blank" rel="noopener">
+              <div class="demo-icon icon-res1">
+                <svg viewBox="0 0 24 24"><path d="M3 21V9l9-6 9 6v12"/><path d="M9 21v-8h6v8"/></svg>
+              </div>
+              <div class="demo-title">Room Acoustics Lab</div>
+              <div class="demo-desc">First-person navigation through a room whose walls carry real absorption coefficients — RT60 from the Sabine formula, early reflections, and live material swapping.</div>
+              <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+            <a class="demo-card" href="05_mm_acoustic_scene.html" target="_blank" rel="noopener">
+              <div class="demo-icon icon-res2">
+                <svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+              </div>
+              <div class="demo-title">Acoustic Scene</div>
+              <div class="demo-desc">A live concert stage with three real multitrack stems, 3D GLB models, Dry/Wet room switching, and per-source mute/solo/level mixing.</div>
+              <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+            <a class="demo-card" href="05_mm_ambisonics.html" target="_blank" rel="noopener">
+              <div class="demo-icon icon-res3">
+                <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="9" ry="3.5"/><path d="M12 3v18"/></svg>
+              </div>
+              <div class="demo-title">Ambisonics Visualizer</div>
+              <div class="demo-desc">Ambisonic encoding and head rotation on a Viridis-mapped energy sphere, comparing order 1 vs. order 3 spatial resolution.</div>
+              <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+            <a class="demo-card" href="05_mm_production.html" target="_blank" rel="noopener">
+              <div class="demo-icon icon-res4">
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+              </div>
+              <div class="demo-title">Production Engine</div>
+              <div class="demo-desc">A reusable <code style="font-family:var(--mono);font-size:11px">SpatialAudioEngine</code> class: source LOD, raycast-based occlusion, dynamic source management, and a full diagnostic HUD.</div>
+              <div class="demo-link-label">Open demo <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
+            </a>
+
+            <a class="demo-card"
+               href="https://github.com/TUIlmenauAMS/multimedia_programming_seminars/tree/main/06_hometheater"
+               target="_blank" rel="noopener">
+              <div class="demo-icon icon-res5">
+                <svg viewBox="0 0 24 24"><rect x="2" y="7" width="15" height="10" rx="2"/><polyline points="17,10 22,7 22,17 17,14"/></svg>
+              </div>
+              <div class="demo-title">Home Theater Simulator</div>
+              <div class="demo-desc">Native PySide6 app: Qt Spatial Audio (Resonance Audio in Qt's C++ layer) driving a 5.1 surround speaker layout, synced to a Three.js scene over QWebChannel.</div>
+              <div class="demo-link-label">View source <svg viewBox="0 0 12 12"><path d="M2 10 L10 2 M5 2 h5 v5"/></svg></div>
             </a>
 
           </div>
